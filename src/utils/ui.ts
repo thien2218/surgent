@@ -1,5 +1,3 @@
-import type { EditorComponent, Focusable } from "@earendil-works/pi-tui";
-
 export type EditorMode = "prompt" | "bash";
 
 export type ParsedText = {
@@ -26,10 +24,4 @@ export function toActualText(text: string, mode: EditorMode): string {
 
   const match = text.match(/^(\s*)(.*)$/s);
   return `${match?.[1] ?? ""}!${match?.[2] ?? ""}`;
-}
-
-export function isFocusable(
-  editor: EditorComponent,
-): editor is EditorComponent & Focusable {
-  return "focused" in editor;
 }

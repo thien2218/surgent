@@ -105,3 +105,23 @@ export function clearApiKey(
 ): void {
   authStorage.remove(providerId);
 }
+
+export function getArgumentCompletions(prefix: string) {
+  const normalized = prefix.trim().toLowerCase();
+  const matches = WEB_TOOLS_PROVIDERS.filter((provider) =>
+    provider.aliases.some((alias) => alias.startsWith(normalized)),
+  );
+
+  if (matches.length === 0) {
+    return null;
+  }
+
+  return matches.map((provider) => ({
+    value: provider.id,
+    label: provider.label,
+  }));
+}
+
+export function getSupportedProviderNames(): string {
+  return WEB_TOOLS_PROVIDERS.map((provider) => provider.id).join(", ");
+}

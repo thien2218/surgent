@@ -1,4 +1,8 @@
-import { getHttpError, joinSnippets, normalizeSearchResult } from "../utils.js";
+import {
+  getHttpError,
+  joinSnippets,
+  normalizeSearchResult,
+} from "../helpers.js";
 import type { WebSearchMode, WebSearchResult } from "../types.js";
 import { isDefined } from "../../utils.js";
 
@@ -14,7 +18,6 @@ interface BraveSearchItem {
 }
 
 interface BraveSearchResponse {
-  results?: BraveSearchItem[];
   news?: {
     results?: BraveSearchItem[];
   };
@@ -52,10 +55,7 @@ export async function searchWithBrave(
   }
 
   const payload = (await response.json()) as BraveSearchResponse;
-  const items =
-    mode === "news"
-      ? (payload.news?.results ?? payload.results ?? [])
-      : (payload.web?.results ?? payload.results ?? []);
+  const items = payload[mode]?.results ?? [];
 
   return items
     .map((item) =>

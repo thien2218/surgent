@@ -9,29 +9,10 @@ import {
   getWebToolsProviderByLabel,
   getWebToolsProviderOptions,
   setApiKey,
-} from "./utils.js";
-import { WEB_TOOLS_PROVIDERS } from "../settings.js";
-import type { WebToolsProvider } from "../types.js";
-
-function getArgumentCompletions(prefix: string) {
-  const normalized = prefix.trim().toLowerCase();
-  const matches = WEB_TOOLS_PROVIDERS.filter((provider) =>
-    provider.aliases.some((alias) => alias.startsWith(normalized)),
-  );
-
-  if (matches.length === 0) {
-    return null;
-  }
-
-  return matches.map((provider) => ({
-    value: provider.aliases[0],
-    label: provider.label,
-  }));
-}
-
-function getSupportedProviderNames(): string {
-  return WEB_TOOLS_PROVIDERS.map((provider) => provider.aliases[0]).join(", ");
-}
+  getArgumentCompletions,
+  getSupportedProviderNames,
+} from "./helpers.js";
+import type { WebToolsProvider } from "./types.js";
 
 async function selectProvider(
   ctx: ExtensionCommandContext,
@@ -53,20 +34,22 @@ async function chooseAction(
   provider: WebToolsProvider,
 ): Promise<"save" | "clear" | undefined> {
   const authStorage = ctx.modelRegistry.authStorage;
-  const options = authStorage.getAuthStatus(provider.id).configured
-    ? ["Save API key", "Clear saved API key"]
-    : ["Save API key"];
+  const configured = authStorage.getAuthStatus(provider.id).configured;
 
-  const selected = await ctx.ui.select(
-    `${provider.label} credentials`,
-    options,
-  );
+  if (configured) {
+    const selected = await ctx.ui.select(`${provider.label} credentials`, [
+      "Save new API key",
+      "Clear saved API key",
+    ]);
 
-  if (!selected) {
-    return undefined;
+    if (!selected) {
+      return undefined;
+    }
+
+    return selected === "Clear saved API key" ? "clear" : "save";
   }
 
-  return selected === "Clear saved API key" ? "clear" : "save";
+  return "save";
 }
 
 async function saveProviderKey(

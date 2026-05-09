@@ -111,7 +111,7 @@ export default function webLoginCommand(pi: ExtensionAPI) {
       if (!provider) {
         if (arg) {
           ctx.ui.notify(
-            `Unknown provider \"${arg}\". Use ${getSupportedProviderNames()}.`,
+            `Unknown provider \"${arg}\". Supported providers: ${getSupportedProviderNames()}.`,
             "error",
           );
         }

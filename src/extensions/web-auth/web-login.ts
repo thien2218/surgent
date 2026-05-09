@@ -29,6 +29,10 @@ function getArgumentCompletions(prefix: string) {
   }));
 }
 
+function getSupportedProviderNames(): string {
+  return WEB_AUTH_PROVIDERS.map((provider) => provider.aliases[0]).join(", ");
+}
+
 async function selectProvider(
   ctx: ExtensionCommandContext,
 ): Promise<WebAuthProvider | undefined> {
@@ -49,8 +53,7 @@ async function chooseAction(
   provider: WebAuthProvider,
 ): Promise<"save" | "clear" | undefined> {
   const authStorage = ctx.modelRegistry.authStorage;
-  const configured = authStorage.getAuthStatus(provider.id).configured;
-  const options = configured
+  const options = authStorage.getAuthStatus(provider.id).configured
     ? ["Save API key", "Clear saved API key"]
     : ["Save API key"];
 
@@ -71,9 +74,8 @@ async function saveProviderKey(
   provider: WebAuthProvider,
 ): Promise<void> {
   const authStorage = ctx.modelRegistry.authStorage;
-  const currentlyConfigured = authStorage.getAuthStatus(provider.id).configured;
 
-  if (currentlyConfigured) {
+  if (authStorage.getAuthStatus(provider.id).configured) {
     const replace = await ctx.ui.confirm(
       `${provider.label} API key`,
       `${provider.label} already has a saved API key. Replace it?`,
@@ -126,7 +128,7 @@ export default function webLoginCommand(pi: ExtensionAPI) {
       if (!provider) {
         if (arg) {
           ctx.ui.notify(
-            `Unknown provider \"${arg}\". Use tavily or brave.`,
+            `Unknown provider \"${arg}\". Use ${getSupportedProviderNames()}.`,
             "error",
           );
         }

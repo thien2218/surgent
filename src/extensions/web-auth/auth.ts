@@ -11,6 +11,11 @@ export const WEB_AUTH_PROVIDERS = [
     label: "Brave Search",
     aliases: ["brave", "brave-search"],
   },
+  {
+    id: "firecrawl",
+    label: "Firecrawl",
+    aliases: ["firecrawl", "firecrawler"],
+  },
 ] as const;
 
 export type WebAuthProvider = (typeof WEB_AUTH_PROVIDERS)[number];

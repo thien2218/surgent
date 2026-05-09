@@ -1,9 +1,4 @@
-export type EditorMode = "prompt" | "bash-included" | "bash-excluded";
-
-export type ParsedText = {
-  mode: EditorMode;
-  displayText: string;
-};
+import type { EditorMode, ParsedText } from "./types.js";
 
 export function isBashMode(mode: EditorMode): boolean {
   return mode === "bash-included" || mode === "bash-excluded";

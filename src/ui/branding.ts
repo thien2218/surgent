@@ -4,7 +4,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { readFileSync } from "node:fs";
 
-const PACKAGE_JSON_PATH = new URL("../../../package.json", import.meta.url);
+const PACKAGE_JSON_PATH = new URL("../../package.json", import.meta.url);
 const packageJson = JSON.parse(readFileSync(PACKAGE_JSON_PATH, "utf8")) as {
   name: string;
   version: string;

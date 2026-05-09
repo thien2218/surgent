@@ -9,8 +9,8 @@ import {
   getWebAuthProviderByLabel,
   getWebAuthProviderOptions,
   setApiKey,
-  type WebAuthProvider,
-} from "./auth.js";
+} from "./utils.js";
+import type { WebAuthProvider } from "./types.js";
 import { WEB_TOOLS_PROVIDERS } from "../settings.js";
 
 function getArgumentCompletions(prefix: string) {

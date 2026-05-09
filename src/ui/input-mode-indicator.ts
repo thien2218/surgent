@@ -11,12 +11,8 @@ import {
   type EditorTheme,
   type TUI,
 } from "@earendil-works/pi-tui";
-import {
-  isBashMode,
-  parseActualText,
-  toActualText,
-  type EditorMode,
-} from "../../utils/ui.js";
+import { isBashMode, parseActualText, toActualText } from "./utils.js";
+import type { EditorMode } from "./types.js";
 
 const INDICATOR_GUTTER_WIDTH = 2;
 

@@ -1,8 +1,6 @@
 import type { AuthStorage } from "@earendil-works/pi-coding-agent";
 import { WEB_TOOLS_PROVIDERS } from "../settings.js";
-
-export type WebAuthProvider = (typeof WEB_TOOLS_PROVIDERS)[number];
-export type WebAuthProviderId = WebAuthProvider["id"];
+import type { WebAuthProvider, WebAuthProviderId } from "./types.js";
 
 export function findWebAuthProvider(
   input: string,

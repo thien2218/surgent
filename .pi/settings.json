@@ -1,7 +1,3 @@
 {
-  "extensions": [
-    "../src/extensions/ui",
-    "../src/extensions/web-auth",
-    "../src/extensions/web-search"
-  ]
+  "extensions": ["../src/ui", "../src/web-auth", "../src/web-search"]
 }

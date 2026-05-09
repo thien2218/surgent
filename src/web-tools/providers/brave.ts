@@ -1,10 +1,6 @@
-import {
-  getHttpError,
-  isDefined,
-  joinSnippets,
-  normalizeSearchResult,
-} from "../utils.js";
+import { getHttpError, joinSnippets, normalizeSearchResult } from "../utils.js";
 import type { WebSearchMode, WebSearchResult } from "../types.js";
+import { isDefined } from "../../utils.js";
 
 interface BraveSearchItem {
   title?: string;

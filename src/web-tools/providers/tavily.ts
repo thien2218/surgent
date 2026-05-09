@@ -1,5 +1,7 @@
-import { isDefined, normalizeSearchResult } from "../utils.js";
+import { normalizeSearchResult } from "../utils.js";
 import type { WebSearchMode, WebSearchResult } from "../types.js";
+import { isDefined } from "../../utils.js";
+import { tavily } from "@tavily/core";
 
 interface TavilySearchResponse {
   results?: Array<{
@@ -14,20 +16,7 @@ export async function searchWithTavily(
   query: string,
   mode: WebSearchMode,
 ): Promise<WebSearchResult[]> {
-  const tavilyModule = (await import("@tavily/core")) as {
-    tavily?: (options: { apiKey: string }) => {
-      search: (
-        query: string,
-        options: Record<string, unknown>,
-      ) => Promise<unknown>;
-    };
-  };
-
-  if (typeof tavilyModule.tavily !== "function") {
-    throw new Error("Tavily SDK export was not found.");
-  }
-
-  const client = tavilyModule.tavily({ apiKey });
+  const client = tavily({ apiKey });
   const response = (await client.search(query, {
     includeAnswer: false,
     includeRawContent: false,

@@ -9,13 +9,13 @@ import {
   getWebAuthProviderByLabel,
   getWebAuthProviderOptions,
   setApiKey,
-  WEB_AUTH_PROVIDERS,
   type WebAuthProvider,
 } from "./auth.js";
+import { WEB_TOOLS_PROVIDERS } from "../settings.js";
 
 function getArgumentCompletions(prefix: string) {
   const normalized = prefix.trim().toLowerCase();
-  const matches = WEB_AUTH_PROVIDERS.filter((provider) =>
+  const matches = WEB_TOOLS_PROVIDERS.filter((provider) =>
     provider.aliases.some((alias) => alias.startsWith(normalized)),
   );
 
@@ -30,7 +30,7 @@ function getArgumentCompletions(prefix: string) {
 }
 
 function getSupportedProviderNames(): string {
-  return WEB_AUTH_PROVIDERS.map((provider) => provider.aliases[0]).join(", ");
+  return WEB_TOOLS_PROVIDERS.map((provider) => provider.aliases[0]).join(", ");
 }
 
 async function selectProvider(

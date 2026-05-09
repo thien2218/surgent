@@ -1,24 +1,7 @@
 import type { AuthStorage } from "@earendil-works/pi-coding-agent";
+import { WEB_TOOLS_PROVIDERS } from "../settings.js";
 
-export const WEB_AUTH_PROVIDERS = [
-  {
-    id: "tavily",
-    label: "Tavily",
-    aliases: ["tavily"],
-  },
-  {
-    id: "brave-search",
-    label: "Brave Search",
-    aliases: ["brave", "brave-search"],
-  },
-  {
-    id: "firecrawl",
-    label: "Firecrawl",
-    aliases: ["firecrawl", "firecrawler"],
-  },
-] as const;
-
-export type WebAuthProvider = (typeof WEB_AUTH_PROVIDERS)[number];
+export type WebAuthProvider = (typeof WEB_TOOLS_PROVIDERS)[number];
 export type WebAuthProviderId = WebAuthProvider["id"];
 
 export function findWebAuthProvider(
@@ -27,19 +10,19 @@ export function findWebAuthProvider(
   const normalized = input.trim().toLowerCase();
   if (!normalized) return undefined;
 
-  return WEB_AUTH_PROVIDERS.find((provider) =>
+  return WEB_TOOLS_PROVIDERS.find((provider) =>
     provider.aliases.some((alias) => alias === normalized),
   );
 }
 
 export function getWebAuthProviderOptions(): string[] {
-  return WEB_AUTH_PROVIDERS.map((provider) => provider.label);
+  return WEB_TOOLS_PROVIDERS.map((provider) => provider.label);
 }
 
 export function getWebAuthProviderByLabel(
   label: string,
 ): WebAuthProvider | undefined {
-  return WEB_AUTH_PROVIDERS.find((provider) => provider.label === label);
+  return WEB_TOOLS_PROVIDERS.find((provider) => provider.label === label);
 }
 
 export function formatProviderStatus(

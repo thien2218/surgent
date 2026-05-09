@@ -1,4 +1,4 @@
-import { normalizeSearchResult } from "../utils.js";
+import { normalizeSearchResult } from "../helpers.js";
 import type { WebSearchMode, WebSearchResult } from "../types.js";
 import { isDefined } from "../../utils.js";
 import Firecrawl from "@mendable/firecrawl-js";
@@ -10,13 +10,7 @@ interface FirecrawlSearchItem {
   url?: string;
 }
 
-interface FirecrawlSearchData {
-  news?: FirecrawlSearchItem[];
-  web?: FirecrawlSearchItem[];
-}
-
 interface FirecrawlSearchResponse {
-  data?: FirecrawlSearchData;
   news?: FirecrawlSearchItem[];
   web?: FirecrawlSearchItem[];
 }
@@ -31,9 +25,7 @@ export async function searchWithFirecrawl(
     limit: 10,
     sources: [mode],
   })) as FirecrawlSearchResponse;
-
-  const data = response.data ?? response;
-  const items = mode === "news" ? (data.news ?? []) : (data.web ?? []);
+  const items = response[mode] ?? [];
 
   return items
     .map((item) =>

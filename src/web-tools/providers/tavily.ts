@@ -1,4 +1,4 @@
-import { normalizeSearchResult } from "../utils.js";
+import { normalizeSearchResult } from "../helpers.js";
 import type { WebSearchMode, WebSearchResult } from "../types.js";
 import { isDefined } from "../../utils.js";
 import { tavily } from "@tavily/core";

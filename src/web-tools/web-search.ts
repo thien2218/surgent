@@ -7,7 +7,7 @@ import {
   searchWithFirecrawl,
   searchWithTavily,
 } from "./providers/index.js";
-import { formatErrorMessage } from "./utils.js";
+import { formatErrorMessage } from "./helpers.js";
 import type {
   WebSearchMode,
   WebSearchResult,

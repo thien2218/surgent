@@ -4,14 +4,14 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import {
   clearApiKey,
-  findWebAuthProvider,
+  findWebToolsProvider,
   formatProviderStatus,
-  getWebAuthProviderByLabel,
-  getWebAuthProviderOptions,
+  getWebToolsProviderByLabel,
+  getWebToolsProviderOptions,
   setApiKey,
 } from "./utils.js";
-import type { WebAuthProvider } from "./types.js";
 import { WEB_TOOLS_PROVIDERS } from "../settings.js";
+import type { WebToolsProvider } from "../types.js";
 
 function getArgumentCompletions(prefix: string) {
   const normalized = prefix.trim().toLowerCase();
@@ -35,22 +35,22 @@ function getSupportedProviderNames(): string {
 
 async function selectProvider(
   ctx: ExtensionCommandContext,
-): Promise<WebAuthProvider | undefined> {
+): Promise<WebToolsProvider | undefined> {
   const selected = await ctx.ui.select(
     "Configure web provider authentication",
-    getWebAuthProviderOptions(),
+    getWebToolsProviderOptions(),
   );
 
   if (!selected) {
     return undefined;
   }
 
-  return getWebAuthProviderByLabel(selected);
+  return getWebToolsProviderByLabel(selected);
 }
 
 async function chooseAction(
   ctx: ExtensionCommandContext,
-  provider: WebAuthProvider,
+  provider: WebToolsProvider,
 ): Promise<"save" | "clear" | undefined> {
   const authStorage = ctx.modelRegistry.authStorage;
   const options = authStorage.getAuthStatus(provider.id).configured
@@ -71,7 +71,7 @@ async function chooseAction(
 
 async function saveProviderKey(
   ctx: ExtensionCommandContext,
-  provider: WebAuthProvider,
+  provider: WebToolsProvider,
 ): Promise<void> {
   const authStorage = ctx.modelRegistry.authStorage;
 
@@ -101,7 +101,7 @@ async function saveProviderKey(
 
 async function clearProviderKey(
   ctx: ExtensionCommandContext,
-  provider: WebAuthProvider,
+  provider: WebToolsProvider,
 ): Promise<void> {
   const confirmed = await ctx.ui.confirm(
     `Clear ${provider.label} API key`,
@@ -122,7 +122,7 @@ export default function webLoginCommand(pi: ExtensionAPI) {
     handler: async (args, ctx) => {
       const arg = args.trim();
       const provider = arg
-        ? findWebAuthProvider(arg)
+        ? findWebToolsProvider(arg)
         : await selectProvider(ctx);
 
       if (!provider) {

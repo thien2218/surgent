@@ -2,17 +2,18 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { WEB_TOOLS_PROVIDERS } from "../settings.js";
-import { searchWithBrave } from "./providers/brave.js";
-import { searchWithFirecrawl } from "./providers/firecrawl.js";
-import { searchWithTavily } from "./providers/tavily.js";
+import {
+  searchWithBrave,
+  searchWithFirecrawl,
+  searchWithTavily,
+} from "./providers/index.js";
 import { formatErrorMessage } from "./utils.js";
 import {
   type WebSearchMode,
   type WebSearchResult,
   type WebSearchToolDetails,
 } from "./types.js";
-
-type WebSearchProviderId = (typeof WEB_TOOLS_PROVIDERS)[number]["id"];
+import { type WebToolsProviderId } from "../types.js";
 
 const webSearchTool = defineTool({
   name: "web_search",
@@ -104,7 +105,7 @@ export default function registerWebSearchTool(pi: ExtensionAPI) {
 }
 
 async function searchWithProvider(
-  providerId: WebSearchProviderId,
+  providerId: WebToolsProviderId,
   apiKey: string,
   query: string,
   mode: WebSearchMode,

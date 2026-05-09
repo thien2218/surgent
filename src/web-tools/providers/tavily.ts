@@ -1,5 +1,15 @@
-import { normalizeSearchResult } from "../helpers.js";
-import type { WebSearchMode, WebSearchResult } from "../types.js";
+import {
+  normalizeFetchedContent,
+  normalizeSearchResult,
+  toCanonicalUrl,
+} from "../helpers.js";
+import type {
+  WebFetchFailure,
+  WebFetchProviderResponse,
+  WebFetchResult,
+  WebSearchMode,
+  WebSearchResult,
+} from "../types.js";
 import { isDefined } from "../../utils.js";
 import { tavily } from "@tavily/core";
 
@@ -8,6 +18,17 @@ interface TavilySearchResponse {
     title?: string;
     content?: string;
     url?: string;
+  }>;
+}
+
+interface TavilyExtractResponse {
+  failedResults?: Array<{
+    error?: string;
+    url: string;
+  }>;
+  results?: Array<{
+    rawContent?: string;
+    url: string;
   }>;
 }
 
@@ -34,4 +55,50 @@ export async function searchWithTavily(
       }),
     )
     .filter(isDefined);
+}
+
+export async function fetchWithTavily(
+  apiKey: string,
+  urls: string[],
+): Promise<WebFetchProviderResponse> {
+  const client = tavily({ apiKey });
+  const response = (await client.extract(urls, {
+    format: "markdown",
+  })) as TavilyExtractResponse;
+  const resultByUrl = new Map(
+    (response.results ?? []).map((item) => [toCanonicalUrl(item.url), item] as const),
+  );
+  const failedByUrl = new Map(
+    (response.failedResults ?? []).map((item) => [
+      toCanonicalUrl(item.url),
+      item.error ?? "Tavily extract failed.",
+    ] as const),
+  );
+  const results: WebFetchResult[] = [];
+  const failures: WebFetchFailure[] = [];
+
+  for (const requestedUrl of urls) {
+    const canonicalUrl = toCanonicalUrl(requestedUrl);
+    const item = resultByUrl.get(canonicalUrl);
+    const content = normalizeFetchedContent(item?.rawContent);
+
+    if (content) {
+      results.push({
+        content,
+        contentKind: "markdown",
+        provider: "tavily",
+        requestedUrl,
+        resolvedUrl: item?.url ?? requestedUrl,
+      });
+      continue;
+    }
+
+    failures.push({
+      message: failedByUrl.get(canonicalUrl) ?? "Tavily returned no content.",
+      provider: "tavily",
+      requestedUrl,
+    });
+  }
+
+  return { failures, results };
 }

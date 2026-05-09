@@ -8,12 +8,12 @@ import {
   searchWithTavily,
 } from "./providers/index.js";
 import { formatErrorMessage } from "./utils.js";
-import {
-  type WebSearchMode,
-  type WebSearchResult,
-  type WebSearchToolDetails,
+import type {
+  WebSearchMode,
+  WebSearchResult,
+  WebSearchToolDetails,
+  WebToolsProviderId,
 } from "./types.js";
-import { type WebToolsProviderId } from "../types.js";
 
 const webSearchTool = defineTool({
   name: "web_search",
@@ -46,9 +46,7 @@ const webSearchTool = defineTool({
 
       const apiKey = await ctx.modelRegistry.authStorage.getApiKey(
         provider.id,
-        {
-          includeFallback: false,
-        },
+        { includeFallback: false },
       );
 
       if (!apiKey) {

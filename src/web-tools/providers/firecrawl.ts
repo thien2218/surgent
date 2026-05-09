@@ -1,5 +1,7 @@
-import { isDefined, normalizeSearchResult } from "../utils.js";
+import { normalizeSearchResult } from "../utils.js";
 import type { WebSearchMode, WebSearchResult } from "../types.js";
+import { isDefined } from "../../utils.js";
+import Firecrawl from "@mendable/firecrawl-js";
 
 interface FirecrawlSearchItem {
   title?: string;
@@ -24,37 +26,7 @@ export async function searchWithFirecrawl(
   query: string,
   mode: WebSearchMode,
 ): Promise<WebSearchResult[]> {
-  const firecrawlModule = (await import("@mendable/firecrawl-js")) as {
-    Firecrawl?: new (options: { apiKey: string }) => {
-      search: (
-        query: string,
-        options: Record<string, unknown>,
-      ) => Promise<unknown>;
-    };
-    FirecrawlApp?: new (options: { apiKey: string }) => {
-      search: (
-        query: string,
-        options: Record<string, unknown>,
-      ) => Promise<unknown>;
-    };
-    default?: new (options: { apiKey: string }) => {
-      search: (
-        query: string,
-        options: Record<string, unknown>,
-      ) => Promise<unknown>;
-    };
-  };
-
-  const FirecrawlClient =
-    firecrawlModule.FirecrawlApp ??
-    firecrawlModule.Firecrawl ??
-    firecrawlModule.default;
-
-  if (typeof FirecrawlClient !== "function") {
-    throw new Error("Firecrawl SDK export was not found.");
-  }
-
-  const client = new FirecrawlClient({ apiKey });
+  const client = new Firecrawl({ apiKey });
   const response = (await client.search(query, {
     limit: 10,
     sources: [mode],

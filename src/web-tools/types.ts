@@ -1,3 +1,5 @@
+import { WEB_TOOLS_PROVIDERS } from "../settings.js";
+
 export type WebSearchMode = "web" | "news";
 
 export interface WebSearchResult {
@@ -17,3 +19,6 @@ export interface WebSearchResultInput {
   description?: string | undefined;
   url?: string | undefined;
 }
+
+export type WebToolsProvider = (typeof WEB_TOOLS_PROVIDERS)[number];
+export type WebToolsProviderId = WebToolsProvider["id"];

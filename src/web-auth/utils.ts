@@ -1,10 +1,10 @@
 import type { AuthStorage } from "@earendil-works/pi-coding-agent";
 import { WEB_TOOLS_PROVIDERS } from "../settings.js";
-import type { WebAuthProvider, WebAuthProviderId } from "./types.js";
+import type { WebToolsProvider, WebToolsProviderId } from "../types.js";
 
-export function findWebAuthProvider(
+export function findWebToolsProvider(
   input: string,
-): WebAuthProvider | undefined {
+): WebToolsProvider | undefined {
   const normalized = input.trim().toLowerCase();
   if (!normalized) return undefined;
 
@@ -13,19 +13,19 @@ export function findWebAuthProvider(
   );
 }
 
-export function getWebAuthProviderOptions(): string[] {
+export function getWebToolsProviderOptions(): string[] {
   return WEB_TOOLS_PROVIDERS.map((provider) => provider.label);
 }
 
-export function getWebAuthProviderByLabel(
+export function getWebToolsProviderByLabel(
   label: string,
-): WebAuthProvider | undefined {
+): WebToolsProvider | undefined {
   return WEB_TOOLS_PROVIDERS.find((provider) => provider.label === label);
 }
 
 export function formatProviderStatus(
   authStorage: AuthStorage,
-  provider: WebAuthProvider,
+  provider: WebToolsProvider,
 ): string {
   const status = authStorage.getAuthStatus(provider.id);
   if (!status.configured) {
@@ -38,7 +38,7 @@ export function formatProviderStatus(
 
 export function setApiKey(
   authStorage: AuthStorage,
-  providerId: WebAuthProviderId,
+  providerId: WebToolsProviderId,
   apiKey: string,
 ): void {
   authStorage.set(providerId, { type: "api_key", key: apiKey });
@@ -46,7 +46,7 @@ export function setApiKey(
 
 export function clearApiKey(
   authStorage: AuthStorage,
-  providerId: WebAuthProviderId,
+  providerId: WebToolsProviderId,
 ): void {
   authStorage.remove(providerId);
 }

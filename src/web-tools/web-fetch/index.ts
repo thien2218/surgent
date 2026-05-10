@@ -10,7 +10,7 @@ import {
   fetchWithJina,
   fetchWithNative,
   fetchWithTavily,
-} from "./providers/index.js";
+} from "../providers/index.js";
 import type {
   WebFetchArgumentsInput,
   WebFetchFailure,

@@ -5,12 +5,12 @@ import {
   getHttpError,
   isTextLikeContentType,
   normalizeFetchedContent,
-} from "../helpers.js";
+} from "../web-fetch/helpers.js";
 import type {
   WebFetchFailure,
   WebFetchProviderResponse,
   WebFetchResult,
-} from "../types.js";
+} from "../web-fetch/types.js";
 
 const turndown = new TurndownService();
 

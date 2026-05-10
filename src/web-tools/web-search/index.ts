@@ -1,18 +1,18 @@
 import { StringEnum } from "@earendil-works/pi-ai";
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { WEB_TOOLS_PROVIDERS } from "../settings.js";
+import { WEB_TOOLS_PROVIDERS } from "../../settings.js";
 import {
   searchWithBrave,
   searchWithFirecrawl,
   searchWithTavily,
-} from "./providers/index.js";
+} from "../providers/index.js";
 import { formatErrorMessage } from "./helpers.js";
+import type { WebToolsProviderId } from "../web-login/types.js";
 import type {
   WebSearchMode,
   WebSearchResult,
   WebSearchToolDetails,
-  WebToolsProviderId,
 } from "./types.js";
 
 const webSearchTool = defineTool({

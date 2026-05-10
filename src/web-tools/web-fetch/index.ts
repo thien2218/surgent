@@ -12,7 +12,6 @@ import {
   fetchWithTavily,
 } from "../providers/index.js";
 import type {
-  WebFetchArgumentsInput,
   WebFetchFailure,
   WebFetchProviderId,
   WebFetchProviderResponse,
@@ -33,17 +32,12 @@ const webFetchTool = defineTool({
     "Use web_fetch when the task depends on extracting readable page content in markdown or plain text.",
   ],
   parameters: Type.Object({
-    url: Type.Optional(
-      Type.String({ description: "A single HTTP(S) URL to fetch" }),
-    ),
-    urls: Type.Optional(
-      Type.Array(Type.String(), {
-        description: "Multiple HTTP(S) URLs to fetch in one call",
-      }),
-    ),
+    urls: Type.Array(Type.String(), {
+      description: "One or multiple HTTP(S) URLs to fetch in one call",
+    }),
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-    const urls = getValidatedUrls(params);
+    const urls = getValidatedUrls(params.urls);
     const attempts: string[] = [];
     const resultsByUrl = new Map<string, WebFetchResult>();
     const failuresByUrl = new Map<string, WebFetchFailure>();
@@ -58,7 +52,11 @@ const webFetchTool = defineTool({
         throw new Error("web_fetch was cancelled.");
       }
 
-      const apiKey = await getProviderApiKey(provider.id, ctx);
+      const apiKey = await ctx.modelRegistry.authStorage.getApiKey(
+        provider.id,
+        { includeFallback: false },
+      );
+
       if (
         (provider.id === "firecrawl" || provider.id === "tavily") &&
         !apiKey
@@ -141,8 +139,8 @@ async function fetchWithProvider(
   }
 }
 
-function getValidatedUrls(params: WebFetchArgumentsInput): string[] {
-  const rawUrls = normalizeUrlInput(params);
+function getValidatedUrls(urls: string[]): string[] {
+  const rawUrls = normalizeUrlInput(urls);
   if (rawUrls.length === 0) {
     throw new Error("Provide at least one URL in `url` or `urls`.");
   }
@@ -193,13 +191,4 @@ function getAggregateProvider(
   }
 
   return results[0]?.provider;
-}
-
-async function getProviderApiKey(
-  providerId: WebFetchProviderId,
-  ctx: Parameters<typeof webFetchTool.execute>[4],
-): Promise<string | undefined> {
-  return ctx.modelRegistry.authStorage.getApiKey(providerId, {
-    includeFallback: false,
-  });
 }

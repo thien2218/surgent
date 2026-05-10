@@ -2,18 +2,20 @@ import {
   formatErrorMessage,
   getHttpError,
   normalizeFetchedContent,
-} from "../helpers.js";
+} from "../web-fetch/helpers.js";
 import type {
   WebFetchFailure,
   WebFetchProviderResponse,
   WebFetchResult,
-} from "../types.js";
+} from "../web-fetch/types.js";
 
 export async function fetchWithJina(
   urls: string[],
   signal: AbortSignal | undefined,
 ): Promise<WebFetchProviderResponse> {
-  const settled = await Promise.all(urls.map(async (url) => fetchViaJina(url, signal)));
+  const settled = await Promise.all(
+    urls.map(async (url) => fetchViaJina(url, signal)),
+  );
 
   return {
     failures: settled.flatMap((item) => item.failure ?? []),

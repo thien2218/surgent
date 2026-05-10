@@ -6,11 +6,11 @@ import {
   clearApiKey,
   findWebToolsProvider,
   formatProviderStatus,
+  getArgumentCompletions,
+  getSupportedProviderNames,
   getWebToolsProviderByLabel,
   getWebToolsProviderOptions,
   setApiKey,
-  getArgumentCompletions,
-  getSupportedProviderNames,
 } from "./helpers.js";
 import type { WebToolsProvider } from "./types.js";
 

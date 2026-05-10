@@ -2,8 +2,8 @@ import {
   getHttpError,
   joinSnippets,
   normalizeSearchResult,
-} from "../helpers.js";
-import type { WebSearchMode, WebSearchResult } from "../types.js";
+} from "../web-search/helpers.js";
+import type { WebSearchMode, WebSearchResult } from "../web-search/types.js";
 import { isDefined } from "../../utils.js";
 
 interface BraveSearchItem {

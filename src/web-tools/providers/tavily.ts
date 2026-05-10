@@ -1,15 +1,14 @@
 import {
   normalizeFetchedContent,
-  normalizeSearchResult,
   toCanonicalUrl,
-} from "../helpers.js";
+} from "../web-fetch/helpers.js";
 import type {
   WebFetchFailure,
   WebFetchProviderResponse,
   WebFetchResult,
-  WebSearchMode,
-  WebSearchResult,
-} from "../types.js";
+} from "../web-fetch/types.js";
+import { normalizeSearchResult } from "../web-search/helpers.js";
+import type { WebSearchMode, WebSearchResult } from "../web-search/types.js";
 import { isDefined } from "../../utils.js";
 import { tavily } from "@tavily/core";
 
@@ -66,13 +65,18 @@ export async function fetchWithTavily(
     format: "markdown",
   })) as TavilyExtractResponse;
   const resultByUrl = new Map(
-    (response.results ?? []).map((item) => [toCanonicalUrl(item.url), item] as const),
+    (response.results ?? []).map(
+      (item) => [toCanonicalUrl(item.url), item] as const,
+    ),
   );
   const failedByUrl = new Map(
-    (response.failedResults ?? []).map((item) => [
-      toCanonicalUrl(item.url),
-      item.error ?? "Tavily extract failed.",
-    ] as const),
+    (response.failedResults ?? []).map(
+      (item) =>
+        [
+          toCanonicalUrl(item.url),
+          item.error ?? "Tavily extract failed.",
+        ] as const,
+    ),
   );
   const results: WebFetchResult[] = [];
   const failures: WebFetchFailure[] = [];

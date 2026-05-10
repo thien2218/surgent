@@ -1,15 +1,14 @@
 import {
   normalizeFetchedContent,
-  normalizeSearchResult,
   toCanonicalUrl,
-} from "../helpers.js";
+} from "../web-fetch/helpers.js";
 import type {
   WebFetchFailure,
   WebFetchProviderResponse,
   WebFetchResult,
-  WebSearchMode,
-  WebSearchResult,
-} from "../types.js";
+} from "../web-fetch/types.js";
+import { normalizeSearchResult } from "../web-search/helpers.js";
+import type { WebSearchMode, WebSearchResult } from "../web-search/types.js";
 import { isDefined } from "../../utils.js";
 import Firecrawl from "@mendable/firecrawl-js";
 

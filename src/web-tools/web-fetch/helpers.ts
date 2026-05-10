@@ -1,12 +1,8 @@
 import { normalizeText } from "../../utils.js";
-import type {
-  WebFetchArgumentsInput,
-  WebFetchContentKind,
-  WebFetchResult,
-} from "./types.js";
+import type { WebFetchContentKind, WebFetchResult } from "./types.js";
 
-export function normalizeUrlInput(input: WebFetchArgumentsInput): string[] {
-  const values = [input.url, ...(input.urls ?? [])]
+export function normalizeUrlInput(input: string[]): string[] {
+  const values = input
     .filter((value): value is string => typeof value === "string")
     .map((value) => value.trim())
     .filter((value) => value.length > 0);
@@ -33,7 +29,7 @@ export function toCanonicalUrl(value: string): string {
 }
 
 export function getFetchContentKind(
-  contentType: string | null | undefined,
+  contentType: string | null,
 ): WebFetchContentKind {
   const normalized = normalizeText(contentType).toLowerCase();
 
@@ -48,9 +44,7 @@ export function getFetchContentKind(
   return "text";
 }
 
-export function isTextLikeContentType(
-  contentType: string | null | undefined,
-): boolean {
+export function isTextLikeContentType(contentType: string | null): boolean {
   const normalized = normalizeText(contentType).toLowerCase();
 
   if (!normalized) {

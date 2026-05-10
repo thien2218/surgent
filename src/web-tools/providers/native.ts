@@ -63,7 +63,7 @@ async function fetchSingleUrl(
       result: {
         content,
         contentKind: inferNativeContentKind(rawBody, contentType),
-        provider: "native-fetch",
+        provider: "native",
         requestedUrl: url,
         resolvedUrl: response.url || url,
       },
@@ -72,7 +72,7 @@ async function fetchSingleUrl(
     return {
       failure: {
         message: formatErrorMessage(error),
-        provider: "native-fetch",
+        provider: "native",
         requestedUrl: url,
       },
     };

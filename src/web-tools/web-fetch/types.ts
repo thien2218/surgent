@@ -33,8 +33,3 @@ export interface WebFetchToolDetails<
   results: WebFetchResult[];
   failures: WebFetchFailure[];
 }
-
-export interface WebFetchArgumentsInput {
-  url?: string | undefined;
-  urls?: string[] | undefined;
-}

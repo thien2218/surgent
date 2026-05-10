@@ -1,5 +1,5 @@
 import type { AuthStorage } from "@earendil-works/pi-coding-agent";
-import { WEB_TOOLS_PROVIDERS } from "../../settings.js";
+import { WEB_TOOLS_PROVIDERS } from "../settings.js";
 import type { WebToolsProvider, WebToolsProviderId } from "./types.js";
 
 export function findWebToolsProvider(
@@ -9,10 +9,7 @@ export function findWebToolsProvider(
   if (!normalized) {
     return undefined;
   }
-
-  return WEB_TOOLS_PROVIDERS.find((provider) =>
-    provider.aliases.some((alias) => alias === normalized),
-  );
+  return WEB_TOOLS_PROVIDERS.find((provider) => provider.id === normalized);
 }
 
 export function getWebToolsProviderOptions(): string[] {
@@ -56,7 +53,7 @@ export function clearApiKey(
 export function getArgumentCompletions(prefix: string) {
   const normalized = prefix.trim().toLowerCase();
   const matches = WEB_TOOLS_PROVIDERS.filter((provider) =>
-    provider.aliases.some((alias) => alias.startsWith(normalized)),
+    provider.id.startsWith(normalized),
   );
 
   if (matches.length === 0) {

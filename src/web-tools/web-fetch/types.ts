@@ -1,8 +1,8 @@
+import type { WEB_FETCH_PROVIDERS } from "../settings.js";
+
 export type WebFetchProviderId =
-  | "native-fetch"
-  | "jina"
-  | "firecrawl"
-  | "tavily";
+  | (typeof WEB_FETCH_PROVIDERS)[number]["id"]
+  | "native";
 
 export type WebFetchContentKind = "markdown" | "text";
 

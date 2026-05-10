@@ -1,18 +1,18 @@
 import { StringEnum } from "@earendil-works/pi-ai";
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { WEB_TOOLS_PROVIDERS } from "../../settings.js";
+import { WEB_SEARCH_PROVIDERS } from "../settings.js";
 import {
   searchWithBrave,
   searchWithFirecrawl,
   searchWithTavily,
 } from "../providers/index.js";
 import { formatErrorMessage } from "./helpers.js";
-import type { WebToolsProviderId } from "../web-login/types.js";
 import type {
   WebSearchMode,
   WebSearchResult,
   WebSearchToolDetails,
+  WebSearchProviderId,
 } from "./types.js";
 
 const webSearchTool = defineTool({
@@ -39,7 +39,7 @@ const webSearchTool = defineTool({
     const attempts: string[] = [];
     let anyConfiguredProvider = false;
 
-    for (const provider of WEB_TOOLS_PROVIDERS) {
+    for (const provider of WEB_SEARCH_PROVIDERS) {
       if (signal?.aborted) {
         throw new Error("web_search was cancelled.");
       }
@@ -103,7 +103,7 @@ export default function registerWebSearchTool(pi: ExtensionAPI) {
 }
 
 async function searchWithProvider(
-  providerId: WebToolsProviderId,
+  providerId: WebSearchProviderId,
   apiKey: string,
   query: string,
   mode: WebSearchMode,
@@ -116,5 +116,7 @@ async function searchWithProvider(
       return searchWithBrave(apiKey, query, mode, signal);
     case "firecrawl":
       return searchWithFirecrawl(apiKey, query, mode);
+    default:
+      throw new Error("Invalid provider id.");
   }
 }

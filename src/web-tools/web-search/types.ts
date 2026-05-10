@@ -1,4 +1,6 @@
-import type { WebToolsProviderId } from "../web-login/types.js";
+import { WEB_SEARCH_PROVIDERS } from "../settings.js";
+
+export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDERS)[number]["id"];
 
 export type WebSearchMode = "web" | "news";
 
@@ -9,7 +11,7 @@ export interface WebSearchResult {
 }
 
 export interface WebSearchToolDetails<
-  TProvider extends string = WebToolsProviderId,
+  TProvider extends string = WebSearchProviderId,
 > {
   provider: TProvider;
   attempts: string[];

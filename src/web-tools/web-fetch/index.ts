@@ -19,16 +19,7 @@ import type {
   WebFetchResult,
   WebFetchToolDetails,
 } from "./types.js";
-
-const FETCH_PROVIDERS = [
-  { id: "native-fetch", label: "Native Fetch" },
-  { id: "jina", label: "Jina" },
-  { id: "firecrawl", label: "Firecrawl" },
-  { id: "tavily", label: "Tavily" },
-] as const satisfies ReadonlyArray<{
-  id: WebFetchProviderId;
-  label: string;
-}>;
+import { WEB_FETCH_PROVIDERS } from "../settings.js";
 
 const webFetchTool = defineTool({
   name: "web_fetch",
@@ -57,7 +48,7 @@ const webFetchTool = defineTool({
     const resultsByUrl = new Map<string, WebFetchResult>();
     const failuresByUrl = new Map<string, WebFetchFailure>();
 
-    for (const provider of FETCH_PROVIDERS) {
+    for (const provider of WEB_FETCH_PROVIDERS) {
       const pendingUrls = urls.filter((url) => !resultsByUrl.has(url));
       if (pendingUrls.length === 0) {
         break;
@@ -139,7 +130,7 @@ async function fetchWithProvider(
   signal: AbortSignal | undefined,
 ): Promise<WebFetchProviderResponse> {
   switch (providerId) {
-    case "native-fetch":
+    case "native":
       return fetchWithNative(urls, signal);
     case "jina":
       return fetchWithJina(urls, signal);

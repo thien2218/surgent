@@ -21,8 +21,7 @@ const webFetchTool = defineTool({
   label: "Web Fetch",
   description:
     "Fetch one or more public URLs and return normalized markdown or plain-text content.",
-  promptSnippet:
-    "Fetch one or more URLs and return normalized markdown or plain text content",
+  promptSnippet: "Fetch one or more URLs and return normalized markdown or plain text content",
   promptGuidelines: [
     "Use web_fetch when the user needs the content of one or more known URLs rather than a search results list.",
     "Use web_fetch when the task depends on extracting readable page content in markdown or plain text.",
@@ -48,26 +47,17 @@ const webFetchTool = defineTool({
         throw new Error("web_fetch was cancelled.");
       }
 
-      const apiKey = await ctx.modelRegistry.authStorage.getApiKey(
-        provider.id,
-        { includeFallback: false },
-      );
+      const apiKey = await ctx.modelRegistry.authStorage.getApiKey(provider.id, {
+        includeFallback: false,
+      });
 
-      if (
-        (provider.id === "firecrawl" || provider.id === "tavily") &&
-        !apiKey
-      ) {
+      if ((provider.id === "firecrawl" || provider.id === "tavily") && !apiKey) {
         attempts.push(`${provider.label}: not configured`);
         continue;
       }
 
       try {
-        const response = await fetchWithProvider(
-          provider.id,
-          pendingUrls,
-          apiKey,
-          signal,
-        );
+        const response = await fetchWithProvider(provider.id, pendingUrls, apiKey);
 
         for (const result of response.results) {
           resultsByUrl.set(result.url, result);
@@ -80,15 +70,13 @@ const webFetchTool = defineTool({
           }
         }
 
-        attempts.push(
-          formatAttempt(provider.label, pendingUrls.length, response),
-        );
+        attempts.push(formatAttempt(provider.label, pendingUrls.length, response));
       } catch (error) {
         attempts.push(`${provider.label}: ${formatErrorMessage(error)}`);
       }
     }
 
-    const orderedResults = urls.flatMap((url) => {
+    const results = urls.flatMap((url) => {
       const result = resultsByUrl.get(url);
       return result ? [result] : [];
     });
@@ -97,16 +85,16 @@ const webFetchTool = defineTool({
       return failure ? [failure] : [];
     });
 
-    if (orderedResults.length === 0) {
+    if (results.length === 0) {
       throw new Error(`Web fetch failed for all URLs. ${attempts.join(" | ")}`);
     }
 
     return {
-      content: [{ type: "text", text: formatFetchResults(orderedResults) }],
+      content: [{ type: "text", text: formatFetchResults(results) }],
       details: {
         attempts,
         failures,
-        results: orderedResults,
+        results,
       } satisfies WebFetchToolDetails,
     };
   },
@@ -120,13 +108,12 @@ async function fetchWithProvider(
   providerId: WebFetchProviderId,
   urls: string[],
   apiKey: string | undefined,
-  signal: AbortSignal | undefined,
 ): Promise<WebFetchProviderResponse> {
   switch (providerId) {
     case "native":
-      return fetchWithNative(urls, signal);
+      return fetchWithNative(urls);
     case "jina":
-      return fetchWithJina(urls, signal);
+      return fetchWithJina(urls);
     case "firecrawl":
       return fetchWithFirecrawl(apiKey ?? "", urls);
     case "tavily":

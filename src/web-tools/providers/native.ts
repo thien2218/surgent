@@ -13,13 +13,8 @@ import type {
 
 const turndown = new TurndownService();
 
-export async function fetchWithNative(
-  urls: string[],
-  signal: AbortSignal | undefined,
-): Promise<WebFetchProviderResponse> {
-  const settled = await Promise.all(
-    urls.map(async (url) => fetchSingleUrl(url, signal)),
-  );
+export async function fetchWithNative(urls: string[]): Promise<WebFetchProviderResponse> {
+  const settled = await Promise.all(urls.map(async (url) => fetchSingleUrl(url)));
 
   return {
     failures: settled.flatMap((item) => item.failure ?? []),
@@ -27,10 +22,7 @@ export async function fetchWithNative(
   };
 }
 
-async function fetchSingleUrl(
-  url: string,
-  signal: AbortSignal | undefined,
-): Promise<{
+async function fetchSingleUrl(url: string): Promise<{
   result?: WebFetchResult;
   failure?: WebFetchFailure;
 }> {
@@ -39,7 +31,6 @@ async function fetchSingleUrl(
       headers: {
         Accept: "text/html, text/plain, text/markdown;q=0.9, */*;q=0.1",
       },
-      signal: signal ?? null,
     });
 
     if (!response.ok) {
@@ -76,10 +67,7 @@ async function fetchSingleUrl(
   }
 }
 
-function normalizeNativeContent(
-  body: string,
-  contentType: string | null,
-): string {
+function normalizeNativeContent(body: string, contentType: string | null): string {
   if (looksLikeHtml(body, contentType)) {
     return normalizeFetchedContent(turndown.turndown(body));
   }
@@ -90,9 +78,5 @@ function normalizeNativeContent(
 function looksLikeHtml(body: string, contentType: string | null): boolean {
   const normalizedType = (contentType ?? "").toLowerCase();
 
-  return (
-    normalizedType.includes("html") ||
-    /<html[\s>]/i.test(body) ||
-    /<body[\s>]/i.test(body)
-  );
+  return normalizedType.includes("html") || /<html[\s>]/i.test(body) || /<body[\s>]/i.test(body);
 }

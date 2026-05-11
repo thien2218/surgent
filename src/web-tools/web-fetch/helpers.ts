@@ -41,10 +41,7 @@ export function formatFetchResults(results: WebFetchResult[]): string {
   }
 
   return results
-    .map(
-      (result) =>
-        `Source: ${result.url}\nProvider: ${result.provider}\n\n${result.content}`,
-    )
+    .map((result) => `Source: ${result.url}\nProvider: ${result.provider}\n\n${result.content}`)
     .join("\n\n---\n\n");
 }
 

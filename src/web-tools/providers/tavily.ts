@@ -1,7 +1,4 @@
-import {
-  normalizeFetchedContent,
-  toCanonicalUrl,
-} from "../web-fetch/helpers.js";
+import { normalizeFetchedContent, toCanonicalUrl } from "../web-fetch/helpers.js";
 import type {
   WebFetchFailure,
   WebFetchProviderResponse,
@@ -64,9 +61,7 @@ export async function fetchWithTavily(
   const response = (await client.extract(urls, {
     format: "markdown",
   })) as TavilyExtractResponse;
-  const resultByUrl = new Map(
-    (response.results ?? []).map((item) => [item.url, item] as const),
-  );
+  const resultByUrl = new Map((response.results ?? []).map((item) => [item.url, item] as const));
   const failedByUrl = new Map(
     (response.failedResults ?? []).map(
       (item) => [item.url, item.error ?? "Tavily extract failed."] as const,

@@ -1,21 +1,12 @@
-import {
-  formatErrorMessage,
-  getHttpError,
-  normalizeFetchedContent,
-} from "../web-fetch/helpers.js";
+import { formatErrorMessage, getHttpError, normalizeFetchedContent } from "../web-fetch/helpers.js";
 import type {
   WebFetchFailure,
   WebFetchProviderResponse,
   WebFetchResult,
 } from "../web-fetch/types.js";
 
-export async function fetchWithJina(
-  urls: string[],
-  signal: AbortSignal | undefined,
-): Promise<WebFetchProviderResponse> {
-  const settled = await Promise.all(
-    urls.map(async (url) => fetchViaJina(url, signal)),
-  );
+export async function fetchWithJina(urls: string[]): Promise<WebFetchProviderResponse> {
+  const settled = await Promise.all(urls.map(async (url) => fetchViaJina(url)));
 
   return {
     failures: settled.flatMap((item) => item.failure ?? []),
@@ -23,10 +14,7 @@ export async function fetchWithJina(
   };
 }
 
-async function fetchViaJina(
-  url: string,
-  signal: AbortSignal | undefined,
-): Promise<{
+async function fetchViaJina(url: string): Promise<{
   result?: WebFetchResult;
   failure?: WebFetchFailure;
 }> {
@@ -35,7 +23,6 @@ async function fetchViaJina(
       headers: {
         Accept: "text/plain, text/markdown;q=0.9",
       },
-      signal: signal ?? null,
     });
 
     if (!response.ok) {

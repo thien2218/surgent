@@ -1,9 +1,7 @@
 import { normalizeText } from "../../utils.js";
 import type { WebSearchResult, WebSearchResultInput } from "./types.js";
 
-export function normalizeSearchResult(
-  item: WebSearchResultInput,
-): WebSearchResult | undefined {
+export function normalizeSearchResult(item: WebSearchResultInput): WebSearchResult | undefined {
   const title = normalizeText(item.title);
   const url = normalizeText(item.url);
 
@@ -24,9 +22,7 @@ export function joinSnippets(snippets: string[] | undefined): string {
   }
 
   return snippets
-    .filter(
-      (snippet) => typeof snippet === "string" && snippet.trim().length > 0,
-    )
+    .filter((snippet) => typeof snippet === "string" && snippet.trim().length > 0)
     .join(" ")
     .trim();
 }

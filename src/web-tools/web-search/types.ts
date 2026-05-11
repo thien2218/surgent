@@ -10,9 +10,7 @@ export interface WebSearchResult {
   url: string;
 }
 
-export interface WebSearchToolDetails<
-  TProvider extends string = WebSearchProviderId,
-> {
+export interface WebSearchToolDetails<TProvider extends string = WebSearchProviderId> {
   provider: TProvider;
   attempts: string[];
   results: WebSearchResult[];

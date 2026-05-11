@@ -1,8 +1,4 @@
-import {
-  getHttpError,
-  joinSnippets,
-  normalizeSearchResult,
-} from "../web-search/helpers.js";
+import { getHttpError, joinSnippets, normalizeSearchResult } from "../web-search/helpers.js";
 import type { WebSearchMode, WebSearchResult } from "../web-search/types.js";
 import { isDefined } from "../../utils.js";
 
@@ -30,7 +26,6 @@ export async function searchWithBrave(
   apiKey: string,
   query: string,
   mode: WebSearchMode,
-  signal: AbortSignal | undefined,
 ): Promise<WebSearchResult[]> {
   const endpoint = mode === "news" ? "news/search" : "web/search";
   const searchParams = new URLSearchParams({
@@ -46,7 +41,6 @@ export async function searchWithBrave(
         Accept: "application/json",
         "X-Subscription-Token": apiKey,
       },
-      signal: signal ?? null,
     },
   );
 
@@ -60,8 +54,7 @@ export async function searchWithBrave(
   return items
     .map((item) =>
       normalizeSearchResult({
-        description:
-          item.description ?? item.snippet ?? joinSnippets(item.extra_snippets),
+        description: item.description ?? item.snippet ?? joinSnippets(item.extra_snippets),
         title: item.title,
         url: item.url ?? item.meta_url?.href,
       }),

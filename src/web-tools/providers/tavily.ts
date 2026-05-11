@@ -8,6 +8,7 @@ import { normalizeSearchResult } from "../web-search/helpers.js";
 import type { WebSearchMode, WebSearchResult } from "../web-search/types.js";
 import { isDefined } from "../../utils.js";
 import { tavily } from "@tavily/core";
+import type { WebFetchProvider, WebSearchProvider } from "./index.js";
 
 interface TavilySearchResponse {
   results?: Array<{ title?: string; content?: string; url?: string }>;
@@ -18,60 +19,57 @@ interface TavilyExtractResponse {
   results?: Array<{ rawContent?: string; url: string }>;
 }
 
-export async function searchWithTavily(
-  apiKey: string,
-  query: string,
-  mode: WebSearchMode,
-): Promise<WebSearchResult[]> {
-  const client = tavily({ apiKey });
-  const response = (await client.search(query, {
-    includeAnswer: false,
-    includeRawContent: false,
-    maxResults: 10,
-    searchDepth: "basic",
-    topic: mode === "news" ? "news" : "general",
-  })) as TavilySearchResponse;
+export class TavilyProvider implements WebSearchProvider, WebFetchProvider {
+  constructor(private readonly apiKey: string) {}
 
-  return (response.results ?? [])
-    .map((item) =>
-      normalizeSearchResult({ description: item.content, title: item.title, url: item.url }),
-    )
-    .filter(isDefined);
-}
+  async search(query: string, mode: WebSearchMode): Promise<WebSearchResult[]> {
+    const client = tavily({ apiKey: this.apiKey });
+    const response = (await client.search(query, {
+      includeAnswer: false,
+      includeRawContent: false,
+      maxResults: 10,
+      searchDepth: "basic",
+      topic: mode === "news" ? "news" : "general",
+    })) as TavilySearchResponse;
 
-export async function fetchWithTavily(
-  apiKey: string,
-  urls: string[],
-): Promise<WebFetchProviderResponse> {
-  const client = tavily({ apiKey });
-  const response = (await client.extract(urls, {
-    format: "markdown",
-  })) as TavilyExtractResponse;
-  const resultByUrl = new Map((response.results ?? []).map((item) => [item.url, item] as const));
-  const failedByUrl = new Map(
-    (response.failedResults ?? []).map(
-      (item) => [item.url, item.error ?? "Tavily extract failed."] as const,
-    ),
-  );
-  const results: WebFetchResult[] = [];
-  const failures: WebFetchFailure[] = [];
-
-  for (const url of urls) {
-    const canonicalUrl = toCanonicalUrl(url);
-    const item = resultByUrl.get(canonicalUrl);
-    const content = normalizeFetchedContent(item?.rawContent);
-
-    if (content) {
-      results.push({ content, provider: "tavily", url });
-      continue;
-    }
-
-    failures.push({
-      message: failedByUrl.get(canonicalUrl) ?? "Tavily returned no content.",
-      provider: "tavily",
-      url,
-    });
+    return (response.results ?? [])
+      .map((item) =>
+        normalizeSearchResult({ description: item.content, title: item.title, url: item.url }),
+      )
+      .filter(isDefined);
   }
 
-  return { failures, results };
+  async fetch(urls: string[]): Promise<WebFetchProviderResponse> {
+    const client = tavily({ apiKey: this.apiKey });
+    const response = (await client.extract(urls, {
+      format: "markdown",
+    })) as TavilyExtractResponse;
+    const resultByUrl = new Map((response.results ?? []).map((item) => [item.url, item] as const));
+    const failedByUrl = new Map(
+      (response.failedResults ?? []).map(
+        (item) => [item.url, item.error ?? "Tavily extract failed."] as const,
+      ),
+    );
+    const results: WebFetchResult[] = [];
+    const failures: WebFetchFailure[] = [];
+
+    for (const url of urls) {
+      const canonicalUrl = toCanonicalUrl(url);
+      const item = resultByUrl.get(canonicalUrl);
+      const content = normalizeFetchedContent(item?.rawContent);
+
+      if (content) {
+        results.push({ content, provider: "tavily", url });
+        continue;
+      }
+
+      failures.push({
+        message: failedByUrl.get(canonicalUrl) ?? "Tavily returned no content.",
+        provider: "tavily",
+        url,
+      });
+    }
+
+    return { failures, results };
+  }
 }

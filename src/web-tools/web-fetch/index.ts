@@ -1,20 +1,16 @@
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { formatErrorMessage, formatFetchResults } from "./helpers.js";
-import {
-  fetchWithFirecrawl,
-  fetchWithJina,
-  fetchWithNative,
-  fetchWithTavily,
-} from "../providers/index.js";
+import { WebToolsFactory } from "../providers/index.js";
 import type {
   WebFetchFailure,
-  WebFetchProviderId,
   WebFetchProviderResponse,
   WebFetchResult,
   WebFetchToolDetails,
 } from "./types.js";
 import { WEB_FETCH_PROVIDERS } from "../settings.js";
+
+const webToolsFactory = new WebToolsFactory();
 
 const webFetchTool = defineTool({
   name: "web_fetch",
@@ -36,8 +32,9 @@ const webFetchTool = defineTool({
     const attempts: string[] = [];
     const resultsByUrl = new Map<string, WebFetchResult>();
     const failuresByUrl = new Map<string, WebFetchFailure>();
+    const nativeFetch = { name: "native", label: "Native fetch" } as const;
 
-    for (const provider of WEB_FETCH_PROVIDERS) {
+    for (const provider of [nativeFetch, ...WEB_FETCH_PROVIDERS]) {
       const pendingUrls = urls.filter((url) => !resultsByUrl.has(url));
       if (pendingUrls.length === 0) {
         break;
@@ -57,7 +54,9 @@ const webFetchTool = defineTool({
       }
 
       try {
-        const response = await fetchWithProvider(provider.name, pendingUrls, apiKey);
+        const response = await webToolsFactory
+          .createWebFetcher(provider.name, apiKey)
+          .fetch(pendingUrls);
 
         for (const result of response.results) {
           resultsByUrl.set(result.url, result);
@@ -98,24 +97,6 @@ const webFetchTool = defineTool({
 
 export default function registerWebFetchTool(pi: ExtensionAPI) {
   pi.registerTool(webFetchTool);
-}
-
-async function fetchWithProvider(
-  providerId: WebFetchProviderId,
-  urls: string[],
-  apiKey: string | undefined,
-): Promise<WebFetchProviderResponse> {
-  switch (providerId) {
-    case "native":
-      return fetchWithNative(urls);
-    case "jina":
-      return fetchWithJina(apiKey, urls);
-    case "firecrawl":
-      return fetchWithFirecrawl(apiKey ?? "", urls);
-    case "tavily":
-      return fetchWithTavily(apiKey ?? "", urls);
-  }
-  throw new Error(`Unsupported web fetch provider: ${providerId}`);
 }
 
 function getValidatedUrls(urls: string[]): string[] {

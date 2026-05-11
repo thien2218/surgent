@@ -7,7 +7,7 @@ export function findWebToolsProvider(input: string): WebToolsProvider | undefine
   if (!normalized) {
     return undefined;
   }
-  return WEB_TOOLS_PROVIDERS.find((provider) => provider.id === normalized);
+  return WEB_TOOLS_PROVIDERS.find((provider) => provider.name === normalized);
 }
 
 export function getWebToolsProviderOptions(): string[] {
@@ -19,7 +19,7 @@ export function getWebToolsProviderByLabel(label: string): WebToolsProvider | un
 }
 
 export function formatProviderStatus(authStorage: AuthStorage, provider: WebToolsProvider): string {
-  const status = authStorage.getAuthStatus(provider.id);
+  const status = authStorage.getAuthStatus(provider.name);
   if (!status.configured) {
     return `${provider.label} (not configured)`;
   }
@@ -42,15 +42,15 @@ export function clearApiKey(authStorage: AuthStorage, providerId: WebToolsProvid
 
 export function getArgumentCompletions(prefix: string) {
   const normalized = prefix.trim().toLowerCase();
-  const matches = WEB_TOOLS_PROVIDERS.filter((provider) => provider.id.startsWith(normalized));
+  const matches = WEB_TOOLS_PROVIDERS.filter((provider) => provider.name.startsWith(normalized));
 
   if (matches.length === 0) {
     return null;
   }
 
-  return matches.map((provider) => ({ value: provider.id, label: provider.label }));
+  return matches.map((provider) => ({ value: provider.name, label: provider.label }));
 }
 
 export function getSupportedProviderNames(): string {
-  return WEB_TOOLS_PROVIDERS.map((provider) => provider.id).join(", ");
+  return WEB_TOOLS_PROVIDERS.map((provider) => provider.name).join(", ");
 }

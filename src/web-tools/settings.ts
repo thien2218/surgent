@@ -1,4 +1,12 @@
-export const WEB_SEARCH_PROVIDERS = [
+type Supported = "tavily" | "brave-search" | "jina" | "firecrawl";
+
+type Provider = {
+  id: Supported;
+  label: string;
+  note?: string;
+};
+
+export const WEB_SEARCH_PROVIDERS: Provider[] = [
   {
     id: "tavily",
     label: "Tavily",
@@ -11,12 +19,13 @@ export const WEB_SEARCH_PROVIDERS = [
     id: "firecrawl",
     label: "Firecrawl",
   },
-] as const;
+];
 
-export const WEB_FETCH_PROVIDERS = [
+export const WEB_FETCH_PROVIDERS: Provider[] = [
   {
     id: "jina",
     label: "Jina",
+    note: "optional, only helps increase rate limits",
   },
   {
     id: "firecrawl",
@@ -26,10 +35,8 @@ export const WEB_FETCH_PROVIDERS = [
     id: "tavily",
     label: "Tavily",
   },
-] as const;
+];
 
 export const WEB_TOOLS_PROVIDERS = [
-  ...new Map(
-    [...WEB_SEARCH_PROVIDERS, ...WEB_FETCH_PROVIDERS].map((p) => [p.id, p]),
-  ).values(),
+  ...new Map([...WEB_SEARCH_PROVIDERS, ...WEB_FETCH_PROVIDERS].map((p) => [p.id, p])).values(),
 ];

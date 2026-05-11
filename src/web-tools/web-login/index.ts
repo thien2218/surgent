@@ -52,6 +52,7 @@ async function saveProviderKey(
   provider: WebToolsProvider,
 ): Promise<void> {
   const authStorage = ctx.modelRegistry.authStorage;
+  const note = provider.note ? ` (${provider.note})` : "";
 
   if (authStorage.getAuthStatus(provider.id).configured) {
     const replace = await ctx.ui.confirm(
@@ -64,7 +65,7 @@ async function saveProviderKey(
   }
 
   const apiKey = await ctx.ui.input(
-    `${provider.label} API key`,
+    `${provider.label} API key${note}`,
     `Paste your ${provider.label} API key`,
   );
 

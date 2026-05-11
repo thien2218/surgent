@@ -113,12 +113,13 @@ async function fetchWithProvider(
     case "native":
       return fetchWithNative(urls);
     case "jina":
-      return fetchWithJina(urls);
+      return fetchWithJina(apiKey, urls);
     case "firecrawl":
       return fetchWithFirecrawl(apiKey ?? "", urls);
     case "tavily":
       return fetchWithTavily(apiKey ?? "", urls);
   }
+  throw new Error(`Unsupported web fetch provider: ${providerId}`);
 }
 
 function getValidatedUrls(urls: string[]): string[] {

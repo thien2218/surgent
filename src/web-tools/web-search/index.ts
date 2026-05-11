@@ -99,7 +99,6 @@ async function searchWithProvider(
       return searchWithBrave(apiKey, query, mode);
     case "firecrawl":
       return searchWithFirecrawl(apiKey, query, mode);
-    default:
-      throw new Error("Invalid provider id.");
   }
+  throw new Error(`Unsupported web search provider: ${providerId}`);
 }

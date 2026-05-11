@@ -39,7 +39,7 @@ const webSearchTool = defineTool({
         throw new Error("web_search was cancelled.");
       }
 
-      const apiKey = await ctx.modelRegistry.authStorage.getApiKey(provider.id, {
+      const apiKey = await ctx.modelRegistry.authStorage.getApiKey(provider.name, {
         includeFallback: false,
       });
 
@@ -51,7 +51,7 @@ const webSearchTool = defineTool({
       anyConfiguredProvider = true;
 
       try {
-        const results = await searchWithProvider(provider.id, apiKey, query, params.mode);
+        const results = await searchWithProvider(provider.name, apiKey, query, params.mode);
 
         if (results.length === 0) {
           attempts.push(`${provider.label}: returned no results`);

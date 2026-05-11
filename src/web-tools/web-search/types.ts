@@ -1,6 +1,6 @@
 import { WEB_SEARCH_PROVIDERS } from "../settings.js";
 
-export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDERS)[number]["id"];
+export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDERS)[number]["name"];
 
 export type WebSearchMode = "web" | "news";
 

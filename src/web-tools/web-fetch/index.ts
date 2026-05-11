@@ -47,17 +47,17 @@ const webFetchTool = defineTool({
         throw new Error("web_fetch was cancelled.");
       }
 
-      const apiKey = await ctx.modelRegistry.authStorage.getApiKey(provider.id, {
+      const apiKey = await ctx.modelRegistry.authStorage.getApiKey(provider.name, {
         includeFallback: false,
       });
 
-      if ((provider.id === "firecrawl" || provider.id === "tavily") && !apiKey) {
+      if ((provider.name === "firecrawl" || provider.name === "tavily") && !apiKey) {
         attempts.push(`${provider.label}: not configured`);
         continue;
       }
 
       try {
-        const response = await fetchWithProvider(provider.id, pendingUrls, apiKey);
+        const response = await fetchWithProvider(provider.name, pendingUrls, apiKey);
 
         for (const result of response.results) {
           resultsByUrl.set(result.url, result);

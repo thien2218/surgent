@@ -10,22 +10,12 @@ import { isDefined } from "../../utils.js";
 import { tavily } from "@tavily/core";
 
 interface TavilySearchResponse {
-  results?: Array<{
-    title?: string;
-    content?: string;
-    url?: string;
-  }>;
+  results?: Array<{ title?: string; content?: string; url?: string }>;
 }
 
 interface TavilyExtractResponse {
-  failedResults?: Array<{
-    error?: string;
-    url: string;
-  }>;
-  results?: Array<{
-    rawContent?: string;
-    url: string;
-  }>;
+  failedResults?: Array<{ error?: string; url: string }>;
+  results?: Array<{ rawContent?: string; url: string }>;
 }
 
 export async function searchWithTavily(
@@ -44,11 +34,7 @@ export async function searchWithTavily(
 
   return (response.results ?? [])
     .map((item) =>
-      normalizeSearchResult({
-        description: item.content,
-        title: item.title,
-        url: item.url,
-      }),
+      normalizeSearchResult({ description: item.content, title: item.title, url: item.url }),
     )
     .filter(isDefined);
 }
@@ -76,11 +62,7 @@ export async function fetchWithTavily(
     const content = normalizeFetchedContent(item?.rawContent);
 
     if (content) {
-      results.push({
-        content,
-        provider: "tavily",
-        url,
-      });
+      results.push({ content, provider: "tavily", url });
       continue;
     }
 

@@ -91,11 +91,7 @@ const webFetchTool = defineTool({
 
     return {
       content: [{ type: "text", text: formatFetchResults(results) }],
-      details: {
-        attempts,
-        failures,
-        results,
-      } satisfies WebFetchToolDetails,
+      details: { attempts, failures, results } satisfies WebFetchToolDetails,
     };
   },
 });

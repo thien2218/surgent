@@ -1,7 +1,4 @@
-import {
-  VERSION as PI_VERSION,
-  type ExtensionAPI,
-} from "@earendil-works/pi-coding-agent";
+import { VERSION as PI_VERSION, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readFileSync } from "node:fs";
 
 const PACKAGE_JSON_PATH = new URL("../../package.json", import.meta.url);

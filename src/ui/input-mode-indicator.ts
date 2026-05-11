@@ -129,68 +129,46 @@ class ModeIndicatorEditor extends CustomEditor {
     const maxPadding = Math.max(0, Math.floor((width - 1) / 2));
     const totalPadding = Math.min(super.getPaddingX(), maxPadding);
     const effectivePrefixWidth = Math.min(prefixWidth, totalPadding);
-    const effectiveUserPadding = Math.max(
-      0,
-      totalPadding - effectivePrefixWidth,
-    );
+    const effectiveUserPadding = Math.max(0, totalPadding - effectivePrefixWidth);
     const renderedPrefix = truncateToWidth(prefix, effectivePrefixWidth, "");
     const firstContentLine = lines[contentLineIndex] ?? "";
 
     lines[contentLineIndex] =
-      " ".repeat(effectiveUserPadding) +
-      renderedPrefix +
-      firstContentLine.slice(totalPadding);
+      " ".repeat(effectiveUserPadding) + renderedPrefix + firstContentLine.slice(totalPadding);
 
     return lines;
   }
 
   override handleInput(data: string): void {
-    if (
-      this.mode === "prompt" &&
-      data === "!" &&
-      /^\s*$/.test(super.getText())
-    ) {
+    if (this.mode === "prompt" && data === "!" && /^\s*$/.test(super.getText())) {
       this.mode = "bash-included";
       this.externalOnChange?.(toActualText(super.getText(), this.mode));
       this.tui.requestRender();
       return;
     }
 
-    if (
-      this.mode === "bash-included" &&
-      data === "!" &&
-      /^\s*$/.test(super.getText())
-    ) {
+    if (this.mode === "bash-included" && data === "!" && /^\s*$/.test(super.getText())) {
       this.mode = "bash-excluded";
       this.externalOnChange?.(toActualText(super.getText(), this.mode));
       this.tui.requestRender();
       return;
     }
 
-    if (
-      this.mode === "bash-excluded" &&
-      super.getText() === "" &&
-      matchesKey(data, "backspace")
-    ) {
+    if (this.mode === "bash-excluded" && super.getText() === "" && matchesKey(data, "backspace")) {
       this.mode = "bash-included";
       this.externalOnChange?.(toActualText(super.getText(), this.mode));
       this.tui.requestRender();
       return;
     }
 
-    if (
-      this.mode === "bash-included" &&
-      super.getText() === "" &&
-      matchesKey(data, "backspace")
-    ) {
+    if (this.mode === "bash-included" && super.getText() === "" && matchesKey(data, "backspace")) {
       this.mode = "prompt";
       this.externalOnChange?.("");
       this.tui.requestRender();
       return;
     }
 
-    this.pendingHistoryNavigation =
-      matchesKey(data, "up") || matchesKey(data, "down");
+    this.pendingHistoryNavigation = matchesKey(data, "up") || matchesKey(data, "down");
 
     try {
       super.handleInput(data);
@@ -216,11 +194,7 @@ class ModeIndicatorEditor extends CustomEditor {
   override insertTextAtCursor(text: string): void {
     const parsed = parseActualText(text);
 
-    if (
-      this.mode === "prompt" &&
-      isBashMode(parsed.mode) &&
-      /^\s*$/.test(super.getText())
-    ) {
+    if (this.mode === "prompt" && isBashMode(parsed.mode) && /^\s*$/.test(super.getText())) {
       this.mode = parsed.mode;
       super.insertTextAtCursor(parsed.displayText);
       return;
@@ -242,8 +216,7 @@ class ModeIndicatorEditor extends CustomEditor {
 export default function inputModeIndicatorExtension(pi: ExtensionAPI) {
   pi.on("session_start", (_event, ctx) => {
     ctx.ui.setEditorComponent(
-      (tui, theme, keybindings) =>
-        new ModeIndicatorEditor(tui, theme, keybindings, ctx.ui.theme),
+      (tui, theme, keybindings) => new ModeIndicatorEditor(tui, theme, keybindings, ctx.ui.theme),
     );
   });
 }

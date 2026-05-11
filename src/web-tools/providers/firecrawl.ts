@@ -23,10 +23,7 @@ interface FirecrawlSearchResponse {
 
 interface FirecrawlDocument {
   markdown?: string;
-  metadata?: {
-    sourceURL?: string;
-    ogUrl?: string;
-  };
+  metadata?: { sourceURL?: string; ogUrl?: string };
 }
 
 interface FirecrawlBatchJob {
@@ -72,9 +69,7 @@ export async function fetchWithFirecrawl(
   }
 
   const batch = (await client.batchScrape(urls, {
-    options: {
-      formats: ["markdown", "html"],
-    },
+    options: { formats: ["markdown", "html"] },
     pollInterval: 2,
     timeout: 30,
   })) as FirecrawlBatchJob;
@@ -117,11 +112,7 @@ function toFirecrawlProviderResponse(
       continue;
     }
 
-    results.push({
-      content,
-      provider: "firecrawl",
-      url,
-    });
+    results.push({ content, provider: "firecrawl", url });
   }
 
   return { failures, results };

@@ -44,19 +44,11 @@ async function fetchViaJina(
     }
 
     return {
-      result: {
-        content,
-        provider: "jina",
-        url,
-      },
+      result: { content, provider: "jina", url },
     };
   } catch (error) {
     return {
-      failure: {
-        message: formatErrorMessage(error),
-        provider: "jina",
-        url,
-      },
+      failure: { message: formatErrorMessage(error), provider: "jina", url },
     };
   }
 }

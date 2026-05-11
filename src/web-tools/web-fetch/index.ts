@@ -1,10 +1,6 @@
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import {
-  formatErrorMessage,
-  formatFetchResults,
-  normalizeUrlInput,
-} from "./helpers.js";
+import { formatErrorMessage, formatFetchResults } from "./helpers.js";
 import {
   fetchWithFirecrawl,
   fetchWithJina,
@@ -74,13 +70,13 @@ const webFetchTool = defineTool({
         );
 
         for (const result of response.results) {
-          resultsByUrl.set(result.requestedUrl, result);
-          failuresByUrl.delete(result.requestedUrl);
+          resultsByUrl.set(result.url, result);
+          failuresByUrl.delete(result.url);
         }
 
         for (const failure of response.failures) {
-          if (!resultsByUrl.has(failure.requestedUrl)) {
-            failuresByUrl.set(failure.requestedUrl, failure);
+          if (!resultsByUrl.has(failure.url)) {
+            failuresByUrl.set(failure.url, failure);
           }
         }
 
@@ -110,7 +106,6 @@ const webFetchTool = defineTool({
       details: {
         attempts,
         failures,
-        provider: getAggregateProvider(orderedResults),
         results: orderedResults,
       } satisfies WebFetchToolDetails,
     };
@@ -140,14 +135,10 @@ async function fetchWithProvider(
 }
 
 function getValidatedUrls(urls: string[]): string[] {
-  const rawUrls = normalizeUrlInput(urls);
-  if (rawUrls.length === 0) {
-    throw new Error("Provide at least one URL in `url` or `urls`.");
-  }
-
   return Array.from(
     new Set(
-      rawUrls.map((value) => {
+      urls.map((url) => {
+        const value = url.trim();
         let parsed: URL;
 
         try {
@@ -179,16 +170,4 @@ function formatAttempt(
   }
 
   return `${label}: resolved ${succeededCount}/${attemptedCount}, failed ${failedCount}`;
-}
-
-function getAggregateProvider(
-  results: WebFetchResult[],
-): WebFetchProviderId | undefined {
-  const providers = new Set(results.map((result) => result.provider));
-
-  if (providers.size !== 1) {
-    return undefined;
-  }
-
-  return results[0]?.provider;
 }

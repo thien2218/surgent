@@ -1,7 +1,6 @@
 import TurndownService from "turndown";
 import {
   formatErrorMessage,
-  getFetchContentKind,
   getHttpError,
   isTextLikeContentType,
   normalizeFetchedContent,
@@ -62,10 +61,8 @@ async function fetchSingleUrl(
     return {
       result: {
         content,
-        contentKind: inferNativeContentKind(rawBody, contentType),
         provider: "native",
-        requestedUrl: url,
-        resolvedUrl: response.url || url,
+        url,
       },
     };
   } catch (error) {
@@ -73,7 +70,7 @@ async function fetchSingleUrl(
       failure: {
         message: formatErrorMessage(error),
         provider: "native",
-        requestedUrl: url,
+        url,
       },
     };
   }
@@ -88,17 +85,6 @@ function normalizeNativeContent(
   }
 
   return normalizeFetchedContent(body);
-}
-
-function inferNativeContentKind(
-  body: string,
-  contentType: string | null,
-): WebFetchResult["contentKind"] {
-  if (looksLikeHtml(body, contentType)) {
-    return "markdown";
-  }
-
-  return getFetchContentKind(contentType);
 }
 
 function looksLikeHtml(body: string, contentType: string | null): boolean {

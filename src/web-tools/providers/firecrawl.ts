@@ -28,7 +28,7 @@ interface FirecrawlDocument {
   markdown?: string;
   metadata?: {
     sourceURL?: string;
-    url?: string;
+    ogUrl?: string;
   };
 }
 
@@ -93,8 +93,7 @@ function toFirecrawlProviderResponse(
     documents
       .map((document) => {
         const matchedUrl =
-          toCanonicalUrl(document.metadata?.sourceURL ?? "") ||
-          toCanonicalUrl(document.metadata?.url ?? "");
+          document.metadata?.sourceURL || document.metadata?.ogUrl;
 
         if (!matchedUrl) {
           return undefined;
@@ -108,9 +107,9 @@ function toFirecrawlProviderResponse(
   const results: WebFetchResult[] = [];
   const failures: WebFetchFailure[] = [];
 
-  for (const requestedUrl of urls) {
+  for (const url of urls) {
     const document =
-      documentsByUrl.get(toCanonicalUrl(requestedUrl)) ??
+      documentsByUrl.get(toCanonicalUrl(url)) ??
       (urls.length === 1 ? documents[0] : undefined);
     const content = normalizeFetchedContent(document?.markdown);
 
@@ -118,20 +117,15 @@ function toFirecrawlProviderResponse(
       failures.push({
         message: "Firecrawl returned no markdown content.",
         provider: "firecrawl",
-        requestedUrl,
+        url,
       });
       continue;
     }
 
     results.push({
       content,
-      contentKind: "markdown",
       provider: "firecrawl",
-      requestedUrl,
-      resolvedUrl:
-        toCanonicalUrl(document?.metadata?.sourceURL ?? "") ||
-        toCanonicalUrl(document?.metadata?.url ?? "") ||
-        requestedUrl,
+      url,
     });
   }
 

@@ -52,10 +52,8 @@ async function fetchViaJina(
     return {
       result: {
         content,
-        contentKind: "markdown",
         provider: "jina",
-        requestedUrl: url,
-        resolvedUrl: url,
+        url,
       },
     };
   } catch (error) {
@@ -63,7 +61,7 @@ async function fetchViaJina(
       failure: {
         message: formatErrorMessage(error),
         provider: "jina",
-        requestedUrl: url,
+        url,
       },
     };
   }

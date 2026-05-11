@@ -2,14 +2,11 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { WEB_SEARCH_PROVIDERS } from "../settings.js";
-import { searchWithBrave, searchWithFirecrawl, searchWithTavily } from "../providers/index.js";
+import { WebToolsFactory } from "../providers/index.js";
 import { formatErrorMessage } from "./helpers.js";
-import type {
-  WebSearchMode,
-  WebSearchResult,
-  WebSearchToolDetails,
-  WebSearchProviderId,
-} from "./types.js";
+import type { WebSearchToolDetails } from "./types.js";
+
+const webToolsFactory = new WebToolsFactory();
 
 const webSearchTool = defineTool({
   name: "web_search",
@@ -51,7 +48,9 @@ const webSearchTool = defineTool({
       anyConfiguredProvider = true;
 
       try {
-        const results = await searchWithProvider(provider.name, apiKey, query, params.mode);
+        const results = await webToolsFactory
+          .createWebSearcher(provider.name, apiKey)
+          .search(query, params.mode);
 
         if (results.length === 0) {
           attempts.push(`${provider.label}: returned no results`);
@@ -79,21 +78,4 @@ const webSearchTool = defineTool({
 
 export default function registerWebSearchTool(pi: ExtensionAPI) {
   pi.registerTool(webSearchTool);
-}
-
-async function searchWithProvider(
-  providerId: WebSearchProviderId,
-  apiKey: string,
-  query: string,
-  mode: WebSearchMode,
-): Promise<WebSearchResult[]> {
-  switch (providerId) {
-    case "tavily":
-      return searchWithTavily(apiKey, query, mode);
-    case "brave-search":
-      return searchWithBrave(apiKey, query, mode);
-    case "firecrawl":
-      return searchWithFirecrawl(apiKey, query, mode);
-  }
-  throw new Error(`Unsupported web search provider: ${providerId}`);
 }

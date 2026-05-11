@@ -29,7 +29,7 @@ async function chooseAction(
   provider: WebToolsProvider,
 ): Promise<"save" | "clear" | undefined> {
   const authStorage = ctx.modelRegistry.authStorage;
-  const configured = authStorage.getAuthStatus(provider.id).configured;
+  const configured = authStorage.getAuthStatus(provider.name).configured;
 
   if (configured) {
     const selected = await ctx.ui.select(`${provider.label} credentials`, [
@@ -52,9 +52,9 @@ async function saveProviderKey(
   provider: WebToolsProvider,
 ): Promise<void> {
   const authStorage = ctx.modelRegistry.authStorage;
-  const note = provider.note ? ` (${provider.note})` : "";
+  const note = provider.name === "jina" ? ` (${provider.note})` : "";
 
-  if (authStorage.getAuthStatus(provider.id).configured) {
+  if (authStorage.getAuthStatus(provider.name).configured) {
     const replace = await ctx.ui.confirm(
       `${provider.label} API key`,
       `${provider.label} already has a saved API key. Replace it?`,
@@ -74,7 +74,7 @@ async function saveProviderKey(
     return;
   }
 
-  setApiKey(authStorage, provider.id, apiKey.trim());
+  setApiKey(authStorage, provider.name, apiKey.trim());
   ctx.ui.notify(`Saved ${provider.label} API key`, "info");
 }
 
@@ -90,7 +90,7 @@ async function clearProviderKey(
     return;
   }
 
-  clearApiKey(ctx.modelRegistry.authStorage, provider.id);
+  clearApiKey(ctx.modelRegistry.authStorage, provider.name);
   ctx.ui.notify(`Cleared ${provider.label} API key`, "info");
 }
 

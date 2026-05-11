@@ -48,10 +48,7 @@ export function getArgumentCompletions(prefix: string) {
     return null;
   }
 
-  return matches.map((provider) => ({
-    value: provider.id,
-    label: provider.label,
-  }));
+  return matches.map((provider) => ({ value: provider.id, label: provider.label }));
 }
 
 export function getSupportedProviderNames(): string {

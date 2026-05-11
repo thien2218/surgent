@@ -58,14 +58,9 @@ const webSearchTool = defineTool({
           continue;
         }
 
-        const topResults = results.slice(0, 10);
         return {
-          content: [{ type: "text", text: JSON.stringify(topResults, null, 2) }],
-          details: {
-            provider: provider.id,
-            attempts,
-            results: topResults,
-          } satisfies WebSearchToolDetails,
+          content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
+          details: { attempts, results } satisfies WebSearchToolDetails,
         };
       } catch (error) {
         attempts.push(`${provider.label}: ${formatErrorMessage(error)}`);

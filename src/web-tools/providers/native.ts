@@ -50,19 +50,11 @@ async function fetchSingleUrl(url: string): Promise<{
     }
 
     return {
-      result: {
-        content,
-        provider: "native",
-        url,
-      },
+      result: { content, provider: "native", url },
     };
   } catch (error) {
     return {
-      failure: {
-        message: formatErrorMessage(error),
-        provider: "native",
-        url,
-      },
+      failure: { message: formatErrorMessage(error), provider: "native", url },
     };
   }
 }

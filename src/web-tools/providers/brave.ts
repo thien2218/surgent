@@ -8,18 +8,12 @@ interface BraveSearchItem {
   snippet?: string;
   url?: string;
   extra_snippets?: string[];
-  meta_url?: {
-    href?: string;
-  };
+  meta_url?: { href?: string };
 }
 
 interface BraveSearchResponse {
-  news?: {
-    results?: BraveSearchItem[];
-  };
-  web?: {
-    results?: BraveSearchItem[];
-  };
+  news?: { results?: BraveSearchItem[] };
+  web?: { results?: BraveSearchItem[] };
 }
 
 export async function searchWithBrave(
@@ -28,19 +22,12 @@ export async function searchWithBrave(
   mode: WebSearchMode,
 ): Promise<WebSearchResult[]> {
   const endpoint = mode === "news" ? "news/search" : "web/search";
-  const searchParams = new URLSearchParams({
-    count: "10",
-    extra_snippets: "true",
-    q: query,
-  });
+  const searchParams = new URLSearchParams({ count: "10", extra_snippets: "true", q: query });
 
   const response = await fetch(
     `https://api.search.brave.com/res/v1/${endpoint}?${searchParams.toString()}`,
     {
-      headers: {
-        Accept: "application/json",
-        "X-Subscription-Token": apiKey,
-      },
+      headers: { Accept: "application/json", "X-Subscription-Token": apiKey },
     },
   );
 

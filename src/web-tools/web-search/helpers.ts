@@ -9,11 +9,7 @@ export function normalizeSearchResult(item: WebSearchResultInput): WebSearchResu
     return undefined;
   }
 
-  return {
-    description: normalizeText(item.description),
-    title,
-    url,
-  };
+  return { description: normalizeText(item.description), title, url };
 }
 
 export function joinSnippets(snippets: string[] | undefined): string {

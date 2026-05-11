@@ -5,8 +5,11 @@ import type {
   WebFetchResult,
 } from "../web-fetch/types.js";
 
-export async function fetchWithJina(urls: string[]): Promise<WebFetchProviderResponse> {
-  const settled = await Promise.all(urls.map(async (url) => fetchViaJina(url)));
+export async function fetchWithJina(
+  apiKey: string | undefined,
+  urls: string[],
+): Promise<WebFetchProviderResponse> {
+  const settled = await Promise.all(urls.map(async (url) => fetchViaJina(apiKey, url)));
 
   return {
     failures: settled.flatMap((item) => item.failure ?? []),
@@ -14,7 +17,10 @@ export async function fetchWithJina(urls: string[]): Promise<WebFetchProviderRes
   };
 }
 
-async function fetchViaJina(url: string): Promise<{
+async function fetchViaJina(
+  apiKey: string | undefined,
+  url: string,
+): Promise<{
   result?: WebFetchResult;
   failure?: WebFetchFailure;
 }> {
@@ -22,6 +28,7 @@ async function fetchViaJina(url: string): Promise<{
     const response = await fetch(toJinaUrl(url), {
       headers: {
         Accept: "text/plain, text/markdown;q=0.9",
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       },
     });
 

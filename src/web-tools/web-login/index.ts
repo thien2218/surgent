@@ -1,7 +1,4 @@
-import type {
-  ExtensionAPI,
-  ExtensionCommandContext,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
   clearApiKey,
   findWebToolsProvider,
@@ -14,9 +11,7 @@ import {
 } from "./helpers.js";
 import type { WebToolsProvider } from "./types.js";
 
-async function selectProvider(
-  ctx: ExtensionCommandContext,
-): Promise<WebToolsProvider | undefined> {
+async function selectProvider(ctx: ExtensionCommandContext): Promise<WebToolsProvider | undefined> {
   const selected = await ctx.ui.select(
     "Configure web provider authentication",
     getWebToolsProviderOptions(),
@@ -104,9 +99,7 @@ export default function webLoginCommand(pi: ExtensionAPI) {
     getArgumentCompletions,
     handler: async (args, ctx) => {
       const arg = args.trim();
-      const provider = arg
-        ? findWebToolsProvider(arg)
-        : await selectProvider(ctx);
+      const provider = arg ? findWebToolsProvider(arg) : await selectProvider(ctx);
 
       if (!provider) {
         if (arg) {
@@ -118,10 +111,7 @@ export default function webLoginCommand(pi: ExtensionAPI) {
         return;
       }
 
-      ctx.ui.notify(
-        formatProviderStatus(ctx.modelRegistry.authStorage, provider),
-        "info",
-      );
+      ctx.ui.notify(formatProviderStatus(ctx.modelRegistry.authStorage, provider), "info");
 
       const action = await chooseAction(ctx, provider);
       if (!action) {

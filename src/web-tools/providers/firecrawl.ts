@@ -1,7 +1,4 @@
-import {
-  normalizeFetchedContent,
-  toCanonicalUrl,
-} from "../web-fetch/helpers.js";
+import { normalizeFetchedContent, toCanonicalUrl } from "../web-fetch/helpers.js";
 import type {
   WebFetchFailure,
   WebFetchProviderResponse,
@@ -92,8 +89,7 @@ function toFirecrawlProviderResponse(
   const documentsByUrl = new Map(
     documents
       .map((document) => {
-        const matchedUrl =
-          document.metadata?.sourceURL || document.metadata?.ogUrl;
+        const matchedUrl = document.metadata?.sourceURL || document.metadata?.ogUrl;
 
         if (!matchedUrl) {
           return undefined;
@@ -109,8 +105,7 @@ function toFirecrawlProviderResponse(
 
   for (const url of urls) {
     const document =
-      documentsByUrl.get(toCanonicalUrl(url)) ??
-      (urls.length === 1 ? documents[0] : undefined);
+      documentsByUrl.get(toCanonicalUrl(url)) ?? (urls.length === 1 ? documents[0] : undefined);
     const content = normalizeFetchedContent(document?.markdown);
 
     if (!content) {

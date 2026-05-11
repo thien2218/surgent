@@ -65,34 +65,26 @@ export async function fetchWithTavily(
     format: "markdown",
   })) as TavilyExtractResponse;
   const resultByUrl = new Map(
-    (response.results ?? []).map(
-      (item) => [toCanonicalUrl(item.url), item] as const,
-    ),
+    (response.results ?? []).map((item) => [item.url, item] as const),
   );
   const failedByUrl = new Map(
     (response.failedResults ?? []).map(
-      (item) =>
-        [
-          toCanonicalUrl(item.url),
-          item.error ?? "Tavily extract failed.",
-        ] as const,
+      (item) => [item.url, item.error ?? "Tavily extract failed."] as const,
     ),
   );
   const results: WebFetchResult[] = [];
   const failures: WebFetchFailure[] = [];
 
-  for (const requestedUrl of urls) {
-    const canonicalUrl = toCanonicalUrl(requestedUrl);
+  for (const url of urls) {
+    const canonicalUrl = toCanonicalUrl(url);
     const item = resultByUrl.get(canonicalUrl);
     const content = normalizeFetchedContent(item?.rawContent);
 
     if (content) {
       results.push({
         content,
-        contentKind: "markdown",
         provider: "tavily",
-        requestedUrl,
-        resolvedUrl: item?.url ?? requestedUrl,
+        url,
       });
       continue;
     }
@@ -100,7 +92,7 @@ export async function fetchWithTavily(
     failures.push({
       message: failedByUrl.get(canonicalUrl) ?? "Tavily returned no content.",
       provider: "tavily",
-      requestedUrl,
+      url,
     });
   }
 

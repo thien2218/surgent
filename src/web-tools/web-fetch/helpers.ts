@@ -1,14 +1,5 @@
 import { normalizeText } from "../../utils.js";
-import type { WebFetchContentKind, WebFetchResult } from "./types.js";
-
-export function normalizeUrlInput(input: string[]): string[] {
-  const values = input
-    .filter((value): value is string => typeof value === "string")
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
-
-  return Array.from(new Set(values));
-}
+import type { WebFetchResult } from "./types.js";
 
 export function normalizeFetchedContent(value: unknown): string {
   return normalizeText(value).replace(/\r\n/g, "\n");
@@ -16,32 +7,11 @@ export function normalizeFetchedContent(value: unknown): string {
 
 export function toCanonicalUrl(value: string): string {
   const normalized = normalizeText(value);
-
-  if (!normalized) {
-    return "";
-  }
-
   try {
     return new URL(normalized).href;
   } catch {
     return normalized;
   }
-}
-
-export function getFetchContentKind(
-  contentType: string | null,
-): WebFetchContentKind {
-  const normalized = normalizeText(contentType).toLowerCase();
-
-  if (
-    normalized.includes("markdown") ||
-    normalized.includes("md") ||
-    normalized.includes("text/x-markdown")
-  ) {
-    return "markdown";
-  }
-
-  return "text";
 }
 
 export function isTextLikeContentType(contentType: string | null): boolean {
@@ -73,7 +43,7 @@ export function formatFetchResults(results: WebFetchResult[]): string {
   return results
     .map(
       (result) =>
-        `## ${result.requestedUrl}\n\nSource: ${result.resolvedUrl}\nProvider: ${result.provider}\n\n${result.content}`,
+        `Source: ${result.url}\nProvider: ${result.provider}\n\n${result.content}`,
     )
     .join("\n\n---\n\n");
 }

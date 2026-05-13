@@ -1,4 +1,5 @@
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { formatErrorMessage, formatFetchResults } from "./helpers.js";
 import { WebToolsFactory } from "../providers/index.js";
@@ -92,6 +93,23 @@ const webFetchTool = defineTool({
       content: [{ type: "text", text: formatFetchResults(results) }],
       details: { attempts, failures, results } satisfies WebFetchToolDetails,
     };
+  },
+  renderCall(args, theme) {
+    return new Text(`${theme.fg("toolTitle", "web_fetch")} [${args.urls.join(", ")}]`, 0, 0);
+  },
+  renderResult(result, { isPartial }, theme) {
+    if (isPartial) {
+      return new Text(theme.fg("warning", "Fetching content..."), 0, 0);
+    }
+
+    const details = result.details as WebFetchToolDetails | undefined;
+    const urls = details?.results.map((item) => item.url) ?? [];
+
+    if (urls.length === 0) {
+      return new Text(theme.fg("dim", "Fetched content"), 0, 0);
+    }
+
+    return new Text(`Fetched content from ${urls.join(", ")}`, 0, 0);
   },
 });
 

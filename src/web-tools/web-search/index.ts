@@ -1,5 +1,6 @@
 import { StringEnum } from "@earendil-works/pi-ai";
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { WEB_SEARCH_PROVIDERS } from "../settings.js";
 import { WebToolsFactory } from "../providers/index.js";
@@ -73,6 +74,30 @@ const webSearchTool = defineTool({
     }
 
     throw new Error(`Web search failed across all configured providers. ${attempts.join(" | ")}`);
+  },
+  renderCall(args, theme) {
+    return new Text(`${theme.fg("toolTitle", "web_search")} ${args.query}`, 0, 0);
+  },
+  renderResult(result, { isPartial }, theme) {
+    if (isPartial) {
+      return new Text(theme.fg("warning", "Searching..."), 0, 0);
+    }
+
+    const details = result.details as WebSearchToolDetails | undefined;
+    const urls = details?.results.map((item) => item.url) ?? [];
+
+    if (urls.length === 0) {
+      return new Text(theme.fg("dim", "No search results"), 0, 0);
+    }
+
+    const visibleUrls = urls.slice(0, 3);
+    let text = visibleUrls.join("\n");
+
+    if (urls.length > visibleUrls.length) {
+      text += `\n...and ${urls.length - visibleUrls.length} more results`;
+    }
+
+    return new Text(text, 0, 0);
   },
 });
 

@@ -64,11 +64,11 @@ export interface ToggleSelectionResult {
 export const QuestionOptionSchema = Type.Object({
   text: Type.String({ description: "Suggested answer text shown to the user" }),
   description: Type.Optional(
-    Type.String({ description: "Optional helper text shown under the suggestion" }),
+    Type.String({ description: "Optional helper text shown under the option" }),
   ),
   exclusive: Type.Optional(
     Type.Boolean({
-      description: "For multi questions, selecting this option clears other selected suggestions",
+      description: "For multi questions, selecting this option clears other selected options",
     }),
   ),
 });
@@ -100,10 +100,10 @@ export const QuestionSchema = Type.Object({
     }),
   ),
   minSelections: Type.Optional(
-    Type.Integer({ minimum: 0, description: "Minimum selected suggestions when multi is true" }),
+    Type.Integer({ minimum: 0, description: "Minimum selected options when multi is true" }),
   ),
   maxSelections: Type.Optional(
-    Type.Integer({ minimum: 1, description: "Maximum selected suggestions when multi is true" }),
+    Type.Integer({ minimum: 1, description: "Maximum selected options when multi is true" }),
   ),
 });
 

@@ -35,7 +35,7 @@ export function getQuestionValidationMessage(
   const selectedCount = draft.selectedOptionIndexes.length;
 
   if (question.multi && selectedCount > question.maxSelections) {
-    return `Select at most ${question.maxSelections} suggestion${question.maxSelections === 1 ? "" : "s"}, or type your answer.`;
+    return `Select at most ${question.maxSelections} option${question.maxSelections === 1 ? "" : "s"}, or type your answer.`;
   }
   if (trimmedText) {
     return undefined;
@@ -44,13 +44,13 @@ export function getQuestionValidationMessage(
     return "Type an answer to continue.";
   }
   if (!question.multi) {
-    return selectedCount > 0 ? undefined : "Select a suggestion or type an answer to continue.";
+    return selectedCount > 0 ? undefined : "Select a option or type an answer to continue.";
   }
   if (selectedCount === 0) {
-    return "Select one or more suggestions, or type an answer to continue.";
+    return "Select one or more options, or type an answer to continue.";
   }
   if (selectedCount < question.minSelections) {
-    return `Select at least ${question.minSelections} suggestion${question.minSelections === 1 ? "" : "s"}, or type an answer.`;
+    return `Select at least ${question.minSelections} option${question.minSelections === 1 ? "" : "s"}, or type an answer.`;
   }
 
   return undefined;
@@ -123,7 +123,7 @@ export function toggleSuggestion(
   if (withoutExclusive.length >= question.maxSelections) {
     return {
       selectedOptionIndexes: draft.selectedOptionIndexes,
-      message: `Select at most ${question.maxSelections} suggestion${question.maxSelections === 1 ? "" : "s"}.`,
+      message: `Select at most ${question.maxSelections} option${question.maxSelections === 1 ? "" : "s"}.`,
     };
   }
 
@@ -210,7 +210,7 @@ function normalizeQuestion(question: Question): NormalizedQuestion {
   }
   if (options.length > 0 && recommendedCount !== undefined && recommendedCount < 1) {
     throw new Error(
-      `Question "${prompt}" must recommend at least one option when suggestions are provided.`,
+      `Question "${prompt}" must recommend at least one option when options are provided.`,
     );
   }
 

@@ -4,7 +4,6 @@ import { Type } from "typebox";
 
 export interface QuestionOption {
   text: string;
-  recommended?: boolean;
   description?: string;
   exclusive?: boolean;
 }
@@ -16,6 +15,7 @@ export interface Question {
 
   placeholder?: string;
   multi?: boolean;
+  recommendedCount?: number;
 
   minSelections?: number;
   maxSelections?: number;
@@ -42,6 +42,7 @@ export interface NormalizedQuestion {
   options: QuestionOption[];
   placeholder: string;
   multi: boolean;
+  recommendedCount?: number;
   minSelections: number;
   maxSelections: number;
 }
@@ -62,11 +63,6 @@ export interface ToggleSelectionResult {
 
 export const QuestionOptionSchema = Type.Object({
   text: Type.String({ description: "Suggested answer text shown to the user" }),
-  recommended: Type.Optional(
-    Type.Boolean({
-      description: "Whether this suggestion should be treated as the default fallback",
-    }),
-  ),
   description: Type.Optional(
     Type.String({ description: "Optional helper text shown under the suggestion" }),
   ),
@@ -95,6 +91,13 @@ export const QuestionSchema = Type.Object({
   ),
   multi: Type.Optional(
     Type.Boolean({ description: "Whether multiple suggested answers may be selected together" }),
+  ),
+  recommendedCount: Type.Optional(
+    Type.Integer({
+      minimum: 1,
+      description:
+        "Number of top options treated as the agent's recommendation. For single-select with options this is always 1; for multi-select it must be at least minSelections.",
+    }),
   ),
   minSelections: Type.Optional(
     Type.Integer({ minimum: 0, description: "Minimum selected suggestions when multi is true" }),

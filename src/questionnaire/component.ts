@@ -19,12 +19,7 @@ import {
   summarizeAnswer,
   toggleSuggestion,
 } from "./helpers.js";
-import type {
-  FocusMode,
-  NormalizedQuestion,
-  QuestionDraft,
-  QuestionnaireResult,
-} from "./types.js";
+import type { FocusMode, NormalizedQuestion, QuestionDraft, QuestionnaireResult } from "./types.js";
 
 interface QuestionnaireTheme {
   fg(role: string, text: string): string;
@@ -174,9 +169,10 @@ class QuestionnaireComponent implements Component, Focusable {
         const cursor = draft.cursorIndex === index && draft.focusMode === "options";
         const marker = question.multi ? (selected ? "[x]" : "[ ]") : selected ? "(*)" : "( )";
         const prefix = cursor ? this.options.theme.fg("accent", "> ") : "  ";
-        const recommendation = option.recommended
-          ? this.options.theme.fg("success", " [recommended]")
-          : "";
+        const recommendation =
+          question.recommendedCount !== undefined && index < question.recommendedCount
+            ? this.options.theme.fg("success", " [recommended]")
+            : "";
         const exclusive = option.exclusive ? this.options.theme.fg("dim", " [exclusive]") : "";
         const optionText = `${marker} ${option.text}${recommendation}${exclusive}`;
 

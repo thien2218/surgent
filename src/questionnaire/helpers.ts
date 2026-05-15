@@ -2,6 +2,7 @@ import type {
   NormalizedQuestion,
   Question,
   QuestionDraft,
+  QuestionOption,
   QuestionnaireParams,
   ToggleSelectionResult,
 } from "./types.js";
@@ -12,8 +13,7 @@ export function normalizeQuestions(params: QuestionnaireParams): NormalizedQuest
   if (params.questions.length === 0) {
     throw new Error("At least one question is required.");
   }
-
-  return params.questions.map((question) => normalizeQuestion(question));
+  return params.questions.map(normalizeQuestion);
 }
 
 export function createInitialDraft(question: NormalizedQuestion): QuestionDraft {
@@ -169,45 +169,86 @@ function normalizeQuestion(question: Question): NormalizedQuestion {
 
   const options = question.options ?? [];
   const multi = question.multi === true && options.length > 0;
-  const recommendedOptionIndexes = getRecommendedOptionIndexes({ options, multi });
-  const minSelections = multi
-    ? Math.max(0, question.minSelections ?? recommendedOptionIndexes.length)
-    : 0;
+  const minSelections = multi ? (question.minSelections ?? 1) : 1;
   const maxSelections = multi ? (question.maxSelections ?? options.length) : 1;
+  const recommendedCount = getRecommendedCount({
+    options,
+    multi,
+    minSelections,
+    recommendedCount: question.recommendedCount,
+  });
 
   if (multi && options.length === 0) {
     throw new Error(`Question "${prompt}" enables multi-select but does not provide any options.`);
   }
-
   if (multi && maxSelections < minSelections) {
     throw new Error(`Question "${prompt}" has minSelections greater than maxSelections.`);
   }
-
   if (multi && maxSelections > options.length) {
     throw new Error(`Question "${prompt}" has maxSelections larger than the number of options.`);
+  }
+  if (
+    !multi &&
+    options.length > 0 &&
+    question.recommendedCount !== undefined &&
+    question.recommendedCount !== 1
+  ) {
+    throw new Error(`Question "${prompt}" must use recommendedCount: 1 for single-select options.`);
+  }
+  if (multi && recommendedCount !== undefined && recommendedCount < minSelections) {
+    throw new Error(
+      `Question "${prompt}" must have recommendedCount greater than or equal to minSelections.`,
+    );
+  }
+  if (recommendedCount !== undefined && recommendedCount > options.length) {
+    throw new Error(`Question "${prompt}" has recommendedCount larger than the number of options.`);
+  }
+  if (options.length > 0 && recommendedCount === undefined) {
+    throw new Error(
+      `Question "${prompt}" must provide recommended options at the top of the list.`,
+    );
+  }
+  if (options.length > 0 && recommendedCount !== undefined && recommendedCount < 1) {
+    throw new Error(
+      `Question "${prompt}" must recommend at least one option when suggestions are provided.`,
+    );
   }
 
   return {
     prompt,
-    ...(question.reason?.trim() ? { reason: question.reason.trim() } : {}),
+    reason: question.reason?.trim(),
     options,
     placeholder: question.placeholder?.trim() || DEFAULT_PLACEHOLDER,
     multi,
+    recommendedCount,
     minSelections,
     maxSelections,
   };
 }
 
 function getRecommendedOptionIndexes(
-  question: Pick<NormalizedQuestion, "options" | "multi">,
+  question: Pick<NormalizedQuestion, "options" | "recommendedCount">,
 ): number[] {
-  const recommendedIndexes = question.options.flatMap((option, index) =>
-    option.recommended ? [index] : [],
-  );
-  if (question.multi) {
-    return recommendedIndexes;
+  if (!question.recommendedCount) {
+    return [];
   }
-  return recommendedIndexes.length > 0 ? [recommendedIndexes[0]!] : [];
+
+  return question.options.slice(0, question.recommendedCount).map((_option, index) => index);
+}
+
+function getRecommendedCount(question: {
+  options: QuestionOption[];
+  multi: boolean;
+  minSelections: number;
+  recommendedCount?: number;
+}): number | undefined {
+  if (question.options.length === 0) {
+    return undefined;
+  }
+  if (!question.multi) {
+    return 1;
+  }
+  return question.recommendedCount ?? question.minSelections;
 }
 
 function clampCursorIndex(question: NormalizedQuestion, cursorIndex: number): number {

@@ -375,9 +375,9 @@ class QuestionnaireComponent implements Component, Focusable {
       return "Type an answer, then press Enter.";
     }
     if (question.multi) {
-      return "Select suggestions with Space, or type an answer, then press Enter.";
+      return "Select options with Space, or type an answer, then press Enter.";
     }
-    return "Select a suggestion or type an answer, then press Enter.";
+    return "Select an option or type an answer, then press Enter.";
   }
 
   private helpText(): string {
@@ -386,9 +386,9 @@ class QuestionnaireComponent implements Component, Focusable {
 
     if (question.options.length > 0) {
       base.unshift("Tab switches focus");
-      base.unshift("Up/Down move suggestions");
+      base.unshift("Up/Down move options");
       if (question.multi) {
-        base.unshift("Space toggles suggestions");
+        base.unshift("Space toggles options");
       }
     }
 

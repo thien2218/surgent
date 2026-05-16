@@ -29,7 +29,7 @@ const webSearchTool = defineTool({
       throw new Error("Query must not be empty.");
     }
 
-    const attempts: string[] = [];
+    const errors: string[] = [];
     let anyConfiguredProvider = false;
 
     for (const provider of WEB_SEARCH_PROVIDERS) {
@@ -42,7 +42,7 @@ const webSearchTool = defineTool({
       });
 
       if (!apiKey) {
-        attempts.push(`${provider.label}: not configured`);
+        errors.push(`${provider.label}: not configured`);
         continue;
       }
 
@@ -54,16 +54,16 @@ const webSearchTool = defineTool({
           .search(query, params.mode);
 
         if (results.length === 0) {
-          attempts.push(`${provider.label}: returned no results`);
+          errors.push(`${provider.label}: returned no results`);
           continue;
         }
 
         return {
           content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
-          details: { attempts, results } satisfies WebSearchToolDetails,
+          details: { results } satisfies WebSearchToolDetails,
         };
       } catch (error) {
-        attempts.push(`${provider.label}: ${formatErrorMessage(error)}`);
+        errors.push(`${provider.label}: ${formatErrorMessage(error)}`);
       }
     }
 
@@ -73,7 +73,7 @@ const webSearchTool = defineTool({
       );
     }
 
-    throw new Error(`Web search failed across all configured providers. ${attempts.join(" | ")}`);
+    throw new Error(`Web search failed across all configured providers. ${errors.join(" | ")}`);
   },
   renderCall(args, theme) {
     return new Text(`${theme.fg("toolTitle", "web_search")} ${args.query}`, 0, 0);

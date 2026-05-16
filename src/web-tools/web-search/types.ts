@@ -11,7 +11,6 @@ export interface WebSearchResult {
 }
 
 export interface WebSearchToolDetails {
-  attempts: string[];
   results: WebSearchResult[];
 }
 

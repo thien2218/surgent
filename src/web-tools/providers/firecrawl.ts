@@ -98,18 +98,17 @@ export class FirecrawlProvider implements WebSearchProvider, WebFetchProvider {
     for (const url of urls) {
       const document =
         documentsByUrl.get(toCanonicalUrl(url)) ?? (urls.length === 1 ? documents[0] : undefined);
-      const content = normalizeFetchedContent(document?.markdown);
+      const summary = normalizeFetchedContent(document?.markdown);
 
-      if (!content) {
+      if (!summary) {
         failures.push({
           message: "Firecrawl returned no markdown content.",
-          provider: "firecrawl",
           url,
         });
         continue;
       }
 
-      results.push({ content, provider: "firecrawl", url });
+      results.push({ provider: "firecrawl", summary, url });
     }
 
     return { failures, results };

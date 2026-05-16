@@ -1,5 +1,6 @@
 import { normalizeText } from "../../utils.js";
-import type { WebFetchResult } from "./types.js";
+import { getCacheFilePath } from "./storage.js";
+import type { WebFetchProviderResponse, WebFetchResult } from "./types.js";
 
 export function normalizeFetchedContent(value: unknown): string {
   return normalizeText(value).replace(/\r\n/g, "\n");
@@ -30,18 +31,12 @@ export function isTextLikeContentType(contentType: string | null): boolean {
   );
 }
 
-export function formatFetchResults(results: WebFetchResult[]): string {
-  if (results.length === 0) {
-    return "";
-  }
-
-  if (results.length === 1) {
-    const result = results[0]!;
-    return result.content;
-  }
-
+export function formatFetchResults(results: WebFetchResult[], cacheDate: string): string {
   return results
-    .map((result) => `Source: ${result.url}\nProvider: ${result.provider}\n\n${result.content}`)
+    .map((result) => {
+      const filePath = getCacheFilePath(result.url, cacheDate);
+      return `Source: ${result.url}\nProvider: ${result.provider}\nPath: ${filePath}\n\n${result.summary}`;
+    })
     .join("\n\n---\n\n");
 }
 
@@ -62,4 +57,42 @@ export async function getHttpError(response: Response): Promise<string> {
   }
 
   return `HTTP ${response.status}: ${body}`;
+}
+
+export function getValidatedUrls(urls: string[]): string[] {
+  return Array.from(
+    new Set(
+      urls.map((url) => {
+        const value = url.trim();
+        let parsed: URL;
+
+        try {
+          parsed = new URL(value);
+        } catch {
+          throw new Error(`Invalid URL: ${value}`);
+        }
+
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          throw new Error(`Unsupported URL protocol: ${value}`);
+        }
+
+        return parsed.href;
+      }),
+    ),
+  );
+}
+
+export function formatAttempt(
+  label: string,
+  attemptedCount: number,
+  response: WebFetchProviderResponse,
+): string {
+  const failedCount = response.failures.length;
+  const succeededCount = response.results.length;
+
+  if (failedCount === 0) {
+    return `${label}: resolved ${succeededCount}/${attemptedCount}`;
+  }
+
+  return `${label}: resolved ${succeededCount}/${attemptedCount}, failed ${failedCount}`;
 }

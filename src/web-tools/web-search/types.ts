@@ -15,7 +15,7 @@ export interface WebSearchToolDetails {
 }
 
 export interface WebSearchResultInput {
-  title?: string | undefined;
-  description?: string | undefined;
-  url?: string | undefined;
+  title?: string;
+  description?: string;
+  url?: string;
 }

@@ -22,6 +22,7 @@
     "@earendil-works/pi-ai": "^0.74.0",
     "@earendil-works/pi-coding-agent": "^0.74.0",
     "@mendable/firecrawl-js": "^4.22.2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@tavily/core": "^0.7.3",
     "turndown": "^7.2.4",
     "typebox": "^1.0.55"

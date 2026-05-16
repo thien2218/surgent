@@ -12,17 +12,17 @@ const webToolsFactory = new WebToolsFactory();
 const webSearchTool = defineTool({
   name: "web_search",
   label: "Web Search",
-  description:
-    "Search the public web or recent news and return up to 10 normalized results with title, description, and url.",
-  promptSnippet: "Search the public web or recent news and return normalized top results",
+  description: "Search web or news. Returns ranked title/summary/url results.",
+  promptSnippet: "Search web or news. Returns ranked results.",
   promptGuidelines: [
-    "Use web_search when the user needs current information or external sources that are not already available in the workspace context.",
-    "Use web_search with mode set to news for headline-driven or recent reporting queries, and mode set to web for general web results.",
+    "Use web_search for external/unavailable info.",
+    "Use web_search with mode=news for recent reporting; use mode=web otherwise.",
+    "Use web_search with small max first; results are re-ranked best-first.",
   ],
   parameters: Type.Object({
-    query: Type.String({ description: "The web search query to run" }),
+    query: Type.String({ description: "Search query" }),
     max: Type.Number({
-      description: "Maximum number of results to return",
+      description: "Max results (default: 5)",
       minimum: 1,
       maximum: 10,
       default: 5,

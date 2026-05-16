@@ -22,21 +22,16 @@ const webToolsFactory = new WebToolsFactory();
 const webFetchTool = defineTool({
   name: "web_fetch",
   label: "Web Fetch",
-  description:
-    "Fetch one or more public URLs, cache normalized markdown to local .md files, and return only file paths plus heading indexes.",
-  promptSnippet:
-    "Fetch one or more URLs, cache the page content to local markdown files, and return file paths plus heading indexes",
+  description: "Fetch public URLs, cache markdown locally, return file paths and heading outline.",
+  promptSnippet: "Fetch known URLs. Returns metadata and heading outline.",
   promptGuidelines: [
-    "Use web_fetch when the user needs the content of one or more known URLs rather than a search results list.",
-    "Use web_fetch when the task depends on extracting readable page content in markdown or plain text.",
-    "web_fetch returns cached file paths plus heading indexes, not full page bodies.",
-    "Use read with the returned file path to inspect the content body.",
-    "Use exact-match search against the returned file path when you need precise locations before reading.",
+    "Don't use web_fetch when relevant info is already in web_search.",
+    "Use web_fetch for known URLs, not discovery.",
+    "Use web_fetch with all needed URLs in one call.",
+    "Use web_fetch output paths with read/search only when page body is needed.",
   ],
   parameters: Type.Object({
-    urls: Type.Array(Type.String(), {
-      description: "One or multiple HTTP(S) URLs to fetch in one call",
-    }),
+    urls: Type.Array(Type.String(), { description: "One or multiple HTTP(S) URLs" }),
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
     const urls = getValidatedUrls(params.urls);

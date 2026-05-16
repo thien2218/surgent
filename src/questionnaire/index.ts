@@ -7,15 +7,13 @@ import { QuestionnaireParamsSchema, type Question, type QuestionnaireResult } fr
 const questionnaireTool = defineTool({
   name: "questionnaire",
   label: "Questionnaire",
-  description:
-    "Ask the user one or more clarifying questions with free-form answers and optional suggested responses.",
-  promptSnippet:
-    "Ask the user focused clarifying questions and return one final answer string per question",
+  description: "Ask focused clarifying questions. Returns one answer per question.",
+  promptSnippet: "Ask focused clarifying questions. Returns one answer per question.",
   promptGuidelines: [
-    "Use questionnaire only when key information is missing and the ambiguity would materially change the next step.",
-    "Batch related clarification questions into one questionnaire call when that is simpler than asking them one at a time.",
-    "Prefer a small number of high-signal questions and explain why each answer matters when that context helps the user respond.",
-    "Do not re-ask details that are already present in the user request or clearly implied by the current workspace state.",
+    "Use questionnaire only when missing info changes next step.",
+    "questionnaire can batch related questions in one call.",
+    "Use questionnaire with few high-signal questions.",
+    "Use questionnaire only for gaps not already answered.",
   ],
   parameters: QuestionnaireParamsSchema,
   async execute(_toolCallId, params, _signal, _onUpdate, ctx) {

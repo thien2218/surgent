@@ -7,8 +7,6 @@ import type {
   ToggleSelectionResult,
 } from "./types.js";
 
-const DEFAULT_PLACEHOLDER = "Type your answer";
-
 export function normalizeQuestions(params: QuestionnaireParams): NormalizedQuestion[] {
   if (params.questions.length === 0) {
     throw new Error("At least one question is required.");
@@ -218,7 +216,7 @@ function normalizeQuestion(question: Question): NormalizedQuestion {
     prompt,
     reason: question.reason?.trim(),
     options,
-    placeholder: question.placeholder?.trim() || DEFAULT_PLACEHOLDER,
+    placeholder: question.placeholder.trim(),
     multi,
     recommendedCount,
     minSelections,

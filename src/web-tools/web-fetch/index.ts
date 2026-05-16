@@ -41,7 +41,7 @@ const webFetchTool = defineTool({
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
     const urls = getValidatedUrls(params.urls);
     const cacheDate = getCurrentCacheDate();
-    const errors: string[] = [];
+    const attempts: string[] = [];
     const failtures: WebFetchFailure[] = [];
     const results: WebFetchResult[] = [];
     const nativeFetch = { name: "native", label: "Native fetch" } as const;
@@ -78,7 +78,7 @@ const webFetchTool = defineTool({
       });
 
       if ((provider.name === "firecrawl" || provider.name === "tavily") && !apiKey) {
-        errors.push(`${provider.label}: not configured`);
+        attempts.push(`${provider.label}: not configured`);
         continue;
       }
 
@@ -97,16 +97,16 @@ const webFetchTool = defineTool({
         }
 
         failtures.push(...response.failures);
-        errors.push(formatAttempt(provider.label, remaining.length, response));
+        attempts.push(formatAttempt(provider.label, remaining.length, response));
       } catch (error) {
-        errors.push(`${provider.label}: ${formatErrorMessage(error)}`);
+        attempts.push(`${provider.label}: ${formatErrorMessage(error)}`);
       }
     }
 
     results.sort((left, right) => urls.indexOf(left.url) - urls.indexOf(right.url));
 
     if (results.length === 0) {
-      throw new Error(`Web fetch failed for all URLs. ${errors.join(" | ")}`);
+      throw new Error(`Web fetch failed for all URLs.\n|- ${attempts.join("\n|- ")}`);
     }
 
     return {

@@ -34,10 +34,10 @@ interface FirecrawlBatchJob {
 export class FirecrawlProvider implements WebSearchProvider, WebFetchProvider {
   constructor(private readonly apiKey: string) {}
 
-  async search(query: string, mode: WebSearchMode): Promise<WebSearchResult[]> {
+  async search(query: string, mode: WebSearchMode, max: number): Promise<WebSearchResult[]> {
     const client = new Firecrawl({ apiKey: this.apiKey });
     const response = (await client.search(query, {
-      limit: 10,
+      limit: max,
       sources: [mode],
     })) as FirecrawlSearchResponse;
     const items = response[mode] ?? [];

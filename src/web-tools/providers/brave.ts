@@ -20,9 +20,13 @@ interface BraveSearchResponse {
 export class BraveWebSearchProvider implements WebSearchProvider {
   constructor(private readonly apiKey: string) {}
 
-  async search(query: string, mode: WebSearchMode): Promise<WebSearchResult[]> {
+  async search(query: string, mode: WebSearchMode, max: number): Promise<WebSearchResult[]> {
     const endpoint = mode === "news" ? "news/search" : "web/search";
-    const searchParams = new URLSearchParams({ count: "10", extra_snippets: "true", q: query });
+    const searchParams = new URLSearchParams({
+      count: String(max),
+      extra_snippets: "true",
+      q: query,
+    });
 
     const response = await fetch(
       `https://api.search.brave.com/res/v1/${endpoint}?${searchParams.toString()}`,

@@ -22,12 +22,12 @@ interface TavilyExtractResponse {
 export class TavilyProvider implements WebSearchProvider, WebFetchProvider {
   constructor(private readonly apiKey: string) {}
 
-  async search(query: string, mode: WebSearchMode): Promise<WebSearchResult[]> {
+  async search(query: string, mode: WebSearchMode, max: number): Promise<WebSearchResult[]> {
     const client = tavily({ apiKey: this.apiKey });
     const response = (await client.search(query, {
       includeAnswer: false,
       includeRawContent: false,
-      maxResults: 10,
+      maxResults: max,
       searchDepth: "basic",
       topic: mode === "news" ? "news" : "general",
     })) as TavilySearchResponse;

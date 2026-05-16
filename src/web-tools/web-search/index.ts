@@ -21,6 +21,12 @@ const webSearchTool = defineTool({
   ],
   parameters: Type.Object({
     query: Type.String({ description: "The web search query to run" }),
+    max: Type.Number({
+      description: "Maximum number of results to return",
+      minimum: 1,
+      maximum: 10,
+      default: 5,
+    }),
     mode: StringEnum(["web", "news"] as const),
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
@@ -50,7 +56,7 @@ const webSearchTool = defineTool({
       try {
         const results = await webToolsFactory
           .createWebSearcher(provider.name, apiKey)
-          .search(query, params.mode);
+          .search(query, params.mode, params.max);
 
         if (results.length === 0) {
           attempts.push(`${provider.label}: returned no results`);

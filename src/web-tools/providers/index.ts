@@ -8,7 +8,7 @@ import { NativeWebFetchProvider } from "./native.js";
 import { TavilyProvider } from "./tavily.js";
 
 export interface WebSearchProvider {
-  search(query: string, mode: WebSearchMode): Promise<WebSearchResult[]>;
+  search(query: string, mode: WebSearchMode, max: number): Promise<WebSearchResult[]>;
 }
 
 export interface WebFetchProvider {

@@ -62,64 +62,50 @@ export interface ToggleSelectionResult {
 // ==================== VALIDATION ====================
 
 export const QuestionOptionSchema = Type.Object({
-  text: Type.String({ description: "Suggested answer text shown to the user" }),
-  description: Type.Optional(
-    Type.String({ description: "Optional helper text shown under the option" }),
-  ),
+  text: Type.String({ description: "Option text" }),
+  description: Type.Optional(Type.String({ description: "Option helper text" })),
   exclusive: Type.Optional(
     Type.Boolean({
-      description: "For multi questions, selecting this option clears other selected options",
+      description: "If selected, clears other options",
     }),
   ),
 });
 
 export const QuestionSchema = Type.Object({
-  prompt: Type.String({ description: "The question shown to the user" }),
-  reason: Type.Optional(
-    Type.String({
-      description: "Short explanation shown to the user for why the answer is needed",
-    }),
-  ),
-  options: Type.Optional(
-    Type.Array(QuestionOptionSchema, {
-      description:
-        "Optional suggested answers that the user can select instead of typing from scratch",
-    }),
-  ),
+  prompt: Type.String({ description: "Question text" }),
+  reason: Type.Optional(Type.String({ description: "Why answer matters" })),
+  options: Type.Optional(Type.Array(QuestionOptionSchema, { description: "Suggested options" })),
   placeholder: Type.String({
-    description: "Placeholder text shown in the free-form answer editor",
+    description: "Freeform input placeholder",
     default: "Type your answer",
   }),
-  multi: Type.Optional(
-    Type.Boolean({ description: "Whether multiple suggested answers may be selected together" }),
-  ),
+  multi: Type.Optional(Type.Boolean({ description: "Allow multiple options" })),
   recommendedCount: Type.Optional(
     Type.Integer({
       minimum: 1,
-      description:
-        "Number of top options treated as the agent's recommendation. For single-select with options this is always 1; for multi-select it must be at least minSelections.",
+      description: "Recommended options count",
     }),
   ),
   minSelections: Type.Optional(
-    Type.Integer({ minimum: 0, description: "Minimum selected options when multi is true" }),
+    Type.Integer({ minimum: 0, description: "Min options to select (if multi=true)" }),
   ),
   maxSelections: Type.Optional(
-    Type.Integer({ minimum: 1, description: "Maximum selected options when multi is true" }),
+    Type.Integer({ minimum: 1, description: "Max options to select (if multi=true)" }),
   ),
 });
 
 export const QuestionnaireParamsSchema = Type.Object({
   questions: Type.Array(QuestionSchema, {
     minItems: 1,
-    description: "Questions to ask in one questionnaire session",
+    description: "Questions to ask",
   }),
 });
 
 export const QuestionnaireResultSchema = Type.Object({
   cancelled: Type.Boolean({
-    description: "Whether the questionnaire was aborted before submission",
+    description: "True if user cancelled questionnaire tool",
   }),
   answers: Type.Array(Type.String(), {
-    description: "One final answer string per question, in input order; empty when cancelled",
+    description: "Final answers in questions order",
   }),
 });

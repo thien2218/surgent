@@ -9,25 +9,18 @@ export default function registerMcpCallTool(pi: ExtensionAPI, clientManager: Mcp
   const mcpCallTool = defineTool({
     name: "mcp_call_tool",
     label: "MCP Call Tool",
-    description: "Call a tool exposed by a configured MCP server over stdio or HTTP.",
-    promptSnippet:
-      "Call a configured MCP server tool when the server name and remote tool name are known.",
+    description: "Call known tool on configured MCP server.",
+    promptSnippet: "Call known tool on configured MCP server.",
     promptGuidelines: [
-      "Use mcp_call_tool only after choosing a configured MCP server and a known remote tool name.",
-      "Prefer mcp_call_tool when the capability already exists behind an MCP server instead of reproducing the logic locally.",
-      "Pass a JSON object in arguments that matches the remote MCP tool schema.",
+      "Use mcp_call_tool only with known server and tool names.",
+      "Use mcp_call_tool instead of recreating capability already exposed by MCP.",
+      "Use mcp_call_tool arguments as schema-matching JSON.",
     ],
     parameters: Type.Object({
-      server: Type.String({ description: "Configured MCP server name from /mcp-config" }),
-      tool: Type.String({ description: "Remote MCP tool name to invoke" }),
+      server: Type.String({ description: "Configured server name" }),
+      tool: Type.String({ description: "Remote tool name" }),
       arguments: Type.Optional(
-        Type.Object(
-          {},
-          {
-            additionalProperties: true,
-            description: "JSON object passed to the remote MCP tool as arguments",
-          },
-        ),
+        Type.Object({}, { additionalProperties: true, description: "JSON arguments" }),
       ),
     }),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {

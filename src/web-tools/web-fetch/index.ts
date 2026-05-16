@@ -1,14 +1,21 @@
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { formatErrorMessage, formatFetchResults } from "./helpers.js";
+import {
+  formatAttempt,
+  formatErrorMessage,
+  formatFetchResults,
+  getValidatedUrls,
+} from "./helpers.js";
+import { formatWebFetchSummary } from "./parser.js";
+import {
+  getCurrentCacheDate,
+  pruneExpiredCacheDirs,
+  readCachedContent,
+  writeFetchedResult,
+} from "./storage.js";
 import { WebToolsFactory } from "../providers/index.js";
-import type {
-  WebFetchFailure,
-  WebFetchProviderResponse,
-  WebFetchResult,
-  WebFetchToolDetails,
-} from "./types.js";
+import type { WebFetchFailure, WebFetchResult, WebFetchProviderResponse } from "./types.js";
 import { WEB_FETCH_PROVIDERS } from "../settings.js";
 
 const webToolsFactory = new WebToolsFactory();
@@ -17,11 +24,15 @@ const webFetchTool = defineTool({
   name: "web_fetch",
   label: "Web Fetch",
   description:
-    "Fetch one or more public URLs and return normalized markdown or plain-text content.",
-  promptSnippet: "Fetch one or more URLs and return normalized markdown or plain text content",
+    "Fetch one or more public URLs, cache normalized markdown to local .md files, and return only file paths plus heading indexes.",
+  promptSnippet:
+    "Fetch one or more URLs, cache the page content to local markdown files, and return file paths plus heading indexes",
   promptGuidelines: [
     "Use web_fetch when the user needs the content of one or more known URLs rather than a search results list.",
     "Use web_fetch when the task depends on extracting readable page content in markdown or plain text.",
+    "web_fetch returns cached file paths plus heading indexes, not full page bodies.",
+    "Use read with the returned file path to inspect the content body.",
+    "Use exact-match search against the returned file path when you need precise locations before reading.",
   ],
   parameters: Type.Object({
     urls: Type.Array(Type.String(), {
@@ -30,17 +41,35 @@ const webFetchTool = defineTool({
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
     const urls = getValidatedUrls(params.urls);
-    const attempts: string[] = [];
-    const resultsByUrl = new Map<string, WebFetchResult>();
-    const failuresByUrl = new Map<string, WebFetchFailure>();
+    const cacheDate = getCurrentCacheDate();
+    const errors: string[] = [];
+    const failtures: WebFetchFailure[] = [];
+    const results: WebFetchResult[] = [];
     const nativeFetch = { name: "native", label: "Native fetch" } as const;
 
-    for (const provider of [nativeFetch, ...WEB_FETCH_PROVIDERS]) {
-      const pendingUrls = urls.filter((url) => !resultsByUrl.has(url));
-      if (pendingUrls.length === 0) {
-        break;
+    await pruneExpiredCacheDirs(cacheDate);
+
+    for (const url of urls) {
+      if (signal?.aborted) {
+        throw new Error("web_fetch was cancelled.");
       }
 
+      const cachedContent = await readCachedContent(url, cacheDate);
+      if (cachedContent === undefined) {
+        failtures.push({ message: "Failed to fetch from cache", url });
+        continue;
+      }
+
+      results.push({ provider: "native", summary: formatWebFetchSummary(cachedContent), url });
+    }
+
+    for (const provider of [nativeFetch, ...WEB_FETCH_PROVIDERS]) {
+      const remaining = failtures.map((failure) => failure.url);
+      failtures.splice(0, failtures.length);
+
+      if (remaining.length === 0) {
+        break;
+      }
       if (signal?.aborted) {
         throw new Error("web_fetch was cancelled.");
       }
@@ -50,48 +79,40 @@ const webFetchTool = defineTool({
       });
 
       if ((provider.name === "firecrawl" || provider.name === "tavily") && !apiKey) {
-        attempts.push(`${provider.label}: not configured`);
+        errors.push(`${provider.label}: not configured`);
         continue;
       }
 
       try {
         const response = await webToolsFactory
           .createWebFetcher(provider.name, apiKey)
-          .fetch(pendingUrls);
+          .fetch(remaining);
 
         for (const result of response.results) {
-          resultsByUrl.set(result.url, result);
-          failuresByUrl.delete(result.url);
-        }
-
-        for (const failure of response.failures) {
-          if (!resultsByUrl.has(failure.url)) {
-            failuresByUrl.set(failure.url, failure);
+          try {
+            await writeFetchedResult(result.url, result.summary, cacheDate);
+            results.push({ ...result, summary: formatWebFetchSummary(result.summary) });
+          } catch (error) {
+            failtures.push({ message: formatErrorMessage(error), url: result.url });
           }
         }
 
-        attempts.push(formatAttempt(provider.label, pendingUrls.length, response));
+        failtures.push(...response.failures);
+        errors.push(formatAttempt(provider.label, remaining.length, response));
       } catch (error) {
-        attempts.push(`${provider.label}: ${formatErrorMessage(error)}`);
+        errors.push(`${provider.label}: ${formatErrorMessage(error)}`);
       }
     }
 
-    const results = urls.flatMap((url) => {
-      const result = resultsByUrl.get(url);
-      return result ? [result] : [];
-    });
-    const failures = urls.flatMap((url) => {
-      const failure = failuresByUrl.get(url);
-      return failure ? [failure] : [];
-    });
+    results.sort((left, right) => urls.indexOf(left.url) - urls.indexOf(right.url));
 
     if (results.length === 0) {
-      throw new Error(`Web fetch failed for all URLs. ${attempts.join(" | ")}`);
+      throw new Error(`Web fetch failed for all URLs. ${errors.join(" | ")}`);
     }
 
     return {
-      content: [{ type: "text", text: formatFetchResults(results) }],
-      details: { attempts, failures, results } satisfies WebFetchToolDetails,
+      content: [{ type: "text", text: formatFetchResults(results, cacheDate) }],
+      details: { failures: failtures, results } satisfies WebFetchProviderResponse,
     };
   },
   renderCall(args, theme) {
@@ -102,7 +123,7 @@ const webFetchTool = defineTool({
       return new Text(theme.fg("warning", "Fetching content..."), 0, 0);
     }
 
-    const details = result.details as WebFetchToolDetails | undefined;
+    const details = result.details as WebFetchProviderResponse | undefined;
     const urls = details?.results.map((item) => item.url) ?? [];
 
     if (urls.length === 0) {
@@ -115,42 +136,4 @@ const webFetchTool = defineTool({
 
 export default function registerWebFetchTool(pi: ExtensionAPI) {
   pi.registerTool(webFetchTool);
-}
-
-function getValidatedUrls(urls: string[]): string[] {
-  return Array.from(
-    new Set(
-      urls.map((url) => {
-        const value = url.trim();
-        let parsed: URL;
-
-        try {
-          parsed = new URL(value);
-        } catch {
-          throw new Error(`Invalid URL: ${value}`);
-        }
-
-        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-          throw new Error(`Unsupported URL protocol: ${value}`);
-        }
-
-        return parsed.href;
-      }),
-    ),
-  );
-}
-
-function formatAttempt(
-  label: string,
-  attemptedCount: number,
-  response: WebFetchProviderResponse,
-): string {
-  const failedCount = response.failures.length;
-  const succeededCount = response.results.length;
-
-  if (failedCount === 0) {
-    return `${label}: resolved ${succeededCount}/${attemptedCount}`;
-  }
-
-  return `${label}: resolved ${succeededCount}/${attemptedCount}, failed ${failedCount}`;
 }

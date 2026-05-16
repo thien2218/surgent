@@ -45,18 +45,18 @@ export class NativeWebFetchProvider implements WebFetchProvider {
       }
 
       const rawBody = await response.text();
-      const content = this.normalizeContent(rawBody, contentType);
+      const summary = this.normalizeContent(rawBody, contentType);
 
-      if (!content) {
+      if (!summary) {
         throw new Error("Native fetch returned empty content.");
       }
 
       return {
-        result: { content, provider: "native", url },
+        result: { provider: "native", summary, url },
       };
     } catch (error) {
       return {
-        failure: { message: formatErrorMessage(error), provider: "native", url },
+        failure: { message: formatErrorMessage(error), url },
       };
     }
   }

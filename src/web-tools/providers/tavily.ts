@@ -56,10 +56,10 @@ export class TavilyProvider implements WebSearchProvider, WebFetchProvider {
     for (const url of urls) {
       const canonicalUrl = toCanonicalUrl(url);
       const item = resultByUrl.get(canonicalUrl);
-      const summary = normalizeFetchedContent(item?.rawContent);
+      const content = normalizeFetchedContent(item?.rawContent);
 
-      if (summary) {
-        results.push({ provider: "tavily", summary, url });
+      if (content) {
+        results.push({ provider: "tavily", content, url });
         continue;
       }
 

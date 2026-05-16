@@ -5,7 +5,7 @@ export type WebFetchProviderId = (typeof WEB_FETCH_PROVIDERS)[number]["name"] | 
 export interface WebFetchResult {
   url: string;
   provider: WebFetchProviderId;
-  summary: string;
+  content: string;
 }
 
 export interface WebFetchFailure {

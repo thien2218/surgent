@@ -1,4 +1,5 @@
 import { normalizeText } from "../../utils.js";
+import { parseWebFetchContent } from "./parser.js";
 import { getCacheFilePath } from "./storage.js";
 import type { WebFetchProviderResponse, WebFetchResult } from "./types.js";
 
@@ -35,7 +36,7 @@ export function formatFetchResults(results: WebFetchResult[], cacheDate: string)
   return results
     .map((result) => {
       const filePath = getCacheFilePath(result.url, cacheDate);
-      return `Source: ${result.url}\nProvider: ${result.provider}\nPath: ${filePath}\n\n${result.summary}`;
+      return `Source: ${result.url}\nProvider: ${result.provider}\nPath: ${filePath}\n\n${parseWebFetchContent(result.content)}`;
     })
     .join("\n\n---\n\n");
 }

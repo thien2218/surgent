@@ -13,7 +13,7 @@ export interface Question {
   reason?: string;
   options?: QuestionOption[];
 
-  placeholder?: string;
+  placeholder: string;
   multi?: boolean;
   recommendedCount?: number;
 
@@ -86,9 +86,10 @@ export const QuestionSchema = Type.Object({
         "Optional suggested answers that the user can select instead of typing from scratch",
     }),
   ),
-  placeholder: Type.Optional(
-    Type.String({ description: "Placeholder text shown in the free-form answer editor" }),
-  ),
+  placeholder: Type.String({
+    description: "Placeholder text shown in the free-form answer editor",
+    default: "Type your answer",
+  }),
   multi: Type.Optional(
     Type.Boolean({ description: "Whether multiple suggested answers may be selected together" }),
   ),

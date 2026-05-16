@@ -1,4 +1,4 @@
-export function formatWebFetchSummary(content: string): string {
+export function parseWebFetchContent(content: string): string {
   const lines = content.split("\n");
   const headings: Array<{ endLine?: number; level: number; line: number; title: string }> = [];
   let fenceMarker: string | undefined;

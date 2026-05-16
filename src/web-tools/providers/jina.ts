@@ -35,14 +35,14 @@ export class JinaWebFetchProvider implements WebFetchProvider {
       }
 
       const body = normalizeFetchedContent(await response.text());
-      const summary = this.extractJinaMarkdown(body);
+      const content = this.extractJinaMarkdown(body);
 
-      if (!summary) {
+      if (!content) {
         throw new Error("Jina returned empty content.");
       }
 
       return {
-        result: { provider: "jina", summary, url },
+        result: { provider: "jina", content, url },
       };
     } catch (error) {
       return {

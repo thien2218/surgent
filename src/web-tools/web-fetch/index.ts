@@ -7,7 +7,6 @@ import {
   formatFetchResults,
   getValidatedUrls,
 } from "./helpers.js";
-import { formatWebFetchSummary } from "./parser.js";
 import {
   getCurrentCacheDate,
   pruneExpiredCacheDirs,
@@ -54,13 +53,13 @@ const webFetchTool = defineTool({
         throw new Error("web_fetch was cancelled.");
       }
 
-      const cachedContent = await readCachedContent(url, cacheDate);
-      if (cachedContent === undefined) {
+      const content = await readCachedContent(url, cacheDate);
+      if (content === undefined) {
         failtures.push({ message: "Failed to fetch from cache", url });
         continue;
       }
 
-      results.push({ provider: "native", summary: formatWebFetchSummary(cachedContent), url });
+      results.push({ provider: "native", content, url });
     }
 
     for (const provider of [nativeFetch, ...WEB_FETCH_PROVIDERS]) {
@@ -90,8 +89,8 @@ const webFetchTool = defineTool({
 
         for (const result of response.results) {
           try {
-            await writeFetchedResult(result.url, result.summary, cacheDate);
-            results.push({ ...result, summary: formatWebFetchSummary(result.summary) });
+            await writeFetchedResult(result.url, result.content, cacheDate);
+            results.push(result);
           } catch (error) {
             failtures.push({ message: formatErrorMessage(error), url: result.url });
           }

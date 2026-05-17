@@ -4,19 +4,19 @@ import { main } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-process.title = "optical";
+process.title = "surgent";
 
 function rewriteHelpLine(line) {
   if (/^pi\b/.test(line)) {
-    return line.replace(/^pi\b/, "optical");
+    return line.replace(/^pi\b/, "surgent");
   }
   if (/^(\s+)pi\b/.test(line)) {
-    return line.replace(/^(\s+)pi\b/, "$1optical");
+    return line.replace(/^(\s+)pi\b/, "$1surgent");
   }
   if (/^Alias:\s+pi\b/.test(line)) {
-    return line.replace(/^Alias:\s+pi\b/, "Alias: optical");
+    return line.replace(/^Alias:\s+pi\b/, "Alias: surgent");
   }
-  return line.replace(/(["'`])pi(?=[\s-])/g, "$1optical");
+  return line.replace(/(["'`])pi(?=[\s-])/g, "$1surgent");
 }
 
 function rewriteHelpText(text) {

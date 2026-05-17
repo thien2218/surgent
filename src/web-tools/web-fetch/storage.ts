@@ -15,11 +15,11 @@ export function getCurrentCacheDate(): string {
 export function getCacheFilePath(url: string, date = getCurrentCacheDate()): string {
   const canonicalUrl = toCanonicalUrl(url);
   const fileName = `${createHash("md5").update(canonicalUrl).digest("hex")}.md`;
-  return join(tmpdir(), "optical", "web-results", date, fileName);
+  return join(tmpdir(), "surgent", "web-results", date, fileName);
 }
 
 export async function pruneExpiredCacheDirs(today = getCurrentCacheDate()): Promise<void> {
-  const cacheRoot = join(tmpdir(), "optical", "web-results");
+  const cacheRoot = join(tmpdir(), "surgent", "web-results");
 
   try {
     const entries = await readdir(cacheRoot, { withFileTypes: true });

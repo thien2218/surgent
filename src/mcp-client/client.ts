@@ -11,7 +11,7 @@ interface ManagedConnection {
 }
 
 const CLIENT_INFO = {
-  name: "optical-mcp-client",
+  name: "surgent-mcp-client",
   version: "0.1.0",
 };
 

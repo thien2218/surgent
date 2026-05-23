@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 process.title = "surgent";
 
+
 function rewriteHelpLine(line) {
   if (/^pi\b/.test(line)) {
     return line.replace(/^pi\b/, "surgent");
@@ -57,16 +58,17 @@ async function runRewrittenHelp(args) {
   });
 }
 
+// Move cursor to home, clear visible screen, clear scrollback
+const CLEAR_SCREEN = "\x1b[H\x1b[2J\x1b[3J";
+
 const args = process.argv.slice(2);
 
 if (args.includes("--help") || args.includes("-h")) {
   await runRewrittenHelp(args);
 } else {
-  // Enter alternate screen buffer (fullscreen, saves cursor position)
-  process.stdout.write("\x1b[?1049h");
-  // Exit alternate screen buffer (restores main screen and cursor position)
+  process.stdout.write(CLEAR_SCREEN);
   process.on("exit", () => {
-    process.stdout.write("\x1b[?1049l");
+    process.stdout.write(CLEAR_SCREEN);
   });
   await main(args);
 }

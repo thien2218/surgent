@@ -41,7 +41,7 @@ const webFetchTool = defineTool({
     const results: WebFetchResult[] = [];
     const nativeFetch = { name: "native", label: "Native fetch" } as const;
 
-    await pruneExpiredCacheDirs(cacheDate);
+    pruneExpiredCacheDirs(cacheDate);
 
     for (const url of urls) {
       if (signal?.aborted) {

@@ -1,3 +1,9 @@
 {
-  "extensions": ["../src/ui", "../src/web-tools", "../src/questionnaire", "../src/mcp-client"]
+  "extensions": [
+    "../src/ui",
+    "../src/web-tools",
+    "../src/questionnaire",
+    "../src/mcp-client",
+    "../src/detect-secrets"
+  ]
 }

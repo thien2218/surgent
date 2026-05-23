@@ -57,6 +57,7 @@ function isFalsePositive(value: string): boolean {
   return false;
 }
 
+// Sub-milisecond overhead
 export function containSecrets(input: string): boolean {
   for (const { pattern, severity } of SECRET_PATTERNS) {
     const match = pattern.exec(input);

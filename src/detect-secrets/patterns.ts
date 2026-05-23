@@ -23,11 +23,6 @@ export const SECRET_PATTERNS: SecretPattern[] = [
     pattern: /AIza[0-9A-Za-z\-_]{35}/,
     severe: true,
   },
-  {
-    name: "GCP Service Account",
-    pattern: /"type"\s*:\s*"service_account"/,
-    severe: true,
-  },
 
   // ── GitHub ──
   {
@@ -66,7 +61,7 @@ export const SECRET_PATTERNS: SecretPattern[] = [
   // ── Twilio ──
   {
     name: "Twilio Account SID",
-    pattern: /AC[0-9a-fA-F]{32}/,
+    pattern: /twilio.*?account[_\-]?sid["':\s=]+([AC][0-9a-fA-F]{32})/is,
     severe: true,
   },
   {
@@ -145,23 +140,6 @@ export const SECRET_PATTERNS: SecretPattern[] = [
     severe: true,
   },
 
-  // ── Generic secrets (with entropy check) ──
-  {
-    name: "Generic API Key",
-    pattern: /(?:api[_\-]?key|apikey)["']?\s*[:=]\s*["']([A-Za-z0-9_\-]{20,60})["']/i,
-    severe: false,
-  },
-  {
-    name: "Generic Secret",
-    pattern: /(?:secret|client_secret)["']?\s*[:=]\s*["']([A-Za-z0-9_\-+\/]{20,80})["']/i,
-    severe: false,
-  },
-  {
-    name: "Generic Password",
-    pattern: /(?:password|passwd|pwd)["']?\s*[:=]\s*["']([^"']{8,50})["']/i,
-    severe: false,
-  },
-
   // ── Private Keys ──
   {
     name: "RSA Private Key",
@@ -230,10 +208,27 @@ export const SECRET_PATTERNS: SecretPattern[] = [
     severe: false,
   },
 
-  // ── Internal/Staging URLs with credentials ──
+  // ── Internal URLs with credentials ──
   {
     name: "URL with Embedded Credentials",
     pattern: /https?:\/\/[^:@\s"']+:[^@\s"']+@[^\s"'<>]+/,
     severe: true,
+  },
+
+  // ── Generic secrets (with entropy check) ──
+  {
+    name: "Generic API Key",
+    pattern: /(?:api[_\-]?key|apikey)["']?\s*[:=]\s*["']([A-Za-z0-9_\-]{20,60})["']/i,
+    severe: false,
+  },
+  {
+    name: "Generic Secret",
+    pattern: /(?:secret|client_secret)["']?\s*[:=]\s*["']([A-Za-z0-9_\-+\/]{20,80})["']/i,
+    severe: false,
+  },
+  {
+    name: "Generic Password",
+    pattern: /(?:password|passwd|pwd)["']?\s*[:=]\s*["']([^"']{8,50})["']/i,
+    severe: false,
   },
 ];

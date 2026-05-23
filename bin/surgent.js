@@ -5,7 +5,8 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 process.title = "surgent";
-
+const args = process.argv.slice(2);
+const CLEAR_SCREEN = "\x1b[H\x1b[2J\x1b[3J";
 
 function rewriteHelpLine(line) {
   if (/^pi\b/.test(line)) {
@@ -57,11 +58,6 @@ async function runRewrittenHelp(args) {
     });
   });
 }
-
-// Move cursor to home, clear visible screen, clear scrollback
-const CLEAR_SCREEN = "\x1b[H\x1b[2J\x1b[3J";
-
-const args = process.argv.slice(2);
 
 if (args.includes("--help") || args.includes("-h")) {
   await runRewrittenHelp(args);

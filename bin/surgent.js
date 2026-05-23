@@ -62,5 +62,11 @@ const args = process.argv.slice(2);
 if (args.includes("--help") || args.includes("-h")) {
   await runRewrittenHelp(args);
 } else {
+  // Enter alternate screen buffer (fullscreen, saves cursor position)
+  process.stdout.write("\x1b[?1049h");
+  // Exit alternate screen buffer (restores main screen and cursor position)
+  process.on("exit", () => {
+    process.stdout.write("\x1b[?1049l");
+  });
   await main(args);
 }

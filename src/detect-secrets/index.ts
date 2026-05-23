@@ -21,7 +21,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("tool_result", async (event, _ctx) => {
-    if (event.toolName !== "read") return;
+    if (event.toolName !== "read" && event.toolName !== "bash" && event.toolName !== "grep") return;
 
     const text = event.content
       .filter((c) => c.type === "text")

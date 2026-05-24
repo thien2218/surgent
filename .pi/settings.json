@@ -4,6 +4,7 @@
     "../src/web-tools",
     "../src/questionnaire",
     "../src/mcp-client",
-    "../src/detect-secrets"
+    "../src/detect-secrets",
+    "../src/permission"
   ]
 }

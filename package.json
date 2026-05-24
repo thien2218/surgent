@@ -15,6 +15,7 @@
   "type": "module",
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "@types/picomatch": "^4.0.3",
     "@types/turndown": "^5.0.6",
     "typescript": "^6.0.3"
   },
@@ -24,6 +25,7 @@
     "@mendable/firecrawl-js": "^4.22.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@tavily/core": "^0.7.3",
+    "picomatch": "^4.0.4",
     "turndown": "^7.2.4",
     "typebox": "^1.0.55"
   }

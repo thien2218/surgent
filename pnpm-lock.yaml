@@ -23,6 +23,9 @@ importers:
       '@tavily/core':
         specifier: ^0.7.3
         version: 0.7.3
+      picomatch:
+        specifier: ^4.0.4
+        version: 4.0.4
       turndown:
         specifier: ^7.2.4
         version: 7.2.4
@@ -33,6 +36,9 @@ importers:
       '@types/node':
         specifier: ^25.6.0
         version: 25.6.0
+      '@types/picomatch':
+        specifier: ^4.0.3
+        version: 4.0.3
       '@types/turndown':
         specifier: ^5.0.6
         version: 5.0.6
@@ -570,6 +576,9 @@ packages:
 
   '@types/node@25.6.0':
     resolution: {integrity: sha512-+qIYRKdNYJwY3vRCZMdJbPLJAtGjQBudzZzdzwQYkEPQd+PJGixUL5QfvCLDaULoLv+RhT3LDkwEfKaAkgSmNQ==}
+
+  '@types/picomatch@4.0.3':
+    resolution: {integrity: sha512-iG0T6+nYJ9FAPmx9SsUlnwcq1ZVRuCXcVEvWnntoPlrOpwtSTKNDC9uVAxTsC3PUvJ+99n4RpAcNgBbHX3JSnQ==}
 
   '@types/retry@0.12.0':
     resolution: {integrity: sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==}
@@ -1210,6 +1219,10 @@ packages:
 
   pend@1.2.0:
     resolution: {integrity: sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg==}
+
+  picomatch@4.0.4:
+    resolution: {integrity: sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A==}
+    engines: {node: '>=12'}
 
   pkce-challenge@5.0.1:
     resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
@@ -2450,6 +2463,8 @@ snapshots:
     dependencies:
       undici-types: 7.19.2
 
+  '@types/picomatch@4.0.3': {}
+
   '@types/retry@0.12.0': {}
 
   '@types/turndown@5.0.6': {}
@@ -3096,6 +3111,8 @@ snapshots:
   path-to-regexp@8.4.2: {}
 
   pend@1.2.0: {}
+
+  picomatch@4.0.4: {}
 
   pkce-challenge@5.0.1: {}
 

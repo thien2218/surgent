@@ -6,6 +6,7 @@ import { showPermissionPrompt } from "./prompt.js";
 import { resolvePermission } from "./resolution.js";
 import { addRule } from "./storage.js";
 import type { Category } from "./types.js";
+import { isYolo } from "../agent/yolo.js";
 
 interface PermCheck {
   category: Category;
@@ -46,6 +47,8 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("tool_call", async (event, ctx) => {
+    if (isYolo()) return;
+
     const check = getPermissionCheck(event);
     if (!check) return;
 

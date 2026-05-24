@@ -5,6 +5,7 @@
     "../src/questionnaire",
     "../src/mcp-client",
     "../src/detect-secrets",
-    "../src/permission"
+    "../src/permission",
+    "../src/agent"
   ]
 }

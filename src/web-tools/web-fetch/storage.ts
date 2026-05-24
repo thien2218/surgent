@@ -1,7 +1,7 @@
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
-import { tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { toCanonicalUrl } from "./helpers.js";
 
 export function getCurrentCacheDate(): string {
@@ -15,11 +15,11 @@ export function getCurrentCacheDate(): string {
 export function getCacheFilePath(url: string, date = getCurrentCacheDate()): string {
   const canonicalUrl = toCanonicalUrl(url);
   const fileName = `${createHash("md5").update(canonicalUrl).digest("hex")}.md`;
-  return join(tmpdir(), "surgent", "web-results", date, fileName);
+  return join(homedir(), ".pi", "web-results", date, fileName);
 }
 
 export async function pruneExpiredCacheDirs(today = getCurrentCacheDate()): Promise<void> {
-  const cacheRoot = join(tmpdir(), "surgent", "web-results");
+  const cacheRoot = join(homedir(), ".pi", "web-results");
 
   try {
     const entries = await readdir(cacheRoot, { withFileTypes: true });

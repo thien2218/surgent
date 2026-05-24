@@ -18,6 +18,11 @@ export function getWebToolsProviderByLabel(label: string): WebToolsProvider | un
   return WEB_TOOLS_PROVIDERS.find((provider) => provider.label === label);
 }
 
+function maskApiKey(key: string): string {
+  if (key.length <= 4) return key;
+  return key.slice(0, 4) + "*".repeat(key.length - 4);
+}
+
 export function formatProviderStatus(authStorage: AuthStorage, provider: WebToolsProvider): string {
   const status = authStorage.getAuthStatus(provider.name);
   if (!status.configured) {
@@ -25,7 +30,9 @@ export function formatProviderStatus(authStorage: AuthStorage, provider: WebTool
   }
 
   const source = status.source ? ` via ${status.source}` : "";
-  return `${provider.label} (configured${source})`;
+  const cred = authStorage.get(provider.name);
+  const keyDisplay = cred?.type === "api_key" ? ` — ${maskApiKey(cred.key)}` : "";
+  return `${provider.label} (configured${source}${keyDisplay})`;
 }
 
 export function setApiKey(

@@ -4,7 +4,7 @@ import * as path from "node:path";
 import type { Category, DisplayRule, FileAccess, LocalSchema, PermSchema, Scope } from "./types.js";
 
 const LOCAL_FILE = ".pi/permissions.json";
-const GLOBAL_FILE = ".pi/permissions.json";
+const GLOBAL_FILE = ".pi/agent/permissions.json";
 
 function getLocalPath(cwd: string): string {
   return path.join(cwd, LOCAL_FILE);

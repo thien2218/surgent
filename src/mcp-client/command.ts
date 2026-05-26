@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
   loadResolvedConfigSet,
-  LOCAL_CONFIG_FILE,
+  MCP_CONFIG_FILE,
   readScopeConfig,
   upsertServerConfig,
 } from "./config.js";
@@ -179,9 +179,9 @@ async function showConfiguredScopes(
   }
 
   const lines = [
-    `Local config: ${getPiLocalPath(ctx.cwd, LOCAL_CONFIG_FILE)}`,
+    `Local config: ${getPiLocalPath(ctx.cwd, MCP_CONFIG_FILE)}`,
     ...formatScopeSection("Local MCPs", localEntries),
-    `Global config: ${getPiGlobalPath(LOCAL_CONFIG_FILE)}`,
+    `Global config: ${getPiGlobalPath(MCP_CONFIG_FILE)}`,
     ...formatScopeSection("Global MCPs", globalEntries),
   ];
 

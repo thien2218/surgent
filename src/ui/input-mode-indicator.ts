@@ -16,7 +16,7 @@ const INDICATOR_GUTTER_WIDTH = 2;
 const BASH_MODE_HOTKEY = Key.ctrlAlt("b");
 
 class ModeIndicatorEditor extends BashModeEditor {
-  private requestedPaddingX = 0;
+  private actualPaddingX = 0;
 
   constructor(
     tui: TUI,
@@ -67,12 +67,12 @@ class ModeIndicatorEditor extends BashModeEditor {
   }
 
   override getPaddingX(): number {
-    return this.requestedPaddingX;
+    return this.actualPaddingX;
   }
 
   override setPaddingX(padding: number): void {
-    this.requestedPaddingX = Math.max(0, Math.floor(padding));
-    super.setPaddingX(this.requestedPaddingX + INDICATOR_GUTTER_WIDTH);
+    this.actualPaddingX = Math.max(0, Math.floor(padding));
+    super.setPaddingX(this.actualPaddingX + INDICATOR_GUTTER_WIDTH);
   }
 }
 
@@ -80,7 +80,7 @@ export default function inputModeIndicatorExtension(pi: ExtensionAPI) {
   let activeEditor: ModeIndicatorEditor | undefined;
 
   pi.registerShortcut(BASH_MODE_HOTKEY, {
-    description: "Cycle bash input mode (prompt / bash! / !!bash)",
+    description: "Cycle input mode (prompt / bash (included in context) / normal bash)",
     handler: () => activeEditor?.cycleMode(),
   });
 

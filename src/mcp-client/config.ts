@@ -11,7 +11,7 @@ import type {
   StdioMcpServerConfig,
 } from "./types.js";
 
-export const LOCAL_CONFIG_FILE = "mcp.json";
+export const MCP_CONFIG_FILE = "mcp.json";
 
 export async function readScopeConfig(cwd: string, scope: McpConfigScope): Promise<McpConfigFile> {
   const path = getScopeConfigPath(cwd, scope);
@@ -33,8 +33,8 @@ export async function upsertServerConfig(
 }
 
 export async function loadResolvedConfigSet(cwd: string): Promise<ResolvedMcpConfigSet> {
-  const globalPath = getPiGlobalPath(LOCAL_CONFIG_FILE);
-  const localPath = getPiLocalPath(cwd, LOCAL_CONFIG_FILE);
+  const globalPath = getPiGlobalPath(MCP_CONFIG_FILE);
+  const localPath = getPiLocalPath(cwd, MCP_CONFIG_FILE);
   const [globalConfig, localConfig] = await Promise.all([
     readConfigFile(globalPath),
     readConfigFile(localPath),
@@ -67,8 +67,8 @@ export async function resolveServerConfig(
 
 function getScopeConfigPath(cwd: string, scope: McpConfigScope): string {
   return scope === "local"
-    ? getPiLocalPath(cwd, LOCAL_CONFIG_FILE)
-    : getPiGlobalPath(LOCAL_CONFIG_FILE);
+    ? getPiLocalPath(cwd, MCP_CONFIG_FILE)
+    : getPiGlobalPath(MCP_CONFIG_FILE);
 }
 
 async function readConfigFile(path: string): Promise<McpConfigFile> {

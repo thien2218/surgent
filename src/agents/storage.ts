@@ -2,7 +2,7 @@ import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPiGlobalPath, getPiLocalPath } from "../utils.js";
-import { type ParsedAgent, parseFrontmatter } from "./frontmatter.js";
+import { type ParsedAgent, parseFrontmatter } from "./parser.js";
 
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
 const AGENT_DIR = "agents";
@@ -11,7 +11,9 @@ async function readAgentsFromDir(dir: string, skipDefault: boolean): Promise<Par
   let files: string[];
   try {
     const entries = await readdir(dir, { withFileTypes: true });
-    files = entries.filter((entry) => entry.isFile() && entry.name.endsWith(".md")).map((entry) => entry.name);
+    files = entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+      .map((entry) => entry.name);
   } catch {
     return [];
   }
@@ -75,7 +77,9 @@ export async function deleteAgentFiles(name: string, cwd: string): Promise<void>
     let files: string[];
     try {
       const entries = await readdir(dir, { withFileTypes: true });
-      files = entries.filter((entry) => entry.isFile() && entry.name.endsWith(".md")).map((entry) => entry.name);
+      files = entries
+        .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+        .map((entry) => entry.name);
     } catch {
       continue;
     }

@@ -1,10 +1,10 @@
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { Container, type SelectItem, SelectList, Text } from "@earendil-works/pi-tui";
 import { exec } from "node:child_process";
 import { spawn } from "node:child_process";
 import { promisify } from "node:util";
-import type { ParsedAgent } from "./frontmatter.js";
+import type { ParsedAgent } from "./parser.js";
 import { createAgentFile, deleteAgentFiles, isBuiltIn, loadAgents } from "./storage.js";
 import { setActiveAgent } from "./states.js";
 import { readFile } from "node:fs/promises";
@@ -128,21 +128,16 @@ async function handleNewAgent(ctx: ExtensionCommandContext): Promise<void> {
   await openInVsCode(ctx, filePath);
 }
 
-export function registerAgentsCommand(pi: ExtensionAPI): void {
-  pi.registerCommand("agents", {
-    description: "List, create, edit, and switch agents",
-    handler: async (_args, ctx) => {
-      const agents = await loadAgents(ctx.cwd);
-      const selected = await showAgentPicker(ctx, agents);
-      if (!selected) return;
+export async function agentsCommandHandler(_args: string, ctx: ExtensionCommandContext) {
+  const agents = await loadAgents(ctx.cwd);
+  const selected = await showAgentPicker(ctx, agents);
+  if (!selected) return;
 
-      if (selected === "__new__") {
-        await handleNewAgent(ctx);
-        return;
-      }
+  if (selected === "__new__") {
+    await handleNewAgent(ctx);
+    return;
+  }
 
-      const agent = agents.find((candidate) => candidate.meta.name === selected);
-      if (agent) await handleExistingAgent(ctx, agent);
-    },
-  });
+  const agent = agents.find((candidate) => candidate.meta.name === selected);
+  if (agent) await handleExistingAgent(ctx, agent);
 }

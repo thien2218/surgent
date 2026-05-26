@@ -1,12 +1,12 @@
-import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { resolveServerConfig } from "./config.js";
 import { McpClientManager } from "./client.js";
 import type { McpCallToolDetails } from "./types.js";
 
-export default function registerMcpCallTool(pi: ExtensionAPI, clientManager: McpClientManager) {
-  const mcpCallTool = defineTool({
+export function createMcpCallTool(clientManager: McpClientManager) {
+  return defineTool({
     name: "mcp_call_tool",
     label: "MCP Call Tool",
     description: "Call known tool on configured MCP server.",
@@ -105,8 +105,6 @@ export default function registerMcpCallTool(pi: ExtensionAPI, clientManager: Mcp
       );
     },
   });
-
-  pi.registerTool(mcpCallTool);
 }
 
 function formatCallToolResult(result: {

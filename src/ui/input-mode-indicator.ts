@@ -76,7 +76,7 @@ class ModeIndicatorEditor extends BashModeEditor {
   }
 }
 
-export default function inputModeIndicatorExtension(pi: ExtensionAPI) {
+export default function registerInputModeIndicator(pi: ExtensionAPI) {
   let activeEditor: ModeIndicatorEditor | undefined;
 
   pi.registerShortcut(BASH_MODE_HOTKEY, {

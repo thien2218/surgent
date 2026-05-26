@@ -1,8 +1,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import brandingExtension from "./branding.js";
-import inputModeIndicatorExtension from "./input-mode-indicator.js";
+import { brandingSessionStartHandler } from "./branding.js";
+import registerInputModeIndicator from "./input-mode-indicator.js";
 
 export default function uiExtensions(pi: ExtensionAPI) {
-  brandingExtension(pi);
-  inputModeIndicatorExtension(pi);
+  pi.on("session_start", brandingSessionStartHandler);
+  registerInputModeIndicator(pi);
 }

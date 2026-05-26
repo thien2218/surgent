@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, truncateToWidth, type Component } from "@earendil-works/pi-tui";
 import { removeRule, toggleRule } from "./storage.js";
 import type { Category, DisplayRule, Scope } from "./types.js";
@@ -125,31 +125,19 @@ function formatValue(value: boolean | string): string {
   return String(value);
 }
 
-let registered = false;
-let currentSessionId = "";
-
-export function registerPermissionsCommand(pi: ExtensionAPI, sessionId: string): void {
-  currentSessionId = sessionId;
-  if (registered) return;
-  registered = true;
-
-  pi.registerCommand("permissions", {
-    description: "View and manage file, web, and bash permissions",
-    handler: async (args, ctx) => {
-      const sid = currentSessionId;
-      await handlePermissionsCommand(ctx, sid);
-    },
-  });
+export function getSessionId(sessionManager: ExtensionCommandContext["sessionManager"]) {
+  const branch = sessionManager.getBranch();
+  return branch[0]?.id ?? sessionManager.getLeafId();
 }
 
-async function handlePermissionsCommand(
-  ctx: ExtensionCommandContext,
-  sessionId: string,
-): Promise<void> {
+export async function handlePermissionsCommand(ctx: ExtensionCommandContext): Promise<void> {
   if (!ctx.hasUI) {
     ctx.ui.notify("The /permissions command requires an interactive UI.", "error");
     return;
   }
+
+  const sessionId = getSessionId(ctx.sessionManager);
+  if (!sessionId) return;
 
   const categoryLabel = await ctx.ui.select("Permissions", ["Files", "Web", "Bash"]);
   if (!categoryLabel) return;

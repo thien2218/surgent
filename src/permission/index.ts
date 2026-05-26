@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ToolCallEvent } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { cleanup } from "./cleanup.js";
-import { registerPermissionsCommand } from "./command.js";
+import { getSessionId, handlePermissionsCommand } from "./command.js";
 import { showPermissionPrompt } from "./prompt.js";
 import { resolvePermission } from "./resolution.js";
 import { addRule } from "./storage.js";
@@ -37,17 +37,20 @@ function getPermissionCheck(event: ToolCallEvent): PermCheck | null {
 }
 
 export default function (pi: ExtensionAPI) {
-  let sessionId = "";
+  let sessionId: string | null = null;
 
   pi.on("session_start", async (_event, ctx) => {
-    const branch = ctx.sessionManager.getBranch();
-    sessionId = branch[0]?.id ?? ctx.sessionManager.getLeafId() ?? "";
-    await cleanup(ctx.cwd, sessionId);
-    registerPermissionsCommand(pi, sessionId);
+    sessionId = getSessionId(ctx.sessionManager);
+    cleanup(ctx.cwd);
+  });
+
+  pi.registerCommand("permissions", {
+    description: "View and manage file, web, and bash permissions",
+    handler: async (_args, ctx) => await handlePermissionsCommand(ctx),
   });
 
   pi.on("tool_call", async (event, ctx) => {
-    if (isYolo()) return;
+    if (isYolo() || !sessionId) return;
 
     const check = getPermissionCheck(event);
     if (!check) return;

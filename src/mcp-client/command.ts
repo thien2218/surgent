@@ -1,13 +1,12 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
-  getGlobalConfigPath,
-  getLocalConfigPath,
   loadResolvedConfigSet,
+  LOCAL_CONFIG_FILE,
   readScopeConfig,
   upsertServerConfig,
 } from "./config.js";
 import type { McpConfigScope, McpServerConfig, ResolvedMcpServerConfig } from "./types.js";
-import { tokenizeArgs } from "../utils.js";
+import { getPiGlobalPath, getPiLocalPath, tokenizeArgs } from "../utils.js";
 
 const ACTIONS = ["save", "list", "show"] as const;
 type McpCommandAction = (typeof ACTIONS)[number];
@@ -180,9 +179,9 @@ async function showConfiguredScopes(
   }
 
   const lines = [
-    `Local config: ${getLocalConfigPath(ctx.cwd)}`,
+    `Local config: ${getPiLocalPath(ctx.cwd, LOCAL_CONFIG_FILE)}`,
     ...formatScopeSection("Local MCPs", localEntries),
-    `Global config: ${getGlobalConfigPath()}`,
+    `Global config: ${getPiGlobalPath(LOCAL_CONFIG_FILE)}`,
     ...formatScopeSection("Global MCPs", globalEntries),
   ];
 

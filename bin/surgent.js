@@ -25,9 +25,6 @@ async function setupGlobalConfig() {
   const globalSettings = JSON.parse(await readFile(globalSettingsPath, "utf8"));
   globalSettings.extensions = extensions;
   await writeFile(globalSettingsPath, JSON.stringify(globalSettings, null, 2) + "\n");
-
-  const defaultPrompt = await readFile(resolve(srcDir, "agents", "built-in", "default.md"), "utf8");
-  await writeFile(resolve(agentDir, "APPEND_SYSTEM.md"), defaultPrompt);
 }
 
 const CLEAR_SCREEN = "\x1b[H\x1b[2J\x1b[3J";

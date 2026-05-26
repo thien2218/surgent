@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
   loadResolvedConfigSet,
   MCP_CONFIG_FILE,
@@ -11,38 +11,33 @@ import { getPiGlobalPath, getPiLocalPath, tokenizeArgs } from "../utils.js";
 const ACTIONS = ["save", "list", "show"] as const;
 type McpCommandAction = (typeof ACTIONS)[number];
 
-export default function registerMcpConfigCommand(pi: ExtensionAPI) {
-  pi.registerCommand("mcp-config", {
-    description: "Save MCP server configs, list local/global configs, and show configured MCP JSON",
-    handler: async (args, ctx) => {
-      const [actionToken, argToken] = tokenizeArgs(args);
-      const action = actionToken && isAction(actionToken) ? actionToken : undefined;
+export async function mcpConfigCommandHandler(args: string, ctx: ExtensionCommandContext) {
+  const [actionToken, argToken] = tokenizeArgs(args);
+  const action = actionToken && isAction(actionToken) ? actionToken : undefined;
 
-      if (actionToken && !action) {
-        ctx.ui.notify(
-          `Unknown mcp-config action "${actionToken}". Supported actions: ${ACTIONS.join(", ")}.`,
-          "error",
-        );
-        return;
-      }
+  if (actionToken && !action) {
+    ctx.ui.notify(
+      `Unknown mcp-config action "${actionToken}". Supported actions: ${ACTIONS.join(", ")}.`,
+      "error",
+    );
+    return;
+  }
 
-      const selectedAction = action ?? (await selectAction(ctx));
-      if (!selectedAction) {
-        return;
-      }
+  const selectedAction = action ?? (await selectAction(ctx));
+  if (!selectedAction) {
+    return;
+  }
 
-      if (selectedAction === "save") {
-        await handleSaveFlow(ctx, argToken);
-        return;
-      }
-      if (selectedAction === "list") {
-        await showConfiguredScopes(ctx, argToken);
-        return;
-      }
+  if (selectedAction === "save") {
+    await handleSaveFlow(ctx, argToken);
+    return;
+  }
+  if (selectedAction === "list") {
+    await showConfiguredScopes(ctx, argToken);
+    return;
+  }
 
-      await showConfiguredMcpJson(ctx, argToken);
-    },
-  });
+  await showConfiguredMcpJson(ctx, argToken);
 }
 
 async function selectAction(ctx: ExtensionCommandContext): Promise<McpCommandAction | undefined> {

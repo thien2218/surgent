@@ -1,14 +1,14 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key, visibleWidth } from "@earendil-works/pi-tui";
-import { registerAgentsCommand } from "./command.js";
+import { agentsCommandHandler } from "./command.js";
 import { registerAgentHooks } from "./load.js";
 import { getActiveAgent, isYolo, toggleYolo } from "./states.js";
+import { getPiGlobalPath } from "../utils.js";
 
 const SWITCH_MODE_KEY = Key.ctrlAlt("y");
 
 export default function (pi: ExtensionAPI) {
   registerAgentHooks(pi);
-  registerAgentsCommand(pi);
 
   const updateAgent = (ctx: ExtensionContext) => {
     const agentText = ctx.ui.theme.fg("dim", `Agent: ${getActiveAgent()}`);
@@ -26,6 +26,15 @@ export default function (pi: ExtensionAPI) {
   };
 
   let updateStatus: (() => void) | undefined;
+
+  pi.on("resources_discover", () => ({
+    promptPaths: [getPiGlobalPath("agent-prompt")],
+  }));
+
+  pi.registerCommand("agents", {
+    description: "List, create, edit, and switch agents",
+    handler: agentsCommandHandler,
+  });
 
   pi.on("session_start", async (_event, ctx) => {
     updateStatus = () => {

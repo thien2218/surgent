@@ -1,3 +1,14 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
+
+export function getPiLocalPath(cwd: string, ...paths: string[]): string {
+  return join(cwd, ".pi", ...paths);
+}
+
+export function getPiGlobalPath(...paths: string[]): string {
+  return join(homedir(), ".pi", "agent", ...paths);
+}
+
 export function normalizeText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }

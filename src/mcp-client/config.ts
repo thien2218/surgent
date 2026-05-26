@@ -1,6 +1,6 @@
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
+import { getPiGlobalPath, getPiLocalPath } from "../utils.js";
 import type {
   HttpMcpServerConfig,
   McpConfigFile,
@@ -11,16 +11,7 @@ import type {
   StdioMcpServerConfig,
 } from "./types.js";
 
-const LOCAL_CONFIG_FILE = "mcp.json";
-const PROJECT_CONFIG_DIR = ".pi";
-
-export function getLocalConfigPath(cwd: string): string {
-  return join(cwd, PROJECT_CONFIG_DIR, LOCAL_CONFIG_FILE);
-}
-
-export function getGlobalConfigPath(): string {
-  return join(getAgentDir(), LOCAL_CONFIG_FILE);
-}
+export const LOCAL_CONFIG_FILE = "mcp.json";
 
 export async function readScopeConfig(cwd: string, scope: McpConfigScope): Promise<McpConfigFile> {
   const path = getScopeConfigPath(cwd, scope);
@@ -42,8 +33,8 @@ export async function upsertServerConfig(
 }
 
 export async function loadResolvedConfigSet(cwd: string): Promise<ResolvedMcpConfigSet> {
-  const globalPath = getGlobalConfigPath();
-  const localPath = getLocalConfigPath(cwd);
+  const globalPath = getPiGlobalPath(LOCAL_CONFIG_FILE);
+  const localPath = getPiLocalPath(cwd, LOCAL_CONFIG_FILE);
   const [globalConfig, localConfig] = await Promise.all([
     readConfigFile(globalPath),
     readConfigFile(localPath),
@@ -75,7 +66,9 @@ export async function resolveServerConfig(
 }
 
 function getScopeConfigPath(cwd: string, scope: McpConfigScope): string {
-  return scope === "local" ? getLocalConfigPath(cwd) : getGlobalConfigPath();
+  return scope === "local"
+    ? getPiLocalPath(cwd, LOCAL_CONFIG_FILE)
+    : getPiGlobalPath(LOCAL_CONFIG_FILE);
 }
 
 async function readConfigFile(path: string): Promise<McpConfigFile> {

@@ -1,22 +1,13 @@
-import * as fs from "node:fs/promises";
-import * as os from "node:os";
-import * as path from "node:path";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import type { Category, DisplayRule, FileAccess, LocalSchema, PermSchema, Scope } from "./types.js";
+import { getPiGlobalPath, getPiLocalPath } from "../utils.js";
 
-const LOCAL_FILE = ".pi/permissions.json";
-const GLOBAL_FILE = ".pi/agent/permissions.json";
-
-function getLocalPath(cwd: string): string {
-  return path.join(cwd, LOCAL_FILE);
-}
-
-function getGlobalPath(): string {
-  return path.join(os.homedir(), GLOBAL_FILE);
-}
+const PERMISSIONS_FILE = "permissions.json";
 
 async function readJson<T>(filePath: string, fallback: T): Promise<T> {
   try {
-    const raw = await fs.readFile(filePath, "utf8");
+    const raw = await readFile(filePath, "utf8");
     return JSON.parse(raw) as T;
   } catch {
     return fallback;
@@ -24,24 +15,24 @@ async function readJson<T>(filePath: string, fallback: T): Promise<T> {
 }
 
 async function writeJson(filePath: string, data: unknown): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2) + "\n", "utf8");
+  await mkdir(dirname(filePath), { recursive: true });
+  await writeFile(filePath, JSON.stringify(data, null, 2) + "\n", "utf8");
 }
 
 export async function readLocal(cwd: string): Promise<LocalSchema> {
-  return readJson<LocalSchema>(getLocalPath(cwd), {});
+  return readJson<LocalSchema>(getPiLocalPath(cwd, PERMISSIONS_FILE), {});
 }
 
 export async function writeLocal(cwd: string, data: LocalSchema): Promise<void> {
-  return writeJson(getLocalPath(cwd), data);
+  return writeJson(getPiLocalPath(cwd, PERMISSIONS_FILE), data);
 }
 
 export async function readGlobal(): Promise<PermSchema> {
-  return readJson<PermSchema>(getGlobalPath(), {});
+  return readJson<PermSchema>(getPiGlobalPath(PERMISSIONS_FILE), {});
 }
 
 export async function writeGlobal(data: PermSchema): Promise<void> {
-  return writeJson(getGlobalPath(), data);
+  return writeJson(getPiGlobalPath(PERMISSIONS_FILE), data);
 }
 
 function getScopeKey(scope: Scope, sessionId: string): string {

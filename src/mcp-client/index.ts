@@ -4,12 +4,12 @@ import { McpClientManager } from "./client.js";
 import registerMcpCallTool from "./tool.js";
 
 export default function mcpClientExtension(pi: ExtensionAPI) {
-	const clientManager = new McpClientManager();
+  const clientManager = new McpClientManager();
 
-	registerMcpConfigCommand(pi);
-	registerMcpCallTool(pi, clientManager);
+  registerMcpConfigCommand(pi);
+  registerMcpCallTool(pi, clientManager);
 
-	pi.on("session_shutdown", async () => {
-		await clientManager.disposeAll();
-	});
+  pi.on("session_shutdown", async () => {
+    await clientManager.disposeAll();
+  });
 }

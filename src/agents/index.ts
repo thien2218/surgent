@@ -1,12 +1,17 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { isYolo, toggleYolo } from "./yolo.js";
 import { Key, visibleWidth } from "@earendil-works/pi-tui";
+import { registerAgentsCommand } from "./command.js";
+import { registerAgentHooks } from "./load.js";
+import { getActiveAgent, isYolo, toggleYolo } from "./states.js";
 
 const SWITCH_MODE_KEY = Key.ctrlAlt("y");
 
 export default function (pi: ExtensionAPI) {
+  registerAgentHooks(pi);
+  registerAgentsCommand(pi);
+
   const updateAgent = (ctx: ExtensionContext) => {
-    const agentText = ctx.ui.theme.fg("dim", "Agent: default");
+    const agentText = ctx.ui.theme.fg("dim", `Agent: ${getActiveAgent()}`);
     ctx.ui.setStatus("agent", agentText);
   };
 

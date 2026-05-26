@@ -6,7 +6,7 @@ import { showPermissionPrompt } from "./prompt.js";
 import { resolvePermission } from "./resolution.js";
 import { addRule } from "./storage.js";
 import type { Category } from "./types.js";
-import { isYolo } from "../agents/yolo.js";
+import { isYolo } from "../agents/states.js";
 
 interface PermCheck {
   category: Category;

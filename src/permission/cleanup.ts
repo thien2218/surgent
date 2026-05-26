@@ -1,3 +1,4 @@
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { matchesPattern } from "./resolution.js";
 import { readGlobal, readLocal, writeGlobal, writeLocal } from "./storage.js";
 import type { Category, FileAccess, PermSchema } from "./types.js";
@@ -42,23 +43,26 @@ function pruneSchema(schema: PermSchema): PermSchema {
   return result;
 }
 
-export async function cleanup(cwd: string, sessionId: string): Promise<void> {
-  await Promise.all([cleanupLocal(cwd, sessionId), cleanupGlobal()]);
+export async function cleanup(cwd: string): Promise<void> {
+  await Promise.all([cleanupLocal(cwd), cleanupGlobal()]);
 }
 
-async function cleanupLocal(cwd: string, sessionId: string): Promise<void> {
-  const local = await readLocal(cwd);
+async function cleanupLocal(cwd: string): Promise<void> {
+  const [local, sessions] = await Promise.all([
+    readLocal(cwd),
+    SessionManager.list(cwd),
+  ]);
+
+  const existingIds = new Set(sessions.map((s) => s.id));
   let changed = false;
 
-  // Remove stale session keys (keep project and current session)
   for (const key of Object.keys(local)) {
-    if (key !== "project" && key !== sessionId) {
+    if (key !== "project" && !existingIds.has(key)) {
       delete local[key];
       changed = true;
     }
   }
 
-  // Prune redundant rules in project scope
   if (local.project) {
     const pruned = pruneSchema(local.project);
     local.project = pruned;

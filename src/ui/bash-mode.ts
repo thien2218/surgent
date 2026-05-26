@@ -1,9 +1,7 @@
 import { CustomEditor, type KeybindingsManager } from "@earendil-works/pi-coding-agent";
-import { Key, matchesKey, type EditorTheme, type TUI } from "@earendil-works/pi-tui";
+import { matchesKey, type EditorTheme, type TUI } from "@earendil-works/pi-tui";
 import { isBashMode, parseActualText, toActualText } from "./utils.js";
 import type { EditorMode } from "./types.js";
-
-const BASH_MODE_HOTKEY = Key.ctrlAlt("b");
 
 function getNextMode(mode: EditorMode): EditorMode {
   switch (mode) {
@@ -87,7 +85,7 @@ export class BashModeEditor extends CustomEditor {
     this.tui.requestRender();
   }
 
-  private cycleMode(): void {
+  cycleMode(): void {
     this.applyMode(getNextMode(this.mode));
   }
 
@@ -111,10 +109,6 @@ export class BashModeEditor extends CustomEditor {
   }
 
   override handleInput(data: string): void {
-    if (matchesKey(data, BASH_MODE_HOTKEY)) {
-      this.cycleMode();
-      return;
-    }
     if (this.mode === "prompt" && data === "!" && /^\s*$/.test(super.getText())) {
       this.applyMode("bash-included");
       return;

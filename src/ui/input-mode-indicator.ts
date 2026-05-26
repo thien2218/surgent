@@ -4,6 +4,7 @@ import {
   type Theme,
 } from "@earendil-works/pi-coding-agent";
 import {
+  Key,
   truncateToWidth,
   visibleWidth,
   type EditorTheme,
@@ -12,6 +13,7 @@ import {
 import { BashModeEditor } from "./bash-mode.js";
 
 const INDICATOR_GUTTER_WIDTH = 2;
+const BASH_MODE_HOTKEY = Key.ctrlAlt("b");
 
 class ModeIndicatorEditor extends BashModeEditor {
   private requestedPaddingX = 0;
@@ -75,9 +77,17 @@ class ModeIndicatorEditor extends BashModeEditor {
 }
 
 export default function inputModeIndicatorExtension(pi: ExtensionAPI) {
+  let activeEditor: ModeIndicatorEditor | undefined;
+
+  pi.registerShortcut(BASH_MODE_HOTKEY, {
+    description: "Cycle bash input mode (prompt / bash! / !!bash)",
+    handler: () => activeEditor?.cycleMode(),
+  });
+
   pi.on("session_start", (_event, ctx) => {
-    ctx.ui.setEditorComponent(
-      (tui, theme, keybindings) => new ModeIndicatorEditor(tui, theme, keybindings, ctx.ui.theme),
-    );
+    ctx.ui.setEditorComponent((tui, theme, keybindings) => {
+      activeEditor = new ModeIndicatorEditor(tui, theme, keybindings, ctx.ui.theme);
+      return activeEditor;
+    });
   });
 }

@@ -88,8 +88,10 @@ if (args.includes("--help") || args.includes("-h")) {
 } else {
   await setupGlobalConfig();
   process.stdout.write(CLEAR_SCREEN);
-  process.on("exit", () => {
-    process.stdout.write(CLEAR_SCREEN);
+  process.on("exit", (code) => {
+    if (code === 0) {
+      process.stdout.write(CLEAR_SCREEN);
+    }
   });
   await main(args);
 }

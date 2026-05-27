@@ -128,6 +128,4 @@ const webFetchTool = defineTool({
   },
 });
 
-export default function registerWebFetchTool(pi: ExtensionAPI) {
-  pi.registerTool(webFetchTool);
-}
+export default webFetchTool;

@@ -5,7 +5,9 @@ import { getPiGlobalPath, getPiLocalPath } from "../utils.js";
 import { type ParsedAgent, parseFrontmatter } from "./parser.js";
 
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
-const AGENT_DIR = "agents";
+const AGENTS_DIR = "agents";
+const GLOBAL_AGENTS_DIR = getPiGlobalPath(AGENTS_DIR);
+export const AGENT_PROMPT_DIR = getPiGlobalPath("agent-prompt");
 
 async function readAgentsFromDir(dir: string, skipDefault: boolean): Promise<ParsedAgent[]> {
   let files: string[];
@@ -27,9 +29,7 @@ async function readAgentsFromDir(dir: string, skipDefault: boolean): Promise<Par
       if (!parsed) continue;
       if (skipDefault && parsed.meta.name === "default") continue;
       agents.push(parsed);
-    } catch {
-      // skip unreadable files
-    }
+    } catch {} // skip unreadable files
   }
 
   return agents;
@@ -48,15 +48,15 @@ export async function loadAgents(cwd: string): Promise<ParsedAgent[]> {
     }
   };
 
-  add(await readAgentsFromDir(getPiLocalPath(cwd, AGENT_DIR), true));
-  add(await readAgentsFromDir(getPiGlobalPath(AGENT_DIR), true));
+  add(await readAgentsFromDir(getPiLocalPath(cwd, AGENTS_DIR), true));
+  add(await readAgentsFromDir(GLOBAL_AGENTS_DIR, true));
   add(await readAgentsFromDir(BUILT_IN_DIR, false));
 
   return result;
 }
 
 export function getAgentDir(scope: "local" | "global", cwd: string): string {
-  return scope === "local" ? getPiLocalPath(cwd, AGENT_DIR) : getPiGlobalPath(AGENT_DIR);
+  return scope === "local" ? getPiLocalPath(cwd, AGENTS_DIR) : GLOBAL_AGENTS_DIR;
 }
 
 export async function createAgentFile(
@@ -72,7 +72,7 @@ export async function createAgentFile(
 }
 
 export async function deleteAgentFiles(name: string, cwd: string): Promise<void> {
-  const dirs = [getPiLocalPath(cwd, AGENT_DIR), getPiGlobalPath(AGENT_DIR)];
+  const dirs = [getPiLocalPath(cwd, AGENTS_DIR), GLOBAL_AGENTS_DIR];
   for (const dir of dirs) {
     let files: string[];
     try {
@@ -100,7 +100,6 @@ export function isBuiltIn(filePath: string): boolean {
 }
 
 export async function writeAgentPrompt(body: string): Promise<void> {
-  const dir = getPiGlobalPath("agent-prompt");
-  await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, "SYSTEM.md"), body, "utf8");
+  await mkdir(AGENT_PROMPT_DIR, { recursive: true });
+  await writeFile(join(AGENT_PROMPT_DIR), body, "utf8");
 }

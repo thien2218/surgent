@@ -4,6 +4,7 @@ import type { Category, DisplayRule, FileAccess, LocalSchema, PermSchema, Scope 
 import { getPiGlobalPath, getPiLocalPath } from "../utils.js";
 
 const PERMISSIONS_FILE = "permissions.json";
+const GLOBAL_PERMISSIONS = getPiGlobalPath(PERMISSIONS_FILE);
 
 async function readJson<T>(filePath: string, fallback: T): Promise<T> {
   try {
@@ -28,11 +29,11 @@ export async function writeLocal(cwd: string, data: LocalSchema): Promise<void> 
 }
 
 export async function readGlobal(): Promise<PermSchema> {
-  return readJson<PermSchema>(getPiGlobalPath(PERMISSIONS_FILE), {});
+  return readJson<PermSchema>(GLOBAL_PERMISSIONS, {});
 }
 
 export async function writeGlobal(data: PermSchema): Promise<void> {
-  return writeJson(getPiGlobalPath(PERMISSIONS_FILE), data);
+  return writeJson(GLOBAL_PERMISSIONS, data);
 }
 
 function getScopeKey(scope: Scope, sessionId: string): string {

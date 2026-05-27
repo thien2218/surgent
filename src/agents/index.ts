@@ -3,7 +3,7 @@ import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { agentsCommandHandler } from "./command.js";
 import { registerAgentHooks } from "./load.js";
 import { getActiveAgent, isYolo, toggleYolo } from "./states.js";
-import { getPiGlobalPath } from "../utils.js";
+import { AGENT_PROMPT_DIR } from "./storage.js";
 
 const SWITCH_MODE_KEY = Key.ctrlAlt("y");
 
@@ -28,7 +28,7 @@ export default function (pi: ExtensionAPI) {
   let updateStatus: (() => void) | undefined;
 
   pi.on("resources_discover", () => ({
-    promptPaths: [getPiGlobalPath("agent-prompt")],
+    promptPaths: [AGENT_PROMPT_DIR],
   }));
 
   pi.registerCommand("agents", {

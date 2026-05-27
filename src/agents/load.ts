@@ -1,7 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { loadAgents, writeAgentPrompt } from "./storage.js";
 import { getActiveAgent } from "./states.js";
-import { getPiGlobalPath } from "../utils.js";
 
 function resolveAllowedTools(
   pi: ExtensionAPI,
@@ -56,8 +55,4 @@ export function registerAgentHooks(pi: ExtensionAPI): void {
       }
     }
   });
-
-  pi.on("resources_discover", async () => ({
-    promptPaths: [getPiGlobalPath("agent-prompt")],
-  }));
 }

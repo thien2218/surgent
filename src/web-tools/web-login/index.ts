@@ -1,9 +1,8 @@
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
   clearApiKey,
   findWebToolsProvider,
   formatProviderStatus,
-  getArgumentCompletions,
   getSupportedProviderNames,
   getWebToolsProviderByLabel,
   getWebToolsProviderOptions,
@@ -94,37 +93,31 @@ async function clearProviderKey(
   ctx.ui.notify(`Cleared ${provider.label} API key`, "info");
 }
 
-export default function webLoginCommand(pi: ExtensionAPI) {
-  pi.registerCommand("web-login", {
-    description: "Configure API keys for authenticated web providers",
-    getArgumentCompletions,
-    handler: async (args, ctx) => {
-      const arg = args.trim();
-      const provider = arg ? findWebToolsProvider(arg) : await selectProvider(ctx);
+export default async function webLoginCommand(args: string, ctx: ExtensionCommandContext) {
+  const arg = args.trim();
+  const provider = arg ? findWebToolsProvider(arg) : await selectProvider(ctx);
 
-      if (!provider) {
-        if (arg) {
-          ctx.ui.notify(
-            `Unknown provider \"${arg}\". Supported providers: ${getSupportedProviderNames()}.`,
-            "error",
-          );
-        }
-        return;
-      }
+  if (!provider) {
+    if (arg) {
+      ctx.ui.notify(
+        `Unknown provider \"${arg}\". Supported providers: ${getSupportedProviderNames()}.`,
+        "error",
+      );
+    }
+    return;
+  }
 
-      ctx.ui.notify(formatProviderStatus(ctx.modelRegistry.authStorage, provider), "info");
+  ctx.ui.notify(formatProviderStatus(ctx.modelRegistry.authStorage, provider), "info");
 
-      const action = await chooseAction(ctx, provider);
-      if (!action) {
-        return;
-      }
+  const action = await chooseAction(ctx, provider);
+  if (!action) {
+    return;
+  }
 
-      if (action === "clear") {
-        await clearProviderKey(ctx, provider);
-        return;
-      }
+  if (action === "clear") {
+    await clearProviderKey(ctx, provider);
+    return;
+  }
 
-      await saveProviderKey(ctx, provider);
-    },
-  });
+  await saveProviderKey(ctx, provider);
 }

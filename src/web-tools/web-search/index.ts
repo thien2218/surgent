@@ -108,6 +108,4 @@ const webSearchTool = defineTool({
   },
 });
 
-export default function registerWebSearchTool(pi: ExtensionAPI) {
-  pi.registerTool(webSearchTool);
-}
+export default webSearchTool;

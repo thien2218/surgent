@@ -1,7 +1,7 @@
 import { CustomEditor, type KeybindingsManager } from "@earendil-works/pi-coding-agent";
 import { matchesKey, type EditorTheme, type TUI } from "@earendil-works/pi-tui";
-import { isBashMode, parseActualText, toActualText } from "./utils.js";
-import type { EditorMode } from "./types.js";
+import { isBashMode, parseActualText, toActualText } from "../utils.js";
+import type { EditorMode } from "../types.js";
 
 function getNextMode(mode: EditorMode): EditorMode {
   switch (mode) {

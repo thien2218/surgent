@@ -1,6 +1,6 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, truncateToWidth, type Component } from "@earendil-works/pi-tui";
-import { removeRule, toggleRule } from "./storage.js";
+import { removeRule, toggleRule, getRulesForDisplay } from "./storage.js";
 import type { Category, DisplayRule, Scope } from "./types.js";
 
 const SCOPE_LABELS: Record<Scope, string> = {
@@ -153,7 +153,6 @@ async function showRuleList(
   sessionId: string,
   category: Category,
 ): Promise<void> {
-  const { getRulesForDisplay } = await import("./storage.js");
   const allRules = await getRulesForDisplay(ctx.cwd, sessionId);
   const rules = allRules.filter((r) => r.category === category);
 

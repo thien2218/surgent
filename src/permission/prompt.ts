@@ -178,7 +178,9 @@ class PermissionPromptComponent implements Component {
       opt2 = this.cursor === 2 ? `> ${bold(opt2Label)}` : `  ${fg("muted", opt2Label)}`;
     }
 
-    add(`${opt0}   ${opt1}   ${opt2}`);
+    add(opt0);
+    add(opt1);
+    add(opt2);
 
     // Line 3: help
     const helpParts: string[] = [];

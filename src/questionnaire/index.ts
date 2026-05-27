@@ -1,6 +1,6 @@
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { createQuestionnaireComponent } from "./component.js";
+import QuestionnaireComponent from "./component.js";
 import { normalizeQuestions, summarizeAnswer } from "./helpers.js";
 import { QuestionnaireParamsSchema, type Question, type QuestionnaireResult } from "./types.js";
 
@@ -25,14 +25,11 @@ const questionnaireTool = defineTool({
     }
 
     const questions = normalizeQuestions(params);
-    const result = await ctx.ui.custom<QuestionnaireResult>((tui, theme, _keybindings, done) =>
-      createQuestionnaireComponent({
-        tui,
-        theme,
-        questions,
-        onDone: done,
-      }),
-    );
+    const result = await ctx.ui.custom<QuestionnaireResult>((tui, theme, _keybindings, done) => {
+      const component = new QuestionnaireComponent(tui, theme, questions);
+      component.onDone = done;
+      return component;
+    });
 
     if (result.cancelled) {
       return {

@@ -5,35 +5,24 @@ import {
   matchesKey,
   truncateToWidth,
   visibleWidth,
-  type Component,
   type Focusable,
 } from "@earendil-works/pi-tui";
-import { INDICATOR_GUTTER_WIDTH } from "./input-mode-indicator.js";
+import { Frame } from "./frame.js";
+import { Lines } from "../lines.js";
 
-const AMEND_SEPARATOR = ", ";
 const DEFAULT_OPTIONS: string[] = ["Yes", "No"];
-
-type AmendableSelectListParams = {
-  options: string[];
-  userPrompt: string;
-};
 
 /**
  * Interactive list component where each option can be selected bare (Enter)
  * or amended with free-form trailing text (Tab → type → Enter).
- *
- * Example: option "Yes" → Tab → "Yes, but only if tests pass"
- *
- * Falls back to ["Yes", "No"] when constructed with an empty/omitted options array.
  */
-export class AmendableSelectList implements Component, Focusable {
+export class AmendableSelectList extends Frame implements Focusable {
   /** Called with the final text when the user confirms a selection. */
   onSelect?: (text: string) => void;
   /** Called when the user presses Escape in selecting mode. */
   onCancel?: () => void;
 
   private readonly options: string[];
-  private readonly theme: Theme;
   private amending = false;
   private selectedIndex = 0;
   private readonly input = new Input();
@@ -49,13 +38,17 @@ export class AmendableSelectList implements Component, Focusable {
     this._focused = value;
   }
 
-  constructor(theme: Theme, options?: string[]) {
-    this.theme = theme;
+  constructor(
+    protected theme: Theme,
+    private readonly userPrompt: string,
+    options?: string[],
+  ) {
+    super(theme);
     this.options = options && options.length > 0 ? options : DEFAULT_OPTIONS;
 
     this.input.onSubmit = (value) => {
       const option = this.options[this.selectedIndex]!;
-      this.onSelect?.(value ? `${option}${AMEND_SEPARATOR}${value}` : option);
+      this.onSelect?.(value ? `${option}, ${value}` : option);
     };
 
     this.input.onEscape = () => this.exitAmendMode();
@@ -92,10 +85,6 @@ export class AmendableSelectList implements Component, Focusable {
   }
 
   private handleAmendingInput(data: string): void {
-    if (matchesKey(data, Key.shift("tab"))) {
-      this.exitAmendMode();
-      return;
-    }
     if (matchesKey(data, Key.backspace) && this.input.getValue() === "") {
       this.exitAmendMode();
       return;
@@ -119,38 +108,44 @@ export class AmendableSelectList implements Component, Focusable {
 
   // ─── Rendering ─────────────────────────────────────────────────────────────
 
-  render(width: number): string[] {
+  protected override children(width: number): string[] {
     if (this.cachedLines && this.cachedWidth === width) {
       return this.cachedLines;
     }
-
-    const lines: string[] = [];
+    const lines = new Lines(width, [this.theme.bold(this.userPrompt), ""]);
 
     for (let i = 0; i < this.options.length; i++) {
-      const option = this.options[i]!;
       const isSelected = i === this.selectedIndex;
+      const prefix = isSelected ? "→ " : "  ";
+      const option = this.theme.fg(isSelected ? "accent" : "text", prefix + this.options[i]!);
 
       if (isSelected && this.amending) {
-        lines.push(this.renderAmendLine(option, width));
+        lines.add(this.renderAmendLine(option, width));
       } else {
-        const prefix = isSelected ? this.theme.fg("accent", "> ") : "  ";
-        lines.push(truncateToWidth(prefix + option, width));
+        lines.add(truncateToWidth(option, width));
       }
     }
 
-    this.cachedLines = lines;
+    this.cachedLines = lines.get();
     this.cachedWidth = width;
-    return lines;
+    return this.cachedLines;
+  }
+
+  protected override getHints(): [string, string][] {
+    return [
+      ["↑↓", "navigate"],
+      ["Tab", "amend"],
+      ["Enter", "confirm"],
+      ["Esc", "cancel"],
+    ];
   }
 
   private renderAmendLine(option: string, width: number): string {
-    const PREFIX = this.theme.fg("accent", "> ");
-    const labelSep = option + AMEND_SEPARATOR;
-    const baseWidth = 2 + visibleWidth(labelSep); // PREFIX is always 2 visible chars
-    const availWidth = Math.max(1, width - baseWidth);
-    // Input hardcodes a "> " prompt (2 chars) with no ANSI codes — render wider and strip it
-    const inputLine = this.input.render(availWidth + INDICATOR_GUTTER_WIDTH)[0] ?? "";
-    return PREFIX + labelSep + inputLine.slice(INDICATOR_GUTTER_WIDTH);
+    const separated = option + ",";
+    const availWidth = Math.max(1, width - visibleWidth(separated));
+    // Input hardcodes a → " prompt (2 chars) with no ANSI codes — render wider and strip it
+    const inputLine = this.input.render(availWidth + 1)[0] ?? "";
+    return separated + inputLine.slice(1);
   }
 
   invalidate(): void {

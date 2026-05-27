@@ -4,8 +4,6 @@ import {
   Key,
   matchesKey,
   parseKey,
-  truncateToWidth,
-  type Component,
   type Focusable,
   type TUI,
 } from "@earendil-works/pi-tui";
@@ -21,9 +19,10 @@ import {
   toggleSuggestion,
 } from "./helpers.js";
 import type { FocusMode, NormalizedQuestion, QuestionDraft, QuestionnaireResult } from "./types.js";
-import type { Theme } from "@earendil-works/pi-coding-agent";
+import { type Theme } from "@earendil-works/pi-coding-agent";
+import { Frame } from "../ui/components/frame.js";
 
-export default class QuestionnaireComponent implements Component, Focusable {
+export default class QuestionnaireComponent extends Frame implements Focusable {
   onDone?: (result: QuestionnaireResult) => void;
 
   private readonly drafts: QuestionDraft[];
@@ -35,9 +34,10 @@ export default class QuestionnaireComponent implements Component, Focusable {
 
   constructor(
     private readonly tui: TUI,
-    private readonly theme: Theme,
+    protected theme: Theme,
     private readonly questions: NormalizedQuestion[],
   ) {
+    super(theme);
     this.drafts = questions.map((question) => createInitialDraft(question));
     this.editors = questions.map(() => this.createEditor());
 
@@ -127,7 +127,7 @@ export default class QuestionnaireComponent implements Component, Focusable {
     this.requestRender();
   }
 
-  render(width: number): string[] {
+  protected override children(width: number) {
     if (this.cachedLines) {
       return this.cachedLines;
     }
@@ -137,31 +137,31 @@ export default class QuestionnaireComponent implements Component, Focusable {
     const draft = this.currentDraft();
     const editor = this.currentEditor();
 
-    lines.add(this.theme.fg("accent", "-".repeat(width)));
-
     if (this.questions.length > 1) {
-      lines.add(this.renderTabs(), { left: 1, bottom: 1 });
+      lines.add(this.renderTabs());
+      lines.space();
     }
 
-    lines.add(this.theme.bold(question.prompt), { left: 1 });
+    lines.add(this.theme.bold(question.prompt));
     if (question.reason) {
-      lines.add(this.theme.fg("muted", question.reason), { left: 1 });
+      lines.add(this.theme.fg("muted", question.reason));
     }
 
     if (question.options.length > 0) {
+      lines.space();
       lines.add(
         this.theme.fg(
           draft.focusMode === "options" ? "accent" : "muted",
           `Options ${draft.focusMode === "options" ? "[selecting]" : "[press Tab or Up/Down]"}`,
         ),
-        { left: 1, top: 1, bottom: 1 },
       );
+      lines.space();
 
       for (const [index, option] of question.options.entries()) {
         const selected = draft.selectedOptionIndexes.includes(index);
         const cursor = draft.cursorIndex === index && draft.focusMode === "options";
         const marker = question.multi ? (selected ? "[x]" : "[ ]") : selected ? "(*)" : "( )";
-        const prefix = cursor ? this.theme.fg("accent", "> ") : "  ";
+        const prefix = cursor ? this.theme.fg("accent", "→ ") : "  ";
         const recommendation =
           question.recommendedCount !== undefined && index < question.recommendedCount
             ? this.theme.fg("success", " [recommended]")
@@ -169,49 +169,59 @@ export default class QuestionnaireComponent implements Component, Focusable {
         const exclusive = option.exclusive ? this.theme.fg("dim", " [exclusive]") : "";
         const optionText = `${marker} ${option.text}${recommendation}${exclusive}`;
 
-        lines.add(`${prefix}${cursor ? this.theme.fg("accent", optionText) : optionText}`, {
-          left: 1,
-        });
+        lines.add(`${prefix}${cursor ? this.theme.fg("accent", optionText) : optionText}`);
         if (option.description) {
-          lines.add(this.theme.fg("muted", option.description), { left: 7 });
+          lines.add(this.theme.fg("muted", option.description), 6);
         }
       }
     }
 
+    lines.space();
     lines.add(
       this.theme.fg(
         draft.focusMode === "editor" ? "accent" : "muted",
         `${question.placeholder} ${draft.focusMode === "editor" ? "[editing]" : "[press Tab to edit]"}`,
       ),
-      { left: 1, top: 1 },
     );
 
     for (const line of editor.render(Math.max(12, width - 2))) {
-      lines.add(line, { left: 1 });
+      lines.add(line);
     }
-    lines.add();
 
     const currentAnswer = serializeQuestionAnswer(question, draft);
+    lines.space();
     if (currentAnswer) {
-      lines.add(`${this.theme.fg("success", "Answer:")} ${summarizeAnswer(currentAnswer)}`, {
-        left: 1,
-      });
+      lines.add(`${this.theme.fg("success", "Answer:")} ${summarizeAnswer(currentAnswer)}`);
     } else {
-      lines.add(this.theme.fg("warning", this.statusMessage ?? this.currentHelpMessage()), {
-        left: 1,
-      });
+      lines.add(this.theme.fg("warning", this.statusMessage ?? this.currentHelpMessage()));
     }
 
-    lines.add(this.theme.fg("dim", this.helpText()), { left: 1, top: 1 });
-    lines.add(this.theme.fg("accent", "-".repeat(width)));
-
     this.cachedLines = lines.get();
-    return lines.get();
+    return this.cachedLines;
+  }
+
+  protected override getHints(): [string, string][] {
+    const question = this.currentQuestion();
+    const base: [string, string][] = [
+      ["Ctrl+Left/Right", "switch questions"],
+      ["Enter", "continue"],
+      ["Esc", "cancel"],
+    ];
+
+    if (question.options.length > 0) {
+      base.push(["Tab", "switches focus"]);
+      base.push(["Up/Down", "move options"]);
+      if (question.multi) {
+        base.push(["Space", "toggles options"]);
+      }
+    }
+
+    return base;
   }
 
   private createEditor(): Editor {
     const editorTheme: EditorTheme = {
-      borderColor: (text) => this.theme.fg("accent", text),
+      borderColor: (text) => this.theme.fg("dim", text),
       selectList: {
         selectedPrefix: (text) => this.theme.fg("accent", text),
         selectedText: (text) => this.theme.fg("accent", text),
@@ -256,18 +266,18 @@ export default class QuestionnaireComponent implements Component, Focusable {
     const draft = this.currentDraft();
 
     if (matchesKey(data, Key.up)) {
-      const moved = moveCursor(question, draft, -1);
-      if (moved.cursorIndex === draft.cursorIndex) {
-        this.setFocusMode("editor");
-        return true;
-      }
-      this.drafts[this.currentQuestionIndex] = moved;
+      this.drafts[this.currentQuestionIndex] = moveCursor(question, draft, -1);
       this.requestRender();
       return true;
     }
 
     if (matchesKey(data, Key.down)) {
-      this.drafts[this.currentQuestionIndex] = moveCursor(question, draft, 1);
+      const moved = moveCursor(question, draft, 1);
+      if (moved.cursorIndex === draft.cursorIndex) {
+        this.setFocusMode("editor");
+        return true;
+      }
+      this.drafts[this.currentQuestionIndex] = moved;
       this.requestRender();
       return true;
     }
@@ -370,21 +380,6 @@ export default class QuestionnaireComponent implements Component, Focusable {
       return "Select options with Space, or type an answer, then press Enter.";
     }
     return "Select an option or type an answer, then press Enter.";
-  }
-
-  private helpText(): string {
-    const question = this.currentQuestion();
-    const base = ["Ctrl+Left/Right switch questions", "Enter continue", "Esc cancel"];
-
-    if (question.options.length > 0) {
-      base.unshift("Tab switches focus");
-      base.unshift("Up/Down move options");
-      if (question.multi) {
-        base.unshift("Space toggles options");
-      }
-    }
-
-    return base.join(" • ");
   }
 
   private shouldRouteToEditor(data: string): boolean {

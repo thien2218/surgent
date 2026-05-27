@@ -9,6 +9,7 @@ import {
   type Focusable,
   type TUI,
 } from "@earendil-works/pi-tui";
+import { Lines } from "../ui/lines.js";
 import {
   createInitialDraft,
   ensureSingleSelection,
@@ -131,33 +132,30 @@ export default class QuestionnaireComponent implements Component, Focusable {
       return this.cachedLines;
     }
 
-    const lines: string[] = [];
+    const lines = new Lines(width);
     const question = this.currentQuestion();
     const draft = this.currentDraft();
     const editor = this.currentEditor();
-    const add = (line = "") => lines.push(truncateToWidth(line, width));
 
-    add(this.theme.fg("accent", "-".repeat(width)));
+    lines.add(this.theme.fg("accent", "-".repeat(width)));
 
     if (this.questions.length > 1) {
-      add(this.renderTabs(width));
-      add();
+      lines.add(this.renderTabs(), { left: 1, bottom: 1 });
     }
 
-    add(this.theme.bold(question.prompt));
+    lines.add(this.theme.bold(question.prompt), { left: 1 });
     if (question.reason) {
-      add(this.theme.fg("muted", question.reason));
+      lines.add(this.theme.fg("muted", question.reason), { left: 1 });
     }
 
     if (question.options.length > 0) {
-      add();
-      add(
+      lines.add(
         this.theme.fg(
           draft.focusMode === "options" ? "accent" : "muted",
           `Options ${draft.focusMode === "options" ? "[selecting]" : "[press Tab or Up/Down]"}`,
         ),
+        { left: 1, top: 1, bottom: 1 },
       );
-      add();
 
       for (const [index, option] of question.options.entries()) {
         const selected = draft.selectedOptionIndexes.includes(index);
@@ -171,39 +169,44 @@ export default class QuestionnaireComponent implements Component, Focusable {
         const exclusive = option.exclusive ? this.theme.fg("dim", " [exclusive]") : "";
         const optionText = `${marker} ${option.text}${recommendation}${exclusive}`;
 
-        add(`${prefix}${cursor ? this.theme.fg("accent", optionText) : optionText}`);
+        lines.add(`${prefix}${cursor ? this.theme.fg("accent", optionText) : optionText}`, {
+          left: 1,
+        });
         if (option.description) {
-          add(`      ${this.theme.fg("muted", option.description)}`);
+          lines.add(this.theme.fg("muted", option.description), { left: 7 });
         }
       }
     }
 
-    add();
-    add(
+    lines.add(
       this.theme.fg(
         draft.focusMode === "editor" ? "accent" : "muted",
         `${question.placeholder} ${draft.focusMode === "editor" ? "[editing]" : "[press Tab to edit]"}`,
       ),
+      { left: 1, top: 1 },
     );
 
-    for (const line of editor.render(width)) {
-      add(line);
+    for (const line of editor.render(Math.max(12, width - 2))) {
+      lines.add(line, { left: 1 });
     }
+    lines.add();
 
     const currentAnswer = serializeQuestionAnswer(question, draft);
-    add();
     if (currentAnswer) {
-      add(`${this.theme.fg("success", "Answer:")} ${summarizeAnswer(currentAnswer)}`);
+      lines.add(`${this.theme.fg("success", "Answer:")} ${summarizeAnswer(currentAnswer)}`, {
+        left: 1,
+      });
     } else {
-      add(this.theme.fg("warning", this.statusMessage ?? this.currentHelpMessage()));
+      lines.add(this.theme.fg("warning", this.statusMessage ?? this.currentHelpMessage()), {
+        left: 1,
+      });
     }
 
-    add();
-    add(this.theme.fg("dim", this.helpText()));
-    add(this.theme.fg("accent", "-".repeat(width)));
+    lines.add(this.theme.fg("dim", this.helpText()), { left: 1, top: 1 });
+    lines.add(this.theme.fg("accent", "-".repeat(width)));
 
-    this.cachedLines = lines;
-    return lines;
+    this.cachedLines = lines.get();
+    return lines.get();
   }
 
   private createEditor(): Editor {
@@ -343,7 +346,7 @@ export default class QuestionnaireComponent implements Component, Focusable {
     return index >= 0 ? index : this.questions.length - 1;
   }
 
-  private renderTabs(width: number): string {
+  private renderTabs(): string {
     const tabs = this.questions.map((question, index) => {
       const answered = isQuestionComplete(question, this.drafts[index]!);
       const label = ` Q${index + 1}${answered ? "*" : ""} `;
@@ -355,7 +358,7 @@ export default class QuestionnaireComponent implements Component, Focusable {
       return this.theme.fg(answered ? "success" : "muted", label);
     });
 
-    return truncateToWidth(tabs.join(" "), width);
+    return tabs.join(" ");
   }
 
   private currentHelpMessage(): string {

@@ -1,5 +1,6 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Key, matchesKey, truncateToWidth, type Component } from "@earendil-works/pi-tui";
+import { Key, matchesKey, type Component } from "@earendil-works/pi-tui";
+import { Lines } from "../ui/lines.js";
 import { removeRule, toggleRule, getRulesForDisplay } from "./storage.js";
 import type { Category, DisplayRule, Scope } from "./types.js";
 
@@ -82,12 +83,10 @@ class RuleListComponent implements Component {
   render(width: number): string[] {
     if (this.cachedLines) return this.cachedLines;
     const { fg, bold } = this.theme;
-    const lines: string[] = [];
-    const add = (line = "") => lines.push(truncateToWidth(line, width));
+    const lines = new Lines(width);
 
-    add(fg("accent", `-`.repeat(width)));
-    add(` ${bold(this.category.toUpperCase())} permissions`);
-    add();
+    lines.add(fg("accent", `-`.repeat(width)));
+    lines.add(`${bold(this.category.toUpperCase())} permissions`, { left: 1, bottom: 1 });
 
     const sorted = [...this.rules].sort(
       (a, b) => SCOPE_ORDER.indexOf(a.scope) - SCOPE_ORDER.indexOf(b.scope),
@@ -97,25 +96,24 @@ class RuleListComponent implements Component {
     for (const [i, rule] of sorted.entries()) {
       const origIdx = this.rules.indexOf(rule);
       if (rule.scope !== lastScope) {
-        if (lastScope !== undefined) add();
-        add(fg("muted", `  [${SCOPE_LABELS[rule.scope]}]`));
+        if (lastScope !== undefined) lines.add();
+        lines.add(fg("muted", `  [${SCOPE_LABELS[rule.scope]}]`));
         lastScope = rule.scope;
       }
       const valueStr = formatValue(rule.value);
       const line = `    ${rule.key}: ${valueStr}`;
       if (origIdx === this.cursor) {
-        add(`> ${fg("accent", bold(line.slice(2)))}`);
+        lines.add(`> ${fg("accent", bold(line.slice(2)))}`);
       } else {
-        add(`  ${fg("muted", line.slice(2))}`);
+        lines.add(`  ${fg("muted", line.slice(2))}`);
       }
     }
 
-    add();
-    add(fg("dim", `  ↑↓ move • Enter toggle • Ctrl+D delete • Esc back`));
-    add(fg("accent", `-`.repeat(width)));
+    lines.add(fg("dim", `  ↑↓ move • Enter toggle • Ctrl+D delete • Esc back`), { top: 1 });
+    lines.add(fg("accent", `-`.repeat(width)));
 
-    this.cachedLines = lines;
-    return lines;
+    this.cachedLines = lines.get();
+    return this.cachedLines;
   }
 }
 

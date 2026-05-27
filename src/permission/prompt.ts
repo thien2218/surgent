@@ -1,5 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Input, Key, matchesKey, truncateToWidth, type Component } from "@earendil-works/pi-tui";
+import { Input, Key, matchesKey, type Component } from "@earendil-works/pi-tui";
+import { Lines } from "../ui/lines.js";
 import type { Category, FileAccess, PromptDecision, Scope } from "./types.js";
 
 const SCOPES: Scope[] = ["session", "project", "always"];
@@ -147,11 +148,10 @@ class PermissionPromptComponent implements Component {
   render(width: number): string[] {
     if (this.cachedLines) return this.cachedLines;
     const { fg, bold } = this.theme;
-    const lines: string[] = [];
-    const add = (line = "") => lines.push(truncateToWidth(line, width));
+    const lines = new Lines(width);
 
     // Line 1: what's being requested
-    add(` ${bold("Allow")} ${fg("accent", this.key)}`);
+    lines.add(`${bold("Allow")} ${fg("accent", this.key)}`, { left: 1 });
 
     // Build options
     const isEditing = this.mode === "edit-usage";
@@ -178,9 +178,9 @@ class PermissionPromptComponent implements Component {
       opt2 = this.cursor === 2 ? `> ${bold(opt2Label)}` : `  ${fg("muted", opt2Label)}`;
     }
 
-    add(opt0);
-    add(opt1);
-    add(opt2);
+    lines.add(opt0);
+    lines.add(opt1);
+    lines.add(opt2);
 
     // Line 3: help
     const helpParts: string[] = [];
@@ -192,10 +192,10 @@ class PermissionPromptComponent implements Component {
       if (this.cursor < 2) helpParts.push("Tab amend");
       if (this.cursor === 2) helpParts.push("Tab to edit usage", "Shift+Tab cycle scope");
     }
-    add(fg("dim", ` ${helpParts.join(" • ")}`));
+    lines.add(fg("dim", helpParts.join(" • ")), { left: 1 });
 
-    this.cachedLines = lines;
-    return lines;
+    this.cachedLines = lines.get();
+    return lines.get();
   }
 }
 

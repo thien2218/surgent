@@ -5,14 +5,8 @@ import { getSessionId, handlePermissionsCommand } from "./command.js";
 import { showPermissionPrompt } from "./prompt.js";
 import { resolvePermission } from "./resolution.js";
 import { addRule } from "./storage.js";
-import type { Category } from "./types.js";
+import type { PermCheck } from "./types.js";
 import { isYolo } from "../agents/states.js";
-
-interface PermCheck {
-  category: Category;
-  key: string;
-  op?: "read" | "write";
-}
 
 function getPermissionCheck(event: ToolCallEvent): PermCheck | null {
   if (isToolCallEventType("read", event)) {
@@ -55,13 +49,7 @@ export default function (pi: ExtensionAPI) {
     const check = getPermissionCheck(event);
     if (!check) return;
 
-    const allowed = await resolvePermission(
-      ctx.cwd,
-      sessionId,
-      check.category,
-      check.key,
-      check.op,
-    );
+    const allowed = await resolvePermission(ctx.cwd, sessionId, check);
     if (allowed) return;
 
     if (!ctx.hasUI) {

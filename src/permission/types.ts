@@ -2,6 +2,12 @@ export type Scope = "session" | "project" | "always";
 export type Category = "files" | "web" | "bash";
 export type FileAccess = "full" | "readonly" | "blocked";
 
+export interface PermCheck {
+  category: Category;
+  key: string;
+  op?: "read" | "write";
+}
+
 export interface PermSchema {
   files?: Record<string, FileAccess>;
   web?: Record<string, boolean>;

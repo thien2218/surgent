@@ -101,5 +101,5 @@ export function isBuiltIn(filePath: string): boolean {
 
 export async function writeAgentPrompt(body: string): Promise<void> {
   await mkdir(AGENT_PROMPT_DIR, { recursive: true });
-  await writeFile(join(AGENT_PROMPT_DIR), body, "utf8");
+  await writeFile(join(AGENT_PROMPT_DIR, "SYSTEM.md"), body, "utf8");
 }

@@ -1,8 +1,12 @@
 import pm from "picomatch";
+import type { AgentMeta } from "../agents/parser.js";
+import { loadAgents } from "../agents/storage.js";
+import { getActiveAgent } from "../agents/states.js";
 import { readGlobal, readLocal } from "./storage.js";
-import type { Category, FileAccess, PermSchema } from "./types.js";
+import type { Category, FileAccess, PermSchema, PermCheck } from "./types.js";
 
 const GLOB_CHARS = /[*?[\]{}]/;
+const PATH_IN_COMMAND = /(?:^|\s)((?:\/|\.\.?\/|~\/)[^\s;|&><'"]*)/g;
 
 function hasGlobChars(pattern: string): boolean {
   return GLOB_CHARS.test(pattern);
@@ -67,22 +71,54 @@ function getSchemaRules(
   return schema.bash ?? {};
 }
 
+function extractPathsFromCommand(command: string): string[] {
+  const paths: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = PATH_IN_COMMAND.exec(command)) !== null) {
+    const p = match[1]!.replace(/[,;:'"]+$/, ""); // strip trailing punctuation
+    if (p) paths.push(p);
+  }
+  return [...new Set(paths)]; // dedup
+}
+
+function checkAgentRules(agentMeta: AgentMeta | null, check: PermCheck): boolean {
+  if (!agentMeta) return true;
+  const { category, key } = check;
+
+  if (category === "bash" && agentMeta.bash) {
+    return agentMeta.bash.some((pattern) => matchesPattern(key, pattern, "bash"));
+  }
+  if (category === "files" && agentMeta.files) {
+    return agentMeta.files.some((pattern) => matchesPattern(key, pattern, "files"));
+  }
+  return true;
+}
+
 export async function resolvePermission(
   cwd: string,
   sessionId: string,
-  category: Category,
-  key: string,
-  op?: "read" | "write",
+  check: PermCheck,
 ): Promise<boolean> {
+  const agents = await loadAgents(cwd);
+  const name = getActiveAgent();
+  const agentMeta = agents.find((a) => a.meta.name === name)?.meta ?? null;
+  const { category, key, op } = check;
+  // Agent meta rules take priority — block immediately if not allowed
+  if (!checkAgentRules(agentMeta, check)) return false;
+
+  // For bash: also check any path-like args as file reads
+  if (category === "bash") {
+    for (const path of extractPathsFromCommand(key)) {
+      const fileCheck: PermCheck = { category: "files", key: path, op: "read" };
+      if (!(await resolvePermission(cwd, sessionId, fileCheck))) return false;
+    }
+  }
+
+  // Scope rules: always (global) > project > session — first match wins
   const [local, global] = await Promise.all([readLocal(cwd), readGlobal()]);
+  const scopes = [global, local.project, local[sessionId]];
 
-  const scopes = [
-    { schema: global, scopeName: "always" },
-    { schema: local.project, scopeName: "project" },
-    { schema: sessionId ? local[sessionId] : undefined, scopeName: "session" },
-  ] as const;
-
-  for (const { schema } of scopes) {
+  for (const schema of scopes) {
     const rules = getSchemaRules(schema, category);
     const match = findBestMatch(rules, key, category);
     if (match === null) continue;
@@ -98,7 +134,7 @@ export async function resolvePermission(
   }
 
   if (category === "files") {
-    return key.startsWith(cwd); // Defaults
+    return key.startsWith(cwd); // Default: allow within cwd
   }
 
   return false;

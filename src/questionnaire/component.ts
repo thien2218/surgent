@@ -20,21 +20,11 @@ import {
   toggleSuggestion,
 } from "./helpers.js";
 import type { FocusMode, NormalizedQuestion, QuestionDraft, QuestionnaireResult } from "./types.js";
+import type { Theme } from "@earendil-works/pi-coding-agent";
 
-interface QuestionnaireTheme {
-  fg(role: string, text: string): string;
-  bg(role: string, text: string): string;
-  bold(text: string): string;
-}
+export default class QuestionnaireComponent implements Component, Focusable {
+  onDone?: (result: QuestionnaireResult) => void;
 
-interface QuestionnaireComponentOptions {
-  tui: TUI;
-  theme: QuestionnaireTheme;
-  questions: NormalizedQuestion[];
-  onDone: (result: QuestionnaireResult) => void;
-}
-
-class QuestionnaireComponent implements Component, Focusable {
   private readonly drafts: QuestionDraft[];
   private readonly editors: Editor[];
   private currentQuestionIndex = 0;
@@ -42,9 +32,13 @@ class QuestionnaireComponent implements Component, Focusable {
   private statusMessage: string | undefined;
   private _focused = false;
 
-  constructor(private readonly options: QuestionnaireComponentOptions) {
-    this.drafts = options.questions.map((question) => createInitialDraft(question));
-    this.editors = options.questions.map(() => this.createEditor());
+  constructor(
+    private readonly tui: TUI,
+    private readonly theme: Theme,
+    private readonly questions: NormalizedQuestion[],
+  ) {
+    this.drafts = questions.map((question) => createInitialDraft(question));
+    this.editors = questions.map(() => this.createEditor());
 
     for (const [index, editor] of this.editors.entries()) {
       editor.onChange = () => {
@@ -76,7 +70,7 @@ class QuestionnaireComponent implements Component, Focusable {
 
   handleInput(data: string): void {
     if (matchesKey(data, Key.escape)) {
-      this.options.onDone({ cancelled: true, answers: [] });
+      this.onDone?.({ cancelled: true, answers: [] });
       return;
     }
 
@@ -143,75 +137,70 @@ class QuestionnaireComponent implements Component, Focusable {
     const editor = this.currentEditor();
     const add = (line = "") => lines.push(truncateToWidth(line, width));
 
-    add(this.options.theme.fg("accent", "-".repeat(width)));
+    add(this.theme.fg("accent", "-".repeat(width)));
 
-    if (this.options.questions.length > 1) {
+    if (this.questions.length > 1) {
       add(this.renderTabs(width));
       add();
     }
 
-    add(` ${this.options.theme.bold(question.prompt)}`);
+    add(this.theme.bold(question.prompt));
     if (question.reason) {
-      add(` ${this.options.theme.fg("muted", question.reason)}`);
+      add(this.theme.fg("muted", question.reason));
     }
 
     if (question.options.length > 0) {
       add();
       add(
-        this.options.theme.fg(
+        this.theme.fg(
           draft.focusMode === "options" ? "accent" : "muted",
-          ` Suggestions ${draft.focusMode === "options" ? "[selecting]" : "[press Tab or Up/Down]"}`,
+          `Options ${draft.focusMode === "options" ? "[selecting]" : "[press Tab or Up/Down]"}`,
         ),
       );
+      add();
 
       for (const [index, option] of question.options.entries()) {
         const selected = draft.selectedOptionIndexes.includes(index);
         const cursor = draft.cursorIndex === index && draft.focusMode === "options";
         const marker = question.multi ? (selected ? "[x]" : "[ ]") : selected ? "(*)" : "( )";
-        const prefix = cursor ? this.options.theme.fg("accent", "> ") : "  ";
+        const prefix = cursor ? this.theme.fg("accent", "> ") : "  ";
         const recommendation =
           question.recommendedCount !== undefined && index < question.recommendedCount
-            ? this.options.theme.fg("success", " [recommended]")
+            ? this.theme.fg("success", " [recommended]")
             : "";
-        const exclusive = option.exclusive ? this.options.theme.fg("dim", " [exclusive]") : "";
+        const exclusive = option.exclusive ? this.theme.fg("dim", " [exclusive]") : "";
         const optionText = `${marker} ${option.text}${recommendation}${exclusive}`;
 
-        add(`${prefix}${cursor ? this.options.theme.fg("accent", optionText) : optionText}`);
+        add(`${prefix}${cursor ? this.theme.fg("accent", optionText) : optionText}`);
         if (option.description) {
-          add(`     ${this.options.theme.fg("muted", option.description)}`);
+          add(`      ${this.theme.fg("muted", option.description)}`);
         }
       }
     }
 
     add();
     add(
-      this.options.theme.fg(
+      this.theme.fg(
         draft.focusMode === "editor" ? "accent" : "muted",
-        ` Answer ${draft.focusMode === "editor" ? "[editing]" : "[press Tab to edit]"}`,
+        `${question.placeholder} ${draft.focusMode === "editor" ? "[editing]" : "[press Tab to edit]"}`,
       ),
     );
 
-    if (!draft.text.trim()) {
-      add(` ${this.options.theme.fg("dim", question.placeholder)}`);
-    }
-
-    for (const line of editor.render(Math.max(12, width - 2))) {
-      add(` ${line}`);
+    for (const line of editor.render(width)) {
+      add(line);
     }
 
     const currentAnswer = serializeQuestionAnswer(question, draft);
     add();
     if (currentAnswer) {
-      add(
-        ` ${this.options.theme.fg("success", "Current answer:")} ${summarizeAnswer(currentAnswer)}`,
-      );
+      add(`${this.theme.fg("success", "Answer:")} ${summarizeAnswer(currentAnswer)}`);
     } else {
-      add(` ${this.options.theme.fg("warning", this.statusMessage ?? this.currentHelpMessage())}`);
+      add(this.theme.fg("warning", this.statusMessage ?? this.currentHelpMessage()));
     }
 
     add();
-    add(` ${this.options.theme.fg("dim", this.helpText())}`);
-    add(this.options.theme.fg("accent", "-".repeat(width)));
+    add(this.theme.fg("dim", this.helpText()));
+    add(this.theme.fg("accent", "-".repeat(width)));
 
     this.cachedLines = lines;
     return lines;
@@ -219,21 +208,21 @@ class QuestionnaireComponent implements Component, Focusable {
 
   private createEditor(): Editor {
     const editorTheme: EditorTheme = {
-      borderColor: (text) => this.options.theme.fg("accent", text),
+      borderColor: (text) => this.theme.fg("accent", text),
       selectList: {
-        selectedPrefix: (text) => this.options.theme.fg("accent", text),
-        selectedText: (text) => this.options.theme.fg("accent", text),
-        description: (text) => this.options.theme.fg("muted", text),
-        scrollInfo: (text) => this.options.theme.fg("dim", text),
-        noMatch: (text) => this.options.theme.fg("warning", text),
+        selectedPrefix: (text) => this.theme.fg("accent", text),
+        selectedText: (text) => this.theme.fg("accent", text),
+        description: (text) => this.theme.fg("muted", text),
+        scrollInfo: (text) => this.theme.fg("dim", text),
+        noMatch: (text) => this.theme.fg("warning", text),
       },
     };
 
-    return new Editor(this.options.tui, editorTheme);
+    return new Editor(this.tui, editorTheme);
   }
 
   private currentQuestion(): NormalizedQuestion {
-    return this.options.questions[this.currentQuestionIndex]!;
+    return this.questions[this.currentQuestionIndex]!;
   }
 
   private currentDraft(): QuestionDraft {
@@ -245,7 +234,7 @@ class QuestionnaireComponent implements Component, Focusable {
   }
 
   private moveQuestion(delta: number): void {
-    const lastIndex = this.options.questions.length - 1;
+    const lastIndex = this.questions.length - 1;
     this.currentQuestionIndex = Math.max(0, Math.min(lastIndex, this.currentQuestionIndex + delta));
     this.statusMessage = undefined;
     this.syncEditorFocus();
@@ -319,11 +308,11 @@ class QuestionnaireComponent implements Component, Focusable {
 
     this.statusMessage = undefined;
 
-    if (this.currentQuestionIndex === this.options.questions.length - 1) {
+    if (this.currentQuestionIndex === this.questions.length - 1) {
       if (this.allQuestionsAnswered()) {
-        this.options.onDone({
+        this.onDone?.({
           cancelled: false,
-          answers: this.options.questions.map((entry, index) =>
+          answers: this.questions.map((entry, index) =>
             serializeQuestionAnswer(entry, this.drafts[index]!),
           ),
         });
@@ -342,31 +331,31 @@ class QuestionnaireComponent implements Component, Focusable {
   }
 
   private allQuestionsAnswered(): boolean {
-    return this.options.questions.every((question, index) =>
+    return this.questions.every((question, index) =>
       isQuestionComplete(question, this.drafts[index]!),
     );
   }
 
   private firstIncompleteQuestionIndex(): number {
-    const index = this.options.questions.findIndex(
+    const index = this.questions.findIndex(
       (question, entryIndex) => !isQuestionComplete(question, this.drafts[entryIndex]!),
     );
-    return index >= 0 ? index : this.options.questions.length - 1;
+    return index >= 0 ? index : this.questions.length - 1;
   }
 
   private renderTabs(width: number): string {
-    const tabs = this.options.questions.map((question, index) => {
+    const tabs = this.questions.map((question, index) => {
       const answered = isQuestionComplete(question, this.drafts[index]!);
       const label = ` Q${index + 1}${answered ? "*" : ""} `;
 
       if (index === this.currentQuestionIndex) {
-        return this.options.theme.bg("selectedBg", this.options.theme.fg("text", label));
+        return this.theme.bg("selectedBg", this.theme.fg("text", label));
       }
 
-      return this.options.theme.fg(answered ? "success" : "muted", label);
+      return this.theme.fg(answered ? "success" : "muted", label);
     });
 
-    return truncateToWidth(` ${tabs.join(" ")}`, width);
+    return truncateToWidth(tabs.join(" "), width);
   }
 
   private currentHelpMessage(): string {
@@ -415,10 +404,6 @@ class QuestionnaireComponent implements Component, Focusable {
 
   private requestRender(): void {
     this.cachedLines = undefined;
-    this.options.tui.requestRender();
+    this.tui.requestRender();
   }
-}
-
-export function createQuestionnaireComponent(options: QuestionnaireComponentOptions): Component {
-  return new QuestionnaireComponent(options);
 }

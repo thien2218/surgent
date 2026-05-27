@@ -12,7 +12,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { BashModeEditor } from "./bash-mode.js";
 
-const INDICATOR_GUTTER_WIDTH = 2;
+export const INDICATOR_GUTTER_WIDTH = 2;
 const BASH_MODE_HOTKEY = Key.ctrlAlt("b");
 
 class ModeIndicatorEditor extends BashModeEditor {

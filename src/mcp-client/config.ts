@@ -12,6 +12,7 @@ import type {
 } from "./types.js";
 
 export const MCP_CONFIG_FILE = "mcp.json";
+export const MCP_GLOBAL_CONFIG = getPiGlobalPath(MCP_CONFIG_FILE);
 
 export async function readScopeConfig(cwd: string, scope: McpConfigScope): Promise<McpConfigFile> {
   const path = getScopeConfigPath(cwd, scope);
@@ -33,17 +34,16 @@ export async function upsertServerConfig(
 }
 
 export async function loadResolvedConfigSet(cwd: string): Promise<ResolvedMcpConfigSet> {
-  const globalPath = getPiGlobalPath(MCP_CONFIG_FILE);
   const localPath = getPiLocalPath(cwd, MCP_CONFIG_FILE);
   const [globalConfig, localConfig] = await Promise.all([
-    readConfigFile(globalPath),
+    readConfigFile(MCP_GLOBAL_CONFIG),
     readConfigFile(localPath),
   ]);
 
   const merged = new Map<string, ResolvedMcpServerConfig>();
 
   for (const [name, serverConfig] of Object.entries(globalConfig.servers)) {
-    merged.set(name, { ...serverConfig, name, scope: "global", sourcePath: globalPath });
+    merged.set(name, { ...serverConfig, name, scope: "global", sourcePath: MCP_GLOBAL_CONFIG });
   }
 
   for (const [name, serverConfig] of Object.entries(localConfig.servers)) {
@@ -52,7 +52,7 @@ export async function loadResolvedConfigSet(cwd: string): Promise<ResolvedMcpCon
 
   return {
     localPath,
-    globalPath,
+    globalPath: MCP_GLOBAL_CONFIG,
     servers: Array.from(merged.values()).sort((left, right) => left.name.localeCompare(right.name)),
   };
 }

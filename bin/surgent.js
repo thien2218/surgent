@@ -12,6 +12,21 @@ const args = process.argv.slice(2);
 
 const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+async function piSetup() {
+  const agentEntryUrl = await import.meta.resolve("@earendil-works/pi-coding-agent");
+  const cliPath = fileURLToPath(new URL("./cli.js", agentEntryUrl));
+
+  await new Promise((resolve, reject) => {
+    // Run `pi list` to lazy init settings
+    const child = spawn(process.execPath, [cliPath, "list"], {
+      stdio: "ignore",
+      env: process.env,
+    });
+    child.on("error", reject);
+    child.on("close", resolve);
+  });
+}
+
 async function setupGlobalConfig() {
   const srcDir = resolve(packageDir, "src");
   const agentDir = resolve(homedir(), ".pi", "agent");
@@ -22,7 +37,18 @@ async function setupGlobalConfig() {
     .map((e) => resolve(srcDir, e.name));
 
   const globalSettingsPath = resolve(agentDir, "settings.json");
-  const globalSettings = JSON.parse(await readFile(globalSettingsPath, "utf8"));
+
+  let rawSettings;
+  try {
+    rawSettings = await readFile(globalSettingsPath, "utf8");
+  } catch (err) {
+    // ~/.pi/agent/ doesn't exist
+    if (err.code !== "ENOENT") throw err;
+    await piSetup();
+    rawSettings = await readFile(globalSettingsPath, "utf8");
+  }
+
+  const globalSettings = JSON.parse(rawSettings);
   globalSettings.extensions = extensions;
   await writeFile(globalSettingsPath, JSON.stringify(globalSettings, null, 2) + "\n");
 }

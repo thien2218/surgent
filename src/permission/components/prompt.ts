@@ -1,10 +1,10 @@
 import {
-  CURSOR_MARKER,
+  Input,
   Key,
   matchesKey,
   truncateToWidth,
+  visibleWidth,
   type Focusable,
-  type TUI,
 } from "@earendil-works/pi-tui";
 import type { PromptDecision, PermCheck, Scope, Category, FileAccess } from "../types.js";
 import type { Theme } from "@earendil-works/pi-coding-agent";
@@ -23,14 +23,14 @@ type PromptOptions = {
 export default class PermissionPrompt extends Frame implements Focusable {
   private cursor: number = 0;
   private amending: boolean = false;
-  private inputValue: string = "";
-  private inputCursor: number = 0;
+  private readonly input = new Input();
   private scopeIdx = 0;
   private options: PromptOptions[] = [
     { label: "Yes", separator: ",", value: { allowed: true }, persists: false },
     { label: "No", separator: ",", value: { allowed: false }, persists: false },
   ];
   private _focused = false;
+  private cachedLines: string[] | undefined;
 
   onDone?: (decision: PromptDecision) => void;
   onStoreRule?: (
@@ -41,20 +41,20 @@ export default class PermissionPrompt extends Frame implements Focusable {
   ) => void;
 
   constructor(
-    private readonly tui: TUI,
     protected theme: Theme,
+    private readonly expr: string,
     private readonly check: PermCheck,
     private readonly exprExists: boolean,
   ) {
     super(theme);
 
-    const { toolName, expr } = this.check;
+    const { toolName } = this.check;
     const scopeLabel = SCOPE_LABELS[SCOPES[this.scopeIdx]!];
 
-    if (expr) {
+    if (this.expr) {
       this.options.push({
         label: `Yes, allow ${toolName} [${scopeLabel}] for:`,
-        amendDefault: expr,
+        amendDefault: this.expr,
         value: { allowed: true },
         persists: true,
       });
@@ -62,7 +62,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
       if (!this.exprExists) {
         this.options.push({
           label: `No, disallow ${toolName} [${scopeLabel}] for:`,
-          amendDefault: expr,
+          amendDefault: this.expr,
           value: { allowed: false },
           persists: true,
         });
@@ -76,23 +76,26 @@ export default class PermissionPrompt extends Frame implements Focusable {
 
   set focused(value: boolean) {
     this._focused = value;
+    this.input.focused = value && this.amending;
   }
 
   override invalidate(): void {
+    this.cachedLines = undefined;
     super.invalidate();
+    this.input.invalidate();
   }
 
   protected override children(width: number): string[] {
+    if (this.cachedLines) return this.cachedLines;
+
     const lines = new Lines(width);
-    const { category, toolName, expr, danger } = this.check;
-    const truncatedExpr = expr.length > 50 ? expr.slice(0, 47) + "..." : expr;
+    const { category, toolName, raw, danger } = this.check;
     const dangerNote = danger ? `${danger} spotted. ` : "";
 
     lines.add(
-      this.theme.bold(
-        `${dangerNote}Allow agent to call ${category} tool ${toolName}: ${truncatedExpr}?`,
-      ),
+      this.theme.italic(`${dangerNote}Allow agent to call ${category} tool '${toolName}': ${raw}?`),
     );
+    lines.add(this.theme.bold(raw));
     lines.space();
 
     for (const [i, option] of this.options.entries()) {
@@ -103,13 +106,10 @@ export default class PermissionPrompt extends Frame implements Focusable {
 
       if (isSelected && this.amending) {
         const sep = option.separator ? option.separator + " " : " ";
-        const before = this.inputValue.slice(0, this.inputCursor);
-        const atChar = this.inputValue[this.inputCursor] ?? " ";
-        const after = this.inputValue.slice(this.inputCursor + atChar.length);
-        const marker = this._focused ? CURSOR_MARKER : "";
-        const cursorSpan = `${marker}\x1b[7m${atChar}\x1b[27m`;
         const labelPart = this.theme.fg("accent", numberLabel + option.label + sep);
-        lines.add(truncateToWidth(prefix + labelPart + before + cursorSpan + after, width));
+        const labelWidth = visibleWidth(prefixStr + numberLabel + option.label + sep);
+        const inputLine = this.input.render(Math.max(4, width - labelWidth) + 2)[0]!.slice(2);
+        lines.add(truncateToWidth(prefix + labelPart + inputLine, width));
       } else {
         const suffix =
           option.amendDefault !== undefined
@@ -122,7 +122,8 @@ export default class PermissionPrompt extends Frame implements Focusable {
       }
     }
 
-    return lines.get();
+    this.cachedLines = lines.get();
+    return this.cachedLines;
   }
 
   protected override getHints(): [string, string][] {
@@ -138,50 +139,51 @@ export default class PermissionPrompt extends Frame implements Focusable {
   handleInput(data: string): void {
     if (matchesKey(data, Key.escape)) {
       this.onDone?.({ allowed: false });
+      this.cachedLines = undefined;
       return;
     }
 
     if (matchesKey(data, Key.shift("tab"))) {
       this.scopeIdx = (this.scopeIdx + 1) % SCOPES.length;
       this.cursor = Math.min(this.cursor, this.options.length - 1);
-      this.amending = false;
-      this.requestRender();
-      return;
-    }
-
-    if (this.amending) {
-      if (matchesKey(data, Key.enter)) {
-        this.commitSelection();
-        return;
-      }
-      if (matchesKey(data, Key.tab)) {
-        this.amending = false;
-        this.requestRender();
-        return;
-      }
-      this.handleInputEdit(data);
-      this.requestRender();
+      this.cachedLines = undefined;
       return;
     }
 
     if (matchesKey(data, Key.up)) {
       this.cursor = Math.max(0, this.cursor - 1);
-      this.requestRender();
+      this.setAmending(false);
+      this.cachedLines = undefined;
       return;
     }
     if (matchesKey(data, Key.down)) {
       this.cursor = Math.min(this.options.length - 1, this.cursor + 1);
-      this.requestRender();
+      this.setAmending(false);
+      this.cachedLines = undefined;
       return;
     }
+
+    if (this.amending) {
+      this.cachedLines = undefined;
+      if (matchesKey(data, Key.enter)) {
+        this.commitSelection();
+        return;
+      }
+      if (matchesKey(data, Key.backspace) && this.input.getValue() === "") {
+        this.setAmending(false);
+        return;
+      }
+      this.input.handleInput(data);
+      return;
+    }
+
     if (matchesKey(data, Key.tab)) {
       const option = this.options[this.cursor];
       if (option) {
-        this.amending = true;
-        this.inputValue = option.amendDefault ?? "";
-        this.inputCursor = this.inputValue.length;
-        this.requestRender();
+        this.input.setValue(option.amendDefault ?? "");
+        this.setAmending(true);
       }
+      this.cachedLines = undefined;
       return;
     }
     if (matchesKey(data, Key.enter)) {
@@ -189,15 +191,20 @@ export default class PermissionPrompt extends Frame implements Focusable {
     }
   }
 
+  private setAmending(value: boolean): void {
+    this.amending = value;
+    this.input.focused = this._focused && value;
+    if (!value) this.input.setValue("");
+  }
+
   private commitSelection(): void {
     const option = this.options[this.cursor];
     if (!option) return;
 
-    const wasAmending = this.amending;
-    this.amending = false;
+    this.setAmending(false);
 
     if (option.persists) {
-      const ruleExpr = (wasAmending ? this.inputValue.trim() : "") || this.check.expr;
+      const ruleExpr = this.input.getValue().trim() || this.expr;
       const { category } = this.check;
       let value: boolean | "read" | "write" | "blocked";
       if (category === "file") {
@@ -211,57 +218,8 @@ export default class PermissionPrompt extends Frame implements Focusable {
     }
 
     const decision: PromptDecision = { ...option.value };
-    const inputText = wasAmending ? this.inputValue.trim() : "";
+    const inputText = this.amending ? this.input.getValue().trim() : "";
     if (inputText) decision.amended = inputText;
     this.onDone?.(decision);
-  }
-
-  private handleInputEdit(data: string): void {
-    if (matchesKey(data, Key.backspace)) {
-      if (this.inputCursor > 0) {
-        this.inputValue =
-          this.inputValue.slice(0, this.inputCursor - 1) + this.inputValue.slice(this.inputCursor);
-        this.inputCursor--;
-      }
-      return;
-    }
-    if (matchesKey(data, Key.delete)) {
-      this.inputValue =
-        this.inputValue.slice(0, this.inputCursor) + this.inputValue.slice(this.inputCursor + 1);
-      return;
-    }
-    if (matchesKey(data, Key.left)) {
-      this.inputCursor = Math.max(0, this.inputCursor - 1);
-      return;
-    }
-    if (matchesKey(data, Key.right)) {
-      this.inputCursor = Math.min(this.inputValue.length, this.inputCursor + 1);
-      return;
-    }
-    if (matchesKey(data, Key.home) || matchesKey(data, Key.ctrl("a"))) {
-      this.inputCursor = 0;
-      return;
-    }
-    if (matchesKey(data, Key.end) || matchesKey(data, Key.ctrl("e"))) {
-      this.inputCursor = this.inputValue.length;
-      return;
-    }
-    if (data.length >= 1) {
-      const hasControlChars = [...data].some((ch) => {
-        const code = ch.charCodeAt(0);
-        return code < 32 || code === 0x7f || (code >= 0x80 && code <= 0x9f);
-      });
-      if (!hasControlChars) {
-        this.inputValue =
-          this.inputValue.slice(0, this.inputCursor) +
-          data +
-          this.inputValue.slice(this.inputCursor);
-        this.inputCursor += data.length;
-      }
-    }
-  }
-
-  private requestRender(): void {
-    this.tui.requestRender();
   }
 }

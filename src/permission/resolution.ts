@@ -83,13 +83,13 @@ function extractPathsFromCommand(command: string): string[] {
 
 function checkAgentRules(agentMeta: AgentMeta | null, check: PermCheck): boolean {
   if (!agentMeta) return true;
-  const { category, expr } = check;
+  const { category, raw } = check;
 
   if (category === "bash" && agentMeta.bash) {
-    return agentMeta.bash.some((pattern) => matchesPattern(expr, pattern, "bash"));
+    return agentMeta.bash.some((pattern) => matchesPattern(raw, pattern, "bash"));
   }
   if (category === "file" && agentMeta.files) {
-    return agentMeta.files.some((pattern) => matchesPattern(expr, pattern, "file"));
+    return agentMeta.files.some((pattern) => matchesPattern(raw, pattern, "file"));
   }
   return true;
 }
@@ -102,16 +102,15 @@ export async function resolvePermission(
   const agents = await loadAgents(cwd);
   const name = getActiveAgent();
   const agentMeta = agents.find((a) => a.meta.name === name)?.meta ?? null;
-  const { category, expr, op } = check;
+  const { category, raw, op } = check;
 
-  if (!expr) return true;
   // Agent meta rules take priority — block immediately if not allowed
   if (!checkAgentRules(agentMeta, check)) return false;
 
   // For bash: also check any path-like args as file reads
   if (category === "bash") {
-    for (const path of extractPathsFromCommand(expr)) {
-      const fileCheck: PermCheck = { category: "file", expr: path, op: "read", toolName: "bash" };
+    for (const path of extractPathsFromCommand(raw)) {
+      const fileCheck: PermCheck = { category: "file", raw: path, op: "read", toolName: "bash" };
       if (!(await resolvePermission(cwd, sessionId, fileCheck))) return false;
     }
   }
@@ -122,7 +121,7 @@ export async function resolvePermission(
 
   for (const schema of scopes) {
     const rules = getSchemaRules(schema, category);
-    const match = findBestMatch(rules, expr, category);
+    const match = findBestMatch(rules, raw, category);
     if (match === null) continue;
 
     if (category === "file") {
@@ -135,7 +134,7 @@ export async function resolvePermission(
   }
 
   if (category === "file") {
-    return expr.startsWith(cwd); // Default: allow within cwd
+    return raw.startsWith(cwd); // Default: allow within cwd
   }
 
   return false;

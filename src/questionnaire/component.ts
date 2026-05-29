@@ -28,7 +28,6 @@ export default class Questionnaire extends Frame implements Focusable {
   private readonly drafts: QuestionDraft[];
   private readonly editors: Editor[];
   private currentQuestionIndex = 0;
-  private cachedLines: string[] | undefined;
   private statusMessage: string | undefined;
   private _focused = false;
 
@@ -46,7 +45,6 @@ export default class Questionnaire extends Frame implements Focusable {
         const draft = this.drafts[index]!;
         draft.text = editor.getText();
         this.statusMessage = undefined;
-        this.requestRender();
       };
     }
 
@@ -63,7 +61,6 @@ export default class Questionnaire extends Frame implements Focusable {
   }
 
   invalidate(): void {
-    this.cachedLines = undefined;
     for (const editor of this.editors) {
       editor.invalidate();
     }
@@ -106,7 +103,6 @@ export default class Questionnaire extends Frame implements Focusable {
         this.currentEditor().handleInput(data);
         const currentDraft = this.drafts[this.currentQuestionIndex]!;
         currentDraft.text = this.currentEditor().getText();
-        this.requestRender();
       }
       return;
     }
@@ -124,14 +120,9 @@ export default class Questionnaire extends Frame implements Focusable {
     this.currentEditor().handleInput(data);
     const currentDraft = this.drafts[this.currentQuestionIndex]!;
     currentDraft.text = this.currentEditor().getText();
-    this.requestRender();
   }
 
   protected override children(width: number) {
-    if (this.cachedLines) {
-      return this.cachedLines;
-    }
-
     const lines = new Lines(width);
     const question = this.currentQuestion();
     const draft = this.currentDraft();
@@ -196,8 +187,7 @@ export default class Questionnaire extends Frame implements Focusable {
       lines.add(this.theme.fg("warning", this.statusMessage ?? this.currentHelpMessage()));
     }
 
-    this.cachedLines = lines.get();
-    return this.cachedLines;
+    return lines.get();
   }
 
   protected override getHints(): [string, string][] {
@@ -251,14 +241,12 @@ export default class Questionnaire extends Frame implements Focusable {
     this.currentQuestionIndex = Math.max(0, Math.min(lastIndex, this.currentQuestionIndex + delta));
     this.statusMessage = undefined;
     this.syncEditorFocus();
-    this.requestRender();
   }
 
   private setFocusMode(focusMode: FocusMode): void {
     this.currentDraft().focusMode = focusMode;
     this.statusMessage = undefined;
     this.syncEditorFocus();
-    this.requestRender();
   }
 
   private handleOptionsInput(data: string): boolean {
@@ -267,7 +255,6 @@ export default class Questionnaire extends Frame implements Focusable {
 
     if (matchesKey(data, Key.up)) {
       this.drafts[this.currentQuestionIndex] = moveCursor(question, draft, -1);
-      this.requestRender();
       return true;
     }
 
@@ -278,7 +265,6 @@ export default class Questionnaire extends Frame implements Focusable {
         return true;
       }
       this.drafts[this.currentQuestionIndex] = moved;
-      this.requestRender();
       return true;
     }
 
@@ -289,7 +275,6 @@ export default class Questionnaire extends Frame implements Focusable {
         selectedOptionIndexes: result.selectedOptionIndexes,
       };
       this.statusMessage = result.message;
-      this.requestRender();
       return true;
     }
 
@@ -315,7 +300,6 @@ export default class Questionnaire extends Frame implements Focusable {
 
     if (message) {
       this.statusMessage = message;
-      this.requestRender();
       return;
     }
 
@@ -334,13 +318,11 @@ export default class Questionnaire extends Frame implements Focusable {
 
       this.currentQuestionIndex = this.firstIncompleteQuestionIndex();
       this.syncEditorFocus();
-      this.requestRender();
       return;
     }
 
     this.currentQuestionIndex += 1;
     this.syncEditorFocus();
-    this.requestRender();
   }
 
   private allQuestionsAnswered(): boolean {
@@ -398,10 +380,5 @@ export default class Questionnaire extends Frame implements Focusable {
       editor.focused =
         this.focused && index === this.currentQuestionIndex && draft.focusMode === "editor";
     }
-  }
-
-  private requestRender(): void {
-    this.cachedLines = undefined;
-    this.tui.requestRender();
   }
 }

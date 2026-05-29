@@ -22,7 +22,7 @@ import type { FocusMode, NormalizedQuestion, QuestionDraft, QuestionnaireResult 
 import { type Theme } from "@earendil-works/pi-coding-agent";
 import { Frame } from "../ui/components/frame.js";
 
-export default class QuestionnaireComponent extends Frame implements Focusable {
+export default class Questionnaire extends Frame implements Focusable {
   onDone?: (result: QuestionnaireResult) => void;
 
   private readonly drafts: QuestionDraft[];

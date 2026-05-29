@@ -1,27 +1,11 @@
 import { formatErrorMessage, getHttpError, normalizeFetchedContent } from "../web-fetch/helpers.js";
-import type {
-  WebFetchFailure,
-  WebFetchProviderResponse,
-  WebFetchResult,
-} from "../web-fetch/types.js";
+import type { WebFetchResponse } from "../web-fetch/types.js";
 import type { WebFetchProvider } from "./index.js";
 
 export class JinaWebFetchProvider implements WebFetchProvider {
   constructor(private readonly apiKey?: string) {}
 
-  async fetch(urls: string[]): Promise<WebFetchProviderResponse> {
-    const settled = await Promise.all(urls.map(async (url) => this.fetchViaJina(url)));
-
-    return {
-      failures: settled.flatMap((item) => item.failure ?? []),
-      results: settled.flatMap((item) => item.result ?? []),
-    };
-  }
-
-  private async fetchViaJina(url: string): Promise<{
-    result?: WebFetchResult;
-    failure?: WebFetchFailure;
-  }> {
+  async fetch(url: string): Promise<WebFetchResponse> {
     try {
       const response = await fetch(this.toJinaUrl(url), {
         headers: {
@@ -41,13 +25,9 @@ export class JinaWebFetchProvider implements WebFetchProvider {
         throw new Error("Jina returned empty content.");
       }
 
-      return {
-        result: { provider: "jina", content, url },
-      };
+      return { provider: "jina", content, url };
     } catch (error) {
-      return {
-        failure: { message: formatErrorMessage(error), url },
-      };
+      return { provider: "jina", content: "", url, error: formatErrorMessage(error) };
     }
   }
 

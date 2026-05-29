@@ -5,29 +5,13 @@ import {
   isTextLikeContentType,
   normalizeFetchedContent,
 } from "../web-fetch/helpers.js";
-import type {
-  WebFetchFailure,
-  WebFetchProviderResponse,
-  WebFetchResult,
-} from "../web-fetch/types.js";
+import type { WebFetchResponse } from "../web-fetch/types.js";
 import type { WebFetchProvider } from "./index.js";
 
 export class NativeWebFetchProvider implements WebFetchProvider {
   private readonly turndown = new TurndownService();
 
-  async fetch(urls: string[]): Promise<WebFetchProviderResponse> {
-    const settled = await Promise.all(urls.map(async (url) => this.fetchSingleUrl(url)));
-
-    return {
-      failures: settled.flatMap((item) => item.failure ?? []),
-      results: settled.flatMap((item) => item.result ?? []),
-    };
-  }
-
-  private async fetchSingleUrl(url: string): Promise<{
-    result?: WebFetchResult;
-    failure?: WebFetchFailure;
-  }> {
+  async fetch(url: string): Promise<WebFetchResponse> {
     try {
       const response = await fetch(url, {
         headers: {
@@ -51,13 +35,9 @@ export class NativeWebFetchProvider implements WebFetchProvider {
         throw new Error("Native fetch returned empty content.");
       }
 
-      return {
-        result: { provider: "native", content, url },
-      };
+      return { provider: "native", content, url };
     } catch (error) {
-      return {
-        failure: { message: formatErrorMessage(error), url },
-      };
+      return { provider: "native", url, error: formatErrorMessage(error) };
     }
   }
 

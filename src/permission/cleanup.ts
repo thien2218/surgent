@@ -28,9 +28,9 @@ function pruneRules<T extends FileAccess | boolean>(
 
 function pruneSchema(schema: PermSchema): PermSchema {
   const result: PermSchema = {};
-  if (schema.files) {
-    const pruned = pruneRules(schema.files, "files");
-    if (Object.keys(pruned).length > 0) result.files = pruned;
+  if (schema.file) {
+    const pruned = pruneRules(schema.file, "file");
+    if (Object.keys(pruned).length > 0) result.file = pruned;
   }
   if (schema.web) {
     const pruned = pruneRules(schema.web as Record<string, boolean>, "web");
@@ -48,10 +48,7 @@ export async function cleanup(cwd: string): Promise<void> {
 }
 
 async function cleanupLocal(cwd: string): Promise<void> {
-  const [local, sessions] = await Promise.all([
-    readLocal(cwd),
-    SessionManager.list(cwd),
-  ]);
+  const [local, sessions] = await Promise.all([readLocal(cwd), SessionManager.list(cwd)]);
 
   const existingIds = new Set(sessions.map((s) => s.id));
   let changed = false;

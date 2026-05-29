@@ -1,31 +1,22 @@
-import type { ExtensionAPI, ToolCallEvent } from "@earendil-works/pi-coding-agent";
-import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
+import {
+  isToolCallEventType,
+  type ExtensionAPI,
+  type ToolCallEvent,
+} from "@earendil-works/pi-coding-agent";
 import { cleanup } from "./cleanup.js";
 import { getSessionId, handlePermissionsCommand } from "./command.js";
-import { showPermissionPrompt } from "./prompt.js";
 import { resolvePermission } from "./resolution.js";
-import { addRule } from "./storage.js";
-import type { PermCheck } from "./types.js";
+import type { PermCheck, PromptDecision, PermissiveToolName } from "./types.js";
 import { isYolo } from "../agents/states.js";
+import PermissionPrompt from "./prompt.js";
+import { PERMISSIVE_TOOLS } from "./constants.js";
 
 function getPermissionCheck(event: ToolCallEvent): PermCheck | null {
-  if (isToolCallEventType("read", event)) {
-    return { category: "files", key: event.input.path, op: "read" };
-  }
-  if (isToolCallEventType("write", event)) {
-    return { category: "files", key: event.input.path, op: "write" };
-  }
-  if (isToolCallEventType("edit", event)) {
-    return { category: "files", key: event.input.path, op: "write" };
-  }
-  if (isToolCallEventType("bash", event)) {
-    return { category: "bash", key: event.input.command };
-  }
-  if (event.toolName === "web_fetch") {
-    const input = event.input as { urls?: string[] };
-    const url = input.urls?.[0];
-    if (!url) return null;
-    return { category: "web", key: url };
+  for (const [name, data] of Object.entries(PERMISSIVE_TOOLS)) {
+    const toolName = name as PermissiveToolName;
+    if (isToolCallEventType(toolName, event)) {
+      return { toolName, ...data, expr: "" }; // TODO: need some picomatch-compliant expression produced via some algorithm performed on event's data
+    }
   }
   return null;
 }
@@ -56,27 +47,14 @@ export default function (pi: ExtensionAPI) {
       return { block: true, reason: "No UI to prompt for permission" };
     }
 
-    const decision = await showPermissionPrompt(
-      ctx,
-      event.toolName,
-      check.category,
-      check.key,
-      check.op,
-    );
+    const decision = await ctx.ui.custom<PromptDecision>((tui, theme, _keybindings, done) => {
+      const component = new PermissionPrompt(tui, theme, check);
+      component.onDone = done;
+      return component;
+    });
 
-    if (decision.persist) {
-      await addRule(
-        ctx.cwd,
-        decision.persist.scope,
-        sessionId,
-        check.category,
-        decision.persist.key,
-        decision.persist.value,
-      );
-    }
-
-    if (decision.action === "deny") {
-      return { block: true, reason: "Permission denied by user" };
-    }
+    // If not allowed => tell agent that user rejected this tool call
+    // If allowed but amended is provided => blocks tool call and tell agent what user wants
+    // If allowed and no amended provided => proceed tool call
   });
 }

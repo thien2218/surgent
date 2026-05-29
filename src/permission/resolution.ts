@@ -66,7 +66,7 @@ function getSchemaRules(
   category: Category,
 ): Record<string, FileAccess | boolean> {
   if (!schema) return {};
-  if (category === "files") return (schema.files as Record<string, FileAccess>) ?? {};
+  if (category === "file") return (schema.file as Record<string, FileAccess>) ?? {};
   if (category === "web") return schema.web ?? {};
   return schema.bash ?? {};
 }
@@ -83,13 +83,13 @@ function extractPathsFromCommand(command: string): string[] {
 
 function checkAgentRules(agentMeta: AgentMeta | null, check: PermCheck): boolean {
   if (!agentMeta) return true;
-  const { category, key } = check;
+  const { category, expr } = check;
 
   if (category === "bash" && agentMeta.bash) {
-    return agentMeta.bash.some((pattern) => matchesPattern(key, pattern, "bash"));
+    return agentMeta.bash.some((pattern) => matchesPattern(expr, pattern, "bash"));
   }
-  if (category === "files" && agentMeta.files) {
-    return agentMeta.files.some((pattern) => matchesPattern(key, pattern, "files"));
+  if (category === "file" && agentMeta.files) {
+    return agentMeta.files.some((pattern) => matchesPattern(expr, pattern, "file"));
   }
   return true;
 }
@@ -102,14 +102,16 @@ export async function resolvePermission(
   const agents = await loadAgents(cwd);
   const name = getActiveAgent();
   const agentMeta = agents.find((a) => a.meta.name === name)?.meta ?? null;
-  const { category, key, op } = check;
+  const { category, expr, op } = check;
+
+  if (!expr) return true;
   // Agent meta rules take priority — block immediately if not allowed
   if (!checkAgentRules(agentMeta, check)) return false;
 
   // For bash: also check any path-like args as file reads
   if (category === "bash") {
-    for (const path of extractPathsFromCommand(key)) {
-      const fileCheck: PermCheck = { category: "files", key: path, op: "read" };
+    for (const path of extractPathsFromCommand(expr)) {
+      const fileCheck: PermCheck = { category: "file", expr: path, op: "read", toolName: "bash" };
       if (!(await resolvePermission(cwd, sessionId, fileCheck))) return false;
     }
   }
@@ -120,21 +122,20 @@ export async function resolvePermission(
 
   for (const schema of scopes) {
     const rules = getSchemaRules(schema, category);
-    const match = findBestMatch(rules, key, category);
+    const match = findBestMatch(rules, expr, category);
     if (match === null) continue;
 
-    if (category === "files") {
+    if (category === "file") {
       const access = match.value as FileAccess;
-      if (access === "full") return true;
-      if (access === "readonly") return op === "read";
-      return false; // blocked
+      if (access === "write") return true;
+      return op === access;
     } else {
       return match.value as boolean;
     }
   }
 
-  if (category === "files") {
-    return key.startsWith(cwd); // Default: allow within cwd
+  if (category === "file") {
+    return expr.startsWith(cwd); // Default: allow within cwd
   }
 
   return false;

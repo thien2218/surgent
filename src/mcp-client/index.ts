@@ -6,7 +6,7 @@ import { createMcpCallTool } from "./tool.js";
 export default function mcpClientExtension(pi: ExtensionAPI) {
   const clientManager = new McpClientManager();
 
-  pi.registerCommand("mcp-config", {
+  pi.registerCommand("mcp", {
     description: "Save MCP server configs, list local/global configs, and show configured MCP JSON",
     handler: mcpConfigCommandHandler,
   });

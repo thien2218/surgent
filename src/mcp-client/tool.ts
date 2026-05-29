@@ -1,20 +1,20 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { resolveServerConfig } from "./config.js";
+import { resolveServerConfig } from "./storage.js";
 import { McpClientManager } from "./client.js";
 import type { McpCallToolDetails } from "./types.js";
 
 export function createMcpCallTool(clientManager: McpClientManager) {
   return defineTool({
-    name: "mcp_call_tool",
+    name: "call_mcp_tool",
     label: "MCP Call Tool",
     description: "Call known tool on configured MCP server.",
     promptSnippet: "Call known tool on configured MCP server.",
     promptGuidelines: [
-      "Use mcp_call_tool only with known server and tool names.",
-      "Use mcp_call_tool instead of recreating capability already exposed by MCP.",
-      "Use mcp_call_tool arguments as schema-matching JSON.",
+      "Use call_mcp_tool only with known server and tool names.",
+      "Use call_mcp_tool instead of recreating capability already exposed by MCP.",
+      "Use call_mcp_tool arguments as schema-matching JSON.",
     ],
     parameters: Type.Object({
       server: Type.String({ description: "Configured server name" }),
@@ -25,7 +25,7 @@ export function createMcpCallTool(clientManager: McpClientManager) {
     }),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       if (signal?.aborted) {
-        throw new Error("mcp_call_tool was cancelled.");
+        throw new Error("call_mcp_tool was cancelled.");
       }
 
       const serverName = params.server.trim();
@@ -33,9 +33,8 @@ export function createMcpCallTool(clientManager: McpClientManager) {
       const serverConfig = await resolveServerConfig(ctx.cwd, serverName);
 
       if (!serverConfig) {
-        throw new Error(`Unknown MCP server: ${serverName}. Configure it with /mcp-config.`);
+        throw new Error(`Unknown MCP server: ${serverName}. Configure it with /mcp.`);
       }
-
       if (serverConfig.enabled === false) {
         throw new Error(`MCP server ${serverName} is disabled.`);
       }
@@ -54,7 +53,7 @@ export function createMcpCallTool(clientManager: McpClientManager) {
       }
 
       if (signal?.aborted) {
-        throw new Error("mcp_call_tool was cancelled.");
+        throw new Error("call_mcp_tool was cancelled.");
       }
 
       const result = await clientManager.callTool(serverConfig, {
@@ -69,17 +68,14 @@ export function createMcpCallTool(clientManager: McpClientManager) {
         details: {
           server: serverConfig.name,
           transport: serverConfig.transport,
-          scope: serverConfig.scope,
           remoteTool: toolName,
-          contentTypes: collectContentTypes(result),
-          ...(hasStructuredContent(result) ? { structuredContent: result.structuredContent } : {}),
           ...(result.isError ? { isError: true } : {}),
         } satisfies McpCallToolDetails,
       };
     },
     renderCall(args, theme) {
       return new Text(
-        `${theme.fg("toolTitle", "mcp_call_tool")} [${args.server}:${args.tool}]`,
+        `${theme.fg("toolTitle", "call_mcp_tool")} [${args.server}:${args.tool}]`,
         0,
         0,
       );
@@ -166,31 +162,4 @@ function formatCallToolResult(result: {
   }
 
   return result.isError ? `Remote MCP tool reported an error.\n\n${body}` : body;
-}
-
-function collectContentTypes(result: {
-  content?: Array<Record<string, unknown>>;
-  toolResult?: unknown;
-}): string[] {
-  if ("toolResult" in result) {
-    return ["toolResult"];
-  }
-  const values = new Set<string>();
-  for (const item of result.content ?? []) {
-    if (typeof item.type === "string") {
-      values.add(item.type);
-    }
-  }
-  return Array.from(values);
-}
-
-function hasStructuredContent(
-  result: unknown,
-): result is { structuredContent: Record<string, unknown> } {
-  if (!result || typeof result !== "object" || !("structuredContent" in result)) {
-    return false;
-  }
-
-  const value = (result as { structuredContent?: Record<string, unknown> }).structuredContent;
-  return Boolean(value) && Object.keys(value ?? {}).length > 0;
 }

@@ -14,8 +14,6 @@ export const SCOPE_LABELS = {
   always: "always",
 } as const;
 
-export const DANGEROUS_BASH_KEYWORDS = new Set(["exec", "eval", "source", "."]);
-
 export const SUSPICIOUS_BASH_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
   // Command injection syntax
   { pattern: /\$\(/, reason: "Command substitution $(...)" },
@@ -25,8 +23,8 @@ export const SUSPICIOUS_BASH_PATTERNS: Array<{ pattern: RegExp; reason: string }
   // Inline shell execution
   { pattern: /\|\s*(?:bash|sh|zsh|fish|ksh|csh)/, reason: "Pipe into shell" },
   { pattern: /(?:bash|sh|zsh)\s+-c/, reason: "Inline shell execution" },
-  { pattern: /\beval\b/, reason: "Eval" },
-  { pattern: /\bexec\b/, reason: "Exec" },
+  { pattern: /\beval\b/, reason: "eval" },
+  { pattern: /\bexec\b/, reason: "exec" },
 
   // Remote fetch
   { pattern: /\bcurl\s/, reason: "Potential remote execution with curl" },

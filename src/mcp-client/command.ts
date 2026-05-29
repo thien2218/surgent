@@ -1,34 +1,39 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import {
   loadResolvedConfigSet,
   MCP_CONFIG_FILE,
   MCP_GLOBAL_CONFIG,
+  normalizeServerConfig,
   readScopeConfig,
   upsertServerConfig,
-} from "./config.js";
+} from "./storage.js";
 import type { McpConfigScope, McpServerConfig, ResolvedMcpServerConfig } from "./types.js";
 import { getPiLocalPath, tokenizeArgs } from "../utils.js";
+import { Frame } from "../ui/components/frame.js";
+import { PlaceholderInput } from "../ui/components/placeholder-input.js";
 
 const ACTIONS = ["save", "list", "show"] as const;
 type McpCommandAction = (typeof ACTIONS)[number];
 
 export async function mcpConfigCommandHandler(args: string, ctx: ExtensionCommandContext) {
   const [actionToken, argToken] = tokenizeArgs(args);
-  const action = actionToken && isAction(actionToken) ? actionToken : undefined;
+  const action =
+    actionToken && ACTIONS.includes(actionToken as McpCommandAction) ? actionToken : undefined;
 
   if (actionToken && !action) {
     ctx.ui.notify(
-      `Unknown mcp-config action "${actionToken}". Supported actions: ${ACTIONS.join(", ")}.`,
+      `Unknown mcp action "${actionToken}". Supported actions: ${ACTIONS.join(", ")}.`,
       "error",
     );
     return;
   }
 
-  const selectedAction = action ?? (await selectAction(ctx));
+  const selectedAction = !ctx.hasUI ? "show" : (action ?? (await selectAction(ctx)));
+
   if (!selectedAction) {
     return;
   }
-
   if (selectedAction === "save") {
     await handleSaveFlow(ctx, argToken);
     return;
@@ -42,10 +47,6 @@ export async function mcpConfigCommandHandler(args: string, ctx: ExtensionComman
 }
 
 async function selectAction(ctx: ExtensionCommandContext): Promise<McpCommandAction | undefined> {
-  if (!ctx.hasUI) {
-    return "show";
-  }
-
   const selected = await ctx.ui.select("MCP configuration", [
     "Save MCP server",
     "List configured MCP servers",
@@ -55,19 +56,14 @@ async function selectAction(ctx: ExtensionCommandContext): Promise<McpCommandAct
   if (!selected) {
     return undefined;
   }
-  if (selected === "Save MCP server") {
-    return "save";
-  }
-  if (selected === "List configured MCP servers") {
-    return "list";
-  }
 
-  return "show";
+  const token = selected.split(" ")[0]! as McpCommandAction;
+  return token;
 }
 
 async function handleSaveFlow(ctx: ExtensionCommandContext, scopeToken?: string): Promise<void> {
   if (!ctx.hasUI) {
-    ctx.ui.notify("mcp-config save requires an interactive UI.", "error");
+    ctx.ui.notify("mcp save requires an interactive UI.", "error");
     return;
   }
 
@@ -76,29 +72,25 @@ async function handleSaveFlow(ctx: ExtensionCommandContext, scopeToken?: string)
     return;
   }
 
-  const name = await ctx.ui.input("MCP server name", "Name used inside mcp_call_tool");
+  const name = await ctx.ui.input("MCP server name");
   if (!name?.trim()) {
     return;
   }
 
-  const existingScopeConfig = await readScopeConfig(ctx.cwd, scope);
-  const hasExisting = Object.hasOwn(existingScopeConfig.servers, name);
+  const existingScopeServers = await readScopeConfig(ctx.cwd, scope);
+  const hasExisting = Object.hasOwn(existingScopeServers, name);
+
   if (hasExisting) {
     const confirmed = await ctx.ui.confirm(
-      `Replace ${name}`,
-      `An MCP server named ${name} already exists in ${scope} scope. Replace it?`,
+      `Replace ${name} MCP`,
+      `${name} MCP already exists ${scope}ly. Do you want to replace it?`,
     );
     if (!confirmed) {
       return;
     }
   }
 
-  const serverConfig = await promptServerConfigJson(
-    ctx,
-    scope,
-    name,
-    existingScopeConfig.servers[name],
-  );
+  const serverConfig = await promptServerConfigJson(ctx, name, existingScopeServers[name]);
   if (!serverConfig) {
     return;
   }
@@ -114,15 +106,15 @@ async function showConfiguredMcpJson(
   ctx: ExtensionCommandContext,
   configuredMcpName?: string,
 ): Promise<void> {
-  const configSet = await loadResolvedConfigSet(ctx.cwd);
+  const servers = await loadResolvedConfigSet(ctx.cwd);
   const targetServer = configuredMcpName
-    ? configSet.servers.find((server) => server.name === configuredMcpName)
-    : await selectConfiguredMcp(ctx, configSet.servers);
+    ? servers.find((server) => server.name === configuredMcpName)
+    : await selectConfiguredMcp(ctx, servers);
 
   if (!targetServer) {
     const message = configuredMcpName
       ? `No MCP server named ${configuredMcpName} is configured.`
-      : `No MCP servers configured. Local file: ${configSet.localPath}. Global file: ${configSet.globalPath}.`;
+      : "No MCP servers configured.";
     ctx.ui.notify(message, "warning");
     return;
   }
@@ -158,18 +150,18 @@ async function showConfiguredScopes(
   ctx: ExtensionCommandContext,
   filterName?: string,
 ): Promise<void> {
-  const [localConfig, globalConfig] = await Promise.all([
+  const [globalServers, localServers] = await Promise.all([
     readScopeConfig(ctx.cwd, "local"),
     readScopeConfig(ctx.cwd, "global"),
   ]);
 
-  const localEntries = getScopeEntries(localConfig.servers, "local", filterName);
-  const globalEntries = getScopeEntries(globalConfig.servers, "global", filterName);
+  const localEntries = getScopeEntries(localServers, "local", filterName);
+  const globalEntries = getScopeEntries(globalServers, "global", filterName);
 
   if (localEntries.length === 0 && globalEntries.length === 0) {
     const message = filterName
-      ? `No MCP server named ${filterName} is configured in local or global scope.`
-      : `No MCP servers configured in local or global scope.`;
+      ? `No MCP server named ${filterName} is configured.`
+      : `No MCP servers configured.`;
     ctx.ui.notify(message, "warning");
     return;
   }
@@ -235,151 +227,53 @@ async function pickScope(
     return scopeToken;
   }
 
-  const selected = await ctx.ui.select("Save MCP server config to", [
-    "Project-local (.pi/mcp.json)",
-    "Global (~/.pi/agent/mcp.json)",
-  ]);
+  const selected = await ctx.ui.select("Save MCP server config to", ["Local project", "Global"]);
 
   if (!selected) {
     return undefined;
   }
 
-  return selected.startsWith("Project-local") ? "local" : "global";
+  return selected.startsWith("Local project") ? "local" : "global";
 }
 
 async function promptServerConfigJson(
   ctx: ExtensionCommandContext,
-  scope: McpConfigScope,
   name: string,
   existingConfig?: McpServerConfig,
 ): Promise<McpServerConfig | undefined> {
-  let currentValue = existingConfig
-    ? JSON.stringify(existingConfig, null, 2)
-    : buildConfigTemplate();
+  const value = existingConfig ? JSON.stringify(existingConfig, null, 2) : buildConfigTemplate();
 
-  while (true) {
-    const raw = await ctx.ui.editor(`Paste MCP JSON config for ${name}`, `${currentValue}\n`);
-    if (raw === undefined) {
-      return undefined;
-    }
+  const config = await ctx.ui.custom<string>((tui, theme, keybindings, done) => {
+    const frame = new Frame(theme);
+    const input = new PlaceholderInput(tui, keybindings, theme, value, "dim");
+    const title = new Text(theme.bold(`Configure ${name} MCP server`));
 
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      const serverConfig = normalizePastedServerConfig(name, parsed, scope);
-      return serverConfig;
-    } catch (error) {
-      currentValue = raw;
-      ctx.ui.notify(formatErrorMessage(error), "error");
-    }
-  }
-}
+    input.onSubmit = done;
+    input.onEscape = () => done("");
+    frame.addCustom(title);
+    frame.addCustom(input);
 
-function isAction(value: string): value is McpCommandAction {
-  return ACTIONS.includes(value as McpCommandAction);
-}
-
-function normalizePastedServerConfig(
-  name: string,
-  value: unknown,
-  _scope: McpConfigScope,
-): McpServerConfig {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`Invalid MCP JSON for ${name}: expected a JSON object.`);
-  }
-
-  const record = { ...(value as Record<string, unknown>) };
-  if (typeof record.url === "string") {
-    try {
-      new URL(record.url);
-    } catch {
-      throw new Error(`Invalid MCP JSON for ${name}: url must be a valid absolute URL.`);
-    }
-  }
-
-  if (record.transport === undefined && typeof record.type !== "string") {
-    if (typeof record.command === "string") {
-      record.transport = "stdio";
-    } else if (typeof record.url === "string") {
-      record.transport = "http";
-    }
-  }
-
-  validateRecordStrings(name, record.env, "env");
-  validateRecordStrings(name, record.headers, "headers");
-  validateStringArray(name, record.args, "args");
-
-  if (record.transport === "stdio") {
-    if (typeof record.command !== "string" || record.command.trim().length === 0) {
-      throw new Error(`Invalid MCP JSON for ${name}: stdio configs require a non-empty command.`);
-    }
-
-    const config: McpServerConfig = {
-      transport: "stdio",
-      command: record.command.trim(),
-      ...(typeof record.description === "string" && record.description.trim().length > 0
-        ? { description: record.description.trim() }
-        : {}),
-      ...(typeof record.enabled === "boolean" ? { enabled: record.enabled } : {}),
-      ...(Array.isArray(record.args) ? { args: record.args as string[] } : {}),
-      ...(typeof record.cwd === "string" && record.cwd.trim().length > 0
-        ? { cwd: record.cwd.trim() }
-        : {}),
-      ...(record.env && typeof record.env === "object" && !Array.isArray(record.env)
-        ? { env: record.env as Record<string, string> }
-        : {}),
+    return {
+      get focused() {
+        return input.focused;
+      },
+      set focused(v: boolean) {
+        input.focused = v;
+      },
+      handleInput: (data: string) => input.handleInput(data),
+      render: (width: number) => frame.render(width),
+      invalidate: () => frame.invalidate(),
     };
+  });
 
-    return config;
-  }
+  if (!config) return;
 
-  if (record.transport === "http" || record.transport === "https" || record.type === "http") {
-    if (typeof record.url !== "string" || record.url.trim().length === 0) {
-      throw new Error(`Invalid MCP JSON for ${name}: http configs require a non-empty url.`);
-    }
-
-    const config: McpServerConfig = {
-      transport: "http",
-      url: record.url.trim(),
-      ...(typeof record.description === "string" && record.description.trim().length > 0
-        ? { description: record.description.trim() }
-        : {}),
-      ...(typeof record.enabled === "boolean" ? { enabled: record.enabled } : {}),
-      ...(record.headers && typeof record.headers === "object" && !Array.isArray(record.headers)
-        ? { headers: record.headers as Record<string, string> }
-        : {}),
-    };
-
-    return config;
-  }
-
-  throw new Error(
-    `Invalid MCP JSON for ${name}: include either command for stdio or url for http, or set transport/type explicitly.`,
-  );
-}
-
-function validateRecordStrings(name: string, value: unknown, field: string): void {
-  if (value === undefined) {
-    return;
-  }
-
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`Invalid MCP JSON for ${name}: ${field} must be an object of string values.`);
-  }
-
-  for (const [key, item] of Object.entries(value)) {
-    if (typeof item !== "string") {
-      throw new Error(`Invalid MCP JSON for ${name}: ${field}.${key} must be a string.`);
-    }
-  }
-}
-
-function validateStringArray(name: string, value: unknown, field: string): void {
-  if (value === undefined) {
-    return;
-  }
-
-  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
-    throw new Error(`Invalid MCP JSON for ${name}: ${field} must be an array of strings.`);
+  try {
+    const parsed = JSON.parse(config) as unknown;
+    const serverConfig = normalizeServerConfig(name, parsed);
+    return serverConfig;
+  } catch {
+    ctx.ui.notify("Invalid MCP JSON config", "error");
   }
 }
 
@@ -387,14 +281,11 @@ function buildConfigTemplate(): string {
   return JSON.stringify(
     {
       command: "npx",
+      description: "This field is useful for telling agent when it should use an MCP",
       args: ["-y", "@modelcontextprotocol/server-filesystem", "."],
       env: {},
     },
     null,
     2,
   );
-}
-
-function formatErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

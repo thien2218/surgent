@@ -23,28 +23,15 @@ export interface HttpMcpServerConfig extends McpServerConfigBase {
 
 export type McpServerConfig = StdioMcpServerConfig | HttpMcpServerConfig;
 
-export interface McpConfigFile {
-  servers: Record<string, McpServerConfig>;
-}
-
 export type ResolvedMcpServerConfig = McpServerConfig & {
   name: string;
   scope: McpConfigScope;
   sourcePath: string;
 };
 
-export interface ResolvedMcpConfigSet {
-  localPath: string;
-  globalPath: string;
-  servers: ResolvedMcpServerConfig[];
-}
-
 export interface McpCallToolDetails {
   server: string;
   transport: McpTransport;
-  scope: McpConfigScope;
   remoteTool: string;
-  contentTypes: string[];
-  structuredContent?: Record<string, unknown>;
   isError?: boolean;
 }

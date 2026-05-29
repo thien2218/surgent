@@ -10,13 +10,12 @@ interface ManagedConnection {
   configHash: string;
 }
 
-const CLIENT_INFO = {
-  name: "surgent-mcp-client",
-  version: "0.1.0",
-};
-
 export class McpClientManager {
   private readonly connections = new Map<string, ManagedConnection>();
+  private readonly CLIENT_INFO = {
+    name: "surgent-mcp-client",
+    version: "0.1.0",
+  };
 
   async listTools(serverConfig: ResolvedMcpServerConfig) {
     const connection = await this.getConnection(serverConfig);
@@ -59,7 +58,7 @@ export class McpClientManager {
     serverConfig: ResolvedMcpServerConfig,
     configHash: string,
   ): Promise<ManagedConnection> {
-    const client = new Client(CLIENT_INFO);
+    const client = new Client(this.CLIENT_INFO);
     const transport =
       serverConfig.transport === "stdio"
         ? new StdioClientTransport({
@@ -69,20 +68,12 @@ export class McpClientManager {
             env: serverConfig.env,
           })
         : new StreamableHTTPClientTransport(new URL(serverConfig.url), {
-            requestInit: serverConfig.headers
-              ? {
-                  headers: serverConfig.headers,
-                }
-              : undefined,
+            requestInit: serverConfig.headers ? { headers: serverConfig.headers } : undefined,
           });
 
     await client.connect(transport);
 
-    return {
-      client,
-      transport,
-      configHash,
-    };
+    return { client, transport, configHash };
   }
 
   private async disposeConnection(connection: ManagedConnection): Promise<void> {

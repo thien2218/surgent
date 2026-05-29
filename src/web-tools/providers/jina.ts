@@ -27,7 +27,7 @@ export class JinaWebFetchProvider implements WebFetchProvider {
 
       return { provider: "jina", content, url };
     } catch (error) {
-      return { provider: "jina", content: "", url, error: formatErrorMessage(error) };
+      return { provider: "jina", url, error: formatErrorMessage(error) };
     }
   }
 

@@ -82,7 +82,6 @@ export class BashModeEditor extends CustomEditor {
   private applyMode(mode: EditorMode, actualText?: string): void {
     this.mode = mode;
     this.externalOnChange?.(actualText ?? toActualText(super.getText(), this.mode));
-    this.tui.requestRender();
   }
 
   cycleMode(): void {

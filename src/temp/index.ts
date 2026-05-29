@@ -3,52 +3,35 @@
  * Register a /test command here and remove this directory when done.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import Questionnaire from "../questionnaire/component.js";
-import { normalizeQuestions } from "../questionnaire/helpers.js";
+import PermissionPrompt from "../permission/components/prompt.js";
+import type { PermCheck, PromptDecision } from "../permission/types.js";
 
-const questions = normalizeQuestions({
-  questions: [
-    {
-      prompt: "Should we proceed with the refactor?",
-      reason: "The current architecture makes it hard to add new features.",
-      placeholder: "Type your answer",
-      options: [
-        { text: "Yes, go ahead" },
-        { text: "Yes, but scope it down", description: "Only touch the core module" },
-        { text: "No, not now" },
-      ],
-    },
-    {
-      prompt: "Which areas should be prioritized?",
-      placeholder: "Describe the areas",
-      multi: true,
-      recommendedCount: 2,
-      options: [
-        { text: "Authentication" },
-        { text: "Database layer" },
-        { text: "API surface" },
-        { text: "None of the above", exclusive: true },
-      ],
-    },
-  ],
-});
+const permCheck: PermCheck = {
+  toolName: "bash",
+  category: "bash",
+  raw: "npm install express",
+};
 
 export default function tempExtension(pi: ExtensionAPI) {
   pi.registerCommand("test", {
-    description: "Test UI components",
+    description: "Test PermissionPrompt component",
     handler: async (_args, ctx) => {
-      const result = await ctx.ui.custom<string[] | null>((tui, theme, _kb, done) => {
-        const component = new Questionnaire(tui, theme, questions);
-        component.onDone = ({ cancelled, answers }) => done(cancelled ? null : answers);
+      const decision = await ctx.ui.custom<PromptDecision>((t_ui, theme, _kb, done) => {
+        const component = new PermissionPrompt(theme, "npm install *", permCheck, false);
+        component.onDone = done;
+        component.onStoreRule = (scope, category, expr, value) => {
+          ctx.ui.notify(`Store rule: ${scope} / ${category} / ${expr} = ${String(value)}`, "info");
+        };
         return component;
       });
 
-      if (result === null) {
-        ctx.ui.notify("Cancelled", "info");
+      if (!decision) {
+        ctx.ui.notify("Dismissed", "info");
       } else {
-        for (const [i, answer] of result.entries()) {
-          ctx.ui.notify(`Q${i + 1}: ${answer}`, "info");
-        }
+        ctx.ui.notify(
+          `Decision: allowed=${decision.allowed}${decision.amended ? ` amended="${decision.amended}"` : ""}`,
+          decision.allowed ? "info" : "error",
+        );
       }
     },
   });

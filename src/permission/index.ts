@@ -3,6 +3,7 @@ import {
   type ExtensionAPI,
   type ToolCallEvent,
   type BashToolCallEvent,
+  type ReadToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
 import { cleanup } from "./cleanup.js";
 import { getSessionId, handlePermissionsCommand } from "./command.js";
@@ -14,23 +15,35 @@ import PermissionPrompt from "./components/prompt.js";
 import { SUSPICIOUS_BASH_PATTERNS, PERMISSIVE_TOOLS } from "./constants.js";
 import { toPermExpr } from "./expression.js";
 
+function getRawInput(toolName: PermissiveToolName, event: ToolCallEvent) {
+  switch (toolName) {
+    case "read":
+    case "write":
+    case "edit":
+      return (event as ReadToolCallEvent).input.path;
+    case "bash":
+      return (event as BashToolCallEvent).input.command;
+    case "web_fetch":
+      return (event.input as Record<"url", string>).url;
+  }
+}
+
 function getPermissionCheck(event: ToolCallEvent): PermCheck | null {
   for (const [name, data] of Object.entries(PERMISSIVE_TOOLS)) {
     const toolName = name as PermissiveToolName;
     if (isToolCallEventType(toolName, event)) {
       let danger: string | undefined;
-      const expr = toPermExpr(toolName, event.input as Record<string, unknown>);
+      const raw = getRawInput(toolName, event);
 
       if (toolName === "bash") {
-        const fullCmd = (event as BashToolCallEvent).input.command;
         for (const { pattern, reason } of SUSPICIOUS_BASH_PATTERNS) {
-          if (pattern.test(fullCmd)) {
+          if (pattern.test(raw as string)) {
             danger = reason;
           }
         }
       }
 
-      return { toolName, ...data, expr, danger };
+      return { toolName, ...data, danger, raw };
     }
   }
   return null;
@@ -55,6 +68,7 @@ export default function (pi: ExtensionAPI) {
     const check = getPermissionCheck(event);
     if (!check) return;
 
+    const expr = toPermExpr(check.toolName, check.raw);
     const allowed = await resolvePermission(ctx.cwd, sessionId, check);
     if (allowed && !check.danger) return;
 
@@ -62,12 +76,10 @@ export default function (pi: ExtensionAPI) {
       return { block: true, reason: "No UI to prompt for permission" };
     }
 
-    const exprExists = check.expr
-      ? await checkExprStored(ctx.cwd, check.category, check.expr)
-      : false;
+    const exprExists = expr ? await checkExprStored(ctx.cwd, check.category, expr) : false;
 
-    const decision = await ctx.ui.custom<PromptDecision>((tui, theme, _keybindings, done) => {
-      const component = new PermissionPrompt(tui, theme, check, exprExists);
+    const decision = await ctx.ui.custom<PromptDecision>((_tui, theme, _keybindings, done) => {
+      const component = new PermissionPrompt(theme, expr, check, exprExists);
       component.onDone = done;
       component.onStoreRule = (...args) => addRule(ctx.cwd, sessionId!, ...args);
       return component;

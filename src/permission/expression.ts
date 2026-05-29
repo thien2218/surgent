@@ -59,15 +59,15 @@ export function urlToExpr(url: string): string {
   }
 }
 
-export function toPermExpr(toolName: PermissiveToolName, input: Record<string, unknown>): string {
+export function toPermExpr(toolName: PermissiveToolName, input: string): string {
   switch (toolName) {
     case "read":
     case "write":
     case "edit":
-      return filePathToExpr(String(input.file_path ?? input.path ?? ""));
+      return filePathToExpr(input);
     case "bash":
-      return bashToExpr(String(input.command ?? ""));
+      return bashToExpr(input);
     case "web_fetch":
-      return urlToExpr(String(input.url ?? ""));
+      return urlToExpr(input);
   }
 }

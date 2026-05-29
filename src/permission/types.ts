@@ -21,7 +21,7 @@ export interface LocalSchema {
 export interface PermCheck {
   toolName: PermissiveToolName;
   category: Category;
-  expr: string;
+  raw: string;
   danger?: string;
   op?: FileOp;
 }

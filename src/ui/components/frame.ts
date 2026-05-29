@@ -4,6 +4,7 @@ import { Lines } from "../lines.js";
 
 export class Frame implements Component {
   private readonly border: DynamicBorder;
+  private readonly custom: Component[] = [];
 
   protected children(_width: number): string[] {
     return [];
@@ -17,6 +18,10 @@ export class Frame implements Component {
     this.border = new DynamicBorder((s) => theme.fg("accent", s));
   }
 
+  addCustom(child: Component) {
+    this.custom.push(child);
+  }
+
   invalidate(): void {
     this.border.invalidate();
   }
@@ -26,7 +31,17 @@ export class Frame implements Component {
     lines.add(this.border.render(width)[0]!);
     lines.space();
 
-    for (const child of this.children(width)) lines.add(child, 1);
+    if (!this.custom.length) {
+      for (const child of this.children(width)) {
+        lines.add(child, 1);
+      }
+    } else {
+      for (const item of this.custom) {
+        for (const line of item.render(width - 1)) {
+          lines.add(line, 1);
+        }
+      }
+    }
 
     if (this.getHints().length > 0) {
       lines.space();

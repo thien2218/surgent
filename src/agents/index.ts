@@ -1,15 +1,13 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { agentsCommandHandler } from "./command.js";
-import { registerAgentHooks } from "./load.js";
+import { loadAgent } from "./load.js";
 import { getActiveAgent, isYolo, toggleYolo } from "./states.js";
 import { AGENT_PROMPT_DIR } from "./storage.js";
 
 const SWITCH_MODE_KEY = Key.ctrlAlt("y");
 
 export default function (pi: ExtensionAPI) {
-  registerAgentHooks(pi);
-
   const updateAgent = (ctx: ExtensionContext) => {
     const agentText = ctx.ui.theme.fg("dim", `Agent: ${getActiveAgent()}`);
     ctx.ui.setStatus("agent", agentText);
@@ -43,6 +41,16 @@ export default function (pi: ExtensionAPI) {
     };
     updateStatus();
     process.stdout.on("resize", updateStatus);
+
+    const { tools, model } = await loadAgent(ctx, pi.getAllTools());
+
+    if (tools) {
+      pi.setActiveTools(tools);
+    }
+    if (model) {
+      const ok = pi.setModel(model);
+      if (!ok) ctx.ui.notify("Agent model unavailable", "warning");
+    }
   });
 
   pi.on("session_shutdown", async (_event, _ctx) => {

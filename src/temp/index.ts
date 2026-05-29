@@ -3,7 +3,7 @@
  * Register a /test command here and remove this directory when done.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import QuestionnaireComponent from "../questionnaire/component.js";
+import Questionnaire from "../questionnaire/component.js";
 import { normalizeQuestions } from "../questionnaire/helpers.js";
 
 const questions = normalizeQuestions({
@@ -38,7 +38,7 @@ export default function tempExtension(pi: ExtensionAPI) {
     description: "Test UI components",
     handler: async (_args, ctx) => {
       const result = await ctx.ui.custom<string[] | null>((tui, theme, _kb, done) => {
-        const component = new QuestionnaireComponent(tui, theme, questions);
+        const component = new Questionnaire(tui, theme, questions);
         component.onDone = ({ cancelled, answers }) => done(cancelled ? null : answers);
         return component;
       });

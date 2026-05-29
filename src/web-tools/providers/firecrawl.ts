@@ -1,9 +1,5 @@
-import { normalizeFetchedContent, toCanonicalUrl } from "../web-fetch/helpers.js";
-import type {
-  WebFetchFailure,
-  WebFetchProviderResponse,
-  WebFetchResult,
-} from "../web-fetch/types.js";
+import { formatErrorMessage, normalizeFetchedContent } from "../web-fetch/helpers.js";
+import type { WebFetchResponse } from "../web-fetch/types.js";
 import { normalizeSearchResult } from "../web-search/helpers.js";
 import type { WebSearchMode, WebSearchResult } from "../web-search/types.js";
 import { isDefined } from "../../utils.js";
@@ -25,10 +21,6 @@ interface FirecrawlSearchResponse {
 interface FirecrawlDocument {
   markdown?: string;
   metadata?: { sourceURL?: string; ogUrl?: string };
-}
-
-interface FirecrawlBatchJob {
-  data?: FirecrawlDocument[];
 }
 
 export class FirecrawlProvider implements WebSearchProvider, WebFetchProvider {
@@ -53,64 +45,21 @@ export class FirecrawlProvider implements WebSearchProvider, WebFetchProvider {
       .filter(isDefined);
   }
 
-  async fetch(urls: string[]): Promise<WebFetchProviderResponse> {
+  async fetch(url: string): Promise<WebFetchResponse> {
     const client = new Firecrawl({ apiKey: this.apiKey });
-
-    if (urls.length === 1) {
-      const requestedUrl = urls[0]!;
-      const document = (await client.scrape(requestedUrl, {
+    try {
+      const document = (await client.scrape(url, {
         formats: ["markdown", "html"],
       })) as FirecrawlDocument;
-
-      return this.toProviderResponse(urls, [document]);
-    }
-
-    const batch = (await client.batchScrape(urls, {
-      options: { formats: ["markdown", "html"] },
-      pollInterval: 2,
-      timeout: 30,
-    })) as FirecrawlBatchJob;
-
-    return this.toProviderResponse(urls, batch.data ?? []);
-  }
-
-  private toProviderResponse(
-    urls: string[],
-    documents: FirecrawlDocument[],
-  ): WebFetchProviderResponse {
-    const documentsByUrl = new Map(
-      documents
-        .map((document) => {
-          const matchedUrl = document.metadata?.sourceURL || document.metadata?.ogUrl;
-
-          if (!matchedUrl) {
-            return undefined;
-          }
-
-          return [matchedUrl, document] as const;
-        })
-        .filter(isDefined),
-    );
-
-    const results: WebFetchResult[] = [];
-    const failures: WebFetchFailure[] = [];
-
-    for (const url of urls) {
-      const document =
-        documentsByUrl.get(toCanonicalUrl(url)) ?? (urls.length === 1 ? documents[0] : undefined);
       const content = normalizeFetchedContent(document?.markdown);
 
       if (!content) {
-        failures.push({
-          message: "Firecrawl returned no markdown content.",
-          url,
-        });
-        continue;
+        return { provider: "firecrawl", url, error: "Firecrawl returned no markdown content." };
       }
 
-      results.push({ provider: "firecrawl", content, url });
+      return { provider: "firecrawl", content, url };
+    } catch (error) {
+      return { provider: "firecrawl", url, error: formatErrorMessage(error) };
     }
-
-    return { failures, results };
   }
 }

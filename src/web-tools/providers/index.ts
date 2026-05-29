@@ -1,4 +1,4 @@
-import type { WebFetchProviderId, WebFetchProviderResponse } from "../web-fetch/types.js";
+import type { WebFetchProviderId, WebFetchResponse } from "../web-fetch/types.js";
 import type { WebToolsProviderId } from "../web-login/types.js";
 import type { WebSearchMode, WebSearchProviderId, WebSearchResult } from "../web-search/types.js";
 import { BraveWebSearchProvider } from "./brave.js";
@@ -12,7 +12,7 @@ export interface WebSearchProvider {
 }
 
 export interface WebFetchProvider {
-  fetch(urls: string[]): Promise<WebFetchProviderResponse>;
+  fetch(url: string): Promise<WebFetchResponse>;
 }
 
 export class WebToolsFactory {

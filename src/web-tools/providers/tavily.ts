@@ -1,9 +1,5 @@
-import { normalizeFetchedContent, toCanonicalUrl } from "../web-fetch/helpers.js";
-import type {
-  WebFetchFailure,
-  WebFetchProviderResponse,
-  WebFetchResult,
-} from "../web-fetch/types.js";
+import { formatErrorMessage, normalizeFetchedContent } from "../web-fetch/helpers.js";
+import type { WebFetchResponse } from "../web-fetch/types.js";
 import { normalizeSearchResult } from "../web-search/helpers.js";
 import type { WebSearchMode, WebSearchResult } from "../web-search/types.js";
 import { isDefined } from "../../utils.js";
@@ -39,36 +35,22 @@ export class TavilyProvider implements WebSearchProvider, WebFetchProvider {
       .filter(isDefined);
   }
 
-  async fetch(urls: string[]): Promise<WebFetchProviderResponse> {
+  async fetch(url: string): Promise<WebFetchResponse> {
     const client = tavily({ apiKey: this.apiKey });
-    const response = (await client.extract(urls, {
-      format: "markdown",
-    })) as TavilyExtractResponse;
-    const resultByUrl = new Map((response.results ?? []).map((item) => [item.url, item] as const));
-    const failedByUrl = new Map(
-      (response.failedResults ?? []).map(
-        (item) => [item.url, item.error ?? "Tavily extract failed."] as const,
-      ),
-    );
-    const results: WebFetchResult[] = [];
-    const failures: WebFetchFailure[] = [];
-
-    for (const url of urls) {
-      const canonicalUrl = toCanonicalUrl(url);
-      const item = resultByUrl.get(canonicalUrl);
-      const content = normalizeFetchedContent(item?.rawContent);
+    try {
+      const response = (await client.extract([url], {
+        format: "markdown",
+      })) as TavilyExtractResponse;
+      const content = normalizeFetchedContent(response.results?.[0]?.rawContent);
 
       if (content) {
-        results.push({ provider: "tavily", content, url });
-        continue;
+        return { provider: "tavily", content, url };
       }
 
-      failures.push({
-        message: failedByUrl.get(canonicalUrl) ?? "Tavily returned no content.",
-        url,
-      });
+      const errorMsg = response.failedResults?.[0]?.error ?? "Tavily returned no content.";
+      return { provider: "tavily", url, error: errorMsg };
+    } catch (error) {
+      return { provider: "tavily", url, error: formatErrorMessage(error) };
     }
-
-    return { failures, results };
   }
 }

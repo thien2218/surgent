@@ -1,12 +1,7 @@
-import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import {
-  formatAttempt,
-  formatErrorMessage,
-  formatFetchResults,
-  getValidatedUrls,
-} from "./helpers.js";
+import { formatErrorMessage, formatFetchResult, getValidatedUrl } from "./helpers.js";
 import {
   getCurrentCacheDate,
   pruneExpiredCacheDirs,
@@ -14,7 +9,7 @@ import {
   writeFetchedResult,
 } from "./storage.js";
 import { WebToolsFactory } from "../providers/index.js";
-import type { WebFetchFailure, WebFetchResult, WebFetchProviderResponse } from "./types.js";
+import type { WebFetchResponse } from "./types.js";
 import { WEB_FETCH_PROVIDERS } from "../settings.js";
 
 const webToolsFactory = new WebToolsFactory();
@@ -22,48 +17,38 @@ const webToolsFactory = new WebToolsFactory();
 const webFetchTool = defineTool({
   name: "web_fetch",
   label: "Web Fetch",
-  description: "Fetch public URLs, cache markdown locally, return file paths and heading outline.",
-  promptSnippet: "Fetch known URLs. Returns metadata and heading outline.",
+  description: "Fetch a public URL, cache markdown locally, return file path and heading outline.",
+  promptSnippet: "Fetch a known URL. Returns metadata and heading outline.",
   promptGuidelines: [
     "Don't use web_fetch when relevant info is already in web_search.",
     "Use web_fetch for known URLs, not discovery.",
-    "Use web_fetch with all needed URLs in one call.",
-    "Use web_fetch output paths with read/search only when page body is needed.",
+    "Use web_fetch output path with read/search only when page body is needed.",
   ],
   parameters: Type.Object({
-    urls: Type.Array(Type.String(), { description: "One or multiple HTTP(S) URLs" }),
+    url: Type.String({ description: "An HTTP(S) URL" }),
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-    const urls = getValidatedUrls(params.urls);
+    const url = getValidatedUrl(params.url);
     const cacheDate = getCurrentCacheDate();
     const attempts: string[] = [];
-    const failtures: WebFetchFailure[] = [];
-    const results: WebFetchResult[] = [];
     const nativeFetch = { name: "native", label: "Native fetch" } as const;
 
     pruneExpiredCacheDirs(cacheDate);
 
-    for (const url of urls) {
-      if (signal?.aborted) {
-        throw new Error("web_fetch was cancelled.");
-      }
+    if (signal?.aborted) {
+      throw new Error("web_fetch was cancelled.");
+    }
 
-      const content = await readCachedContent(url, cacheDate);
-      if (content === undefined) {
-        failtures.push({ message: "Failed to fetch from cache", url });
-        continue;
-      }
-
-      results.push({ provider: "native", content, url });
+    const cached = await readCachedContent(url, cacheDate);
+    if (cached !== undefined) {
+      const result: WebFetchResponse = { provider: "native", content: cached, url };
+      return {
+        content: [{ type: "text", text: formatFetchResult(result, cacheDate) }],
+        details: result satisfies WebFetchResponse,
+      };
     }
 
     for (const provider of [nativeFetch, ...WEB_FETCH_PROVIDERS]) {
-      const remaining = failtures.map((failure) => failure.url);
-      failtures.splice(0, failtures.length);
-
-      if (remaining.length === 0) {
-        break;
-      }
       if (signal?.aborted) {
         throw new Error("web_fetch was cancelled.");
       }
@@ -78,53 +63,39 @@ const webFetchTool = defineTool({
       }
 
       try {
-        const response = await webToolsFactory
-          .createWebFetcher(provider.name, apiKey)
-          .fetch(remaining);
+        const response = await webToolsFactory.createWebFetcher(provider.name, apiKey).fetch(url);
 
-        for (const result of response.results) {
-          try {
-            await writeFetchedResult(result.url, result.content, cacheDate);
-            results.push(result);
-          } catch (error) {
-            failtures.push({ message: formatErrorMessage(error), url: result.url });
-          }
+        if (response.error === undefined) {
+          await writeFetchedResult(url, response.content, cacheDate);
+          return {
+            content: [{ type: "text", text: formatFetchResult(response, cacheDate) }],
+            details: response satisfies WebFetchResponse,
+          };
         }
 
-        failtures.push(...response.failures);
-        attempts.push(formatAttempt(provider.label, remaining.length, response));
+        attempts.push(`${provider.label}: ${response.error}`);
       } catch (error) {
         attempts.push(`${provider.label}: ${formatErrorMessage(error)}`);
       }
     }
 
-    results.sort((left, right) => urls.indexOf(left.url) - urls.indexOf(right.url));
-
-    if (results.length === 0) {
-      throw new Error(`Web fetch failed for all URLs.\n|- ${attempts.join("\n|- ")}`);
-    }
-
-    return {
-      content: [{ type: "text", text: formatFetchResults(results, cacheDate) }],
-      details: { failures: failtures, results } satisfies WebFetchProviderResponse,
-    };
+    throw new Error(`Web fetch failed.\n|- ${attempts.join("\n|- ")}`);
   },
   renderCall(args, theme) {
-    return new Text(`${theme.fg("toolTitle", "web_fetch")} [${args.urls.join(", ")}]`, 0, 0);
+    return new Text(`${theme.fg("toolTitle", "web_fetch")} [${args.url}]`, 0, 0);
   },
   renderResult(result, { isPartial }, theme) {
     if (isPartial) {
       return new Text(theme.fg("warning", "Fetching content..."), 0, 0);
     }
 
-    const details = result.details as WebFetchProviderResponse | undefined;
-    const urls = details?.results.map((item) => item.url) ?? [];
+    const details = result.details as WebFetchResponse | undefined;
 
-    if (urls.length === 0) {
+    if (!details?.url) {
       return new Text(theme.fg("dim", "Fetched content"), 0, 0);
     }
 
-    return new Text(`Fetched content from ${urls.join(", ")}`, 0, 0);
+    return new Text(`Fetched content from ${details.url}`, 0, 0);
   },
 });
 

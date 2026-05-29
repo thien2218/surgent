@@ -22,6 +22,7 @@ export interface PermCheck {
   toolName: PermissiveToolName;
   category: Category;
   expr: string;
+  danger?: string;
   op?: FileOp;
 }
 

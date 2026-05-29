@@ -2,20 +2,35 @@ import {
   isToolCallEventType,
   type ExtensionAPI,
   type ToolCallEvent,
+  type BashToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
 import { cleanup } from "./cleanup.js";
 import { getSessionId, handlePermissionsCommand } from "./command.js";
 import { resolvePermission } from "./resolution.js";
+import { addRule, checkExprStored } from "./storage.js";
 import type { PermCheck, PromptDecision, PermissiveToolName } from "./types.js";
 import { isYolo } from "../agents/states.js";
-import PermissionPrompt from "./prompt.js";
-import { PERMISSIVE_TOOLS } from "./constants.js";
+import PermissionPrompt from "./components/prompt.js";
+import { SUSPICIOUS_BASH_PATTERNS, PERMISSIVE_TOOLS } from "./constants.js";
+import { toPermExpr } from "./expression.js";
 
 function getPermissionCheck(event: ToolCallEvent): PermCheck | null {
   for (const [name, data] of Object.entries(PERMISSIVE_TOOLS)) {
     const toolName = name as PermissiveToolName;
     if (isToolCallEventType(toolName, event)) {
-      return { toolName, ...data, expr: "" }; // TODO: need some picomatch-compliant expression produced via some algorithm performed on event's data
+      let danger: string | undefined;
+      const expr = toPermExpr(toolName, event.input as Record<string, unknown>);
+
+      if (toolName === "bash") {
+        const fullCmd = (event as BashToolCallEvent).input.command;
+        for (const { pattern, reason } of SUSPICIOUS_BASH_PATTERNS) {
+          if (pattern.test(fullCmd)) {
+            danger = reason;
+          }
+        }
+      }
+
+      return { toolName, ...data, expr, danger };
     }
   }
   return null;
@@ -41,20 +56,28 @@ export default function (pi: ExtensionAPI) {
     if (!check) return;
 
     const allowed = await resolvePermission(ctx.cwd, sessionId, check);
-    if (allowed) return;
+    if (allowed && !check.danger) return;
 
     if (!ctx.hasUI) {
       return { block: true, reason: "No UI to prompt for permission" };
     }
 
+    const exprExists = check.expr
+      ? await checkExprStored(ctx.cwd, check.category, check.expr)
+      : false;
+
     const decision = await ctx.ui.custom<PromptDecision>((tui, theme, _keybindings, done) => {
-      const component = new PermissionPrompt(tui, theme, check);
+      const component = new PermissionPrompt(tui, theme, check, exprExists);
       component.onDone = done;
+      component.onStoreRule = (...args) => addRule(ctx.cwd, sessionId!, ...args);
       return component;
     });
 
-    // If not allowed => tell agent that user rejected this tool call
-    // If allowed but amended is provided => blocks tool call and tell agent what user wants
-    // If allowed and no amended provided => proceed tool call
+    if (!decision || !decision.allowed) {
+      return { block: true, reason: decision?.amended ?? "User rejected this tool call" };
+    }
+    if (decision.amended) {
+      return { block: true, reason: decision.amended };
+    }
   });
 }

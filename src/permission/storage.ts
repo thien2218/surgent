@@ -61,8 +61,8 @@ function setCategoryRules(
 
 export async function addRule(
   cwd: string,
-  scope: Scope,
   sessionId: string,
+  scope: Scope,
   category: Category,
   expr: string,
   value: boolean | FileAccess,
@@ -85,8 +85,8 @@ export async function addRule(
 
 export async function removeRule(
   cwd: string,
-  scope: Scope,
   sessionId: string,
+  scope: Scope,
   category: Category,
   expr: string,
 ): Promise<void> {
@@ -110,8 +110,8 @@ export async function removeRule(
 
 export async function toggleRule(
   cwd: string,
-  scope: Scope,
   sessionId: string,
+  scope: Scope,
   category: Category,
   expr: string,
 ): Promise<void> {
@@ -136,7 +136,7 @@ export async function toggleRule(
     nextValue = !currentValue;
   }
 
-  await addRule(cwd, scope, sessionId, category, expr, nextValue);
+  await addRule(cwd, sessionId, scope, category, expr, nextValue);
 }
 
 export async function getRulesForDisplay(cwd: string, sessionId: string): Promise<DisplayRule[]> {
@@ -159,4 +159,20 @@ export async function getRulesForDisplay(cwd: string, sessionId: string): Promis
   addFromSchema(global, "always");
 
   return rules;
+}
+
+export async function checkExprStored(
+  cwd: string,
+  category: Category,
+  expr: string,
+): Promise<boolean> {
+  const [local, global] = await Promise.all([readLocal(cwd), readGlobal()]);
+
+  const inSchema = (schema: PermSchema | undefined): boolean => {
+    if (!schema) return false;
+    const rules = category === "file" ? schema.file : category === "web" ? schema.web : schema.bash;
+    return rules ? expr in rules : false;
+  };
+
+  return inSchema(global) || Object.values(local).some(inSchema);
 }

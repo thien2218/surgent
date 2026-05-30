@@ -6,7 +6,7 @@ import { getScopeLabel } from "./prompt.js";
 
 const FILE_OPS_ORDER = ["read", "write", "blocked"] as const;
 
-function formatValue(value: FileAccess | boolean): string {
+function getValueLabel(value: FileAccess | boolean): string {
   if (typeof value === "boolean") {
     return value ? "allowed" : "disallowed";
   }
@@ -22,6 +22,7 @@ export default class EditableOption implements Focusable {
   private _editing = false;
   private _deleted = false;
   private _modified = false;
+  private _highlighted = false;
 
   onChange?: (updated: DisplayRule) => void;
   onCancel?: () => void;
@@ -50,6 +51,10 @@ export default class EditableOption implements Focusable {
     if (!this.input.focused) this.input.setValue("");
   }
 
+  set highlighted(value: boolean) {
+    this._highlighted = value && !this._editing;
+  }
+
   getRule() {
     return this.rule;
   }
@@ -67,18 +72,16 @@ export default class EditableOption implements Focusable {
 
   render(width: number): string[] {
     if (this._deleted) return [];
-    const LABEL_WIDTH = 32;
-    const label = `(${getScopeLabel(this.rule.scope)}) ${formatValue(this.rule.value)}`;
+    const LABEL_WIDTH = 36;
+    const label = `(${getScopeLabel(this.rule.scope)}) ${getValueLabel(this.rule.value)}`;
     const pad = " ".repeat(LABEL_WIDTH - label.length);
-    const prefix = label + pad;
+    const prefix = this.theme.fg("dim", label + pad);
     const availWidth = width - LABEL_WIDTH;
+    const value = this._editing ? this.input.render(availWidth)[0]!.slice(2) : this.rule.expr;
 
-    if (this._editing) {
-      const inputLine = this.input.render(availWidth)[0]!.slice(2);
-      return [truncateToWidth(this.theme.fg("dim", prefix) + inputLine, width)];
-    }
-
-    return [truncateToWidth(prefix + this.rule.expr, width)];
+    return [
+      truncateToWidth(prefix + this.theme.fg(this._highlighted ? "accent" : "text", value), width),
+    ];
   }
 
   handleInput(data: string): void {

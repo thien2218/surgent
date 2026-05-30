@@ -152,7 +152,7 @@ export default class Questionnaire extends Frame implements Focusable {
         const selected = draft.selectedOptionIndexes.includes(index);
         const cursor = draft.cursorIndex === index && draft.focusMode === "options";
         const marker = question.multi ? (selected ? "[x]" : "[ ]") : selected ? "(*)" : "( )";
-        const prefix = cursor ? this.theme.fg("accent", "→ ") : "  ";
+        const prefix = cursor ? this.theme.fg("accent", "→") : " ";
         const recommendation =
           question.recommendedCount !== undefined && index < question.recommendedCount
             ? this.theme.fg("success", " [recommended]")
@@ -160,7 +160,7 @@ export default class Questionnaire extends Frame implements Focusable {
         const exclusive = option.exclusive ? this.theme.fg("dim", " [exclusive]") : "";
         const optionText = `${marker} ${option.text}${recommendation}${exclusive}`;
 
-        lines.add(`${prefix}${cursor ? this.theme.fg("accent", optionText) : optionText}`);
+        lines.add(`${prefix} ${cursor ? this.theme.fg("accent", optionText) : optionText}`);
         if (option.description) {
           lines.add(this.theme.fg("muted", option.description), 6);
         }
@@ -190,7 +190,7 @@ export default class Questionnaire extends Frame implements Focusable {
     return lines.get();
   }
 
-  protected override getHints(): [string, string][] {
+  override getHints(): [string, string][] {
     const question = this.currentQuestion();
     const base: [string, string][] = [
       ["Ctrl+Left/Right", "switch questions"],

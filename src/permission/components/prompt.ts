@@ -96,7 +96,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
     return this.cachedLines;
   }
 
-  protected override getHints(): [string, string][] {
+  override getHints(): [string, string][] {
     return [
       ["↑↓", "navigate"],
       ["Enter", "select"],

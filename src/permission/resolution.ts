@@ -3,7 +3,7 @@ import type { AgentMeta } from "../agents/parser.js";
 import { loadAgents } from "../agents/storage.js";
 import { getActiveAgent } from "../agents/states.js";
 import { readGlobal, readLocal } from "./storage.js";
-import type { Category, FileAccess, PermSchema, PermCheck } from "./types.js";
+import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./types.js";
 
 const GLOB_CHARS = /[*?[\]{}]/;
 const PATH_IN_COMMAND = /(?:^|\s)((?:\/|\.\.?\/|~\/)[^\s;|&><'"]*)/g;
@@ -62,7 +62,7 @@ function findBestMatch(
 }
 
 function getSchemaRules(
-  schema: PermSchema | undefined,
+  schema: PermissionRule | undefined,
   category: Category,
 ): Record<string, FileAccess | boolean> {
   if (!schema) return {};
@@ -81,7 +81,7 @@ function extractPathsFromCommand(command: string): string[] {
   return [...new Set(paths)]; // dedup
 }
 
-function checkAgentRules(agentMeta: AgentMeta | null, check: PermCheck): boolean {
+function checkAgentRules(agentMeta: AgentMeta | null, check: PermissionCheck): boolean {
   if (!agentMeta) return true;
   const { category, raw } = check;
 
@@ -97,7 +97,7 @@ function checkAgentRules(agentMeta: AgentMeta | null, check: PermCheck): boolean
 export async function resolvePermission(
   cwd: string,
   sessionId: string,
-  check: PermCheck,
+  check: PermissionCheck,
 ): Promise<boolean> {
   const agents = await loadAgents(cwd);
   const name = getActiveAgent();
@@ -110,7 +110,12 @@ export async function resolvePermission(
   // For bash: also check any path-like args as file reads
   if (category === "bash") {
     for (const path of extractPathsFromCommand(raw)) {
-      const fileCheck: PermCheck = { category: "file", raw: path, op: "read", toolName: "bash" };
+      const fileCheck: PermissionCheck = {
+        category: "file",
+        raw: path,
+        op: "read",
+        toolName: "bash",
+      };
       if (!(await resolvePermission(cwd, sessionId, fileCheck))) return false;
     }
   }

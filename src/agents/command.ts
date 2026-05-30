@@ -85,34 +85,36 @@ async function handleExistingAgent(
   const userActions = ["Edit", "Delete"];
   if (isBuiltIn(agent.meta.name)) actions.push(...userActions);
 
-  const action = await ctx.ui.select(`Agent: ${agent.meta.name}`, actions);
-  if (!action) return;
+  while (true) {
+    const action = await ctx.ui.select(`Agent: ${agent.meta.name}`, actions);
+    if (!action) return;
 
-  if (action === "View") {
-    const raw = await readFile(agent.filePath, "utf-8");
-    ctx.ui.notify(raw, "info");
-    return;
-  }
+    if (action === "View") {
+      const raw = await readFile(agent.filePath, "utf-8");
+      ctx.ui.notify(raw, "info");
+      return;
+    }
 
-  if (action === "Edit") {
-    await openInVsCode(ctx, agent.filePath);
-    return;
-  }
+    if (action === "Edit") {
+      await openInVsCode(ctx, agent.filePath);
+      return;
+    }
 
-  if (action === "Start in new session") {
-    setActiveAgent(agent.meta.name);
-    await ctx.newSession();
-    return;
-  }
+    if (action === "Start in new session") {
+      setActiveAgent(agent.meta.name);
+      await ctx.newSession();
+      return;
+    }
 
-  if (action === "Delete") {
-    const ok = await ctx.ui.confirm(
-      `Delete agent "${agent.meta.name}"?`,
-      "Removes all local and global copies of this agent.",
-    );
-    if (!ok) return;
-    await deleteAgentFiles(agent.meta.name, ctx.cwd);
-    ctx.ui.notify(`Agent "${agent.meta.name}" deleted`, "info");
+    if (action === "Delete") {
+      const ok = await ctx.ui.confirm(
+        `Delete agent "${agent.meta.name}"?`,
+        "Removes all local and global copies of this agent.",
+      );
+      if (!ok) return;
+      await deleteAgentFiles(agent.meta.name, ctx.cwd);
+      ctx.ui.notify(`Agent "${agent.meta.name}" deleted`, "info");
+    }
   }
 }
 

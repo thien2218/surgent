@@ -4,9 +4,9 @@
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import PermissionPrompt from "../permission/components/prompt.js";
-import type { PermCheck, PromptDecision } from "../permission/types.js";
+import type { PermissionCheck, PromptDecision } from "../permission/types.js";
 
-const permCheck: PermCheck = {
+const check: PermissionCheck = {
   toolName: "bash",
   category: "bash",
   raw: "npm install express",
@@ -17,7 +17,7 @@ export default function tempExtension(pi: ExtensionAPI) {
     description: "Test PermissionPrompt component",
     handler: async (_args, ctx) => {
       const decision = await ctx.ui.custom<PromptDecision>((t_ui, theme, _kb, done) => {
-        const component = new PermissionPrompt(theme, "npm install *", permCheck, false);
+        const component = new PermissionPrompt(theme, "npm install *", check, false);
         component.onDone = done;
         component.onStoreRule = (scope, category, expr, value) => {
           ctx.ui.notify(`Store rule: ${scope} / ${category} / ${expr} = ${String(value)}`, "info");

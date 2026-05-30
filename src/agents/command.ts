@@ -1,15 +1,27 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { DynamicBorder } from "@earendil-works/pi-coding-agent";
-import { Container, type SelectItem, SelectList, Text } from "@earendil-works/pi-tui";
+import {
+  Input,
+  Key,
+  matchesKey,
+  type SelectItem,
+  SelectList,
+  Text,
+  Spacer,
+  visibleWidth,
+} from "@earendil-works/pi-tui";
 import { exec } from "node:child_process";
 import { spawn } from "node:child_process";
 import { promisify } from "node:util";
-import type { ParsedAgent } from "./parser.js";
+import type { ParsedAgent } from "./types.js";
 import { createAgentFile, deleteAgentFiles, isBuiltIn, loadAgents } from "./storage.js";
 import { setActiveAgent } from "./states.js";
-import { readFile } from "node:fs/promises";
+import { Frame } from "../ui/components/frame.js";
 
 const execAsync = promisify(exec);
+
+function nonPaddedText(text: string) {
+  return new Text(text, 0, 0);
+}
 
 async function isVsCodeAvailable(): Promise<boolean> {
   try {
@@ -38,19 +50,29 @@ async function showAgentPicker(
   ctx: ExtensionCommandContext,
   agents: ParsedAgent[],
 ): Promise<string | null> {
+  const userAgents = agents.filter((agent) => !isBuiltIn(agent.filePath));
+  const builtInAgents = agents.filter((agent) => isBuiltIn(agent.filePath));
+
   const items: SelectItem[] = [
-    ...agents.map((agent) => ({
+    ...userAgents.map((agent) => ({
       value: agent.meta.name,
       label: agent.meta.name,
       description: agent.meta.description,
     })),
-    { value: "__new__", label: "[New agent]", description: "Create a new agent file" },
+    {
+      value: "__new__",
+      label: "[Create new agent]",
+      description: "Create new agent specialized for specific task(s)",
+    },
   ];
 
   return ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
-    const container = new Container();
-    container.addChild(new DynamicBorder((text) => theme.fg("accent", text)));
-    container.addChild(new Text(theme.fg("accent", theme.bold("Agents")), 1, 0));
+    const frame = new Frame(theme);
+    frame.getHints = () => [
+      ["↑↓", "navigate"],
+      ["enter", "select"],
+      ["esc", "cancel"],
+    ];
 
     const list = new SelectList(items, Math.min(items.length, 12), {
       selectedPrefix: (text) => theme.fg("accent", text),
@@ -61,14 +83,29 @@ async function showAgentPicker(
     });
     list.onSelect = (item) => done(item.value);
     list.onCancel = () => done(null);
-    container.addChild(list);
 
-    container.addChild(new Text(theme.fg("dim", "↑↓ navigate  enter select  esc cancel"), 1, 0));
-    container.addChild(new DynamicBorder((text) => theme.fg("accent", text)));
+    frame.addCustom(nonPaddedText(theme.bold("Agents")));
+    frame.addCustom(new Spacer());
+    frame.addCustom(list);
+
+    frame.addCustom(new Spacer());
+    if (builtInAgents.length > 0) {
+      frame.addCustom(new Text(theme.fg("muted", "Built-in (always available)"), 0));
+      const dot = theme.fg("muted", "•");
+
+      for (const agent of builtInAgents) {
+        const desc = theme.fg("dim", agent.meta.description);
+        frame.addCustom(nonPaddedText(`  ${agent.meta.name} ${dot} ${desc}`));
+      }
+    }
+    frame.addCustom(new Spacer());
 
     return {
-      render: (width) => container.render(width),
-      invalidate: () => container.invalidate(),
+      render: (width) => frame.render(width),
+      invalidate: () => {
+        frame.invalidate();
+        list.invalidate();
+      },
       handleInput: (data) => {
         list.handleInput(data);
         tui.requestRender();
@@ -81,24 +118,13 @@ async function handleExistingAgent(
   ctx: ExtensionCommandContext,
   agent: ParsedAgent,
 ): Promise<void> {
-  const actions = ["View", "Edit", "Start in new session", "Delete"];
-  const userActions = ["Edit", "Delete"];
-  if (isBuiltIn(agent.meta.name)) actions.push(...userActions);
-
   while (true) {
-    const action = await ctx.ui.select(`Agent: ${agent.meta.name}`, actions);
+    const action = await ctx.ui.select(`Agent: ${agent.meta.name}`, [
+      "Start in new session",
+      "Open in VS Code",
+      "Delete agent",
+    ]);
     if (!action) return;
-
-    if (action === "View") {
-      const raw = await readFile(agent.filePath, "utf-8");
-      ctx.ui.notify(raw, "info");
-      return;
-    }
-
-    if (action === "Edit") {
-      await openInVsCode(ctx, agent.filePath);
-      return;
-    }
 
     if (action === "Start in new session") {
       setActiveAgent(agent.meta.name);
@@ -106,12 +132,17 @@ async function handleExistingAgent(
       return;
     }
 
-    if (action === "Delete") {
+    if (action === "Open in VS Code") {
+      await openInVsCode(ctx, agent.filePath);
+      return;
+    }
+
+    if (action === "Delete agent") {
       const ok = await ctx.ui.confirm(
         `Delete agent "${agent.meta.name}"?`,
         "Removes all local and global copies of this agent.",
       );
-      if (!ok) return;
+      if (!ok) continue;
       await deleteAgentFiles(agent.meta.name, ctx.cwd);
       ctx.ui.notify(`Agent "${agent.meta.name}" deleted`, "info");
     }
@@ -119,18 +150,72 @@ async function handleExistingAgent(
 }
 
 async function handleNewAgent(ctx: ExtensionCommandContext): Promise<void> {
-  const name = await ctx.ui.input("Agent name:", "my-agent");
-  if (!name?.trim()) return;
+  const result = await ctx.ui.custom<{ name: string; scope: "local" | "global" } | null>(
+    (_tui, theme, _kb, done) => {
+      const frame = new Frame(theme);
+      const input = new Input();
+      let scope: "local" | "global" = "local";
+      input.focused = true;
 
-  const scope = (await ctx.ui.select("Scope:", ["local", "global"])) as "local" | "global";
-  if (!scope) return;
+      const component = {
+        get focused() {
+          return input.focused;
+        },
+        set focused(value: boolean) {
+          input.focused = value;
+        },
+        invalidate() {
+          input.invalidate();
+        },
+        render(width: number): string[] {
+          const prefix = theme.fg("muted", `(${scope})  `);
+          const inputLine = input.render(width - visibleWidth(prefix))[0]!.slice(2);
+          return [prefix + inputLine];
+        },
+        handleInput(data: string) {
+          if (matchesKey(data, Key.tab)) {
+            scope = scope === "local" ? "global" : "local";
+            return;
+          }
+          if (matchesKey(data, Key.escape)) {
+            done(null);
+            return;
+          }
+          if (matchesKey(data, Key.enter)) {
+            const name = input.getValue().trim();
+            if (name) done({ name, scope });
+            return;
+          }
+          input.handleInput(data);
+        },
+      };
 
-  const filePath = await createAgentFile(name.trim(), scope, ctx.cwd);
+      frame.addCustom(nonPaddedText(theme.bold("Agent name")));
+      frame.addCustom(new Spacer());
+      frame.addCustom(component);
+      frame.getHints = () => [
+        ["enter", "create"],
+        ["esc", "cancel"],
+      ];
+
+      return {
+        render: (width) => frame.render(width),
+        invalidate: () => {
+          frame.invalidate();
+          component.invalidate();
+        },
+        handleInput: (data) => component.handleInput(data),
+      };
+    },
+  );
+
+  if (!result) return;
+  const filePath = await createAgentFile(result.name, result.scope, ctx.cwd);
   ctx.ui.notify(`Agent created: ${filePath}`, "info");
   await openInVsCode(ctx, filePath);
 }
 
-export async function agentsCommandHandler(_args: string, ctx: ExtensionCommandContext) {
+export async function agentsCommandHandler(ctx: ExtensionCommandContext) {
   const agents = await loadAgents(ctx.cwd);
   const selected = await showAgentPicker(ctx, agents);
   if (!selected) return;

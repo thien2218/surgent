@@ -2,10 +2,19 @@ import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPiGlobalPath, getPiLocalPath } from "../utils.js";
-import { type ParsedAgent, parseFrontmatter } from "./parser.js";
+import type { AgentMeta, ParsedAgent } from "./types.js";
 
-const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
+const FRONTMATTER_BLOCK = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
+const LINE_ENDING = /\r?\n/;
+const KEY_VALUE_PAIR = /^(\w+):\s*(.*)$/;
+const INLINE_ARRAY = /^\[(.+)\]$/;
+const QUOTED_STRING = /^["']|["']$/g;
+
+const ARRAY_KEYS = new Set(["tools", "mcp_servers", "subagents", "skills", "bash", "files"]);
+const STRING_KEYS = new Set(["name", "description", "model"]);
+
 const AGENTS_DIR = "agents";
+const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
 const GLOBAL_AGENTS_DIR = getPiGlobalPath(AGENTS_DIR);
 export const AGENT_PROMPT_DIR = getPiGlobalPath("agent-prompt");
 
@@ -67,7 +76,11 @@ export async function createAgentFile(
   const dir = getAgentDir(scope, cwd);
   await mkdir(dir, { recursive: true });
   const filePath = join(dir, `${name}.md`);
-  await writeFile(filePath, `---\nname: ${name}\ndescription: \n---\n\n`, "utf8");
+  await writeFile(
+    filePath,
+    `---\nname: ${name}\ndescription: \n---\n\nDescribe what '${name}' agent does`,
+    "utf8",
+  );
   return filePath;
 }
 
@@ -102,4 +115,35 @@ export function isBuiltIn(filePath: string): boolean {
 export async function writeAgentPrompt(body: string): Promise<void> {
   await mkdir(AGENT_PROMPT_DIR, { recursive: true });
   await writeFile(join(AGENT_PROMPT_DIR, "SYSTEM.md"), body, "utf8");
+}
+
+function parseFrontmatter(content: string, filePath: string): ParsedAgent | null {
+  const match = content.match(FRONTMATTER_BLOCK);
+  if (!match) return null;
+
+  const frontmatter = match[1]!;
+  const body = match[2]!.trim();
+  const meta: Partial<AgentMeta> = {};
+
+  for (const line of frontmatter.split(LINE_ENDING)) {
+    const kv = line.match(KEY_VALUE_PAIR);
+    if (!kv) continue;
+    const key = kv[1] as keyof AgentMeta;
+    const value = kv[2]!.trim();
+
+    if (ARRAY_KEYS.has(key)) {
+      const inlineArray = value.match(INLINE_ARRAY);
+      if (inlineArray) {
+        (meta as Record<string, string[]>)[key] = inlineArray[1]!
+          .split(",")
+          .map((part) => part.trim().replace(QUOTED_STRING, ""))
+          .filter(Boolean);
+      }
+    } else if (STRING_KEYS.has(key)) {
+      (meta as Record<string, string>)[key] = value.replace(QUOTED_STRING, "");
+    }
+  }
+
+  if (!meta.name || !meta.description) return null;
+  return { meta: meta as AgentMeta, body, filePath };
 }

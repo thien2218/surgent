@@ -37,4 +37,8 @@ Run type checking to validate the change:
 pnpm tsc --noEmit
 ```
 
-Then tell the user what to manually test, how, and why.
+Then tell the user what to manually test, why and how.
+
+## Rules
+
+- Single char variable names are strictly forbidden

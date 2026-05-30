@@ -9,7 +9,7 @@ import { cleanup } from "./cleanup.js";
 import { getSessionId, handlePermissionsCommand } from "./command.js";
 import { resolvePermission } from "./resolution.js";
 import { addRule, checkExprStored } from "./storage.js";
-import type { PermCheck, PromptDecision, PermissiveToolName } from "./types.js";
+import type { PermissionCheck, PromptDecision, PermissiveToolName } from "./types.js";
 import { isYolo } from "../agents/states.js";
 import PermissionPrompt from "./components/prompt.js";
 import { SUSPICIOUS_BASH_PATTERNS, PERMISSIVE_TOOLS } from "./constants.js";
@@ -28,7 +28,7 @@ function getRawInput(toolName: PermissiveToolName, event: ToolCallEvent) {
   }
 }
 
-function getPermissionCheck(event: ToolCallEvent): PermCheck | null {
+function getPermissionCheck(event: ToolCallEvent): PermissionCheck | null {
   for (const [name, data] of Object.entries(PERMISSIVE_TOOLS)) {
     const toolName = name as PermissiveToolName;
     if (isToolCallEventType(toolName, event)) {
@@ -85,11 +85,18 @@ export default function (pi: ExtensionAPI) {
       return component;
     });
 
-    if (!decision || !decision.allowed) {
-      return { block: true, reason: decision?.amended ?? "User rejected this tool call" };
+    if (!decision.allowed) {
+      const appended = decision.amended ? `. Reason: ${decision.amended}` : "";
+      return {
+        block: true,
+        reason: `User rejected this tool call. Find a different approach, or skip this step, or abort and report if cannot proceed${appended}`,
+      };
     }
     if (decision.amended) {
-      return { block: true, reason: decision.amended };
+      return {
+        block: true,
+        reason: `User allow this tool call, but with notes: ${decision.amended}`,
+      };
     }
   });
 }

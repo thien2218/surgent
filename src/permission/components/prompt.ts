@@ -1,34 +1,33 @@
-import {
-  Input,
-  Key,
-  matchesKey,
-  truncateToWidth,
-  visibleWidth,
-  type Focusable,
-} from "@earendil-works/pi-tui";
-import type { PromptDecision, PermCheck, Scope, Category, FileAccess } from "../types.js";
+import { Input, Key, matchesKey, visibleWidth, type Focusable } from "@earendil-works/pi-tui";
+import type { PromptDecision, PermissionCheck, Scope, Category, FileAccess } from "../types.js";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Frame } from "../../ui/components/frame.js";
-import { SCOPES, SCOPE_LABELS } from "../constants.js";
+import { SCOPES } from "../constants.js";
 import { Lines } from "../../ui/lines.js";
 
 type PromptOptions = {
   label: string;
   value: PromptDecision;
   persists: boolean;
-  separator?: string;
-  amendDefault?: string;
+  separator: string;
+  defaultText?: string;
 };
+
+const INIT_OPTIONS = [
+  { label: "Yes", separator: ",", value: { allowed: true }, persists: false },
+  { label: "No", separator: ",", value: { allowed: false }, persists: false },
+];
+
+export function getScopeLabel(scope: Scope) {
+  return scope !== "always" ? `this ${scope}` : scope;
+}
 
 export default class PermissionPrompt extends Frame implements Focusable {
   private cursor: number = 0;
   private amending: boolean = false;
   private readonly input = new Input();
   private scopeIdx = 0;
-  private options: PromptOptions[] = [
-    { label: "Yes", separator: ",", value: { allowed: true }, persists: false },
-    { label: "No", separator: ",", value: { allowed: false }, persists: false },
-  ];
+  private options: PromptOptions[] = [];
   private _focused = false;
   private cachedLines: string[] | undefined;
 
@@ -43,31 +42,11 @@ export default class PermissionPrompt extends Frame implements Focusable {
   constructor(
     protected theme: Theme,
     private readonly expr: string,
-    private readonly check: PermCheck,
+    private readonly check: PermissionCheck,
     private readonly exprExists: boolean,
   ) {
     super(theme);
-
-    const { toolName } = this.check;
-    const scopeLabel = SCOPE_LABELS[SCOPES[this.scopeIdx]!];
-
-    if (this.expr) {
-      this.options.push({
-        label: `Yes, allow ${toolName} [${scopeLabel}] for:`,
-        amendDefault: this.expr,
-        value: { allowed: true },
-        persists: true,
-      });
-
-      if (!this.exprExists) {
-        this.options.push({
-          label: `No, disallow ${toolName} [${scopeLabel}] for:`,
-          amendDefault: this.expr,
-          value: { allowed: false },
-          persists: true,
-        });
-      }
-    }
+    this.setOptions();
   }
 
   get focused(): boolean {
@@ -90,35 +69,26 @@ export default class PermissionPrompt extends Frame implements Focusable {
 
     const lines = new Lines(width);
     const { category, toolName, raw, danger } = this.check;
-    const dangerNote = danger ? `${danger} spotted. ` : "";
+    const dangerNote = danger ? `${danger} detected. ` : "";
 
     lines.add(
-      this.theme.italic(`${dangerNote}Allow agent to call ${category} tool '${toolName}': ${raw}?`),
+      this.theme.italic(`${dangerNote}Allow agent to call ${category} tool '${toolName}'?`),
     );
     lines.add(this.theme.bold(raw));
     lines.space();
 
     for (const [i, option] of this.options.entries()) {
       const isSelected = i === this.cursor;
-      const prefixStr = isSelected ? "→ " : "  ";
-      const prefix = isSelected ? this.theme.fg("accent", prefixStr) : prefixStr;
-      const numberLabel = `${i + 1}. `;
+      const label = `${isSelected ? "→" : " "} ${i + 1}. ${option.label}`;
 
       if (isSelected && this.amending) {
-        const sep = option.separator ? option.separator + " " : " ";
-        const labelPart = this.theme.fg("accent", numberLabel + option.label + sep);
-        const labelWidth = visibleWidth(prefixStr + numberLabel + option.label + sep);
-        const inputLine = this.input.render(Math.max(4, width - labelWidth) + 2)[0]!.slice(2);
-        lines.add(truncateToWidth(prefix + labelPart + inputLine, width));
+        const fullLabel = this.theme.fg("accent", `${label}${option.separator}`);
+        const inputWidth = width - visibleWidth(fullLabel);
+        const inputLine = this.input.render(Math.max(4, width - inputWidth))[0]!.slice(1);
+        lines.add(fullLabel + inputLine);
       } else {
-        const suffix =
-          option.amendDefault !== undefined
-            ? (option.separator ? option.separator + " " : " ") + option.amendDefault
-            : "";
-        const text = numberLabel + option.label + suffix;
-        lines.add(
-          truncateToWidth(prefix + (isSelected ? this.theme.fg("accent", text) : text), width),
-        );
+        const suffix = option.defaultText ? `${option.separator} ${option.defaultText}` : "";
+        lines.add(this.theme.fg(isSelected ? "accent" : "text", label + suffix));
       }
     }
 
@@ -145,7 +115,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
 
     if (matchesKey(data, Key.shift("tab"))) {
       this.scopeIdx = (this.scopeIdx + 1) % SCOPES.length;
-      this.cursor = Math.min(this.cursor, this.options.length - 1);
+      this.setOptions();
       this.cachedLines = undefined;
       return;
     }
@@ -180,7 +150,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
     if (matchesKey(data, Key.tab)) {
       const option = this.options[this.cursor];
       if (option) {
-        this.input.setValue(option.amendDefault ?? "");
+        this.input.setValue(option.defaultText ?? "");
         this.setAmending(true);
       }
       this.cachedLines = undefined;
@@ -221,5 +191,31 @@ export default class PermissionPrompt extends Frame implements Focusable {
     const inputText = this.amending ? this.input.getValue().trim() : "";
     if (inputText) decision.amended = inputText;
     this.onDone?.(decision);
+  }
+
+  private setOptions() {
+    const { toolName } = this.check;
+    const scopeLabel = getScopeLabel(SCOPES[this.scopeIdx]!);
+    this.options = [...INIT_OPTIONS];
+
+    if (this.expr) {
+      this.options.push({
+        label: `Yes, allow ${toolName} tool call [${scopeLabel}] for`,
+        defaultText: this.expr,
+        separator: ":",
+        value: { allowed: true },
+        persists: true,
+      });
+
+      if (!this.exprExists) {
+        this.options.push({
+          label: `No, disallow ${toolName} tool call [${scopeLabel}] for`,
+          defaultText: this.expr,
+          separator: ":",
+          value: { allowed: false },
+          persists: true,
+        });
+      }
+    }
   }
 }

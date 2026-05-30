@@ -23,7 +23,7 @@ export async function mcpConfigCommandHandler(args: string, ctx: ExtensionComman
 
   if (actionToken && !action) {
     ctx.ui.notify(
-      `Unknown mcp action "${actionToken}". Supported actions: ${ACTIONS.join(", ")}.`,
+      `Unknown MCP action "${actionToken}". Supported actions: ${ACTIONS.join(", ")}.`,
       "error",
     );
     return;
@@ -42,7 +42,6 @@ export async function mcpConfigCommandHandler(args: string, ctx: ExtensionComman
     await showConfiguredScopes(ctx, argToken);
     return;
   }
-
   await showConfiguredMcpJson(ctx, argToken);
 }
 

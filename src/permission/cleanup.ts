@@ -1,7 +1,7 @@
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { matchesPattern } from "./resolution.js";
 import { readGlobal, readLocal, writeGlobal, writeLocal } from "./storage.js";
-import type { Category, FileAccess, PermSchema } from "./types.js";
+import type { Category, FileAccess, PermissionRule } from "./types.js";
 
 function pruneRules<T extends FileAccess | boolean>(
   rules: Record<string, T>,
@@ -26,8 +26,8 @@ function pruneRules<T extends FileAccess | boolean>(
   return result;
 }
 
-function pruneSchema(schema: PermSchema): PermSchema {
-  const result: PermSchema = {};
+function pruneSchema(schema: PermissionRule): PermissionRule {
+  const result: PermissionRule = {};
   if (schema.file) {
     const pruned = pruneRules(schema.file, "file");
     if (Object.keys(pruned).length > 0) result.file = pruned;

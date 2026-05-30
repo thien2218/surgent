@@ -7,18 +7,13 @@ export type Scope = (typeof SCOPES)[number];
 export type Category = (typeof PERMISSIVE_TOOLS)[PermissiveToolName]["category"];
 export type FileAccess = FileOp | "blocked";
 
-export interface PermSchema {
+export interface PermissionRule {
   file?: Record<string, FileAccess>;
   web?: Record<string, boolean>;
   bash?: Record<string, boolean>;
 }
 
-export interface LocalSchema {
-  project?: PermSchema;
-  [sessionId: string]: PermSchema | undefined;
-}
-
-export interface PermCheck {
+export interface PermissionCheck {
   toolName: PermissiveToolName;
   category: Category;
   raw: string;
@@ -35,5 +30,10 @@ export interface DisplayRule {
   expr: string;
   value: FileAccess | boolean;
   scope: Scope;
-  category: Category;
 }
+
+export type GroupedDisplayRules = {
+  file: DisplayRule[];
+  web: DisplayRule[];
+  bash: DisplayRule[];
+};

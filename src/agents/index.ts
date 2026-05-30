@@ -25,13 +25,11 @@ export default function (pi: ExtensionAPI) {
 
   let updateStatus: (() => void) | undefined;
 
-  pi.on("resources_discover", () => ({
-    promptPaths: [AGENT_PROMPT_DIR],
-  }));
+  pi.on("resources_discover", () => ({ promptPaths: [AGENT_PROMPT_DIR] }));
 
   pi.registerCommand("agents", {
     description: "List, create, edit, and switch agents",
-    handler: agentsCommandHandler,
+    handler: (_args, ctx) => agentsCommandHandler(ctx),
   });
 
   pi.on("session_start", async (_event, ctx) => {

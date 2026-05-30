@@ -1,5 +1,5 @@
 import pm from "picomatch";
-import type { AgentMeta } from "../agents/parser.js";
+import type { AgentMeta } from "../agents/types.js";
 import { loadAgents } from "../agents/storage.js";
 import { getActiveAgent } from "../agents/states.js";
 import { readGlobal, readLocal } from "./storage.js";

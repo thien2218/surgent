@@ -70,7 +70,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
     lines.space();
 
     const addSelected = this.cursor === 0;
-    const addText = `${addSelected ? "→ " : "  "}Add a new permission rule`;
+    const addText = `${addSelected ? "→" : " "} Add a new permission rule`;
     lines.add(this.theme.fg(addSelected ? "accent" : "text", addText));
 
     let orderedIdx = 0;
@@ -79,15 +79,15 @@ export default class PermissionRulesList extends Frame implements Focusable {
       if (options.length === 0) continue;
 
       lines.space();
-      lines.add(this.theme.fg("dim", `[${category}]`), 1);
+      lines.add(this.theme.fg("muted", `[${category}]`), 2);
 
       for (const option of options) {
         const isSelected = this.cursor === orderedIdx + 1;
-        const prefix = isSelected ? this.theme.fg("accent", "→ ") : "  ";
+        const prefix = isSelected ? this.theme.fg("accent", "→") : " ";
+        option.highlighted = isSelected;
         // 4 chars overhead (2 pad + 2 prefix)
-        const rowContent = option.render(width - 4)[0]!;
-
-        lines.add(prefix + this.theme.fg(isSelected ? "accent" : "text", rowContent), 2);
+        const line = `${prefix} ${option.render(width - 4)[0]!}`;
+        lines.add(line, 2);
         orderedIdx++;
       }
     }
@@ -100,7 +100,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
     return lines.get();
   }
 
-  protected override getHints(): [string, string][] {
+  override getHints(): [string, string][] {
     if (this.editing) {
       return [
         ["Enter", "finish editing"],

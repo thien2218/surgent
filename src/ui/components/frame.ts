@@ -10,7 +10,7 @@ export class Frame implements Component {
     return [];
   }
 
-  protected getHints(): [string, string][] {
+  getHints(): [string, string][] {
     return [];
   }
 
@@ -56,6 +56,6 @@ export class Frame implements Component {
   private renderHints(): string {
     return this.getHints()
       .map(([key, action]) => this.theme.fg("dim", key) + " " + action)
-      .join(" • ");
+      .join(this.theme.fg("muted", " • "));
   }
 }

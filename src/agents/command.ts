@@ -1,14 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import {
-  Input,
-  Key,
-  matchesKey,
-  type SelectItem,
-  SelectList,
-  Text,
-  Spacer,
-  visibleWidth,
-} from "@earendil-works/pi-tui";
+import { type SelectItem, SelectList, Spacer } from "@earendil-works/pi-tui";
 import { exec } from "node:child_process";
 import { spawn } from "node:child_process";
 import { promisify } from "node:util";
@@ -16,12 +7,10 @@ import type { ParsedAgent } from "./types.js";
 import { createAgentFile, deleteAgentFiles, isBuiltIn, loadAgents } from "./storage.js";
 import { setActiveAgent } from "./states.js";
 import { Frame } from "../ui/components/frame.js";
+import { ScopedInput } from "../ui/components/scoped-input.js";
+import { customText, getPiPath } from "../utils.js";
 
 const execAsync = promisify(exec);
-
-function nonPaddedText(text: string) {
-  return new Text(text, 0, 0);
-}
 
 async function isVsCodeAvailable(): Promise<boolean> {
   try {
@@ -84,18 +73,18 @@ async function showAgentPicker(
     list.onSelect = (item) => done(item.value);
     list.onCancel = () => done(null);
 
-    frame.addCustom(nonPaddedText(theme.bold("Agents")));
+    frame.addCustom(customText(theme.bold("Agents")));
     frame.addCustom(new Spacer());
     frame.addCustom(list);
 
     frame.addCustom(new Spacer());
     if (builtInAgents.length > 0) {
-      frame.addCustom(new Text(theme.fg("muted", "Built-in (always available)"), 0));
+      frame.addCustom(customText(theme.fg("muted", "Built-in (always available)"), { y: 1 }));
       const dot = theme.fg("muted", "•");
 
       for (const agent of builtInAgents) {
         const desc = theme.fg("dim", agent.meta.description);
-        frame.addCustom(nonPaddedText(`  ${agent.meta.name} ${dot} ${desc}`));
+        frame.addCustom(customText(`  ${agent.meta.name} ${dot} ${desc}`));
       }
     }
     frame.addCustom(new Spacer());
@@ -150,67 +139,20 @@ async function handleExistingAgent(
 }
 
 async function handleNewAgent(ctx: ExtensionCommandContext): Promise<void> {
-  const result = await ctx.ui.custom<{ name: string; scope: "local" | "global" } | null>(
+  const result = await ctx.ui.custom<{ name: string; scope: string } | null>(
     (_tui, theme, _kb, done) => {
-      const frame = new Frame(theme);
-      const input = new Input();
-      let scope: "local" | "global" = "local";
-      input.focused = true;
-
-      const component = {
-        get focused() {
-          return input.focused;
-        },
-        set focused(value: boolean) {
-          input.focused = value;
-        },
-        invalidate() {
-          input.invalidate();
-        },
-        render(width: number): string[] {
-          const prefix = theme.fg("muted", `(${scope})  `);
-          const inputLine = input.render(width - visibleWidth(prefix))[0]!.slice(2);
-          return [prefix + inputLine];
-        },
-        handleInput(data: string) {
-          if (matchesKey(data, Key.tab)) {
-            scope = scope === "local" ? "global" : "local";
-            return;
-          }
-          if (matchesKey(data, Key.escape)) {
-            done(null);
-            return;
-          }
-          if (matchesKey(data, Key.enter)) {
-            const name = input.getValue().trim();
-            if (name) done({ name, scope });
-            return;
-          }
-          input.handleInput(data);
-        },
-      };
-
-      frame.addCustom(nonPaddedText(theme.bold("Agent name")));
-      frame.addCustom(new Spacer());
-      frame.addCustom(component);
-      frame.getHints = () => [
-        ["enter", "create"],
-        ["esc", "cancel"],
-      ];
-
-      return {
-        render: (width) => frame.render(width),
-        invalidate: () => {
-          frame.invalidate();
-          component.invalidate();
-        },
-        handleInput: (data) => component.handleInput(data),
-      };
+      const scopedInput = new ScopedInput(theme, "Agent name");
+      scopedInput.onSubmit = ({ scope, value: name }) => done({ name, scope });
+      scopedInput.onCancel = () => done(null);
+      return scopedInput;
     },
   );
 
   if (!result) return;
-  const filePath = await createAgentFile(result.name, result.scope, ctx.cwd);
+  const { name, scope } = result;
+  const dir = getPiPath("agents", scope === "project" ? ctx.cwd : scope);
+  const filePath = await createAgentFile(dir, name);
+
   ctx.ui.notify(`Agent created: ${filePath}`, "info");
   await openInVsCode(ctx, filePath);
 }

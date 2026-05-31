@@ -3,7 +3,6 @@ import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { agentsCommandHandler } from "./command.js";
 import { loadAgent } from "./load.js";
 import { getActiveAgent, isYolo, toggleYolo } from "./states.js";
-import { AGENT_PROMPT_DIR } from "./storage.js";
 
 const SWITCH_MODE_KEY = Key.ctrlAlt("y");
 
@@ -24,8 +23,6 @@ export default function (pi: ExtensionAPI) {
   };
 
   let updateStatus: (() => void) | undefined;
-
-  pi.on("resources_discover", () => ({ promptPaths: [AGENT_PROMPT_DIR] }));
 
   pi.registerCommand("agents", {
     description: "List, create, edit, and switch agents",

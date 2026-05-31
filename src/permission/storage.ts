@@ -8,16 +8,13 @@ import type {
   Scope,
   DisplayRule,
 } from "./types.js";
-import { getPiGlobalPath, getPiLocalPath } from "../utils.js";
+import { getPiPath } from "../utils.js";
 import { CATEGORIES } from "./constants.js";
 
 interface LocalSchema {
   project?: PermissionRule;
   [sessionId: string]: PermissionRule | undefined;
 }
-
-const PERMISSIONS_FILE = "permissions.json";
-const GLOBAL_PERMISSIONS = getPiGlobalPath(PERMISSIONS_FILE);
 
 async function readJson<T>(filePath: string, fallback: T): Promise<T> {
   try {
@@ -34,19 +31,19 @@ async function writeJson(filePath: string, data: unknown): Promise<void> {
 }
 
 export async function readLocal(cwd: string): Promise<LocalSchema> {
-  return readJson<LocalSchema>(getPiLocalPath(cwd, PERMISSIONS_FILE), {});
+  return readJson<LocalSchema>(getPiPath("permissions", cwd), {});
 }
 
 export async function writeLocal(cwd: string, data: LocalSchema): Promise<void> {
-  return writeJson(getPiLocalPath(cwd, PERMISSIONS_FILE), data);
+  return writeJson(getPiPath("permissions", cwd), data);
 }
 
 export async function readGlobal(): Promise<PermissionRule> {
-  return readJson<PermissionRule>(GLOBAL_PERMISSIONS, {});
+  return readJson<PermissionRule>(getPiPath("permissions"), {});
 }
 
 export async function writeGlobal(data: PermissionRule): Promise<void> {
-  return writeJson(GLOBAL_PERMISSIONS, data);
+  return writeJson(getPiPath("permissions"), data);
 }
 
 function getScopeKey(scope: Scope, sessionId: string): string {

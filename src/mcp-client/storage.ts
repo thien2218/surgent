@@ -1,62 +1,41 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { getPiGlobalPath, getPiLocalPath } from "../utils.js";
+import { getPiPath } from "../utils.js";
 import type {
   HttpMcpServerConfig,
-  McpConfigScope,
   McpServerConfig,
   ResolvedMcpServerConfig,
   StdioMcpServerConfig,
 } from "./types.js";
 
-export const MCP_CONFIG_FILE = "mcp.json";
-export const MCP_GLOBAL_CONFIG = getPiGlobalPath(MCP_CONFIG_FILE);
-
-export async function readScopeConfig(
-  cwd: string,
-  scope: McpConfigScope,
-): Promise<Record<string, McpServerConfig>> {
-  const path = getScopeConfigPath(cwd, scope);
-  return readConfigFile(path);
-}
-
 export async function upsertServerConfig(
-  cwd: string,
-  scope: McpConfigScope,
+  path: string,
   name: string,
   serverConfig: McpServerConfig,
 ): Promise<{ path: string; replaced: boolean }> {
-  const path = getScopeConfigPath(cwd, scope);
-  const servers = await readConfigFile(path);
-  const replaced = Object.hasOwn(servers, name);
+  const mcpServers = await readConfigFile(path);
+  const replaced = Object.hasOwn(mcpServers, name);
 
-  servers[name] = normalizeServerConfig(name, serverConfig);
-  const sortedServers = Object.fromEntries(
-    Object.entries(servers)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([name, serverConfig]) => [name, serverConfig]),
-  );
+  mcpServers[name] = normalizeServerConfig(name, serverConfig);
 
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify({ servers: sortedServers }, null, 2)}\n`, "utf8");
+  await writeFile(path, `${JSON.stringify({ mcpServers }, null, 2)}\n`, "utf8");
   return { path, replaced };
 }
 
 export async function loadResolvedConfigSet(cwd: string): Promise<ResolvedMcpServerConfig[]> {
-  const localPath = getPiLocalPath(cwd, MCP_CONFIG_FILE);
+  const localPath = getPiPath("mcp", cwd);
+  const merged = new Map<string, ResolvedMcpServerConfig>();
   const [localServers, globalServers] = await Promise.all([
     readConfigFile(localPath),
-    readConfigFile(MCP_GLOBAL_CONFIG),
+    readConfigFile(getPiPath("mcp")),
   ]);
 
-  const merged = new Map<string, ResolvedMcpServerConfig>();
-
   for (const [name, serverConfig] of Object.entries(localServers)) {
-    merged.set(name, { ...serverConfig, name, scope: "local", sourcePath: localPath });
+    merged.set(name, { ...serverConfig, name, scope: "project", sourcePath: localPath });
   }
-
   for (const [name, serverConfig] of Object.entries(globalServers)) {
-    merged.set(name, { ...serverConfig, name, scope: "global", sourcePath: MCP_GLOBAL_CONFIG });
+    merged.set(name, { ...serverConfig, name, scope: "global", sourcePath: getPiPath("mcp") });
   }
 
   return Array.from(merged.values());
@@ -66,16 +45,14 @@ export async function resolveServerConfig(
   cwd: string,
   serverName: string,
 ): Promise<ResolvedMcpServerConfig | undefined> {
-  const servers = await loadResolvedConfigSet(cwd);
-  return servers.find((server) => server.name === serverName);
+  const mcpServers = await loadResolvedConfigSet(cwd);
+  return mcpServers.find((server) => server.name === serverName);
 }
 
-function getScopeConfigPath(cwd: string, scope: McpConfigScope): string {
-  return scope === "local" ? getPiLocalPath(cwd, MCP_CONFIG_FILE) : MCP_GLOBAL_CONFIG;
-}
-
-async function readConfigFile(path: string): Promise<Record<string, McpServerConfig>> {
+export async function readConfigFile(path: string): Promise<Record<string, McpServerConfig>> {
+  const mcpServers: Record<string, McpServerConfig> = {};
   let raw: string;
+  let parsed: unknown;
 
   try {
     raw = await readFile(path, "utf8");
@@ -86,7 +63,6 @@ async function readConfigFile(path: string): Promise<Record<string, McpServerCon
     throw error;
   }
 
-  let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch (error) {
@@ -95,18 +71,15 @@ async function readConfigFile(path: string): Promise<Record<string, McpServerCon
     );
   }
 
-  if (!isPlainObject(parsed)) {
+  if (!isPlainObject(parsed) || !isPlainObject(parsed.mcpServers)) {
     throw new Error("Invalid MCP config: top-level JSON value must be an object.");
   }
 
-  const rawServers = isPlainObject(parsed.servers) ? parsed.servers : parsed;
-  const servers: Record<string, McpServerConfig> = {};
-
-  for (const [name, serverConfig] of Object.entries(rawServers)) {
-    servers[name] = normalizeServerConfig(name, serverConfig);
+  for (const [name, serverConfig] of Object.entries(parsed.mcpServers)) {
+    mcpServers[name] = normalizeServerConfig(name, serverConfig);
   }
 
-  return servers;
+  return mcpServers;
 }
 
 export function normalizeServerConfig(name: string, raw: unknown): McpServerConfig {
@@ -115,7 +88,7 @@ export function normalizeServerConfig(name: string, raw: unknown): McpServerConf
   }
 
   const transport = getTransport(raw, name);
-  const enabled = raw.enabled === undefined ? true : expectBoolean(raw.enabled, name, "enabled");
+  const enabled = raw.enabled === undefined ? false : expectBoolean(raw.enabled, name, "enabled");
   const description =
     raw.description === undefined ? undefined : expectString(raw.description, name, "description");
 

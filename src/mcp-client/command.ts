@@ -1,19 +1,18 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
+import { Spacer } from "@earendil-works/pi-tui";
 import {
   loadResolvedConfigSet,
-  MCP_CONFIG_FILE,
-  MCP_GLOBAL_CONFIG,
   normalizeServerConfig,
-  readScopeConfig,
+  readConfigFile,
   upsertServerConfig,
 } from "./storage.js";
-import type { McpConfigScope, McpServerConfig, ResolvedMcpServerConfig } from "./types.js";
-import { getPiLocalPath, tokenizeArgs } from "../utils.js";
+import type { McpServerConfig, McpTransport, ResolvedMcpServerConfig } from "./types.js";
+import { customText, getPiPath, tokenizeArgs } from "../utils.js";
 import { Frame } from "../ui/components/frame.js";
 import { PlaceholderInput } from "../ui/components/placeholder-input.js";
+import { ScopedInput } from "../ui/components/scoped-input.js";
 
-const ACTIONS = ["save", "list", "show"] as const;
+const ACTIONS = ["save", "show"] as const;
 type McpCommandAction = (typeof ACTIONS)[number];
 
 export async function mcpConfigCommandHandler(args: string, ctx: ExtensionCommandContext) {
@@ -35,11 +34,7 @@ export async function mcpConfigCommandHandler(args: string, ctx: ExtensionComman
     return;
   }
   if (selectedAction === "save") {
-    await handleSaveFlow(ctx, argToken);
-    return;
-  }
-  if (selectedAction === "list") {
-    await showConfiguredScopes(ctx, argToken);
+    await handleSaveFlow(ctx);
     return;
   }
   await showConfiguredMcpJson(ctx, argToken);
@@ -48,36 +43,39 @@ export async function mcpConfigCommandHandler(args: string, ctx: ExtensionComman
 async function selectAction(ctx: ExtensionCommandContext): Promise<McpCommandAction | undefined> {
   const selected = await ctx.ui.select("MCP configuration", [
     "Save MCP server",
-    "List configured MCP servers",
-    "Show configured MCP",
+    "Show configured MCPs",
   ]);
 
   if (!selected) {
     return undefined;
   }
 
-  const token = selected.split(" ")[0]! as McpCommandAction;
+  const token = selected.split(" ")[0]!.toLowerCase() as McpCommandAction;
   return token;
 }
 
-async function handleSaveFlow(ctx: ExtensionCommandContext, scopeToken?: string): Promise<void> {
+async function handleSaveFlow(ctx: ExtensionCommandContext): Promise<void> {
   if (!ctx.hasUI) {
     ctx.ui.notify("mcp save requires an interactive UI.", "error");
     return;
   }
 
-  const scope = await pickScope(ctx, scopeToken);
-  if (!scope) {
-    return;
-  }
+  const result = await ctx.ui.custom<{ name: string; scope: string } | null>(
+    (_tui, theme, _kb, done) => {
+      const scopedInput = new ScopedInput(theme, "MCP server name");
+      scopedInput.onSubmit = ({ scope, value: name }) => done({ name, scope });
+      scopedInput.onCancel = () => done(null);
+      return scopedInput;
+    },
+  );
 
-  const name = await ctx.ui.input("MCP server name");
-  if (!name?.trim()) {
-    return;
-  }
+  if (!result) return;
+  const { name, scope } = result;
 
-  const existingScopeServers = await readScopeConfig(ctx.cwd, scope);
-  const hasExisting = Object.hasOwn(existingScopeServers, name);
+  const configuredServers = await readConfigFile(
+    getPiPath("mcp", scope === "project" ? ctx.cwd : scope),
+  );
+  const hasExisting = Object.hasOwn(configuredServers, name);
 
   if (hasExisting) {
     const confirmed = await ctx.ui.confirm(
@@ -89,14 +87,18 @@ async function handleSaveFlow(ctx: ExtensionCommandContext, scopeToken?: string)
     }
   }
 
-  const serverConfig = await promptServerConfigJson(ctx, name, existingScopeServers[name]);
+  const transportType = await ctx.ui.select("Server type", ["Remote", "Local"]);
+  const transport = transportType === "Remote" ? "http" : "stdio";
+
+  const serverConfig = await promptServerConfigJson(ctx, transport, name, configuredServers[name]);
   if (!serverConfig) {
     return;
   }
 
-  const result = await upsertServerConfig(ctx.cwd, scope, name, serverConfig);
+  const path = getPiPath("mcp", scope === "project" ? ctx.cwd : scope);
+  const upsertResult = await upsertServerConfig(path, name, serverConfig);
   ctx.ui.notify(
-    `${result.replaced ? "Updated" : "Saved"} MCP server ${name} in ${scope} scope (${result.path}).`,
+    `${upsertResult.replaced ? "Updated" : "Saved"} MCP server ${name} ${scope}ly (${upsertResult.path}).`,
     "info",
   );
 }
@@ -120,7 +122,7 @@ async function showConfiguredMcpJson(
 
   await ctx.ui.editor(
     `Configured MCP JSON: ${targetServer.name}`,
-    `${JSON.stringify(stripResolvedMetadata(targetServer), null, 2)}\n`,
+    JSON.stringify(stripResolvedMetadata(targetServer), null, 2),
   );
 }
 
@@ -145,46 +147,6 @@ async function selectConfiguredMcp(
   return servers.find((server) => formatServerOption(server) === selected);
 }
 
-async function showConfiguredScopes(
-  ctx: ExtensionCommandContext,
-  filterName?: string,
-): Promise<void> {
-  const [globalServers, localServers] = await Promise.all([
-    readScopeConfig(ctx.cwd, "local"),
-    readScopeConfig(ctx.cwd, "global"),
-  ]);
-
-  const localEntries = getScopeEntries(localServers, "local", filterName);
-  const globalEntries = getScopeEntries(globalServers, "global", filterName);
-
-  if (localEntries.length === 0 && globalEntries.length === 0) {
-    const message = filterName
-      ? `No MCP server named ${filterName} is configured.`
-      : `No MCP servers configured.`;
-    ctx.ui.notify(message, "warning");
-    return;
-  }
-
-  const lines = [
-    `Local config: ${getPiLocalPath(ctx.cwd, MCP_CONFIG_FILE)}`,
-    ...formatScopeSection("Local MCPs", localEntries),
-    `Global config: ${MCP_GLOBAL_CONFIG}`,
-    ...formatScopeSection("Global MCPs", globalEntries),
-  ];
-
-  ctx.ui.notify(lines.join("\n"), "info");
-}
-
-function formatServerStatus(server: ResolvedMcpServerConfig): string {
-  const status = server.enabled === false ? "disabled" : "enabled";
-  const summary =
-    server.transport === "stdio"
-      ? `${server.command}${server.args?.length ? ` ${server.args.join(" ")}` : ""}`
-      : server.url;
-
-  return `${server.name} [${server.scope}] ${server.transport} ${status} -> ${summary}`;
-}
-
 function formatServerOption(server: ResolvedMcpServerConfig): string {
   return `${server.name} [${server.scope}]`;
 }
@@ -194,71 +156,30 @@ function stripResolvedMetadata(server: ResolvedMcpServerConfig): McpServerConfig
   return config;
 }
 
-function getScopeEntries(
-  servers: Record<string, McpServerConfig>,
-  scope: McpConfigScope,
-  filterName?: string,
-): ResolvedMcpServerConfig[] {
-  return Object.entries(servers)
-    .filter(([name]) => !filterName || name === filterName)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([name, server]) => ({
-      ...server,
-      name,
-      scope,
-      sourcePath: scope,
-    }));
-}
-
-function formatScopeSection(title: string, servers: ResolvedMcpServerConfig[]): string[] {
-  if (servers.length === 0) {
-    return [`${title}: none`];
-  }
-
-  return [`${title}:`, ...servers.map((server) => `- ${formatServerStatus(server)}`)];
-}
-
-async function pickScope(
-  ctx: ExtensionCommandContext,
-  scopeToken?: string,
-): Promise<McpConfigScope | undefined> {
-  if (scopeToken === "local" || scopeToken === "global") {
-    return scopeToken;
-  }
-
-  const selected = await ctx.ui.select("Save MCP server config to", ["Local project", "Global"]);
-
-  if (!selected) {
-    return undefined;
-  }
-
-  return selected.startsWith("Local project") ? "local" : "global";
-}
-
 async function promptServerConfigJson(
   ctx: ExtensionCommandContext,
+  transport: McpTransport,
   name: string,
   existingConfig?: McpServerConfig,
 ): Promise<McpServerConfig | undefined> {
-  const value = existingConfig ? JSON.stringify(existingConfig, null, 2) : buildConfigTemplate();
+  const placeholder = existingConfig
+    ? JSON.stringify(existingConfig, null, 2)
+    : buildConfigTemplate(transport);
 
   const config = await ctx.ui.custom<string>((tui, theme, keybindings, done) => {
     const frame = new Frame(theme);
-    const input = new PlaceholderInput(tui, keybindings, theme, value, "dim");
-    const title = new Text(theme.bold(`Configure ${name} MCP server`));
+    const input = new PlaceholderInput(tui, keybindings, theme, placeholder, "dim");
+    const title = customText(theme.bold(`Configure ${name} MCP server`));
 
     input.onSubmit = done;
     input.onEscape = () => done("");
+    input.focused = true;
+
     frame.addCustom(title);
+    frame.addCustom(new Spacer());
     frame.addCustom(input);
 
     return {
-      get focused() {
-        return input.focused;
-      },
-      set focused(v: boolean) {
-        input.focused = v;
-      },
       handleInput: (data: string) => input.handleInput(data),
       render: (width: number) => frame.render(width),
       invalidate: () => frame.invalidate(),
@@ -268,23 +189,33 @@ async function promptServerConfigJson(
   if (!config) return;
 
   try {
-    const parsed = JSON.parse(config) as unknown;
+    const parsed = JSON.parse(config) as Record<string, any>;
+    parsed.transport = transport;
     const serverConfig = normalizeServerConfig(name, parsed);
     return serverConfig;
-  } catch {
-    ctx.ui.notify("Invalid MCP JSON config", "error");
+  } catch (error) {
+    if (error instanceof Error) {
+      ctx.ui.notify(error.message, "error");
+    } else {
+      ctx.ui.notify("Invalid MCP JSON config", "error");
+    }
   }
 }
 
-function buildConfigTemplate(): string {
-  return JSON.stringify(
-    {
-      command: "npx",
-      description: "This field is useful for telling agent when it should use an MCP",
-      args: ["-y", "@modelcontextprotocol/server-filesystem", "."],
-      env: {},
-    },
-    null,
-    2,
-  );
+function buildConfigTemplate(transport: McpTransport): string {
+  const template =
+    transport === "http"
+      ? {
+          url: "https://mcp.example.com/",
+          description: "This field is useful for telling agent when it should use an MCP",
+          headers: {},
+        }
+      : {
+          command: "npx",
+          description: "This field is useful for telling agent when it should use an MCP",
+          args: ["-y", "@modelcontextprotocol/server-filesystem", "."],
+          env: {},
+        };
+
+  return JSON.stringify(template, null, 2);
 }

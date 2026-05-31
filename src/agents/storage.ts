@@ -1,7 +1,7 @@
 import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { getPiGlobalPath, getPiLocalPath } from "../utils.js";
+import { getPiPath } from "../utils.js";
 import type { AgentMeta, ParsedAgent } from "./types.js";
 
 const FRONTMATTER_BLOCK = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
@@ -13,10 +13,7 @@ const QUOTED_STRING = /^["']|["']$/g;
 const ARRAY_KEYS = new Set(["tools", "mcp_servers", "subagents", "skills", "bash", "files"]);
 const STRING_KEYS = new Set(["name", "description", "model"]);
 
-const AGENTS_DIR = "agents";
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
-const GLOBAL_AGENTS_DIR = getPiGlobalPath(AGENTS_DIR);
-export const AGENT_PROMPT_DIR = getPiGlobalPath("agent-prompt");
 
 async function readAgentsFromDir(dir: string, skipDefault: boolean): Promise<ParsedAgent[]> {
   let files: string[];
@@ -57,23 +54,14 @@ export async function loadAgents(cwd: string): Promise<ParsedAgent[]> {
     }
   };
 
-  add(await readAgentsFromDir(getPiLocalPath(cwd, AGENTS_DIR), true));
-  add(await readAgentsFromDir(GLOBAL_AGENTS_DIR, true));
+  add(await readAgentsFromDir(getPiPath("agents", cwd), true));
+  add(await readAgentsFromDir(getPiPath("agents"), true));
   add(await readAgentsFromDir(BUILT_IN_DIR, false));
 
   return result;
 }
 
-export function getAgentDir(scope: "local" | "global", cwd: string): string {
-  return scope === "local" ? getPiLocalPath(cwd, AGENTS_DIR) : GLOBAL_AGENTS_DIR;
-}
-
-export async function createAgentFile(
-  name: string,
-  scope: "local" | "global",
-  cwd: string,
-): Promise<string> {
-  const dir = getAgentDir(scope, cwd);
+export async function createAgentFile(name: string, dir: string): Promise<string> {
   await mkdir(dir, { recursive: true });
   const filePath = join(dir, `${name}.md`);
   await writeFile(
@@ -85,7 +73,7 @@ export async function createAgentFile(
 }
 
 export async function deleteAgentFiles(name: string, cwd: string): Promise<void> {
-  const dirs = [getPiLocalPath(cwd, AGENTS_DIR), GLOBAL_AGENTS_DIR];
+  const dirs = [getPiPath("agents", cwd), getPiPath("agents")];
   for (const dir of dirs) {
     let files: string[];
     try {
@@ -113,8 +101,7 @@ export function isBuiltIn(filePath: string): boolean {
 }
 
 export async function writeAgentPrompt(body: string): Promise<void> {
-  await mkdir(AGENT_PROMPT_DIR, { recursive: true });
-  await writeFile(join(AGENT_PROMPT_DIR, "SYSTEM.md"), body, "utf8");
+  await writeFile(getPiPath("system"), body, "utf8");
 }
 
 function parseFrontmatter(content: string, filePath: string): ParsedAgent | null {

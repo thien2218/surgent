@@ -1,5 +1,5 @@
-export type McpConfigScope = "local" | "global";
 export type McpTransport = "stdio" | "http";
+export type McpConfigScope = "project" | "global";
 
 export interface McpServerConfigBase {
   transport: McpTransport;

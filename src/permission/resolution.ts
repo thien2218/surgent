@@ -1,9 +1,11 @@
-import { isAbsolute, relative, resolve } from "node:path";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 import pm from "picomatch";
 import type { AgentMeta } from "../agents/types.js";
 import { loadAgents } from "../agents/storage.js";
 import { readGlobal, readLocal } from "./storage.js";
 import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./types.js";
+import { getPiPath } from "../utils.js";
 
 const GLOB_CHARS = /[*?[\]{}]/;
 const PATH_IN_COMMAND = /(?:^|\s)((?:\/|\.\.?\/|~\/)[^\s;|&><'"]*)/g;
@@ -75,11 +77,26 @@ function checkAgentRules(agentMeta: AgentMeta | null, check: PermissionCheck): b
   return true;
 }
 
-function isWithinCwd(rawPath: string, cwd: string): boolean {
-  if (!rawPath || rawPath.startsWith("~/")) return false;
-  const resolvedPath = resolve(cwd, rawPath);
-  const relativePath = relative(cwd, resolvedPath);
+function expandFilePath(rawPath: string, cwd: string): string | null {
+  if (!rawPath) return null;
+  if (rawPath === "~") return homedir();
+  if (rawPath.startsWith("~/")) {
+    return resolve(homedir(), rawPath.slice(2));
+  }
+  return resolve(cwd, rawPath);
+}
+
+function isInsidePath(targetPath: string, rootPath: string): boolean {
+  const relativePath = relative(rootPath, targetPath);
   return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
+}
+
+function fileInAllowedPath(rawPath: string, cwd: string): boolean {
+  const resolvedPath = expandFilePath(rawPath, cwd);
+  if (!resolvedPath) return false;
+
+  const globalPiPath = dirname(getPiPath("settings", "global"));
+  return isInsidePath(resolvedPath, cwd) || isInsidePath(resolvedPath, globalPiPath);
 }
 
 export async function resolvePermission(
@@ -125,7 +142,7 @@ export async function resolvePermission(
   }
 
   if (category === "file") {
-    return isWithinCwd(raw, cwd); // Default: allow within cwd, even for relative tool inputs
+    return fileInAllowedPath(raw, cwd); // Default: allow within cwd and global .pi path
   }
 
   return false;

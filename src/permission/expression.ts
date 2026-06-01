@@ -1,7 +1,7 @@
 import type { PermissiveToolName } from "./types.js";
 
 const BASH_TOP_LEVEL_PART_RE =
-  /\\[\s\S]|'[^']*'|"(?:(?:\\.|[^"\\])*)"|`(?:(?:\\.|[^`\\])*)`|&&|\|\||[;|]|[^\\'"`;|]+/g;
+  /\\[\s\S]|'[^']*'|"(?:(?:\\.|[^"\\])*)"|`(?:(?:\\.|[^`\\])*)`|&&|\|\||[;|&]|[^\\'"`;&|]+/g;
 
 // A token is "stable" if it is a flag (-f, --flag) or a pure subcommand-like word.
 // Paths, quoted strings, filenames, version numbers, etc. are variable.
@@ -25,7 +25,7 @@ function parseBashTopLevel(command: string): { statements: string[]; operators: 
   };
 
   for (const part of parts) {
-    if (part === "&&" || part === "||" || part === "|" || part === ";") {
+    if (part === "&&" || part === "||" || part === "|" || part === ";" || part === "&") {
       pushCurrent();
       operators.push(part);
       continue;
@@ -77,8 +77,8 @@ export function bashToExpr(command: string): string {
   if (statements.length === 0) return "";
 
   let expression = statementToExpr(statements[0]!);
-  for (let statementIndex = 1; statementIndex < statements.length; statementIndex += 1) {
-    expression += ` ${operators[statementIndex - 1] ?? "|"} ${statementToExpr(statements[statementIndex]!)}`;
+  for (let idx = 1; idx < statements.length; idx += 1) {
+    expression += ` ${operators[idx - 1] ?? "|"} ${statementToExpr(statements[idx]!)}`;
   }
 
   return expression;
@@ -95,14 +95,16 @@ export function urlToExpr(url: string): string {
 }
 
 export function toPermExpr(toolName: PermissiveToolName, input: string): string {
+  const firstLine = input.replace(/\r\n?/g, "\n").split("\n")[0] ?? "";
+
   switch (toolName) {
     case "read":
     case "write":
     case "edit":
-      return filePathToExpr(input);
+      return filePathToExpr(firstLine);
     case "bash":
-      return bashToExpr(input);
+      return bashToExpr(firstLine);
     case "web_fetch":
-      return urlToExpr(input);
+      return urlToExpr(firstLine);
   }
 }

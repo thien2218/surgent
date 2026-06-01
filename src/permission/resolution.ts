@@ -89,7 +89,7 @@ export async function resolvePermission(
 ): Promise<boolean> {
   const agents = await loadAgents(cwd);
   const name = getActiveAgent();
-  const agentMeta = agents.find((a) => a.meta.name === name)?.meta ?? null;
+  const agentMeta = agents.find((agent) => agent.meta.name === name)?.meta ?? null;
   const { category, raw, op } = check;
 
   // Agent meta rules take priority — block immediately if not allowed

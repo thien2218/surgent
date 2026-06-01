@@ -22,7 +22,8 @@ const webFetchTool = defineTool({
   promptGuidelines: [
     "Don't use web_fetch when relevant info is already in web_search.",
     "Use web_fetch for known URLs, not discovery.",
-    "Use web_fetch output path with read/search only when page body is needed.",
+    "Use web_fetch output path when page body is needed.",
+    "Web content tends to be very big. Use grep to search for needed content in output first before read ",
   ],
   parameters: Type.Object({
     url: Type.String({ description: "An HTTP(S) URL" }),

@@ -41,6 +41,7 @@ export function tokenizeArgs(args: string): string[] {
     .filter(Boolean);
 }
 
-export function customText(text: string, pad: { x?: number; y?: number } = { x: 0, y: 0 }) {
-  return new Text(text, pad.x, pad.y);
+export function customText(text: string, pad?: { x?: number; y?: number }) {
+  const { x = 0, y = 0 } = pad ?? {};
+  return new Text(text, x, y);
 }

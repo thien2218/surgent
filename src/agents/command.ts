@@ -3,7 +3,7 @@ import { type SelectItem, SelectList, Spacer } from "@earendil-works/pi-tui";
 import { exec } from "node:child_process";
 import { spawn } from "node:child_process";
 import { promisify } from "node:util";
-import type { ParsedAgent } from "./types.js";
+import type { Agent } from "./types.js";
 import { createAgentFile, deleteAgentFiles, isBuiltIn, loadAgents } from "./storage.js";
 import { setActiveAgent } from "./states.js";
 import { Frame } from "../ui/components/frame.js";
@@ -37,7 +37,7 @@ async function openInVsCode(ctx: ExtensionCommandContext, filePath: string): Pro
 
 async function showAgentPicker(
   ctx: ExtensionCommandContext,
-  agents: ParsedAgent[],
+  agents: Agent[],
 ): Promise<string | null> {
   const userAgents = agents.filter((agent) => !isBuiltIn(agent.filePath));
   const builtInAgents = agents.filter((agent) => isBuiltIn(agent.filePath));
@@ -103,10 +103,7 @@ async function showAgentPicker(
   });
 }
 
-async function handleExistingAgent(
-  ctx: ExtensionCommandContext,
-  agent: ParsedAgent,
-): Promise<void> {
+async function handleExistingAgent(ctx: ExtensionCommandContext, agent: Agent): Promise<void> {
   while (true) {
     const action = await ctx.ui.select(`Agent: ${agent.meta.name}`, [
       "Start in new session",

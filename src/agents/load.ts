@@ -1,61 +1,68 @@
-import type { ExtensionContext, ToolInfo } from "@earendil-works/pi-coding-agent";
-import { loadAgents, writeAgentPrompt } from "./storage.js";
+import { writeAgentPrompt } from "./storage.js";
 import { getActiveAgent } from "./states.js";
 import type { Api, Model } from "@earendil-works/pi-ai";
+import type { Agent } from "./types.js";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ResolvedMcpServerConfig } from "../mcp-client/types.js";
 
-function resolveAllowedTools(
-  availTools: ToolInfo[],
-  tools?: string[],
-  mcpServers?: string[],
-): string[] | null {
-  if (!tools && !mcpServers) return null;
+type AvailableSettings = {
+  tools: string[];
+  mcp: ResolvedMcpServerConfig[];
+};
 
-  const allowed: string[] = [];
-  for (const tool of availTools) {
-    const src = tool.sourceInfo.source;
-    const isMcp = src !== "builtin" && src !== "sdk" && src !== "extension";
-
-    if (isMcp) {
-      if (!mcpServers || mcpServers.includes(src)) allowed.push(tool.name);
-    } else {
-      if (!tools || tools.includes(tool.name)) allowed.push(tool.name);
-    }
-  }
-  return allowed;
+async function writeSystemPrompt(
+  cwd: string,
+  prompt: string,
+  allowed: Omit<AvailableSettings, "tools">,
+) {
+  const lines = allowed.mcp.map((cfg) =>
+    cfg.description ? `- ${cfg.name} - ${cfg.description}` : `- ${cfg.name}`,
+  );
+  const appendContent = lines.length > 0 ? `## Enabled MCP Servers\n${lines.join("\n")}\n` : "";
+  await writeAgentPrompt(appendContent, "appendSystem", cwd);
+  await writeAgentPrompt(prompt, "system");
 }
 
-export async function loadAgent(ctx: ExtensionContext, availTools: ToolInfo[]) {
-  const agents = await loadAgents(ctx.cwd);
+export async function loadMainAgent(
+  ctx: ExtensionContext,
+  agents: Agent[],
+  available: AvailableSettings,
+) {
   const name = getActiveAgent();
-  const result: { model?: Model<Api>; tools: string[] | null } = { tools: null };
+  const config: { model?: Model<Api>; tools?: string[] } = {};
   const agent =
     agents.find((candidate) => candidate.meta.name === name) ??
     agents.find((candidate) => candidate.meta.name === "default") ??
     null;
 
-  if (agent) {
-    await writeAgentPrompt(agent.body);
+  if (!agent) return config;
+  const { meta } = agent;
+
+  const allowedTools = !meta.tools
+    ? available.tools
+    : available.tools.filter((tool) => meta.tools!.includes(tool));
+
+  if (allowedTools) {
+    config.tools = allowedTools;
   }
 
-  if (agent?.meta.tools || agent?.meta.mcp_servers) {
-    const allowed = resolveAllowedTools(availTools, agent.meta.tools, agent.meta.mcp_servers);
-    if (allowed) {
-      result.tools = allowed;
-    }
-  }
-
-  if (agent?.meta.model) {
-    const modelId = agent.meta.model;
-    const model = ctx.modelRegistry
+  if (meta.model) {
+    const existing = ctx.modelRegistry
       .getAll()
-      .find((model) => model.id === modelId || model.id.endsWith(`/${modelId}`));
+      .find((item) => item.id === meta.model || item.id.endsWith(`/${meta.model}`));
 
-    if (model) {
-      result.model = model;
+    if (existing) {
+      config.model = existing;
     } else {
-      ctx.ui.notify(`Unknown model "${modelId}" in agent config`, "warning");
+      ctx.ui.notify(`Unknown model "${meta.model}" in agent config`, "warning");
     }
   }
 
-  return result;
+  const allowedMcp = !meta.mcp_servers
+    ? available.mcp
+    : available.mcp.filter((cfg) => meta.mcp_servers!.includes(cfg.name));
+
+  await writeSystemPrompt(ctx.cwd, agent.body, { mcp: allowedMcp });
+
+  return config;
 }

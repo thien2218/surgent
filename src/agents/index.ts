@@ -1,8 +1,10 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { agentsCommandHandler } from "./command.js";
-import { loadAgent } from "./load.js";
+import { loadMainAgent } from "./load.js";
 import { getActiveAgent, isYolo, toggleYolo } from "./states.js";
+import { loadAgents } from "./storage.js";
+import { loadResolvedConfigSet } from "../mcp-client/storage.js";
 
 const SWITCH_MODE_KEY = Key.ctrlAlt("y");
 
@@ -37,7 +39,15 @@ export default function (pi: ExtensionAPI) {
     updateStatus();
     process.stdout.on("resize", updateStatus);
 
-    const { tools, model } = await loadAgent(ctx, pi.getAllTools());
+    const [agents, allMcpConfigs] = await Promise.all([
+      loadAgents(ctx.cwd),
+      loadResolvedConfigSet(ctx.cwd),
+    ]);
+
+    const { tools, model } = await loadMainAgent(ctx, agents, {
+      tools: pi.getAllTools().map((tool) => tool.name),
+      mcp: allMcpConfigs.filter((cfg) => cfg.enabled === true),
+    });
 
     if (tools) {
       pi.setActiveTools(tools);

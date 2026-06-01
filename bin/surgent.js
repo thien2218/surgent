@@ -2,7 +2,7 @@
 
 import { main } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,6 +30,7 @@ async function setupGlobalConfig() {
   } catch (err) {
     // ~/.pi/agent/ doesn't exist
     if (err.code !== "ENOENT") throw err;
+    await mkdir(agentDir, { recursive: true });
     rawSettings = "{}";
   }
 

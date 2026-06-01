@@ -5,19 +5,13 @@ import PermissionRulesList from "./components/rules-list.js";
 import EditableOption from "./components/editable-option.js";
 import { Frame } from "../ui/components/frame.js";
 
-export function getSessionId(sessionManager: ExtensionCommandContext["sessionManager"]) {
-  const branch = sessionManager.getBranch();
-  return branch[0]?.id ?? sessionManager.getLeafId();
-}
-
 export async function handlePermissionsCommand(ctx: ExtensionCommandContext): Promise<void> {
   if (!ctx.hasUI) {
     ctx.ui.notify("The /permissions command requires an interactive UI.", "error");
     return;
   }
 
-  const sessionId = getSessionId(ctx.sessionManager);
-  if (!sessionId) return;
+  const sessionId = ctx.sessionManager.getSessionId();
   const rules = await getRulesForDisplay(ctx.cwd, sessionId);
 
   while (true) {

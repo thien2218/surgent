@@ -84,7 +84,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
       if (isSelected && this.amending) {
         const fullLabel = this.theme.fg("accent", `${label}${option.separator}`);
         const inputWidth = width - visibleWidth(fullLabel);
-        const inputLine = this.input.render(Math.max(4, width - inputWidth))[0]!.slice(1);
+        const inputLine = this.input.render(Math.max(4, inputWidth))[0]!.slice(1);
         lines.add(fullLabel + inputLine);
       } else {
         const suffix = option.defaultText ? `${option.separator} ${option.defaultText}` : "";
@@ -171,10 +171,11 @@ export default class PermissionPrompt extends Frame implements Focusable {
     const option = this.options[this.cursor];
     if (!option) return;
 
+    const inputText = this.amending ? this.input.getValue().trim() : "";
     this.setAmending(false);
 
     if (option.persists) {
-      const ruleExpr = this.input.getValue().trim() || this.expr;
+      const ruleExpr = inputText || this.expr;
       const { category } = this.check;
       let value: boolean | "read" | "write" | "blocked";
       if (category === "file") {
@@ -188,7 +189,6 @@ export default class PermissionPrompt extends Frame implements Focusable {
     }
 
     const decision: PromptDecision = { ...option.value };
-    const inputText = this.amending ? this.input.getValue().trim() : "";
     if (inputText) decision.amended = inputText;
     this.onDone?.(decision);
   }

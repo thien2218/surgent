@@ -9,10 +9,10 @@ import { fileURLToPath } from "node:url";
 
 process.title = "surgent";
 const args = process.argv.slice(2);
-const agentEntryUrl = await import.meta.resolve("@earendil-works/pi-coding-agent");
 const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 async function piSetup() {
+  const agentEntryUrl = await import.meta.resolve("@earendil-works/pi-coding-agent");
   const cliPath = fileURLToPath(new URL("./cli.js", agentEntryUrl));
 
   await new Promise((resolve, reject) => {

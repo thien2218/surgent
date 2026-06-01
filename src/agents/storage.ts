@@ -2,7 +2,7 @@ import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPiPath } from "../utils.js";
-import type { AgentMeta, ParsedAgent } from "./types.js";
+import type { AgentMeta, Agent } from "./types.js";
 
 const FRONTMATTER_BLOCK = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 const LINE_ENDING = /\r?\n/;
@@ -10,12 +10,19 @@ const KEY_VALUE_PAIR = /^(\w+):\s*(.*)$/;
 const INLINE_ARRAY = /^\[(.+)\]$/;
 const QUOTED_STRING = /^["']|["']$/g;
 
-const ARRAY_KEYS = new Set(["tools", "mcp_servers", "subagents", "skills", "bash", "files"]);
-const STRING_KEYS = new Set(["name", "description", "model"]);
+const ARRAY_KEYS = new Set<keyof AgentMeta>([
+  "tools",
+  "mcp_servers",
+  "subagents",
+  "skills",
+  "bash",
+  "files",
+]);
+const STRING_KEYS = new Set<keyof AgentMeta>(["name", "description", "model"]);
 
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
 
-async function readAgentsFromDir(dir: string, skipDefault: boolean): Promise<ParsedAgent[]> {
+async function readAgentsFromDir(dir: string, skipDefault: boolean): Promise<Agent[]> {
   let files: string[];
   try {
     const entries = await readdir(dir, { withFileTypes: true });
@@ -26,7 +33,7 @@ async function readAgentsFromDir(dir: string, skipDefault: boolean): Promise<Par
     return [];
   }
 
-  const agents: ParsedAgent[] = [];
+  const agents: Agent[] = [];
   for (const file of files) {
     const filePath = join(dir, file);
     try {
@@ -41,11 +48,11 @@ async function readAgentsFromDir(dir: string, skipDefault: boolean): Promise<Par
   return agents;
 }
 
-export async function loadAgents(cwd: string): Promise<ParsedAgent[]> {
+export async function loadAgents(cwd: string): Promise<Agent[]> {
   const seen = new Set<string>();
-  const result: ParsedAgent[] = [];
+  const result: Agent[] = [];
 
-  const add = (agents: ParsedAgent[]) => {
+  const add = (agents: Agent[]) => {
     for (const agent of agents) {
       if (!seen.has(agent.meta.name)) {
         seen.add(agent.meta.name);
@@ -100,11 +107,15 @@ export function isBuiltIn(filePath: string): boolean {
   return filePath.startsWith(BUILT_IN_DIR);
 }
 
-export async function writeAgentPrompt(body: string): Promise<void> {
-  await writeFile(getPiPath("system"), body, "utf8");
+export async function writeAgentPrompt(
+  prompt: string,
+  type: "appendSystem" | "system",
+  cwd?: string,
+): Promise<void> {
+  await writeFile(getPiPath(type, cwd ?? ""), prompt, "utf8");
 }
 
-function parseFrontmatter(content: string, filePath: string): ParsedAgent | null {
+function parseFrontmatter(content: string, filePath: string): Agent | null {
   const match = content.match(FRONTMATTER_BLOCK);
   if (!match) return null;
 

@@ -10,7 +10,7 @@ export interface AgentMeta {
   model?: string;
 }
 
-export interface ParsedAgent {
+export interface Agent {
   meta: AgentMeta;
   body: string;
   filePath: string;

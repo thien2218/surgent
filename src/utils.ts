@@ -9,6 +9,7 @@ const PI_PATHS = {
   mcp: "mcp.json",
   permissions: "permissions.json",
   system: "SYSTEM.md",
+  appendSystem: "APPEND_SYSTEM.md",
 } as const;
 
 type PiPathKey = keyof typeof PI_PATHS;
@@ -19,8 +20,10 @@ export function getPiPath(key: PiPathKey): string;
 export function getPiPath(key: PiPathKey, ...full: string[]): string {
   const path = PI_PATHS[key];
   const remaining = path.includes(".") ? [] : full.slice(1);
-  const baseDir = full[0] === "global" ? homedir() : (full[0] ?? homedir());
-  return join(baseDir, ".pi", path, ...remaining);
+  const isGlobal = !full[0] || full[0] === "global";
+  const baseDir = isGlobal ? homedir() : full[0]!;
+  const piPath = isGlobal ? [".pi", "agent"] : [".pi"];
+  return join(baseDir, ...piPath, path, ...remaining);
 }
 
 export function normalizeText(value: unknown): string {

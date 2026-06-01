@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@earendil-works/pi-ai": "^0.74.0",
+    "@earendil-works/pi-tui": "^0.74.0",
     "@earendil-works/pi-coding-agent": "^0.74.0",
     "@mendable/firecrawl-js": "^4.22.2",
     "@modelcontextprotocol/sdk": "^1.29.0",

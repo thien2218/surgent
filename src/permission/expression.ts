@@ -7,17 +7,6 @@ function isStableToken(token: string): boolean {
   return /^[a-z][a-z-]*$/.test(token);
 }
 
-function statementToExpr(statement: string): string {
-  const tokens = statement.trim().split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return statement;
-
-  // Always keep token[0] (the command); find the first variable token among the rest.
-  const splitIdx = tokens.findIndex((t, i) => i > 0 && !isStableToken(t));
-  if (splitIdx === -1) return tokens.join(" ");
-
-  return `${tokens.slice(0, splitIdx).join(" ")} *`;
-}
-
 export function filePathToExpr(path: string): string {
   if (!path || path.endsWith("/")) return path;
 
@@ -40,6 +29,17 @@ export function filePathToExpr(path: string): string {
   return extDot > 0 ? `${dir}*${filename.slice(extDot)}` : `${dir}*`;
 }
 
+function statementToExpr(statement: string): string {
+  const tokens = statement.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return statement;
+
+  // Always keep token[0] (the command); find the first variable token among the rest.
+  const splitIdx = tokens.findIndex((t, i) => i > 0 && !isStableToken(t));
+  if (splitIdx === -1) return tokens.join(" ");
+
+  return `${tokens.slice(0, splitIdx).join(" ")} *`;
+}
+
 export function bashToExpr(command: string): string {
   const trimmed = command.trim();
   if (!trimmed) return "";
@@ -53,7 +53,7 @@ export function urlToExpr(url: string): string {
   if (!url) return "";
   try {
     const { origin } = new URL(url);
-    return `${origin}*`;
+    return `${origin}**`;
   } catch {
     return url;
   }

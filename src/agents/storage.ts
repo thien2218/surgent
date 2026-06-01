@@ -112,7 +112,9 @@ export async function writeAgentPrompt(
   type: "appendSystem" | "system",
   cwd?: string,
 ): Promise<void> {
-  await writeFile(getPiPath(type, cwd ?? ""), prompt, "utf8");
+  const filePath = getPiPath(type, cwd ?? "");
+  await mkdir(dirname(filePath), { recursive: true });
+  await writeFile(filePath, prompt, "utf8");
 }
 
 function parseFrontmatter(content: string, filePath: string): Agent | null {

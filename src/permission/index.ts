@@ -6,7 +6,7 @@ import {
   type ReadToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
 import { cleanup } from "./cleanup.js";
-import { getSessionId, handlePermissionsCommand } from "./command.js";
+import { handlePermissionsCommand } from "./command.js";
 import { resolvePermission } from "./resolution.js";
 import { addRule, checkExprStored } from "./storage.js";
 import type { PermissionCheck, PromptDecision, PermissiveToolName } from "./types.js";
@@ -53,7 +53,7 @@ export default function (pi: ExtensionAPI) {
   let sessionId: string | null = null;
 
   pi.on("session_start", async (_event, ctx) => {
-    sessionId = getSessionId(ctx.sessionManager);
+    sessionId = ctx.sessionManager.getSessionId();
     cleanup(ctx.cwd);
   });
 

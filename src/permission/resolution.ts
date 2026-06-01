@@ -1,3 +1,4 @@
+import { isAbsolute, relative, resolve } from "node:path";
 import pm from "picomatch";
 import type { AgentMeta } from "../agents/types.js";
 import { loadAgents } from "../agents/storage.js";
@@ -8,27 +9,13 @@ import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./ty
 const GLOB_CHARS = /[*?[\]{}]/;
 const PATH_IN_COMMAND = /(?:^|\s)((?:\/|\.\.?\/|~\/)[^\s;|&><'"]*)/g;
 
-function hasGlobChars(pattern: string): boolean {
-  return GLOB_CHARS.test(pattern);
-}
-
 function specificity(pattern: string): number {
-  return hasGlobChars(pattern) ? pattern.length : Infinity;
+  return GLOB_CHARS.test(pattern) ? pattern.length : Infinity;
 }
 
-export function matchesPattern(key: string, pattern: string, category: Category): boolean {
+export function matchesPattern(key: string, pattern: string): boolean {
   if (pattern === key) return true;
-  if (!hasGlobChars(pattern)) return false;
-
-  if (category === "web") {
-    // For web URLs, * should match path separators too — convert * to ** for picomatch
-    const normalized = pattern.replace(/\*/g, "**");
-    try {
-      return pm(normalized, { dot: true, nocase: false })(key);
-    } catch {
-      return false;
-    }
-  }
+  if (!GLOB_CHARS.test(pattern)) return false;
 
   try {
     return pm(pattern, { dot: true })(key);
@@ -37,20 +24,14 @@ export function matchesPattern(key: string, pattern: string, category: Category)
   }
 }
 
-interface BestMatch {
-  value: FileAccess | boolean;
-  score: number;
-}
-
 function findBestMatch(
   rules: Record<string, FileAccess | boolean>,
   key: string,
-  category: Category,
-): BestMatch | null {
-  let best: BestMatch | null = null;
+): boolean | FileAccess | undefined {
+  let best: { value: FileAccess | boolean; score: number } | null = null;
 
   for (const [pattern, value] of Object.entries(rules)) {
-    if (!matchesPattern(key, pattern, category)) continue;
+    if (!matchesPattern(key, pattern)) continue;
     const score = specificity(pattern);
 
     if (best === null || score > best.score) {
@@ -58,7 +39,7 @@ function findBestMatch(
     }
   }
 
-  return best;
+  return best?.value;
 }
 
 function getSchemaRules(
@@ -66,7 +47,7 @@ function getSchemaRules(
   category: Category,
 ): Record<string, FileAccess | boolean> {
   if (!schema) return {};
-  if (category === "file") return (schema.file as Record<string, FileAccess>) ?? {};
+  if (category === "file") return schema.file ?? {};
   if (category === "web") return schema.web ?? {};
   return schema.bash ?? {};
 }
@@ -86,12 +67,19 @@ function checkAgentRules(agentMeta: AgentMeta | null, check: PermissionCheck): b
   const { category, raw } = check;
 
   if (category === "bash" && agentMeta.bash) {
-    return agentMeta.bash.some((pattern) => matchesPattern(raw, pattern, "bash"));
+    return agentMeta.bash.some((pattern) => matchesPattern(raw, pattern));
   }
   if (category === "file" && agentMeta.files) {
-    return agentMeta.files.some((pattern) => matchesPattern(raw, pattern, "file"));
+    return agentMeta.files.some((pattern) => matchesPattern(raw, pattern));
   }
   return true;
+}
+
+function isWithinCwd(rawPath: string, cwd: string): boolean {
+  if (!rawPath || rawPath.startsWith("~/")) return false;
+  const resolvedPath = resolve(cwd, rawPath);
+  const relativePath = relative(cwd, resolvedPath);
+  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
 }
 
 export async function resolvePermission(
@@ -126,20 +114,19 @@ export async function resolvePermission(
 
   for (const schema of scopes) {
     const rules = getSchemaRules(schema, category);
-    const match = findBestMatch(rules, raw, category);
-    if (match === null) continue;
+    const match = findBestMatch(rules, raw);
+    if (typeof match === "undefined") continue;
 
     if (category === "file") {
-      const access = match.value as FileAccess;
-      if (access === "write") return true;
-      return op === access;
+      if (match === "write") return true;
+      return op === match;
     } else {
-      return match.value as boolean;
+      return match as boolean;
     }
   }
 
   if (category === "file") {
-    return raw.startsWith(cwd); // Default: allow within cwd
+    return isWithinCwd(raw, cwd); // Default: allow within cwd, even for relative tool inputs
   }
 
   return false;

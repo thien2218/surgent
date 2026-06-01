@@ -1,12 +1,9 @@
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { matchesPattern } from "./resolution.js";
 import { readGlobal, readLocal, writeGlobal, writeLocal } from "./storage.js";
-import type { Category, FileAccess, PermissionRule } from "./types.js";
+import type { FileAccess, PermissionRule } from "./types.js";
 
-function pruneRules<T extends FileAccess | boolean>(
-  rules: Record<string, T>,
-  category: Category,
-): Record<string, T> {
+function pruneRules<T extends FileAccess | boolean>(rules: Record<string, T>): Record<string, T> {
   const keys = Object.keys(rules);
   const result: Record<string, T> = {};
 
@@ -16,7 +13,7 @@ function pruneRules<T extends FileAccess | boolean>(
       if (other === key) return false;
       if (rules[other] !== value) return false;
       // other subsumes key if other matches key but key does not match other
-      return matchesPattern(key, other, category) && !matchesPattern(other, key, category);
+      return matchesPattern(key, other) && !matchesPattern(other, key);
     });
     if (!isSubsumed) {
       result[key] = value;
@@ -29,15 +26,15 @@ function pruneRules<T extends FileAccess | boolean>(
 function pruneSchema(schema: PermissionRule): PermissionRule {
   const result: PermissionRule = {};
   if (schema.file) {
-    const pruned = pruneRules(schema.file, "file");
+    const pruned = pruneRules(schema.file);
     if (Object.keys(pruned).length > 0) result.file = pruned;
   }
   if (schema.web) {
-    const pruned = pruneRules(schema.web as Record<string, boolean>, "web");
+    const pruned = pruneRules(schema.web as Record<string, boolean>);
     if (Object.keys(pruned).length > 0) result.web = pruned;
   }
   if (schema.bash) {
-    const pruned = pruneRules(schema.bash as Record<string, boolean>, "bash");
+    const pruned = pruneRules(schema.bash as Record<string, boolean>);
     if (Object.keys(pruned).length > 0) result.bash = pruned;
   }
   return result;
@@ -49,7 +46,6 @@ export async function cleanup(cwd: string): Promise<void> {
 
 async function cleanupLocal(cwd: string): Promise<void> {
   const [local, sessions] = await Promise.all([readLocal(cwd), SessionManager.list(cwd)]);
-
   const existingIds = new Set(sessions.map((s) => s.id));
   let changed = false;
 

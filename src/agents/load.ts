@@ -1,5 +1,4 @@
-import { writeAgentPrompt } from "./storage.js";
-import { getActiveAgent } from "./states.js";
+import { writeAgentPrompt, readStates } from "./storage.js";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { Agent } from "./types.js";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -28,7 +27,7 @@ export async function loadMainAgent(
   agents: Agent[],
   available: AvailableSettings,
 ) {
-  const name = getActiveAgent();
+  const { agent: name } = await readStates(ctx.cwd, ctx.sessionManager.getSessionId());
   const config: { model?: Model<Api>; tools?: string[] } = {};
   const agent =
     agents.find((candidate) => candidate.meta.name === name) ??

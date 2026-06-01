@@ -1,3 +1,5 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { Text } from "@earendil-works/pi-tui";
@@ -8,6 +10,7 @@ const PI_PATHS = {
   settings: "settings.json",
   mcp: "mcp.json",
   permissions: "permissions.json",
+  states: "states.json",
   system: "SYSTEM.md",
   appendSystem: "APPEND_SYSTEM.md",
 } as const;
@@ -24,6 +27,19 @@ export function getPiPath(key: PiPathKey, ...full: string[]): string {
   const baseDir = isGlobal ? homedir() : full[0]!;
   const piPath = isGlobal ? [".pi", "agent"] : [".pi"];
   return join(baseDir, ...piPath, path, ...remaining);
+}
+
+export async function readJson<T>(filePath: string, fallback: T): Promise<T> {
+  try {
+    return JSON.parse(await readFile(filePath, "utf8")) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+export async function writeJson(filePath: string, data: unknown): Promise<void> {
+  await mkdir(dirname(filePath), { recursive: true });
+  await writeFile(filePath, JSON.stringify(data, null, 2) + "\n", "utf8");
 }
 
 export function normalizeText(value: unknown): string {

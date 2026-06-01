@@ -1,4 +1,11 @@
-import { Input, Key, matchesKey, visibleWidth, type Focusable } from "@earendil-works/pi-tui";
+import {
+  Input,
+  Key,
+  matchesKey,
+  visibleWidth,
+  wrapTextWithAnsi,
+  type Focusable,
+} from "@earendil-works/pi-tui";
 import type { PromptDecision, PermissionCheck, Scope, Category, FileAccess } from "../types.js";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Frame } from "../../ui/components/frame.js";
@@ -74,7 +81,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
     lines.add(
       this.theme.italic(`${dangerNote}Allow agent to call ${category} tool '${toolName}'?`),
     );
-    lines.add(this.theme.bold(raw));
+    this.addRawLines(lines, raw, width);
     lines.space();
 
     for (const [i, option] of this.options.entries()) {
@@ -158,6 +165,18 @@ export default class PermissionPrompt extends Frame implements Focusable {
     }
     if (matchesKey(data, Key.enter)) {
       this.commitSelection();
+    }
+  }
+
+  private addRawLines(lines: Lines, raw: string, width: number): void {
+    for (const line of raw.replace(/\r\n?/g, "\n").split("\n")) {
+      if (!line) {
+        lines.space();
+        continue;
+      }
+      for (const wrapped of wrapTextWithAnsi(this.theme.bold(line), width)) {
+        lines.add(wrapped);
+      }
     }
   }
 

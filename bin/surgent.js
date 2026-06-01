@@ -9,10 +9,12 @@ import { fileURLToPath } from "node:url";
 
 process.title = "surgent";
 const args = process.argv.slice(2);
-const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const CLEAR_SCREEN = "\x1b[H\x1b[2J\x1b[3J";
 
 async function setupGlobalConfig() {
-  const srcDir = resolve(packageDir, "src");
+  const srcDir = resolve(PACKAGE_DIR, "src");
   const agentDir = resolve(homedir(), ".pi", "agent");
 
   const entries = await readdir(srcDir, { withFileTypes: true });
@@ -28,15 +30,13 @@ async function setupGlobalConfig() {
   } catch (err) {
     // ~/.pi/agent/ doesn't exist
     if (err.code !== "ENOENT") throw err;
-    rawSettings = {};
+    rawSettings = "{}";
   }
 
   const globalSettings = JSON.parse(rawSettings);
   globalSettings.extensions = extensions;
   await writeFile(globalSettingsPath, JSON.stringify(globalSettings, null, 2) + "\n");
 }
-
-const CLEAR_SCREEN = "\x1b[H\x1b[2J\x1b[3J";
 
 function rewriteHelpLine(line) {
   if (/^pi\b/.test(line)) {

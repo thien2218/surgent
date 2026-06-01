@@ -44,20 +44,13 @@ async function showAgentPicker(
   ctx: ExtensionCommandContext,
   agents: Agent[],
 ): Promise<string | null> {
-  const userAgents = agents.filter((agent) => !isBuiltIn(agent.filePath));
-  const builtInAgents = agents.filter((agent) => isBuiltIn(agent.filePath));
-
   const items: SelectItem[] = [
-    ...userAgents.map((agent) => ({
+    { value: "__new__", label: "[Create new agent]" },
+    ...agents.map((agent) => ({
       value: agent.meta.name,
-      label: agent.meta.name,
+      label: isBuiltIn(agent.filePath) ? `${agent.meta.name} (built-in)` : agent.meta.name,
       description: agent.meta.description,
     })),
-    {
-      value: "__new__",
-      label: "[Create new agent]",
-      description: "Create new agent specialized for specific task(s)",
-    },
   ];
 
   return ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
@@ -82,18 +75,6 @@ async function showAgentPicker(
     frame.addCustom(new Spacer());
     frame.addCustom(list);
 
-    frame.addCustom(new Spacer());
-    if (builtInAgents.length > 0) {
-      frame.addCustom(customText(theme.fg("muted", "Built-in (always available)"), { y: 1 }));
-      const dot = theme.fg("muted", "•");
-
-      for (const agent of builtInAgents) {
-        const desc = theme.fg("dim", agent.meta.description);
-        frame.addCustom(customText(`  ${agent.meta.name} ${dot} ${desc}`));
-      }
-    }
-    frame.addCustom(new Spacer());
-
     return {
       render: (width) => frame.render(width),
       invalidate: () => {
@@ -110,11 +91,9 @@ async function showAgentPicker(
 
 async function handleExistingAgent(ctx: ExtensionCommandContext, agent: Agent): Promise<void> {
   while (true) {
-    const action = await ctx.ui.select(`Agent: ${agent.meta.name}`, [
-      "Start in new session",
-      "Open in VS Code",
-      "Delete agent",
-    ]);
+    const options = ["Start in new session", "Open in VS Code"];
+    if (!isBuiltIn(agent.filePath)) options.push("Delete agent");
+    const action = await ctx.ui.select(`Agent: ${agent.meta.name}`, options);
     if (!action) return;
 
     if (action === "Start in new session") {

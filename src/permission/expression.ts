@@ -1,10 +1,40 @@
 import type { PermissiveToolName } from "./types.js";
 
+const BASH_TOP_LEVEL_PART_RE =
+  /\\[\s\S]|'[^']*'|"(?:(?:\\.|[^"\\])*)"|`(?:(?:\\.|[^`\\])*)`|&&|\|\||[;|]|[^\\'"`;|]+/g;
+
 // A token is "stable" if it is a flag (-f, --flag) or a pure subcommand-like word.
 // Paths, quoted strings, filenames, version numbers, etc. are variable.
 function isStableToken(token: string): boolean {
   if (token.startsWith("-")) return true;
   return /^[a-z][a-z-]*$/.test(token);
+}
+
+function parseBashTopLevel(command: string): { statements: string[]; operators: string[] } {
+  const parts = command.match(BASH_TOP_LEVEL_PART_RE) ?? [];
+  const statements: string[] = [];
+  const operators: string[] = [];
+  let current = "";
+
+  const pushCurrent = () => {
+    const trimmed = current.trim();
+    if (trimmed) {
+      statements.push(trimmed);
+    }
+    current = "";
+  };
+
+  for (const part of parts) {
+    if (part === "&&" || part === "||" || part === "|" || part === ";") {
+      pushCurrent();
+      operators.push(part);
+      continue;
+    }
+    current += part;
+  }
+
+  pushCurrent();
+  return { statements, operators };
 }
 
 export function filePathToExpr(path: string): string {
@@ -33,8 +63,7 @@ function statementToExpr(statement: string): string {
   const tokens = statement.trim().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return statement;
 
-  // Always keep token[0] (the command); find the first variable token among the rest.
-  const splitIdx = tokens.findIndex((t, i) => i > 0 && !isStableToken(t));
+  const splitIdx = tokens.findIndex((token, tokenIndex) => tokenIndex > 0 && !isStableToken(token));
   if (splitIdx === -1) return tokens.join(" ");
 
   return `${tokens.slice(0, splitIdx).join(" ")} *`;
@@ -44,9 +73,15 @@ export function bashToExpr(command: string): string {
   const trimmed = command.trim();
   if (!trimmed) return "";
 
-  // Split on operators while preserving them, then convert each statement independently.
-  const parts = trimmed.split(/(\s*(?:&&|\|\||;|\|)\s*)/);
-  return parts.map((part, i) => (i % 2 === 0 ? statementToExpr(part) : part)).join("");
+  const { statements, operators } = parseBashTopLevel(trimmed);
+  if (statements.length === 0) return "";
+
+  let expression = statementToExpr(statements[0]!);
+  for (let statementIndex = 1; statementIndex < statements.length; statementIndex += 1) {
+    expression += ` ${operators[statementIndex - 1] ?? "|"} ${statementToExpr(statements[statementIndex]!)}`;
+  }
+
+  return expression;
 }
 
 export function urlToExpr(url: string): string {

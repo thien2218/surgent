@@ -12,12 +12,12 @@ function specificity(pattern: string): number {
   return GLOB_CHARS.test(pattern) ? pattern.length : Infinity;
 }
 
-export function matchesPattern(key: string, pattern: string): boolean {
-  if (pattern === key) return true;
+export function matchesPattern(input: string, pattern: string, bash = false): boolean {
+  if (pattern === input) return true;
   if (!GLOB_CHARS.test(pattern)) return false;
 
   try {
-    return pm(pattern, { dot: true })(key);
+    return pm(pattern, { dot: true, bash })(input);
   } catch {
     return false;
   }
@@ -25,12 +25,13 @@ export function matchesPattern(key: string, pattern: string): boolean {
 
 function findBestMatch(
   rules: Record<string, FileAccess | boolean>,
-  key: string,
+  input: string,
+  bash = false,
 ): boolean | FileAccess | undefined {
   let best: { value: FileAccess | boolean; score: number } | null = null;
 
   for (const [pattern, value] of Object.entries(rules)) {
-    if (!matchesPattern(key, pattern)) continue;
+    if (!matchesPattern(input, pattern, bash)) continue;
     const score = specificity(pattern);
 
     if (best === null || score > best.score) {
@@ -55,10 +56,10 @@ function extractPathsFromCommand(command: string): string[] {
   const paths: string[] = [];
   let match: RegExpExecArray | null;
   while ((match = PATH_IN_COMMAND.exec(command)) !== null) {
-    const p = match[1]!.replace(/[,;:'"]+$/, ""); // strip trailing punctuation
-    if (p) paths.push(p);
+    const path = match[1]!.replace(/[,;:'"]+$/, "");
+    if (path) paths.push(path);
   }
-  return [...new Set(paths)]; // dedup
+  return [...new Set(paths)];
 }
 
 function checkAgentRules(agentMeta: AgentMeta | null, check: PermissionCheck): boolean {
@@ -66,7 +67,7 @@ function checkAgentRules(agentMeta: AgentMeta | null, check: PermissionCheck): b
   const { category, raw } = check;
 
   if (category === "bash" && agentMeta.bash) {
-    return agentMeta.bash.some((pattern) => matchesPattern(raw, pattern));
+    return agentMeta.bash.some((pattern) => matchesPattern(raw, pattern, true));
   }
   if (category === "file" && agentMeta.files) {
     return agentMeta.files.some((pattern) => matchesPattern(raw, pattern));
@@ -113,15 +114,14 @@ export async function resolvePermission(
 
   for (const schema of scopes) {
     const rules = getSchemaRules(schema, category);
-    const match = findBestMatch(rules, raw);
-    if (typeof match === "undefined") continue;
+    const match = findBestMatch(rules, raw, category === "bash");
 
+    if (typeof match === "undefined") continue;
     if (category === "file") {
       if (match === "write") return true;
       return op === match;
-    } else {
-      return match as boolean;
     }
+    return match as boolean;
   }
 
   if (category === "file") {

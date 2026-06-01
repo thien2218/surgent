@@ -3,20 +3,23 @@ import { matchesPattern } from "./resolution.js";
 import { readGlobal, readLocal, writeGlobal, writeLocal } from "./storage.js";
 import type { FileAccess, PermissionRule } from "./types.js";
 
-function pruneRules<T extends FileAccess | boolean>(rules: Record<string, T>): Record<string, T> {
-  const keys = Object.keys(rules);
+function pruneRules<T extends FileAccess | boolean>(
+  rules: Record<string, T>,
+  bash = false,
+): Record<string, T> {
+  const patterns = Object.keys(rules);
   const result: Record<string, T> = {};
 
-  for (const key of keys) {
-    const value = rules[key]!;
-    const isSubsumed = keys.some((other) => {
-      if (other === key) return false;
+  for (const pattern of patterns) {
+    const value = rules[pattern]!;
+    const isSubsumed = patterns.some((other) => {
+      if (other === pattern) return false;
       if (rules[other] !== value) return false;
-      // other subsumes key if other matches key but key does not match other
-      return matchesPattern(key, other) && !matchesPattern(other, key);
+      // other subsumes pattern if other matches pattern but pattern does not match other
+      return matchesPattern(pattern, other, bash) && !matchesPattern(other, pattern, bash);
     });
     if (!isSubsumed) {
-      result[key] = value;
+      result[pattern] = value;
     }
   }
 
@@ -30,11 +33,11 @@ function pruneSchema(schema: PermissionRule): PermissionRule {
     if (Object.keys(pruned).length > 0) result.file = pruned;
   }
   if (schema.web) {
-    const pruned = pruneRules(schema.web as Record<string, boolean>);
+    const pruned = pruneRules(schema.web);
     if (Object.keys(pruned).length > 0) result.web = pruned;
   }
   if (schema.bash) {
-    const pruned = pruneRules(schema.bash as Record<string, boolean>);
+    const pruned = pruneRules(schema.bash, true);
     if (Object.keys(pruned).length > 0) result.bash = pruned;
   }
   return result;
@@ -49,9 +52,9 @@ async function cleanupLocal(cwd: string): Promise<void> {
   const existingIds = new Set(sessions.map((s) => s.id));
   let changed = false;
 
-  for (const key of Object.keys(local)) {
-    if (key !== "project" && !existingIds.has(key)) {
-      delete local[key];
+  for (const pattern of Object.keys(local)) {
+    if (pattern !== "project" && !existingIds.has(pattern)) {
+      delete local[pattern];
       changed = true;
     }
   }

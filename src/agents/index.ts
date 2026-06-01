@@ -13,14 +13,14 @@ export default function (pi: ExtensionAPI) {
   let sessionId: string | null = null;
 
   const updateAgent = (ctx: ExtensionContext) => {
-    const agentText = ctx.ui.theme.fg("dim", `Agent: ${states.agent}`);
+    const agentText = ctx.ui.theme.fg("dim", `agent: ${states.agent}`);
     ctx.ui.setStatus("agent", agentText);
   };
 
   const updateAgentMode = (ctx: ExtensionContext) => {
     const modeText = states.yolo
       ? ctx.ui.theme.fg("warning", "YOLO mode ⚠️")
-      : ctx.ui.theme.fg("dim", "Assistant mode");
+      : ctx.ui.theme.fg("dim", "assistant mode");
     const width = (process.stdout.columns ?? 80) - visibleWidth(modeText) + 1;
     // statuses are sorted alphabetically and joined with " "; use ANSI cursor absolute (CHA)
     // to jump to the right edge — spaces would be collapsed by sanitizeStatusText

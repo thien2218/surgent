@@ -2,7 +2,6 @@ import { isAbsolute, relative, resolve } from "node:path";
 import pm from "picomatch";
 import type { AgentMeta } from "../agents/types.js";
 import { loadAgents } from "../agents/storage.js";
-import { getActiveAgent } from "../agents/states.js";
 import { readGlobal, readLocal } from "./storage.js";
 import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./types.js";
 
@@ -85,11 +84,11 @@ function isWithinCwd(rawPath: string, cwd: string): boolean {
 export async function resolvePermission(
   cwd: string,
   sessionId: string,
+  agent: string,
   check: PermissionCheck,
 ): Promise<boolean> {
   const agents = await loadAgents(cwd);
-  const name = getActiveAgent();
-  const agentMeta = agents.find((agent) => agent.meta.name === name)?.meta ?? null;
+  const agentMeta = agents.find((candidate) => candidate.meta.name === agent)?.meta ?? null;
   const { category, raw, op } = check;
 
   // Agent meta rules take priority — block immediately if not allowed
@@ -104,7 +103,7 @@ export async function resolvePermission(
         op: "read",
         toolName: "bash",
       };
-      if (!(await resolvePermission(cwd, sessionId, fileCheck))) return false;
+      if (!(await resolvePermission(cwd, sessionId, agent, fileCheck))) return false;
     }
   }
 

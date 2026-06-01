@@ -10,7 +10,7 @@ import { handlePermissionsCommand } from "./command.js";
 import { resolvePermission } from "./resolution.js";
 import { addRule, checkExprStored } from "./storage.js";
 import type { PermissionCheck, PromptDecision, PermissiveToolName } from "./types.js";
-import { isYolo } from "../agents/states.js";
+import { readStates } from "../agents/storage.js";
 import PermissionPrompt from "./components/prompt.js";
 import { SUSPICIOUS_BASH_PATTERNS, PERMISSIVE_TOOLS } from "./constants.js";
 import { toPermExpr } from "./expression.js";
@@ -63,13 +63,15 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("tool_call", async (event, ctx) => {
-    if (isYolo() || !sessionId) return;
+    if (!sessionId) return;
+    const { yolo, agent } = await readStates(ctx.cwd, sessionId);
+    if (yolo) return;
 
     const check = getPermissionCheck(event);
     if (!check) return;
 
     const expr = toPermExpr(check.toolName, check.raw);
-    const allowed = await resolvePermission(ctx.cwd, sessionId, check);
+    const allowed = await resolvePermission(ctx.cwd, sessionId, agent, check);
     if (allowed && !check.danger) return;
 
     if (!ctx.hasUI) {

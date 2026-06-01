@@ -4,8 +4,13 @@ import { exec } from "node:child_process";
 import { spawn } from "node:child_process";
 import { promisify } from "node:util";
 import type { Agent } from "./types.js";
-import { createAgentFile, deleteAgentFiles, isBuiltIn, loadAgents } from "./storage.js";
-import { setActiveAgent } from "./states.js";
+import {
+  createAgentFile,
+  deleteAgentFiles,
+  isBuiltIn,
+  loadAgents,
+  setNextAgent,
+} from "./storage.js";
 import { Frame } from "../ui/components/frame.js";
 import { ScopedInput } from "../ui/components/scoped-input.js";
 import { customText, getPiPath } from "../utils.js";
@@ -113,7 +118,7 @@ async function handleExistingAgent(ctx: ExtensionCommandContext, agent: Agent): 
     if (!action) return;
 
     if (action === "Start in new session") {
-      setActiveAgent(agent.meta.name);
+      await setNextAgent(ctx.cwd, ctx.sessionManager.getSessionId(), agent.meta.name);
       await ctx.newSession();
       return;
     }

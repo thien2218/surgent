@@ -2,20 +2,23 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { agentsCommandHandler } from "./command.js";
 import { loadMainAgent } from "./load.js";
-import { getActiveAgent, isYolo, toggleYolo } from "./states.js";
-import { loadAgents } from "./storage.js";
+import { loadAgents, initStates, writeStates } from "./storage.js";
 import { loadResolvedConfigSet } from "../mcp-client/storage.js";
+import type { SessionState } from "./types.js";
 
 const SWITCH_MODE_KEY = Key.ctrlAlt("y");
 
 export default function (pi: ExtensionAPI) {
+  let states: SessionState = { yolo: false, agent: "default" };
+  let sessionId: string | null = null;
+
   const updateAgent = (ctx: ExtensionContext) => {
-    const agentText = ctx.ui.theme.fg("dim", `Agent: ${getActiveAgent()}`);
+    const agentText = ctx.ui.theme.fg("dim", `Agent: ${states.agent}`);
     ctx.ui.setStatus("agent", agentText);
   };
 
   const updateAgentMode = (ctx: ExtensionContext) => {
-    const modeText = isYolo()
+    const modeText = states.yolo
       ? ctx.ui.theme.fg("warning", "YOLO mode ⚠️")
       : ctx.ui.theme.fg("dim", "Assistant mode");
     const width = (process.stdout.columns ?? 80) - visibleWidth(modeText) + 1;
@@ -32,6 +35,9 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
+    sessionId = ctx.sessionManager.getSessionId();
+    states = await initStates(ctx.cwd, sessionId);
+
     updateStatus = () => {
       updateAgentMode(ctx);
       updateAgent(ctx);
@@ -67,10 +73,13 @@ export default function (pi: ExtensionAPI) {
   pi.registerShortcut(SWITCH_MODE_KEY, {
     description: "Toggle YOLO mode (bypass all access control)",
     handler: async (ctx) => {
-      toggleYolo();
+      if (!sessionId) return;
+      states = { ...states, yolo: !states.yolo };
+      await writeStates(ctx.cwd, sessionId, states);
       updateStatus?.();
+
       ctx.ui.notify(
-        isYolo()
+        states.yolo
           ? "YOLO mode ON - agents can now run commands and tools without asking for permission"
           : "YOLO mode OFF",
         "info",

@@ -1,5 +1,4 @@
-import { readFile, mkdir, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { readJson, writeJson } from "../utils.js";
 import type {
   Category,
   GroupedDisplayRules,
@@ -14,20 +13,6 @@ import { CATEGORIES } from "./constants.js";
 interface LocalSchema {
   project?: PermissionRule;
   [sessionId: string]: PermissionRule | undefined;
-}
-
-async function readJson<T>(filePath: string, fallback: T): Promise<T> {
-  try {
-    const raw = await readFile(filePath, "utf8");
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-async function writeJson(filePath: string, data: unknown): Promise<void> {
-  await mkdir(dirname(filePath), { recursive: true });
-  await writeFile(filePath, JSON.stringify(data, null, 2) + "\n", "utf8");
 }
 
 export async function readLocal(cwd: string): Promise<LocalSchema> {

@@ -4,16 +4,20 @@ import Questionnaire from "./component.js";
 import { normalizeQuestions, summarizeAnswer } from "./helpers.js";
 import { QuestionnaireParamsSchema, type Question, type QuestionnaireResult } from "./types.js";
 
-const questionnaireTool = defineTool({
+const questionnaire = defineTool({
   name: "questionnaire",
   label: "Questionnaire",
-  description: "Ask focused clarifying questions. Returns one answer per question.",
-  promptSnippet: "Ask focused clarifying questions. Returns one answer per question.",
+  description:
+    "Ask user focused clarifying question(s) when answer changes next step. Prefer over guessing.",
+  promptSnippet:
+    "Clarify material unknowns with user. Ask 1 question or a small batch before committing.",
   promptGuidelines: [
-    "Use questionnaire only when missing info changes next step.",
-    "questionnaire can batch related questions in one call.",
-    "Use questionnaire with few high-signal questions.",
-    "Use questionnaire only for gaps not already answered.",
+    "Use when answer changes design, safety, scope, or next step.",
+    "If multiple viable approaches remain, ask before choosing.",
+    "If user invites questions, lower threshold.",
+    "Ask 1 focused question or a small related batch.",
+    "Prefer questionnaire over plain-text follow-up when UI is available.",
+    "Do not ask what repo or prior answers already provide.",
   ],
   parameters: QuestionnaireParamsSchema,
   async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
@@ -84,5 +88,5 @@ const questionnaireTool = defineTool({
 });
 
 export default function registerQuestionnaireTool(pi: ExtensionAPI) {
-  pi.registerTool(questionnaireTool);
+  pi.registerTool(questionnaire);
 }

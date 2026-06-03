@@ -14,6 +14,7 @@ import { readStates } from "../agents/storage.js";
 import PermissionPrompt from "./components/prompt.js";
 import { SUSPICIOUS_BASH_PATTERNS, PERMISSIVE_TOOLS } from "./constants.js";
 import { toPermExpr } from "./expression.js";
+import { IS_SUBSESSION } from "../subsession/index.js";
 
 function getRawInput(toolName: PermissiveToolName, event: ToolCallEvent) {
   switch (toolName) {
@@ -53,6 +54,7 @@ export default function (pi: ExtensionAPI) {
   let sessionId: string | null = null;
 
   pi.on("session_start", async (_event, ctx) => {
+    if (IS_SUBSESSION) return;
     sessionId = ctx.sessionManager.getSessionId();
     cleanup(ctx.cwd);
   });

@@ -1,14 +1,14 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key, visibleWidth } from "@earendil-works/pi-tui";
-import { resolve } from "node:path";
+import pm from "picomatch";
 import { agentsCommandHandler } from "./command.js";
 import { loadMainAgent } from "./load.js";
 import { loadAgents, initStates, writeStates } from "./storage.js";
 import { loadResolvedConfigSet } from "../mcp-client/storage.js";
 import type { SessionState } from "./types.js";
+import { IS_SUBSESSION } from "../subsession/index.js";
 
 const SWITCH_MODE_KEY = Key.ctrlAlt("y");
-const IS_SUBSESSION = process.env["SURGENT_SUBSESSION"] === "1";
 
 function registerPathGuard(pi: ExtensionAPI): void {
   const rawFiles = process.env["SURGENT_SUBSESSION_FILES"];
@@ -21,17 +21,19 @@ function registerPathGuard(pi: ExtensionAPI): void {
     return;
   }
 
+  const matchers = allowedFiles.map((pattern) => pm(pattern, { dot: true }));
   const PATH_TOOLS = new Set(["read", "write", "edit", "grep", "find", "ls"]);
 
   pi.on("tool_call", (event) => {
-    // ToolCallEvent uses `toolName` and `input`, not `name` and `args`
     const ev = event as { toolName: string; input: { path?: string } };
     if (!PATH_TOOLS.has(ev.toolName)) return;
     const target = ev.input.path;
-    if (!target) return;
-    const abs = resolve(target);
-    const allowed = allowedFiles.some((ceiling) => abs.startsWith(resolve(ceiling)));
-    if (!allowed) return { blocked: true, reason: `Path outside allowed scope: ${target}` };
+    if (!target) {
+      // grep/find/ls without explicit path would search cwd implicitly — block it
+      return { block: true, reason: "Explicit path required in subsession" };
+    }
+    const allowed = matchers.some((match) => match(target));
+    if (!allowed) return { block: true, reason: `Path outside allowed scope: ${target}` };
   });
 }
 

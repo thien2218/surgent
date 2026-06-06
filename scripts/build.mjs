@@ -17,7 +17,7 @@ async function main() {
   await ensurePiExcluded();
 
   console.log("Installing dependencies...");
-  await runCommand("pnpm", ["install"]);
+  await installDependencies();
 
   console.log("Linking package with npm link...");
   await runCommand("npm", ["link"]);
@@ -76,6 +76,28 @@ async function syncPiIgnore() {
   await writeFile(piIgnorePath, gitIgnoreContents);
 }
 
+async function installDependencies() {
+  try {
+    await runCommand("pnpm", ["install"]);
+    return;
+  } catch (error) {
+    if (!isMissingCommandError(error, "pnpm")) {
+      throw error;
+    }
+  }
+
+  try {
+    await runCommand("npm", ["install"]);
+  } catch (error) {
+    if (isMissingCommandError(error, "npm")) {
+      throw new Error(
+        "Cannot install dependencies: neither pnpm and npm are available. Install pnpm or npm first, then rerun this script.",
+      );
+    }
+    throw error;
+  }
+}
+
 async function getCommandOutput(commandName, commandArgs) {
   return new Promise((resolvePromise, rejectPromise) => {
     const childProcess = spawn(resolveCommandName(commandName), commandArgs, {
@@ -130,6 +152,23 @@ async function runCommand(commandName, commandArgs) {
 
 function resolveCommandName(commandName) {
   return process.platform === "win32" ? `${commandName}.cmd` : commandName;
+}
+
+function isMissingCommandError(error, commandName) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const hasMissingErrorName = "name" in error && error.name === "MissingCommandError";
+  if (!hasMissingErrorName) {
+    return false;
+  }
+
+  if (!commandName) {
+    return true;
+  }
+
+  return "missingCommandName" in error && error.missingCommandName === commandName;
 }
 
 function isMissingFileError(error) {

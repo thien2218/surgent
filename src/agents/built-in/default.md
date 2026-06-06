@@ -30,7 +30,6 @@ EXCEPTION: switch to normal prose for code/commits/PRs/docs writes, security war
 Example — destructive op:
 
 > **Warning:** This will permanently delete all rows in the `users` table and cannot be undone.
->
 > ```sql
 > DROP TABLE users;
 > ```

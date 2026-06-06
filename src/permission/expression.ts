@@ -1,7 +1,5 @@
+import { BASH_TOKEN } from "./constants.js";
 import type { PermissiveToolName } from "./types.js";
-
-const BASH_TOP_LEVEL_PART_RE =
-  /\\[\s\S]|'[^']*'|"(?:(?:\\.|[^"\\])*)"|`(?:(?:\\.|[^`\\])*)`|&&|\|\||[;|&]|[^\\'"`;&|]+/g;
 
 // A token is "stable" if it is a flag (-f, --flag) or a pure subcommand-like word.
 // Paths, quoted strings, filenames, version numbers, etc. are variable.
@@ -11,7 +9,7 @@ function isStableToken(token: string): boolean {
 }
 
 function parseBashTopLevel(command: string): { statements: string[]; operators: string[] } {
-  const parts = command.match(BASH_TOP_LEVEL_PART_RE) ?? [];
+  const parts = command.match(BASH_TOKEN) ?? [];
   const statements: string[] = [];
   const operators: string[] = [];
   let current = "";

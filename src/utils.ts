@@ -61,3 +61,7 @@ export function customText(text: string, pad?: { x?: number; y?: number }) {
   const { x = 0, y = 0 } = pad ?? {};
   return new Text(text, x, y);
 }
+
+export function isMissingFileError(error: any) {
+  return Boolean(error) && typeof error === "object" && "code" in error && error.code === "ENOENT";
+}

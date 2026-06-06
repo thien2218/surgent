@@ -44,3 +44,6 @@ export const SUSPICIOUS_BASH_PATTERNS: Array<{ pattern: RegExp; reason: string }
   { pattern: /\bsudo\b/, reason: "Privilege escalation with sudo" },
   { pattern: /\bsu\b/, reason: "Privilege escalation with su" },
 ];
+
+export const BASH_TOKEN =
+  /\\[\s\S]|'[^']*'|"(?:(?:\\.|[^"\\])*)"|`(?:(?:\\.|[^`\\])*)`|&&|\|\||[;|&]|[^\s]+/g;

@@ -4,10 +4,14 @@ import {
   type ToolCallEvent,
   type BashToolCallEvent,
   type ReadToolCallEvent,
+  type GrepToolCallEvent,
+  type FindToolCallEvent,
+  type LsToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
 import { cleanup } from "./cleanup.js";
 import { handlePermissionsCommand } from "./command.js";
-import { resolvePermission } from "./resolution.js";
+import { extractPathsFromCommand, resolvePermission } from "./resolution.js";
+import { resolvePiIgnorePathBlock } from "./piignore.js";
 import { addRule, checkExprStored } from "./storage.js";
 import type { PermissionCheck, PromptDecision, PermissiveToolName } from "./types.js";
 import { readStates } from "../agents/storage.js";
@@ -26,6 +30,36 @@ function getRawInput(toolName: PermissiveToolName, event: ToolCallEvent) {
       return (event as BashToolCallEvent).input.command;
     case "web_fetch":
       return (event.input as Record<"url", string>).url;
+  }
+}
+
+function getPiIgnoreInputs(event: ToolCallEvent): string[] {
+  switch (event.toolName) {
+    case "read":
+    case "write":
+    case "edit":
+      return [(event as ReadToolCallEvent).input.path];
+    case "grep": {
+      const grepEvent = event as GrepToolCallEvent;
+      const inputs: string[] = [];
+      if (grepEvent.input.path) inputs.push(grepEvent.input.path);
+      if (grepEvent.input.glob) inputs.push(grepEvent.input.glob);
+      return inputs;
+    }
+    case "find": {
+      const findEvent = event as FindToolCallEvent;
+      const inputs = [findEvent.input.pattern];
+      if (findEvent.input.path) inputs.push(findEvent.input.path);
+      return inputs;
+    }
+    case "ls": {
+      const lsEvent = event as LsToolCallEvent;
+      return lsEvent.input.path ? [lsEvent.input.path] : [];
+    }
+    case "bash":
+      return extractPathsFromCommand((event as BashToolCallEvent).input.command);
+    default:
+      return [];
   }
 }
 
@@ -65,12 +99,19 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("tool_call", async (event, ctx) => {
-    if (!sessionId) return;
-    const { yolo, agent } = await readStates(ctx.cwd, sessionId);
-    if (yolo) return;
+    for (const input of getPiIgnoreInputs(event)) {
+      const piIgnoreBlock = await resolvePiIgnorePathBlock(ctx.cwd, input);
+      if (piIgnoreBlock) {
+        return { block: true, reason: piIgnoreBlock };
+      }
+    }
 
     const check = getPermissionCheck(event);
     if (!check) return;
+
+    if (!sessionId) return;
+    const { yolo, agent } = await readStates(ctx.cwd, sessionId);
+    if (yolo) return;
 
     const expr = toPermExpr(check.toolName, check.raw);
     const allowed = await resolvePermission(ctx.cwd, sessionId, agent, check);

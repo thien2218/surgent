@@ -169,7 +169,10 @@ export default class PermissionPrompt extends Frame implements Focusable {
   }
 
   private addRawLines(lines: Lines, raw: string, width: number): void {
-    for (const line of raw.replace(/\r\n?/g, "\n").split("\n")) {
+    const normalized = raw.replace(/\r\n?/g, "\n");
+    const truncated = normalized.length > 100 ? `${normalized.slice(0, 100)}…` : normalized;
+
+    for (const line of truncated.split("\n")) {
       if (!line) {
         lines.space();
         continue;

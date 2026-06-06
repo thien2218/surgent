@@ -1,18 +1,6 @@
 import { CustomEditor, type KeybindingsManager } from "@earendil-works/pi-coding-agent";
 import { getKeybindings, matchesKey, type EditorTheme, type TUI } from "@earendil-works/pi-tui";
-import { isBashMode, parseActualText, toActualText } from "../utils.js";
-import type { EditorMode } from "../types.js";
-
-function getNextMode(mode: EditorMode): EditorMode {
-  switch (mode) {
-    case "prompt":
-      return "bash-included";
-    case "bash-included":
-      return "bash-excluded";
-    case "bash-excluded":
-      return "prompt";
-  }
-}
+import type { EditorMode, ParsedText } from "../types.js";
 
 export class BashModeEditor extends CustomEditor {
   protected mode: EditorMode = "prompt";
@@ -25,7 +13,7 @@ export class BashModeEditor extends CustomEditor {
     super(tui, editorTheme, keybindings);
 
     this.installWrappedCallbacks();
-    const parsed = parseActualText(super.getText());
+    const parsed = this.parseActualText(super.getText());
     this.mode = parsed.mode;
 
     if (parsed.displayText !== super.getText()) {
@@ -38,7 +26,52 @@ export class BashModeEditor extends CustomEditor {
   }
 
   protected isInBashMode(): boolean {
-    return isBashMode(this.mode);
+    return this.isBashMode(this.mode);
+  }
+
+  private getNextMode(): EditorMode {
+    switch (this.mode) {
+      case "prompt":
+        return "bash-included";
+      case "bash-included":
+        return "bash-excluded";
+      case "bash-excluded":
+        return "prompt";
+    }
+  }
+
+  private isBashMode(mode: EditorMode): boolean {
+    return mode === "bash-included" || mode === "bash-excluded";
+  }
+
+  private parseActualText(text: string): ParsedText {
+    const excludedMatch = text.match(/^(\s*)!!(.*)$/s);
+    if (excludedMatch) {
+      return {
+        mode: "bash-excluded",
+        displayText: `${excludedMatch[1] ?? ""}${excludedMatch[2] ?? ""}`,
+      };
+    }
+
+    const includedMatch = text.match(/^(\s*)!(.*)$/s);
+    if (includedMatch) {
+      return {
+        mode: "bash-included",
+        displayText: `${includedMatch[1] ?? ""}${includedMatch[2] ?? ""}`,
+      };
+    }
+
+    return { mode: "prompt", displayText: text };
+  }
+
+  private toActualText(text: string, mode: EditorMode): string {
+    if (!this.isBashMode(mode)) {
+      return text;
+    }
+
+    const match = text.match(/^(\s*)(.*)$/s);
+    const bangPrefix = mode === "bash-excluded" ? "!!" : "!";
+    return `${match?.[1] ?? ""}${bangPrefix}${match?.[2] ?? ""}`;
   }
 
   private installWrappedCallbacks(): void {
@@ -62,8 +95,8 @@ export class BashModeEditor extends CustomEditor {
   }
 
   private readonly submitProxy = (text: string) => {
-    const parsed = parseActualText(text);
-    const actualText = isBashMode(parsed.mode) ? text : toActualText(text, this.mode);
+    const parsed = this.parseActualText(text);
+    const actualText = this.isBashMode(parsed.mode) ? text : this.toActualText(text, this.mode);
     this.externalOnSubmit?.(actualText);
   };
 
@@ -72,7 +105,7 @@ export class BashModeEditor extends CustomEditor {
       return;
     }
 
-    this.externalOnChange?.(toActualText(text, this.mode));
+    this.externalOnChange?.(this.toActualText(text, this.mode));
   };
 
   private withSuppressedChange(fn: () => void): void {
@@ -85,7 +118,45 @@ export class BashModeEditor extends CustomEditor {
   }
 
   private emitChange(): void {
-    this.externalOnChange?.(toActualText(super.getText(), this.mode));
+    this.externalOnChange?.(this.toActualText(super.getText(), this.mode));
+  }
+
+  private isHistoryNavInput(data: string): boolean {
+    const keybindings = getKeybindings();
+    return (
+      keybindings.matches(data, "tui.editor.cursorUp") ||
+      keybindings.matches(data, "tui.editor.cursorDown")
+    );
+  }
+
+  private setDisplayText(displayText: string): void {
+    const editorInternals = this as unknown as { setTextInternal: (text: string) => void };
+    editorInternals.setTextInternal(displayText);
+  }
+
+  private handleHistoryNavInput(data: string): void {
+    const text = this.toActualText(super.getText(), this.mode);
+    const rawBeforeNav = super.getText();
+
+    this.withSuppressedChange(() => super.handleInput(data));
+
+    const rawAfterNav = super.getText();
+    if (rawAfterNav === rawBeforeNav) {
+      return;
+    }
+
+    const parsedHistoryText = this.parseActualText(rawAfterNav);
+    this.mode = parsedHistoryText.mode;
+    this.persistent = false;
+
+    if (parsedHistoryText.displayText !== rawAfterNav) {
+      this.withSuppressedChange(() => this.setDisplayText(parsedHistoryText.displayText));
+    }
+
+    const actual = this.toActualText(super.getText(), this.mode);
+    if (actual !== text) {
+      this.externalOnChange?.(actual);
+    }
   }
 
   private applyMode(mode: EditorMode, persistent = this.persistent): void {
@@ -115,8 +186,7 @@ export class BashModeEditor extends CustomEditor {
   }
 
   private submitCurrentValue(): void {
-    const actualText = toActualText(super.getExpandedText(), this.mode).trim();
-
+    const actualText = this.toActualText(super.getExpandedText(), this.mode).trim();
     this.withSuppressedChange(() => super.setText(""));
 
     if (!this.persistent) {
@@ -131,12 +201,16 @@ export class BashModeEditor extends CustomEditor {
     if (this.mode !== "prompt" && !this.persistent) {
       return;
     }
-
-    const nextMode = getNextMode(this.mode);
+    const nextMode = this.getNextMode();
     this.applyMode(nextMode, nextMode !== "prompt");
   }
 
   override handleInput(data: string): void {
+    if (this.isHistoryNavInput(data)) {
+      this.handleHistoryNavInput(data);
+      return;
+    }
+
     const displayText = super.getText();
 
     if (!this.persistent && this.mode === "prompt" && data === "!" && /^\s*$/.test(displayText)) {
@@ -179,24 +253,24 @@ export class BashModeEditor extends CustomEditor {
   }
 
   override getText(): string {
-    return toActualText(super.getText(), this.mode);
+    return this.toActualText(super.getText(), this.mode);
   }
 
   override getExpandedText(): string {
-    return toActualText(super.getExpandedText(), this.mode);
+    return this.toActualText(super.getExpandedText(), this.mode);
   }
 
   override setText(text: string): void {
-    const parsed = parseActualText(text);
+    const parsed = this.parseActualText(text);
     this.mode = parsed.mode;
     this.persistent = false;
     super.setText(parsed.displayText);
   }
 
   override insertTextAtCursor(text: string): void {
-    const parsed = parseActualText(text);
+    const parsed = this.parseActualText(text);
 
-    if (this.mode === "prompt" && isBashMode(parsed.mode) && /^\s*$/.test(super.getText())) {
+    if (this.mode === "prompt" && this.isBashMode(parsed.mode) && /^\s*$/.test(super.getText())) {
       this.mode = parsed.mode;
       this.persistent = false;
       super.insertTextAtCursor(parsed.displayText);

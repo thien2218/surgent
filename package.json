@@ -7,6 +7,7 @@
     "surgent": "./bin/surgent.js"
   },
   "scripts": {
+    "build": "node ./scripts/build.mjs",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

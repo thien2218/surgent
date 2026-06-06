@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { getPiPath } from "../utils.js";
+import { getPiPath, isMissingFileError } from "../utils.js";
 import type {
   HttpMcpServerConfig,
   McpServerConfig,
@@ -57,7 +57,7 @@ export async function readConfigFile(path: string): Promise<Record<string, McpSe
   try {
     raw = await readFile(path, "utf8");
   } catch (error) {
-    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
+    if (isMissingFileError(error)) {
       return {};
     }
     throw error;

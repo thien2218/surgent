@@ -6,11 +6,11 @@ import { loadAgents } from "../agents/storage.js";
 import { readGlobal, readLocal } from "./storage.js";
 import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./types.js";
 import { getPiPath } from "../utils.js";
+import { BASH_TOKEN } from "./constants.js";
 
 const GLOB_CHARS = /[*?[\]{}]/;
-const PATH_IN_COMMAND = /(?:^|\s)((?:\/|\.\.?\/|~\/)[^\s;|&><'"]*)/g;
 
-function specificity(pattern: string): number {
+export function specificity(pattern: string): number {
   return GLOB_CHARS.test(pattern) ? pattern.length : Infinity;
 }
 
@@ -54,14 +54,56 @@ function getSchemaRules(
   return schema.bash ?? {};
 }
 
-function extractPathsFromCommand(command: string): string[] {
+export function extractPathsFromCommand(command: string): string[] {
   const paths: string[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = PATH_IN_COMMAND.exec(command)) !== null) {
-    const path = match[1]!.replace(/[,;:'"]+$/, "");
-    if (path) paths.push(path);
+  const tokens = command.match(BASH_TOKEN) ?? [];
+
+  for (const token of tokens) {
+    const strippedToken = stripShellQuotes(token.replace(/[,;:'"]+$/, ""));
+    if (!looksLikePathToken(strippedToken)) continue;
+    paths.push(strippedToken);
   }
+
   return [...new Set(paths)];
+}
+
+function stripShellQuotes(token: string): string {
+  if (token.length < 2) return token;
+
+  const firstChar = token[0];
+  const lastChar = token[token.length - 1];
+  if (
+    (firstChar === "'" && lastChar === "'") ||
+    (firstChar === '"' && lastChar === '"') ||
+    (firstChar === "`" && lastChar === "`")
+  ) {
+    return token.slice(1, -1);
+  }
+
+  return token;
+}
+
+function looksLikePathToken(token: string): boolean {
+  if (!token || token.includes("://") || token.startsWith("-")) {
+    return false;
+  }
+
+  if (
+    token.startsWith("~/") ||
+    token.startsWith("./") ||
+    token.startsWith("../") ||
+    token.startsWith("/")
+  ) {
+    return true;
+  }
+  if (token.includes("/")) {
+    return true;
+  }
+  if (token.startsWith(".")) {
+    return true;
+  }
+
+  return /\.[A-Za-z][A-Za-z0-9_-]*$/.test(token);
 }
 
 function checkAgentRules(agentMeta: AgentMeta | null, check: PermissionCheck): boolean {
@@ -77,7 +119,7 @@ function checkAgentRules(agentMeta: AgentMeta | null, check: PermissionCheck): b
   return true;
 }
 
-function expandFilePath(rawPath: string, cwd: string): string | null {
+export function expandFilePath(rawPath: string, cwd: string): string | null {
   if (!rawPath) return null;
   if (rawPath === "~") return homedir();
   if (rawPath.startsWith("~/")) {
@@ -86,17 +128,16 @@ function expandFilePath(rawPath: string, cwd: string): string | null {
   return resolve(cwd, rawPath);
 }
 
-function isInsidePath(targetPath: string, rootPath: string): boolean {
-  const relativePath = relative(rootPath, targetPath);
-  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
-}
+export function getRelativePathInRoot(rawPath: string, rootPath: string): string | null {
+  const resolvedPath = expandFilePath(rawPath, rootPath);
+  if (!resolvedPath) return null;
 
-function fileInAllowedPath(rawPath: string, cwd: string): boolean {
-  const resolvedPath = expandFilePath(rawPath, cwd);
-  if (!resolvedPath) return false;
+  const relativePath = relative(rootPath, resolvedPath);
+  if (relativePath !== "" && (relativePath.startsWith("..") || isAbsolute(relativePath))) {
+    return null;
+  }
 
-  const globalPiPath = dirname(getPiPath("settings", "global"));
-  return isInsidePath(resolvedPath, cwd) || isInsidePath(resolvedPath, globalPiPath);
+  return relativePath;
 }
 
 export async function resolvePermission(
@@ -115,12 +156,7 @@ export async function resolvePermission(
   // For bash: also check any path-like args as file reads
   if (category === "bash") {
     for (const path of extractPathsFromCommand(raw)) {
-      const fileCheck: PermissionCheck = {
-        category: "file",
-        raw: path,
-        op: "read",
-        toolName: "bash",
-      };
+      const fileCheck = { category: "file", raw: path, op: "read", toolName: "bash" } as const;
       if (!(await resolvePermission(cwd, sessionId, agent, fileCheck))) return false;
     }
   }
@@ -142,7 +178,8 @@ export async function resolvePermission(
   }
 
   if (category === "file") {
-    return fileInAllowedPath(raw, cwd); // Default: allow within cwd and global .pi path
+    const globalPiPath = dirname(getPiPath("settings", "global"));
+    return Boolean(getRelativePathInRoot(raw, cwd) || getRelativePathInRoot(raw, globalPiPath));
   }
 
   return false;

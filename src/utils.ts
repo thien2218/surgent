@@ -11,6 +11,7 @@ const PI_PATHS = {
   mcp: "mcp.json",
   permissions: "permissions.json",
   states: "states.json",
+  checkpoints: "checkpoints.json",
   system: "SYSTEM.md",
   appendSystem: "APPEND_SYSTEM.md",
 } as const;

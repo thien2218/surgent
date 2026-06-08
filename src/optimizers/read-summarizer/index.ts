@@ -8,10 +8,7 @@ import type { PersistedState, SummaryStore } from "./types.js";
 const CUSTOM_ENTRY_TYPE = "read-summarizer";
 
 export default function readSummarizer(pi: ExtensionAPI) {
-  const store: SummaryStore = {
-    active: new Map(),
-    pending: new Map(),
-  };
+  const store: SummaryStore = { active: new Map(), pending: new Map() };
   let runStartOffset = 0;
 
   pi.on("session_start", async (_event, ctx) => {

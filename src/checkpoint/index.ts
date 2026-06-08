@@ -3,10 +3,6 @@ import { getPiPath, readJson, writeJson } from "../utils.js";
 
 type SessionCheckpointStore = Record<string, Record<string, string>>;
 
-function isCheckpointToolName(toolName: string): boolean {
-  return toolName === "write" || toolName === "edit" || toolName === "bash";
-}
-
 function normalizeCheckpointStore(data: unknown): SessionCheckpointStore {
   if (!data || typeof data !== "object" || Array.isArray(data)) {
     return {};
@@ -79,7 +75,7 @@ async function createCheckpoint(
   return stashRef;
 }
 
-function findCheckpointForTargetEntry(
+function findCheckpoint(
   targetEntryId: string,
   ctx: ExtensionContext,
   checkpoints: Map<string, string>,
@@ -99,25 +95,26 @@ function findCheckpointForTargetEntry(
   return undefined;
 }
 
-async function maybeRestoreCheckpoint(
+async function restoreCheckpoint(
   pi: ExtensionAPI,
   ctx: ExtensionContext,
   checkpoints: Map<string, string>,
   targetEntryId: string,
-): Promise<boolean> {
-  const options = ["Yes, restore code to that point", "No, keep current code"];
-  const checkpointRef = findCheckpointForTargetEntry(targetEntryId, ctx, checkpoints);
-  if (!checkpointRef) {
-    return false;
-  }
-
+): Promise<{ cancel: boolean } | void> {
   if (!ctx.hasUI) {
-    return false;
+    return;
   }
 
+  const checkpointRef = findCheckpoint(targetEntryId, ctx, checkpoints);
+  if (!checkpointRef) {
+    return;
+  }
+
+  const options = ["Yes, restore code to that point", "No, keep current code"];
   const choice = await ctx.ui.select("Restore code state?", options);
+
   if (choice !== options[0]) {
-    return false;
+    return;
   }
 
   const stashApplyResult = await pi.exec("git", ["stash", "apply", checkpointRef], {
@@ -129,21 +126,21 @@ async function maybeRestoreCheckpoint(
       ? `Checkpoint restore failed: ${reason}`
       : "Checkpoint restore failed due to git stash apply error.";
     ctx.ui.notify(message, "error");
-    return true;
+    return { cancel: true };
   }
 
   ctx.ui.notify("Code restored to checkpoint", "info");
-  return false;
+  return;
 }
 
-export default function checkpoint(pi: ExtensionAPI): void {
+export default function (pi: ExtensionAPI): void {
   const checkpoints = new Map<string, string>();
 
   pi.on("session_start", async (_event, ctx) => {
-    const checkpointFilePath = getPiPath("checkpoints", ctx.cwd);
-    const checkpointStore = await readCheckpointStore(checkpointFilePath);
+    const filePath = getPiPath("checkpoints", ctx.cwd);
+    const store = await readCheckpointStore(filePath);
     const sessionId = ctx.sessionManager.getSessionId();
-    const sessionCheckpoints = checkpointStore[sessionId] ?? {};
+    const sessionCheckpoints = store[sessionId] ?? {};
 
     checkpoints.clear();
     for (const [entryId, stashRef] of Object.entries(sessionCheckpoints)) {
@@ -152,7 +149,7 @@ export default function checkpoint(pi: ExtensionAPI): void {
   });
 
   pi.on("tool_result", async (event, ctx) => {
-    if (!isCheckpointToolName(event.toolName)) {
+    if (!["write", "edit", "bash"].includes(event.toolName)) {
       return;
     }
 
@@ -170,37 +167,25 @@ export default function checkpoint(pi: ExtensionAPI): void {
     checkpoints.set(leafEntryId, checkpointRef);
   });
 
-  pi.on("session_before_tree", async (event, ctx) => {
-    const shouldCancel = await maybeRestoreCheckpoint(
-      pi,
-      ctx,
-      checkpoints,
-      event.preparation.targetId,
-    );
-
-    if (shouldCancel) {
-      return { cancel: true };
-    }
+  pi.on("session_before_tree", (event, ctx) => {
+    return restoreCheckpoint(pi, ctx, checkpoints, event.preparation.targetId);
   });
 
-  pi.on("session_before_fork", async (event, ctx) => {
-    const shouldCancel = await maybeRestoreCheckpoint(pi, ctx, checkpoints, event.entryId);
-    if (shouldCancel) {
-      return { cancel: true };
-    }
+  pi.on("session_before_fork", (event, ctx) => {
+    return restoreCheckpoint(pi, ctx, checkpoints, event.entryId);
   });
 
   pi.on("agent_end", async (_event, ctx) => {
-    const checkpointFilePath = getPiPath("checkpoints", ctx.cwd);
-    const checkpointStore = await readCheckpointStore(checkpointFilePath);
+    const filePath = getPiPath("checkpoints", ctx.cwd);
+    const store = await readCheckpointStore(filePath);
     const sessionId = ctx.sessionManager.getSessionId();
 
     if (checkpoints.size === 0) {
-      delete checkpointStore[sessionId];
+      delete store[sessionId];
     } else {
-      checkpointStore[sessionId] = Object.fromEntries(checkpoints);
+      store[sessionId] = Object.fromEntries(checkpoints);
     }
 
-    await writeJson(checkpointFilePath, checkpointStore);
+    await writeJson(filePath, store);
   });
 }

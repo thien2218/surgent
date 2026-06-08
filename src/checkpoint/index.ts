@@ -188,7 +188,7 @@ export default function (pi: ExtensionAPI): void {
   });
 
   pi.on("tool_result", async (event, ctx) => {
-    if (!["write", "edit", "bash"].includes(event.toolName)) {
+    if (event.toolName !== "write" && event.toolName !== "edit") {
       return;
     }
 

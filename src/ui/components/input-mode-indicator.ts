@@ -1,21 +1,8 @@
-import {
-  type ExtensionAPI,
-  type KeybindingsManager,
-  type Theme,
-} from "@earendil-works/pi-coding-agent";
-import {
-  Key,
-  truncateToWidth,
-  visibleWidth,
-  type EditorTheme,
-  type TUI,
-} from "@earendil-works/pi-tui";
+import { type KeybindingsManager, type Theme } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth, visibleWidth, type EditorTheme, type TUI } from "@earendil-works/pi-tui";
 import { BashModeEditor } from "./bash-mode.js";
 
-const INDICATOR_GUTTER_WIDTH = 2;
-const BASH_MODE_HOTKEY = Key.ctrlAlt("b");
-
-class ModeIndicatorEditor extends BashModeEditor {
+export default class ModeIndicatorEditor extends BashModeEditor {
   private actualPaddingX = 0;
 
   constructor(
@@ -72,22 +59,6 @@ class ModeIndicatorEditor extends BashModeEditor {
 
   override setPaddingX(padding: number): void {
     this.actualPaddingX = Math.max(0, Math.floor(padding));
-    super.setPaddingX(this.actualPaddingX + INDICATOR_GUTTER_WIDTH);
+    super.setPaddingX(this.actualPaddingX + 2); // Indicator takes up width of 2
   }
-}
-
-export default function registerInputModeIndicator(pi: ExtensionAPI) {
-  let activeEditor: ModeIndicatorEditor | undefined;
-
-  pi.registerShortcut(BASH_MODE_HOTKEY, {
-    description: "Cycle input mode (prompt / bash (included in context) / normal bash)",
-    handler: () => activeEditor?.cycleMode(),
-  });
-
-  pi.on("session_start", (_event, ctx) => {
-    ctx.ui.setEditorComponent((tui, theme, keybindings) => {
-      activeEditor = new ModeIndicatorEditor(tui, theme, keybindings, ctx.ui.theme);
-      return activeEditor;
-    });
-  });
 }

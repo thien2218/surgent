@@ -148,14 +148,17 @@ async function applyCheckpoint(
   cwd: string,
   checkpointRef: string,
 ): Promise<{ code: number; stdout: string; stderr: string }> {
-  if (checkpointRef.startsWith(HEAD_REF_PREFIX)) {
-    const commitHash = checkpointRef.slice(HEAD_REF_PREFIX.length).trim();
-    return pi.exec("git", ["restore", `--source=${commitHash}`, "--staged", "--worktree", "."], {
-      cwd,
-    });
+  const sourceRef = checkpointRef.startsWith(HEAD_REF_PREFIX)
+    ? checkpointRef.slice(HEAD_REF_PREFIX.length).trim()
+    : checkpointRef;
+
+  if (!sourceRef) {
+    return { code: 1, stdout: "", stderr: "Invalid checkpoint reference." };
   }
 
-  return pi.exec("git", ["stash", "apply", checkpointRef], { cwd });
+  return pi.exec("git", ["restore", `--source=${sourceRef}`, "--staged", "--worktree", "."], {
+    cwd,
+  });
 }
 
 async function restoreCheckpoint(

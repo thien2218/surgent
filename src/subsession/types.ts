@@ -1,28 +1,63 @@
-import type { Api, Model } from "@earendil-works/pi-ai";
-import type { AgentMeta } from "../agents/types.js";
+export type SubsessionResultStatus = "done" | "aborted" | "error";
 
-export interface BackgroundRequest {
+export type InteractiveLabel = "plan" | "review";
+
+interface SubsessionRequestBase {
   parentId: string;
-  agentMeta: AgentMeta;
-  task: string;
-  files: string[];
-  prompt: string;
-  tools: string[];
-  model?: Model<Api>;
+  agent: string;
+  signal?: AbortSignal;
 }
 
-export interface BackgroundSnapshot {
+export interface SubsessionSnapshot {
   id: string;
-  agent: string;
-  status: "running" | "done" | "aborted" | "error";
+  status: "running" | SubsessionResultStatus;
   activity: string;
+  toolsUsed: string[];
+}
+
+export interface SubsessionResult {
+  status: SubsessionResultStatus;
+  output: string;
+  usage?: { input: number; output: number };
   toolCounts: Record<string, number>;
 }
 
-export interface BackgroundResult {
-  status: "done" | "aborted" | "error";
-  content: string;
-  evidenceRefs: string[];
+export interface BackgroundRequest extends SubsessionRequestBase {
+  task: string;
+  files: string[];
 }
 
-export type OnSnapshotCallback = (snapshot: BackgroundSnapshot) => void;
+export interface InteractiveMeta {
+  label: InteractiveLabel;
+  agent: string;
+  title: string;
+}
+
+export interface InteractiveSubsessions {
+  [parentId: string]: {
+    [id: string]: InteractiveMeta;
+  };
+}
+
+export interface RuntimeConfig {
+  systemPrompt: string;
+  tools: string[];
+  files: string[];
+  modelId?: string;
+}
+
+export interface InteractiveRequest extends SubsessionRequestBase {
+  id?: string;
+  label: InteractiveLabel;
+  input: string;
+}
+
+export interface InteractiveSubsession {
+  id: string;
+  parentId: string;
+  label: InteractiveLabel;
+  title: string;
+  result: SubsessionResult;
+  runtime: RuntimeConfig;
+  exec(input: string, signal?: AbortSignal): Promise<void>;
+}

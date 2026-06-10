@@ -1,192 +1,115 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync } from "node:fs";
-import type { Message } from "@earendil-works/pi-ai";
-import type {
-  BackgroundRequest,
-  BackgroundResult,
-  BackgroundSnapshot,
-  OnSnapshotCallback,
-} from "./types.js";
-
-const STRIPPED_TOOLS = new Set(["bash", "subagent", "questionnaire", "permission"]);
-
-function getPiInvocation(args: string[]): { command: string; args: string[] } {
-  const currentScript = process.argv[1];
-  const isBunVirtualScript = currentScript?.startsWith("/$bunfs/root/");
-  if (currentScript && !isBunVirtualScript && existsSync(currentScript)) {
-    return { command: process.execPath, args: [currentScript, ...args] };
-  }
-  const execName = currentScript?.split("/").pop()?.toLowerCase() ?? "";
-  const isGenericRuntime = /^(node|bun)(\.exe)?$/.test(execName);
-  if (!isGenericRuntime) {
-    return { command: process.execPath, args };
-  }
-  return { command: "surgent", args };
-}
-
-function getFinalOutput(messages: Message[]): string {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
-    if (msg?.role === "assistant") {
-      for (const part of msg.content) {
-        if (part.type === "text") return part.text;
-      }
-    }
-  }
-  return "";
-}
+import { createJsonLineParser, getFinalOutput } from "./parser.js";
+import { getPiInvocation, filterSubsessionTools } from "./herlpers.js";
+import type { BackgroundRequest, SubsessionResult, SubsessionSnapshot } from "./types.js";
+import { resolveRuntime } from "./storage.js";
+import { union } from "../utils.js";
 
 export default async function runBackground(
   request: BackgroundRequest,
-  signal?: AbortSignal,
-  onSnapshot?: OnSnapshotCallback,
-): Promise<BackgroundResult> {
+  onSnapshot?: (snapshot: SubsessionSnapshot) => void,
+): Promise<SubsessionResult> {
+  const runtime = await resolveRuntime(request.agent);
   const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
-  const snapshot: BackgroundSnapshot = {
+  const snapshot: SubsessionSnapshot = {
     id,
-    agent: request.agentMeta.name,
     status: "running",
     activity: "thinking",
-    toolCounts: {},
+    toolsUsed: [],
   };
 
   const emitSnapshot = () => {
     onSnapshot?.(snapshot);
   };
 
-  const safeTools = request.tools.filter((tool) => !STRIPPED_TOOLS.has(tool));
+  const safeTools = filterSubsessionTools(runtime.tools);
 
-  const args: string[] = [
-    "--mode",
-    "json",
-    "-p",
-    "--no-session",
-    "--system-prompt",
-    request.prompt,
-  ];
-  if (safeTools.length > 0) args.push("--tools", safeTools.join(","));
-  if (request.model) args.push("--model", request.model.id);
+  const args: string[] = ["--mode", "json", "-p", "--no-session"];
+  if (runtime.systemPrompt) {
+    args.push("--system-prompt", runtime.systemPrompt);
+  }
+  if (safeTools.length > 0) {
+    args.push("--tools", safeTools.join(","));
+  }
+  if (runtime.modelId) {
+    args.push("--model", runtime.modelId);
+  }
   args.push(`Task: ${request.task}`);
 
-  const messages: Message[] = [];
-  const evidenceRefs: string[] = [];
-  const toolCounts: Record<string, number> = {};
-  const toolsUsed = new Set<string>();
-  let tokenInput = 0;
-  let tokenOutput = 0;
-  let modelId = request.model?.id ?? "";
-  let stopReason: string | undefined;
+  const parser = createJsonLineParser({
+    onActivity(activity: string) {
+      snapshot.activity = activity;
+      emitSnapshot();
+    },
+    onToolUse(toolUse: string) {
+      snapshot.toolsUsed.push(toolUse);
+      emitSnapshot();
+    },
+  });
+
   let wasAborted = false;
-  let stderr = "";
+  let stderrOutput = "";
 
   const exitCode = await new Promise<number>((resolve) => {
     const invocation = getPiInvocation(args);
-    const proc = spawn(invocation.command, invocation.args, {
+    const processHandle = spawn(invocation.command, invocation.args, {
       cwd: process.cwd(),
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...process.env,
         SURGENT_SUBSESSION: "true",
-        SURGENT_SUBSESSION_FILES: JSON.stringify(request.files),
+        SURGENT_SUBSESSION_FILES: JSON.stringify(union(request.files, runtime.files)),
       },
     }) as ChildProcess;
 
-    let buffer = "";
-
-    const processLine = (line: string) => {
-      if (!line.trim()) return;
-      let event: Record<string, unknown>;
-      try {
-        event = JSON.parse(line) as Record<string, unknown>;
-      } catch {
-        return;
-      }
-
-      if (event["type"] === "tool_execution_start") {
-        const toolName = event["toolName"] as string | undefined;
-        if (toolName) {
-          snapshot.activity = toolName;
-          emitSnapshot();
-        }
-        return;
-      }
-
-      if (event["type"] === "message_end" && event["message"]) {
-        const msg = event["message"] as Message;
-        messages.push(msg);
-
-        if (msg.role === "assistant") {
-          const usage = msg.usage;
-          if (usage) {
-            tokenInput += usage.input || 0;
-            tokenOutput += usage.output || 0;
-          }
-          if (!modelId && msg.model) modelId = msg.model;
-          if (msg.stopReason) stopReason = msg.stopReason;
-
-          for (const part of msg.content) {
-            if (part.type === "toolCall") {
-              const name = part.name;
-              toolCounts[name] = (toolCounts[name] ?? 0) + 1;
-              toolsUsed.add(name);
-              snapshot.toolCounts = { ...toolCounts };
-
-              const filePath = part.arguments?.["path"] as string | undefined;
-              if (
-                (name === "write" || name === "edit") &&
-                filePath &&
-                !evidenceRefs.includes(filePath)
-              ) {
-                evidenceRefs.push(filePath);
-              }
-            }
-          }
-        }
-
-        snapshot.activity = "thinking";
-        emitSnapshot();
-      }
-    };
-
-    proc.stdout!.on("data", (data: Buffer) => {
-      buffer += data.toString();
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      for (const line of lines) processLine(line);
+    processHandle.stdout?.on("data", (chunk: Buffer) => {
+      parser.push(chunk.toString());
     });
 
-    proc.stderr!.on("data", (data: Buffer) => {
-      stderr += data.toString();
+    processHandle.stderr?.on("data", (chunk: Buffer) => {
+      stderrOutput += chunk.toString();
     });
 
-    proc.on("close", (code: number | null) => {
-      if (buffer.trim()) processLine(buffer);
+    processHandle.on("close", (code: number | null) => {
+      parser.flush();
       resolve(code ?? 0);
     });
 
-    proc.on("error", () => resolve(1));
+    processHandle.on("error", () => {
+      parser.flush();
+      resolve(1);
+    });
 
-    if (signal) {
-      const killProc = () => {
+    if (request.signal) {
+      const terminateProcess = () => {
         wasAborted = true;
-        proc.kill("SIGTERM");
+        processHandle.kill("SIGTERM");
         setTimeout(() => {
-          if (!proc.killed) proc.kill("SIGKILL");
+          if (!processHandle.killed) processHandle.kill("SIGKILL");
         }, 5000);
       };
-      if (signal.aborted) killProc();
-      else signal.addEventListener("abort", killProc, { once: true });
+
+      if (request.signal.aborted) {
+        terminateProcess();
+      } else {
+        request.signal.addEventListener("abort", terminateProcess, { once: true });
+      }
     }
   });
 
-  const isError = exitCode !== 0 || stopReason === "error";
-  const status: BackgroundResult["status"] = wasAborted ? "aborted" : isError ? "error" : "done";
+  const isError = exitCode !== 0 || parser.state.stopReason === "error";
+  const status: SubsessionResult["status"] = wasAborted ? "aborted" : isError ? "error" : "done";
+  const output = getFinalOutput(parser.state.messages) || (isError ? stderrOutput.trim() : "");
 
   snapshot.status = status;
   emitSnapshot();
 
-  const content = getFinalOutput(messages) || (isError ? stderr.trim() : "");
-  return { status, content, evidenceRefs };
+  return {
+    status,
+    output,
+    usage: { input: parser.state.tokenInput, output: parser.state.tokenOutput },
+    toolCounts: parser.state.toolCounts,
+  };
 }

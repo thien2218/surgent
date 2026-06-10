@@ -1,0 +1,233 @@
+import { spawn, type ChildProcess } from "node:child_process";
+import { findSubsession, resolveRuntime, saveSubsession } from "./storage.js";
+import { createJsonLineParser, getFinalOutput } from "./parser.js";
+import { filterSubsessionTools, getPiInvocation } from "./herlpers.js";
+import type {
+  InteractiveRequest,
+  InteractiveSubsession,
+  RuntimeConfig,
+  SubsessionResult,
+  SubsessionSnapshot,
+} from "./types.js";
+
+interface ExecuteTurnRequest {
+  sessionId?: string;
+  input: string;
+  runtime: RuntimeConfig;
+  signal?: AbortSignal;
+  onSnapshot?: (snapshot: SubsessionSnapshot) => void;
+}
+
+interface ExecuteTurnResult {
+  id: string;
+  result: SubsessionResult;
+}
+
+interface CreateSubsessionParams {
+  id: string;
+  parentId: string;
+  label: InteractiveSubsession["label"];
+  title: string;
+  initialResult: SubsessionResult;
+  runtime: RuntimeConfig;
+  onSnapshot?: (snapshot: SubsessionSnapshot) => void;
+}
+
+function createErrorResult(message: string): SubsessionResult {
+  return {
+    status: "error",
+    output: message,
+    toolCounts: {},
+  };
+}
+
+async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResult> {
+  const safeTools = filterSubsessionTools(request.runtime.tools);
+  const args: string[] = ["--mode", "json", "-p"];
+
+  if (request.sessionId) {
+    args.push("--session", request.sessionId);
+  }
+  if (request.runtime.systemPrompt) {
+    args.push("--system-prompt", request.runtime.systemPrompt);
+  }
+  if (safeTools.length > 0) {
+    args.push("--tools", safeTools.join(","));
+  }
+  if (request.runtime.modelId) {
+    args.push("--model", request.runtime.modelId);
+  }
+  args.push(request.input);
+
+  const snapshot: SubsessionSnapshot = {
+    id: request.sessionId ?? "",
+    status: "running",
+    activity: "thinking",
+    toolsUsed: [],
+  };
+
+  const emitSnapshot = () => {
+    request.onSnapshot?.(snapshot);
+  };
+
+  const parser = createJsonLineParser({
+    onSessionId(sessionId: string) {
+      if (!snapshot.id) {
+        snapshot.id = sessionId;
+        emitSnapshot();
+      }
+    },
+    onActivity(activity: string) {
+      snapshot.activity = activity;
+      emitSnapshot();
+    },
+    onToolUse(toolUse: string) {
+      snapshot.toolsUsed.push(toolUse);
+      emitSnapshot();
+    },
+  });
+
+  let wasAborted = false;
+  let stderrOutput = "";
+
+  const exitCode = await new Promise<number>((resolve) => {
+    const invocation = getPiInvocation(args);
+    const childProcess = spawn(invocation.command, invocation.args, {
+      cwd: process.cwd(),
+      shell: false,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: {
+        ...process.env,
+        SURGENT_SUBSESSION: "true",
+        SURGENT_SUBSESSION_FILES: JSON.stringify(request.runtime.files),
+      },
+    }) as ChildProcess;
+
+    childProcess.stdout?.on("data", (chunk: Buffer) => {
+      parser.push(chunk.toString());
+    });
+
+    childProcess.stderr?.on("data", (chunk: Buffer) => {
+      stderrOutput += chunk.toString();
+    });
+
+    childProcess.on("close", (code: number | null) => {
+      parser.flush();
+      resolve(code ?? 0);
+    });
+
+    childProcess.on("error", () => {
+      parser.flush();
+      resolve(1);
+    });
+
+    if (request.signal) {
+      const terminateProcess = () => {
+        wasAborted = true;
+        childProcess.kill("SIGTERM");
+        setTimeout(() => {
+          if (!childProcess.killed) childProcess.kill("SIGKILL");
+        }, 5000);
+      };
+
+      if (request.signal.aborted) {
+        terminateProcess();
+      } else {
+        request.signal.addEventListener("abort", terminateProcess, { once: true });
+      }
+    }
+  });
+
+  const isError = exitCode !== 0 || parser.state.stopReason === "error";
+  const status: SubsessionResult["status"] = wasAborted ? "aborted" : isError ? "error" : "done";
+  const output = getFinalOutput(parser.state.messages) || (isError ? stderrOutput.trim() : "");
+
+  snapshot.status = status;
+  emitSnapshot();
+
+  return {
+    id: parser.state.sessionId || request.sessionId || "",
+    result: {
+      status,
+      output,
+      usage: { input: parser.state.tokenInput, output: parser.state.tokenOutput },
+      toolCounts: parser.state.toolCounts,
+    },
+  };
+}
+
+function createSubsession(params: CreateSubsessionParams): InteractiveSubsession {
+  const subsession: InteractiveSubsession = {
+    id: params.id,
+    parentId: params.parentId,
+    label: params.label,
+    title: params.title,
+    result: params.initialResult,
+    runtime: params.runtime,
+
+    async exec(input: string, signal?: AbortSignal): Promise<void> {
+      const nextTurn = await executeTurn({
+        sessionId: subsession.id,
+        input,
+        runtime: params.runtime,
+        signal,
+        onSnapshot: params.onSnapshot,
+      });
+
+      subsession.result = nextTurn.result;
+    },
+  };
+
+  return subsession;
+}
+
+export async function startInteractive(
+  request: InteractiveRequest,
+  onSnapshot?: (snapshot: SubsessionSnapshot) => void,
+): Promise<InteractiveSubsession> {
+  const runtime = await resolveRuntime(request.agent);
+  const params: CreateSubsessionParams = {
+    id: request.id ?? "",
+    label: request.label,
+    title: "",
+    initialResult: { status: "done", output: "", toolCounts: {} },
+    parentId: request.parentId,
+    runtime,
+    onSnapshot,
+  };
+
+  if (request.id) {
+    const existing = await findSubsession(request.parentId, request.id);
+    if (!existing) {
+      params.title = "Unknown subsession";
+      params.initialResult = createErrorResult(`Subsession not found: ${request.id}`);
+    } else {
+      params.label = existing.label;
+      params.title = existing.title;
+    }
+  } else {
+    params.title = request.input.trim() || "Untitled";
+
+    const initialTurn = await executeTurn({
+      input: request.input,
+      runtime,
+      signal: request.signal,
+      onSnapshot,
+    });
+
+    if (!initialTurn.id) {
+      params.initialResult = createErrorResult("Cannot start interactive subsession");
+    } else {
+      params.id = initialTurn.id;
+      params.initialResult = initialTurn.result;
+
+      await saveSubsession(request.parentId, initialTurn.id, {
+        label: request.label,
+        agent: request.agent,
+        title: params.title,
+      });
+    }
+  }
+
+  return createSubsession(params);
+}

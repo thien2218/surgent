@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { Text } from "@earendil-works/pi-tui";
 
-const PI_PATHS = {
+const CUSTOM_PI_PATHS = {
   web: "web-results",
   agents: "agents",
   settings: "settings.json",
@@ -12,17 +12,18 @@ const PI_PATHS = {
   permissions: "permissions.json",
   states: "states.json",
   checkpoints: "checkpoints.json",
+  subsessions: "subsessions.json",
   system: "SYSTEM.md",
   appendSystem: "APPEND_SYSTEM.md",
 } as const;
 
-type PiPathKey = keyof typeof PI_PATHS;
+type PathKey = keyof typeof CUSTOM_PI_PATHS;
 
-export function getPiPath(key: PiPathKey, scope: "global", ...path: string[]): string;
-export function getPiPath(key: PiPathKey, cwd: string, ...path: string[]): string;
-export function getPiPath(key: PiPathKey): string;
-export function getPiPath(key: PiPathKey, ...full: string[]): string {
-  const path = PI_PATHS[key];
+export function getPiPath(key: PathKey, scope: "global", ...path: string[]): string;
+export function getPiPath(key: PathKey, cwd: string, ...path: string[]): string;
+export function getPiPath(key: PathKey): string;
+export function getPiPath(key: PathKey, ...full: string[]): string {
+  const path = CUSTOM_PI_PATHS[key];
   const remaining = path.includes(".") ? [] : full.slice(1);
   const isGlobal = !full[0] || full[0] === "global";
   const baseDir = isGlobal ? homedir() : full[0]!;
@@ -65,4 +66,8 @@ export function customText(text: string, pad?: { x?: number; y?: number }) {
 
 export function isMissingFileError(error: any) {
   return Boolean(error) && typeof error === "object" && "code" in error && error.code === "ENOENT";
+}
+
+export function union<T extends string | number>(first: T[], second: T[]) {
+  return [...new Set([...first, ...second])];
 }

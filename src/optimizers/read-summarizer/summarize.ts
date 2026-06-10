@@ -42,7 +42,7 @@ export function extractReadSummary(event: ReadToolResultEvent): string | null {
 
   const lineCount = contentWithoutNotice.split("\n").length;
   const endLine = startLine + lineCount - 1;
-  return `${path} ${startLine}-${endLine}`;
+  return `Read ${path} L${startLine}-L${endLine}`;
 }
 
 export function extractGrepSummary(event: GrepToolResultEvent): string | null {
@@ -73,6 +73,6 @@ export function extractGrepSummary(event: GrepToolResultEvent): string | null {
   if (!matched) return null;
 
   return Array.from(fileLines.entries())
-    .map(([filePath, lines]) => `${filePath} - ${Array.from(lines).sort((left, right) => left - right).join(",")}`)
+    .map(([filePath, lines]) => `${filePath} - Matched lines: ${Array.from(lines).join(",")}`)
     .join("\n");
 }

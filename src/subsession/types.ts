@@ -1,7 +1,7 @@
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { AgentMeta } from "../agents/types.js";
 
-export interface SubsessionRequest {
+export interface BackgroundRequest {
   parentId: string;
   agentMeta: AgentMeta;
   task: string;
@@ -11,30 +11,18 @@ export interface SubsessionRequest {
   model?: Model<Api>;
 }
 
-export interface SubsessionSnapshot {
+export interface BackgroundSnapshot {
   id: string;
   agent: string;
   status: "running" | "done" | "aborted" | "error";
-  elapsedMs: number;
   activity: string;
   toolCounts: Record<string, number>;
 }
 
-export interface SubsessionResult {
+export interface BackgroundResult {
   status: "done" | "aborted" | "error";
   content: string;
   evidenceRefs: string[];
-  meta: SubsessionMeta;
 }
 
-export interface SubsessionMeta {
-  id: string;
-  parentSessionId: string;
-  agent: string;
-  modelId: string;
-  tokenUsage: { input: number; output: number };
-  toolsUsed: string[];
-  durationMs: number;
-}
-
-export type OnSnapshotCallback = (snapshot: SubsessionSnapshot) => void;
+export type OnSnapshotCallback = (snapshot: BackgroundSnapshot) => void;

@@ -105,11 +105,11 @@ async function ensureBaseCheckpoint(
 }
 
 function findCheckpoint(
-  targetEntryId: string,
+  entryId: string | null,
   ctx: ExtensionContext,
   checkpoints: Map<string, string>,
 ): string {
-  let currentEntryId: string | null = targetEntryId;
+  let currentEntryId = entryId;
 
   while (currentEntryId) {
     const checkpointRef = checkpoints.get(currentEntryId);
@@ -122,6 +122,25 @@ function findCheckpoint(
   }
 
   return checkpoints.get(BASE_CHECKPOINT_KEY)!;
+}
+
+function shouldOfferRestore(
+  targetEntryId: string,
+  currentEntryId: string | null,
+  ctx: ExtensionContext,
+  checkpoints: Map<string, string>,
+): { shouldRestore: boolean; checkpointRef?: string } {
+  const targetCheckpointRef = findCheckpoint(targetEntryId, ctx, checkpoints);
+  if (!targetCheckpointRef) {
+    return { shouldRestore: false };
+  }
+
+  const currentCheckpointRef = findCheckpoint(currentEntryId, ctx, checkpoints);
+  if (currentCheckpointRef === targetCheckpointRef) {
+    return { shouldRestore: false };
+  }
+
+  return { shouldRestore: true, checkpointRef: targetCheckpointRef };
 }
 
 async function applyCheckpoint(
@@ -144,12 +163,17 @@ async function restoreCheckpoint(
   ctx: ExtensionContext,
   checkpoints: Map<string, string>,
   targetEntryId: string,
+  currentEntryId: string | null,
 ): Promise<{ cancel: boolean } | void> {
   if (!ctx.hasUI) {
     return;
   }
 
-  const checkpointRef = findCheckpoint(targetEntryId, ctx, checkpoints);
+  const decision = shouldOfferRestore(targetEntryId, currentEntryId, ctx, checkpoints);
+  if (!decision.shouldRestore || !decision.checkpointRef) {
+    return;
+  }
+
   const options = ["Yes, restore code to that point", "No, keep current code"];
   const choice = await ctx.ui.select("Restore code state?", options);
 
@@ -157,7 +181,7 @@ async function restoreCheckpoint(
     return;
   }
 
-  const restoreResult = await applyCheckpoint(pi, ctx.cwd, checkpointRef);
+  const restoreResult = await applyCheckpoint(pi, ctx.cwd, decision.checkpointRef);
   if (restoreResult.code !== 0) {
     const reason = restoreResult.stderr.trim() || restoreResult.stdout.trim();
     const message = reason
@@ -207,11 +231,12 @@ export default function (pi: ExtensionAPI): void {
   });
 
   pi.on("session_before_tree", (event, ctx) => {
-    return restoreCheckpoint(pi, ctx, checkpoints, event.preparation.targetId);
+    const { targetId, oldLeafId } = event.preparation;
+    return restoreCheckpoint(pi, ctx, checkpoints, targetId, oldLeafId);
   });
 
   pi.on("session_before_fork", (event, ctx) => {
-    return restoreCheckpoint(pi, ctx, checkpoints, event.entryId);
+    return restoreCheckpoint(pi, ctx, checkpoints, event.entryId, ctx.sessionManager.getLeafId());
   });
 
   pi.on("agent_end", async (_event, ctx) => {

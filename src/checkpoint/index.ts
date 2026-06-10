@@ -1,10 +1,10 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { applyCheckpoint, createCheckpoint, createHeadCheckpointRef } from "./git.js";
 import { getPiPath, readJson, writeJson } from "../utils.js";
 
 type SessionCheckpointStore = Record<string, Record<string, string>>;
 
 const BASE_CHECKPOINT_KEY = "__base__";
-const HEAD_REF_PREFIX = "head:";
 
 async function readCheckpointStore(filePath: string): Promise<SessionCheckpointStore> {
   const data = await readJson<unknown>(filePath, {});
@@ -36,50 +36,6 @@ async function readCheckpointStore(filePath: string): Promise<SessionCheckpointS
   }
 
   return normalized;
-}
-
-async function createCheckpoint(
-  pi: ExtensionAPI,
-  cwd: string,
-  sessionId: string,
-  leafEntryId: string,
-): Promise<string | undefined> {
-  const createResult = await pi.exec("git", ["stash", "create"], { cwd });
-  if (createResult.code !== 0) {
-    return undefined;
-  }
-
-  const stashRef = createResult.stdout.trim();
-  if (!stashRef) {
-    return undefined;
-  }
-
-  const checkpointLabel = `pi-checkpoint:${sessionId}:${leafEntryId}`;
-  const stashStoreResult = await pi.exec(
-    "git",
-    ["stash", "store", "-m", checkpointLabel, stashRef],
-    { cwd },
-  );
-
-  if (stashStoreResult.code !== 0) {
-    return undefined;
-  }
-
-  return stashRef;
-}
-
-async function createHeadCheckpointRef(pi: ExtensionAPI, cwd: string): Promise<string | undefined> {
-  const revParseResult = await pi.exec("git", ["rev-parse", "HEAD"], { cwd });
-  if (revParseResult.code !== 0) {
-    return undefined;
-  }
-
-  const commitHash = revParseResult.stdout.trim();
-  if (!commitHash) {
-    return undefined;
-  }
-
-  return `${HEAD_REF_PREFIX}${commitHash}`;
 }
 
 async function ensureBaseCheckpoint(
@@ -141,24 +97,6 @@ function shouldOfferRestore(
   }
 
   return { shouldRestore: true, checkpointRef: targetCheckpointRef };
-}
-
-async function applyCheckpoint(
-  pi: ExtensionAPI,
-  cwd: string,
-  checkpointRef: string,
-): Promise<{ code: number; stdout: string; stderr: string }> {
-  const sourceRef = checkpointRef.startsWith(HEAD_REF_PREFIX)
-    ? checkpointRef.slice(HEAD_REF_PREFIX.length).trim()
-    : checkpointRef;
-
-  if (!sourceRef) {
-    return { code: 1, stdout: "", stderr: "Invalid checkpoint reference." };
-  }
-
-  return pi.exec("git", ["restore", `--source=${sourceRef}`, "--staged", "--worktree", "."], {
-    cwd,
-  });
 }
 
 async function restoreCheckpoint(

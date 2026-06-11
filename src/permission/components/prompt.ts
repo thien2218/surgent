@@ -10,7 +10,7 @@ import type { PromptDecision, PermissionCheck, Scope, Category, FileAccess } fro
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Frame } from "../../ui/components/frame.js";
 import { SCOPES } from "../constants.js";
-import { Lines } from "../../ui/lines.js";
+import { Lines } from "../../ui/components/lines.js";
 
 type PromptOptions = {
   label: string;

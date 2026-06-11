@@ -1,6 +1,6 @@
 import { DynamicBorder, type Theme } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
-import { Lines } from "../lines.js";
+import { Lines } from "./lines.js";
 
 export class Frame implements Component {
   private readonly border: DynamicBorder;
@@ -32,7 +32,7 @@ export class Frame implements Component {
     lines.space();
 
     if (!this.custom.length) {
-      for (const child of this.children(width)) {
+      for (const child of this.children(width - 1)) {
         lines.add(child, 1);
       }
     } else {

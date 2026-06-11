@@ -1,6 +1,12 @@
 import { CustomEditor, type KeybindingsManager } from "@earendil-works/pi-coding-agent";
 import { getKeybindings, matchesKey, type EditorTheme, type TUI } from "@earendil-works/pi-tui";
-import type { EditorMode, ParsedText } from "../types.js";
+
+export type EditorMode = "prompt" | "bash-included" | "bash-excluded";
+
+export type ParsedText = {
+  mode: EditorMode;
+  displayText: string;
+};
 
 export class BashModeEditor extends CustomEditor {
   protected mode: EditorMode = "prompt";

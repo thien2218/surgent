@@ -7,7 +7,7 @@ import {
   type Focusable,
   type TUI,
 } from "@earendil-works/pi-tui";
-import { Lines } from "../ui/lines.js";
+import { Lines } from "../ui/components/lines.js";
 import {
   createInitialDraft,
   ensureSingleSelection,

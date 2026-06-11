@@ -55,7 +55,6 @@ export class ScrollableView extends Frame implements Focusable {
     const hints: [string, string][] = [
       ["↑↓", "scroll"],
       ["PgUp/PgDn", "page"],
-      ["Home/End", "bounds"],
     ];
 
     if (this.inputComponent) {
@@ -101,14 +100,6 @@ export class ScrollableView extends Frame implements Focusable {
     if (matchesKey(data, Key.pageDown)) {
       this.scrollBy(Math.max(1, this.lastViewportHeight - 1));
       return;
-    }
-    if (matchesKey(data, Key.home)) {
-      this.contentScrollOffset = 0;
-      return;
-    }
-    if (matchesKey(data, Key.end)) {
-      this.contentScrollOffset = Number.MAX_SAFE_INTEGER;
-      this.clampScrollOffset();
     }
   }
 

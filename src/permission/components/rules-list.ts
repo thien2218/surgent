@@ -2,7 +2,7 @@ import { Key, matchesKey, type Focusable } from "@earendil-works/pi-tui";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Category, FileAccess, GroupedDisplayRules, PermissionRule } from "../types.js";
 import { Frame } from "../../ui/components/frame.js";
-import { Lines } from "../../ui/lines.js";
+import { Lines } from "../../ui/components/lines.js";
 import { CATEGORIES } from "../constants.js";
 import EditableOption from "./editable-option.js";
 

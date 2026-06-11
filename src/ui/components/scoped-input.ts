@@ -1,6 +1,6 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { type Focusable, Input, Key, matchesKey, visibleWidth } from "@earendil-works/pi-tui";
-import { Lines } from "../lines.js";
+import { Lines } from "./lines.js";
 import { Frame } from "./frame.js";
 
 export type ScopeItem = { label: string; value: string };

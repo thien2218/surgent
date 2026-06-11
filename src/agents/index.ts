@@ -6,36 +6,9 @@ import { loadMainAgent } from "./load.js";
 import { loadAgents, initStates, writeStates } from "./storage.js";
 import { loadResolvedConfigSet } from "../mcp-client/storage.js";
 import type { SessionState } from "./types.js";
-import { IS_SUBSESSION } from "../subsession/index.js";
+import { IS_SUBSESSION, ALLOWED_FILES } from "../subsession/index.js";
 
 const SWITCH_MODE_KEY = Key.ctrlAlt("y");
-
-function registerPathGuard(pi: ExtensionAPI): void {
-  const rawFiles = process.env["SURGENT_SUBSESSION_FILES"];
-  if (!rawFiles) return;
-
-  let allowedFiles: string[];
-  try {
-    allowedFiles = JSON.parse(rawFiles) as string[];
-  } catch {
-    return;
-  }
-
-  const matchers = allowedFiles.map((pattern) => pm(pattern, { dot: true }));
-  const PATH_TOOLS = new Set(["read", "write", "edit", "grep", "find", "ls"]);
-
-  pi.on("tool_call", (event) => {
-    const ev = event as { toolName: string; input: { path?: string } };
-    if (!PATH_TOOLS.has(ev.toolName)) return;
-    const target = ev.input.path;
-    if (!target) {
-      // grep/find/ls without explicit path would search cwd implicitly — block it
-      return { block: true, reason: "Explicit path required in subsession" };
-    }
-    const allowed = matchers.some((match) => match(target));
-    if (!allowed) return { block: true, reason: `Path outside allowed scope: ${target}` };
-  });
-}
 
 export default function (pi: ExtensionAPI) {
   let states: SessionState = { yolo: false, agent: "default" };
@@ -63,12 +36,32 @@ export default function (pi: ExtensionAPI) {
     handler: (_args, ctx) => agentsCommandHandler(ctx),
   });
 
-  pi.on("session_start", async (_event, ctx) => {
-    if (IS_SUBSESSION) {
-      registerPathGuard(pi);
+  pi.on("tool_call", (event) => {
+    if (!IS_SUBSESSION || !ALLOWED_FILES) return;
+
+    let allowedFiles: string[];
+    try {
+      allowedFiles = JSON.parse(ALLOWED_FILES) as string[];
+    } catch {
       return;
     }
 
+    const matchers = allowedFiles.map((pattern) => pm(pattern, { dot: true }));
+    const pathTools = new Set(["read", "write", "edit", "grep", "find", "ls"]);
+    const ev = event as { toolName: string; input: { path?: string } };
+    if (!pathTools.has(ev.toolName)) return;
+
+    const target = ev.input.path;
+    if (!target) {
+      // grep/find/ls without explicit path would search cwd implicitly — block it
+      return { block: true, reason: "Explicit path required in subsession" };
+    }
+
+    const allowed = matchers.some((match) => match(target));
+    if (!allowed) return { block: true, reason: `Path outside allowed scope: ${target}` };
+  });
+
+  pi.on("session_start", async (_event, ctx) => {
     sessionId = ctx.sessionManager.getSessionId();
     states = await initStates(ctx.cwd, sessionId);
 
@@ -106,10 +99,10 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerShortcut(SWITCH_MODE_KEY, {
     description: "Toggle YOLO mode (bypass all access control)",
-    handler: async (ctx) => {
+    handler: (ctx) => {
       if (!sessionId) return;
       states = { ...states, yolo: !states.yolo };
-      await writeStates(ctx.cwd, sessionId, states);
+      writeStates(ctx.cwd, sessionId, states);
       updateStatus?.();
 
       ctx.ui.notify(

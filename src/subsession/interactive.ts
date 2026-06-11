@@ -181,7 +181,7 @@ function createSubsession(params: CreateSubsessionParams): InteractiveSubsession
   return subsession;
 }
 
-export async function startInteractive(
+export default async function runInteractive(
   request: InteractiveRequest,
   onSnapshot?: (snapshot: SubsessionSnapshot) => void,
 ): Promise<InteractiveSubsession> {

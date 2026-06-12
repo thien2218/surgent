@@ -40,8 +40,7 @@ async function readAgentsFromDir(dir: string, skipDefault: boolean): Promise<Age
     try {
       const content = await readFile(filePath, "utf8");
       const parsed = parseFrontmatter(content, filePath);
-      if (!parsed) continue;
-      if (skipDefault && parsed.meta.name === "default") continue;
+      if (!parsed || (skipDefault && parsed.meta.name === "default")) continue;
       agents.push(parsed);
     } catch {} // skip unreadable files
   }

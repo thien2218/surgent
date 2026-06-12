@@ -4,6 +4,7 @@ import type {
   ToolCallEvent,
   BashToolCallEvent,
   ReadToolCallEvent,
+  SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { cleanup } from "./cleanup.js";
@@ -13,6 +14,7 @@ import { getPiIgnoreInputs, resolvePiIgnorePathBlock } from "./piignore.js";
 import { addRule, checkExprStored, readAgentMode, writeAgentMode } from "./storage.js";
 import type { AgentMode, PermissionCheck, PromptDecision, PermissiveToolName } from "./types.js";
 import { readSessionAgent } from "../agent/storage.js";
+import { MODE_ENTRY } from "../commands/index.js";
 import PermissionPrompt from "./components/prompt.js";
 import { SUSPICIOUS_BASH_PATTERNS, PERMISSIVE_TOOLS } from "./constants.js";
 import { toPermExpr } from "./expression.js";
@@ -31,43 +33,61 @@ function getPermissionCheck(event: ToolCallEvent): PermissionCheck | null {
     case "write":
     case "edit":
       raw = (event as ReadToolCallEvent).input.path;
+      break;
     case "bash":
       raw = (event as BashToolCallEvent).input.command;
+      break;
     case "web_fetch":
       raw = (event.input as Record<"url", string>).url;
+      break;
   }
 
   if (toolName === "bash") {
     for (const { pattern, reason } of SUSPICIOUS_BASH_PATTERNS) {
-      if (pattern.test(raw as string)) {
-        danger = reason;
-      }
+      if (pattern.test(raw)) danger = reason;
     }
   }
 
   return { toolName, ...PERMISSIVE_TOOLS[toolName], danger, raw };
 }
 
+function findRecentModeOverride(entries: SessionEntry[]): AgentMode | null {
+  const startIndex = Math.max(0, entries.length - 5);
+
+  for (let entryIndex = entries.length - 1; entryIndex >= startIndex; entryIndex -= 1) {
+    const entry = entries[entryIndex];
+    if (!entry || entry.type !== "custom" || entry.customType !== MODE_ENTRY) {
+      continue;
+    }
+    return (entry.data as { mode: AgentMode }).mode;
+  }
+
+  return null;
+}
+
 export default function (pi: ExtensionAPI) {
   let sessionId: string | null = null;
   let agentMode: AgentMode = "assistant";
+  let turnMode: AgentMode | null = null;
   let agentModeLoaded = false;
   let updateStatus: (() => void) | undefined;
 
   const updateAgentMode = (ctx: ExtensionContext) => {
+    const effectiveMode = turnMode ?? agentMode;
     const modeText =
-      agentMode === "yolo"
+      effectiveMode === "yolo"
         ? ctx.ui.theme.fg("warning", "YOLO mode ⚠️")
         : ctx.ui.theme.fg("dim", "assistant mode");
     const width = (process.stdout.columns ?? 80) - visibleWidth(modeText) + 1;
     // statuses are sorted alphabetically and joined with " "; use ANSI cursor absolute (CHA)
     // to jump to the right edge — spaces would be collapsed by sanitizeStatusText
-    ctx.ui.setStatus("yolo-mode", `\x1b[${width}G` + modeText);
+    ctx.ui.setStatus("mode", `\x1b[${width}G` + modeText);
   };
 
   pi.on("session_start", async (_event, ctx) => {
     if (IS_SUBSESSION) return;
     sessionId = ctx.sessionManager.getSessionId();
+    turnMode = null;
     cleanup(ctx.cwd);
 
     if (!agentModeLoaded) {
@@ -81,6 +101,18 @@ export default function (pi: ExtensionAPI) {
     updateStatus = () => updateAgentMode(ctx);
     updateStatus();
     process.stdout.on("resize", updateStatus);
+  });
+
+  pi.on("before_agent_start", async (_event, ctx) => {
+    if (IS_SUBSESSION) return;
+    turnMode = findRecentModeOverride(ctx.sessionManager.getEntries()) ?? null;
+    updateStatus?.();
+  });
+
+  pi.on("agent_end", async (_event, _ctx) => {
+    if (IS_SUBSESSION) return;
+    turnMode = null;
+    updateStatus?.();
   });
 
   pi.on("session_shutdown", async (_event, _ctx) => {
@@ -119,9 +151,8 @@ export default function (pi: ExtensionAPI) {
     }
 
     const check = getPermissionCheck(event);
-    if (!check) return;
-    if (agentMode === "yolo") return;
-    if (!sessionId) return;
+    const effectiveMode = turnMode ?? agentMode;
+    if (!check || effectiveMode === "yolo" || !sessionId) return;
 
     const agent = await readSessionAgent(ctx.cwd, sessionId);
     const expr = toPermExpr(check.toolName, check.raw);

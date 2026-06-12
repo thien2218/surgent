@@ -1,4 +1,4 @@
-import { writeAgentPrompt, readStates } from "./storage.js";
+import { writeAgentPrompt } from "./storage.js";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { Agent } from "./types.js";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -25,12 +25,12 @@ async function writeSystemPrompt(
 export async function loadMainAgent(
   ctx: ExtensionContext,
   agents: Agent[],
+  sessionAgent: string,
   available: AvailableSettings,
 ) {
-  const { agent: name } = await readStates(ctx.cwd, ctx.sessionManager.getSessionId());
   const config: { model?: Model<Api>; tools?: string[] } = {};
   const agent =
-    agents.find((candidate) => candidate.meta.name === name) ??
+    agents.find((candidate) => candidate.meta.name === sessionAgent) ??
     agents.find((candidate) => candidate.meta.name === "default") ??
     null;
 

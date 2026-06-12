@@ -9,7 +9,7 @@ import {
   deleteAgentFiles,
   isBuiltIn,
   loadAgents,
-  setNextAgent,
+  writeSessionAgent,
 } from "./storage.js";
 import { Frame } from "../ui/components/frame.js";
 import { ScopedInput } from "../ui/components/scoped-input.js";
@@ -97,8 +97,11 @@ async function handleExistingAgent(ctx: ExtensionCommandContext, agent: Agent): 
     if (!action) return;
 
     if (action === "Start in new session") {
-      await setNextAgent(ctx.cwd, ctx.sessionManager.getSessionId(), agent.meta.name);
-      await ctx.newSession();
+      await ctx.newSession({
+        setup: async (nextSessionManager) => {
+          await writeSessionAgent(ctx.cwd, nextSessionManager.getSessionId(), agent.meta.name);
+        },
+      });
       return;
     }
 

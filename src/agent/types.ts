@@ -3,7 +3,6 @@ export interface AgentMeta {
   description: string;
   tools?: string[];
   mcp_servers?: string[];
-  subagents?: string[];
   skills?: string[];
   bash?: string[];
   files?: string[];
@@ -15,4 +14,3 @@ export interface Agent {
   body: string;
   filePath: string;
 }
-

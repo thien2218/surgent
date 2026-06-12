@@ -11,14 +11,7 @@ const KEY_VALUE_PAIR = /^(\w+):\s*(.*)$/;
 const INLINE_ARRAY = /^\[(.+)\]$/;
 const QUOTED_STRING = /^["']|["']$/g;
 
-const ARRAY_KEYS = new Set<keyof AgentMeta>([
-  "tools",
-  "mcp_servers",
-  "subagents",
-  "skills",
-  "bash",
-  "files",
-]);
+const ARRAY_KEYS = new Set<keyof AgentMeta>(["tools", "mcp_servers", "skills", "bash", "files"]);
 const STRING_KEYS = new Set<keyof AgentMeta>(["name", "description", "model"]);
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
 const DEFAULT_AGENT = "default";

@@ -1,4 +1,4 @@
-import { loadAgents } from "../agents/storage.js";
+import { loadAgents } from "../agent/storage.js";
 import { getPiPath, readJson, writeJson } from "../utils.js";
 import type { InteractiveSubsessions, InteractiveMeta, RuntimeConfig } from "./types.js";
 
@@ -23,7 +23,10 @@ async function persistStore(cwd: string): Promise<void> {
   await writeJson(filePath, interactiveSubsessions);
 }
 
-export async function findSubsession(parentId: string, id: string): Promise<InteractiveMeta | null> {
+export async function findSubsession(
+  parentId: string,
+  id: string,
+): Promise<InteractiveMeta | null> {
   await loadStore(process.cwd());
 
   const parentSubsessions = interactiveSubsessions[parentId];

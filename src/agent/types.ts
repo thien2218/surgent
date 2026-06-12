@@ -16,7 +16,3 @@ export interface Agent {
   filePath: string;
 }
 
-export interface SessionState {
-  yolo: boolean;
-  agent: string;
-}

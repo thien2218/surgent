@@ -1,96 +1,108 @@
-import {
-  isToolCallEventType,
-  type ExtensionAPI,
-  type ToolCallEvent,
-  type BashToolCallEvent,
-  type ReadToolCallEvent,
-  type GrepToolCallEvent,
-  type FindToolCallEvent,
-  type LsToolCallEvent,
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+  ToolCallEvent,
+  BashToolCallEvent,
+  ReadToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
+import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { cleanup } from "./cleanup.js";
 import { handlePermissionsCommand } from "./command.js";
-import { extractPathsFromCommand, resolvePermission } from "./resolution.js";
-import { resolvePiIgnorePathBlock } from "./piignore.js";
-import { addRule, checkExprStored } from "./storage.js";
-import type { PermissionCheck, PromptDecision, PermissiveToolName } from "./types.js";
-import { readStates } from "../agents/storage.js";
+import { resolvePermission } from "./resolution.js";
+import { getPiIgnoreInputs, resolvePiIgnorePathBlock } from "./piignore.js";
+import { addRule, checkExprStored, readAgentMode, writeAgentMode } from "./storage.js";
+import type { AgentMode, PermissionCheck, PromptDecision, PermissiveToolName } from "./types.js";
+import { readSessionAgent } from "../agent/storage.js";
 import PermissionPrompt from "./components/prompt.js";
 import { SUSPICIOUS_BASH_PATTERNS, PERMISSIVE_TOOLS } from "./constants.js";
 import { toPermExpr } from "./expression.js";
 import { IS_SUBSESSION } from "../subsession/index.js";
 
-function getRawInput(toolName: PermissiveToolName, event: ToolCallEvent) {
+const SWITCH_MODE_KEY = Key.ctrlAlt("y");
+
+function getPermissionCheck(event: ToolCallEvent): PermissionCheck | null {
+  if (!(event.toolName in PERMISSIVE_TOOLS)) return null;
+  const toolName = event.toolName as PermissiveToolName;
+  let danger: string | undefined;
+  let raw: string;
+
   switch (toolName) {
     case "read":
     case "write":
     case "edit":
-      return (event as ReadToolCallEvent).input.path;
+      raw = (event as ReadToolCallEvent).input.path;
     case "bash":
-      return (event as BashToolCallEvent).input.command;
+      raw = (event as BashToolCallEvent).input.command;
     case "web_fetch":
-      return (event.input as Record<"url", string>).url;
+      raw = (event.input as Record<"url", string>).url;
   }
-}
 
-function getPiIgnoreInputs(event: ToolCallEvent): string[] {
-  switch (event.toolName) {
-    case "read":
-    case "write":
-    case "edit":
-      return [(event as ReadToolCallEvent).input.path];
-    case "grep": {
-      const grepEvent = event as GrepToolCallEvent;
-      const inputs: string[] = [];
-      if (grepEvent.input.path) inputs.push(grepEvent.input.path);
-      if (grepEvent.input.glob) inputs.push(grepEvent.input.glob);
-      return inputs;
-    }
-    case "find": {
-      const findEvent = event as FindToolCallEvent;
-      const inputs = [findEvent.input.pattern];
-      if (findEvent.input.path) inputs.push(findEvent.input.path);
-      return inputs;
-    }
-    case "ls": {
-      const lsEvent = event as LsToolCallEvent;
-      return lsEvent.input.path ? [lsEvent.input.path] : [];
-    }
-    case "bash":
-      return extractPathsFromCommand((event as BashToolCallEvent).input.command);
-    default:
-      return [];
-  }
-}
-
-function getPermissionCheck(event: ToolCallEvent): PermissionCheck | null {
-  for (const [name, data] of Object.entries(PERMISSIVE_TOOLS)) {
-    const toolName = name as PermissiveToolName;
-    if (isToolCallEventType(toolName, event)) {
-      let danger: string | undefined;
-      const raw = getRawInput(toolName, event);
-
-      if (toolName === "bash") {
-        for (const { pattern, reason } of SUSPICIOUS_BASH_PATTERNS) {
-          if (pattern.test(raw as string)) {
-            danger = reason;
-          }
-        }
+  if (toolName === "bash") {
+    for (const { pattern, reason } of SUSPICIOUS_BASH_PATTERNS) {
+      if (pattern.test(raw as string)) {
+        danger = reason;
       }
-
-      return { toolName, ...data, danger, raw };
     }
   }
-  return null;
+
+  return { toolName, ...PERMISSIVE_TOOLS[toolName], danger, raw };
 }
 
 export default function (pi: ExtensionAPI) {
   let sessionId: string | null = null;
+  let agentMode: AgentMode = "assistant";
+  let agentModeLoaded = false;
+  let updateStatus: (() => void) | undefined;
+
+  const updateAgentMode = (ctx: ExtensionContext) => {
+    const modeText =
+      agentMode === "yolo"
+        ? ctx.ui.theme.fg("warning", "YOLO mode ⚠️")
+        : ctx.ui.theme.fg("dim", "assistant mode");
+    const width = (process.stdout.columns ?? 80) - visibleWidth(modeText) + 1;
+    // statuses are sorted alphabetically and joined with " "; use ANSI cursor absolute (CHA)
+    // to jump to the right edge — spaces would be collapsed by sanitizeStatusText
+    ctx.ui.setStatus("yolo-mode", `\x1b[${width}G` + modeText);
+  };
 
   pi.on("session_start", async (_event, ctx) => {
     if (IS_SUBSESSION) return;
     sessionId = ctx.sessionManager.getSessionId();
     cleanup(ctx.cwd);
+
+    if (!agentModeLoaded) {
+      agentMode = await readAgentMode(ctx.cwd);
+      agentModeLoaded = true;
+    }
+    if (updateStatus) {
+      process.stdout.off("resize", updateStatus);
+    }
+
+    updateStatus = () => updateAgentMode(ctx);
+    updateStatus();
+    process.stdout.on("resize", updateStatus);
+  });
+
+  pi.on("session_shutdown", async (_event, _ctx) => {
+    if (updateStatus) {
+      process.stdout.off("resize", updateStatus);
+    }
+  });
+
+  pi.registerShortcut(SWITCH_MODE_KEY, {
+    description: "Toggle YOLO mode (bypass all access control)",
+    handler: async (ctx) => {
+      agentMode = agentMode === "yolo" ? "assistant" : "yolo";
+      await writeAgentMode(ctx.cwd, agentMode);
+      updateStatus?.();
+
+      ctx.ui.notify(
+        agentMode === "yolo"
+          ? "YOLO mode ON - agents can now run commands and tools without asking for permission"
+          : "YOLO mode OFF",
+        "info",
+      );
+    },
   });
 
   pi.registerCommand("permissions", {
@@ -108,11 +120,10 @@ export default function (pi: ExtensionAPI) {
 
     const check = getPermissionCheck(event);
     if (!check) return;
-
+    if (agentMode === "yolo") return;
     if (!sessionId) return;
-    const { yolo, agent } = await readStates(ctx.cwd, sessionId);
-    if (yolo) return;
 
+    const agent = await readSessionAgent(ctx.cwd, sessionId);
     const expr = toPermExpr(check.toolName, check.raw);
     const allowed = await resolvePermission(ctx.cwd, sessionId, agent, check);
     if (allowed && !check.danger) return;

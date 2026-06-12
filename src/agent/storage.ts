@@ -3,7 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { readJson, writeJson } from "../utils.js";
 import { fileURLToPath } from "node:url";
 import { getPiPath } from "../utils.js";
-import type { AgentMeta, Agent, SessionState } from "./types.js";
+import type { AgentMeta, Agent } from "./types.js";
 
 const FRONTMATTER_BLOCK = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 const LINE_ENDING = /\r?\n/;
@@ -21,9 +21,7 @@ const ARRAY_KEYS = new Set<keyof AgentMeta>([
 ]);
 const STRING_KEYS = new Set<keyof AgentMeta>(["name", "description", "model"]);
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
-const SESSION_DEFAULTS: SessionState = { yolo: false, agent: "default" };
-
-type StatesFile = Record<string, SessionState>;
+const DEFAULT_AGENT = "default";
 
 async function readAgentsFromDir(dir: string, skipDefault: boolean): Promise<Agent[]> {
   let files: string[];
@@ -151,34 +149,20 @@ function parseFrontmatter(content: string, filePath: string): Agent | null {
   return { meta: meta as AgentMeta, body, filePath };
 }
 
-export async function readStates(cwd: string, sessionId: string): Promise<SessionState> {
-  const file = await readJson<StatesFile>(getPiPath("states", cwd), {});
-  return file[sessionId] ?? SESSION_DEFAULTS;
+export async function readSessionAgent(cwd: string, sessionId: string): Promise<string> {
+  const file = await readJson<Record<string, unknown>>(getPiPath("sessionAgents", cwd), {});
+  const sessionAgent = file[sessionId];
+  return typeof sessionAgent === "string" ? sessionAgent : DEFAULT_AGENT;
 }
 
-export async function writeStates(
+export async function writeSessionAgent(
   cwd: string,
   sessionId: string,
-  data: SessionState,
+  agent: string,
 ): Promise<void> {
-  const file = await readJson<StatesFile>(getPiPath("states", cwd), {});
-  await writeJson(getPiPath("states", cwd), { ...file, [sessionId]: data });
-}
-
-export async function initStates(cwd: string, sessionId: string): Promise<SessionState> {
-  const file = await readJson<StatesFile>(getPiPath("states", cwd), {});
-  if (file[sessionId]) return file[sessionId];
-
-  const { _next, ...rest } = file as StatesFile & { _next?: SessionState };
-  const state: SessionState = { yolo: false, agent: _next?.agent ?? SESSION_DEFAULTS.agent };
-  await writeJson(getPiPath("states", cwd), { ...rest, [sessionId]: state });
-  return state;
-}
-
-export async function setNextAgent(cwd: string, sessionId: string, agent: string): Promise<void> {
-  const file = await readJson<StatesFile>(getPiPath("states", cwd), {});
-  await writeJson(getPiPath("states", cwd), {
-    ...file,
-    _next: { yolo: file[sessionId]?.yolo ?? false, agent },
-  });
+  const file = await readJson<Record<string, string>>(getPiPath("sessionAgents", cwd), {});
+  if (agent !== DEFAULT_AGENT) {
+    file[sessionId] = agent;
+  }
+  await writeJson(getPiPath("sessionAgents", cwd), file);
 }

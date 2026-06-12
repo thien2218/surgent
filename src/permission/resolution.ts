@@ -1,8 +1,8 @@
 import { homedir } from "node:os";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import pm from "picomatch";
-import type { AgentMeta } from "../agents/types.js";
-import { loadAgents } from "../agents/storage.js";
+import type { AgentMeta } from "../agent/types.js";
+import { loadAgents } from "../agent/storage.js";
 import { readGlobal, readLocal } from "./storage.js";
 import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./types.js";
 import { getPiPath } from "../utils.js";

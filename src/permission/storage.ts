@@ -1,5 +1,6 @@
 import { readJson, writeJson } from "../utils.js";
 import type {
+  AgentMode,
   Category,
   GroupedDisplayRules,
   FileAccess,
@@ -15,6 +16,11 @@ interface LocalSchema {
   [sessionId: string]: PermissionRule | undefined;
 }
 
+interface SettingsSchema {
+  agentMode?: AgentMode;
+  [key: string]: unknown;
+}
+
 export async function readLocal(cwd: string): Promise<LocalSchema> {
   return readJson<LocalSchema>(getPiPath("permissions", cwd), {});
 }
@@ -25,6 +31,17 @@ export async function writeLocal(cwd: string, data: LocalSchema): Promise<void> 
 
 export async function readGlobal(): Promise<PermissionRule> {
   return readJson<PermissionRule>(getPiPath("permissions"), {});
+}
+
+export async function readAgentMode(cwd: string): Promise<AgentMode> {
+  const settings = await readJson<SettingsSchema>(getPiPath("settings", cwd), {});
+  return settings.agentMode === "yolo" ? "yolo" : "assistant";
+}
+
+export async function writeAgentMode(cwd: string, agentMode: AgentMode): Promise<void> {
+  const settings = await readJson<SettingsSchema>(getPiPath("settings", cwd), {});
+  settings.agentMode = agentMode;
+  await writeJson(getPiPath("settings", cwd), settings);
 }
 
 export async function writeGlobal(data: PermissionRule): Promise<void> {

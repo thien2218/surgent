@@ -10,7 +10,7 @@ const CUSTOM_PI_PATHS = {
   settings: "settings.json",
   mcp: "mcp.json",
   permissions: "permissions.json",
-  states: "states.json",
+  sessionAgents: "agents.json",
   checkpoints: "checkpoints.json",
   subsessions: "subsessions.json",
   system: "SYSTEM.md",

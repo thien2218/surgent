@@ -1,12 +1,13 @@
 import { homedir } from "node:os";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import pm from "picomatch";
-import type { AgentMeta } from "../agent/types.js";
+import type { AgentAllowList, AgentMeta } from "../agent/types.js";
 import { loadAgents } from "../agent/storage.js";
 import { readGlobal, readLocal } from "./storage.js";
 import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./types.js";
 import { getPiPath } from "../utils.js";
 import { BASH_TOKEN } from "./constants.js";
+import { SUBSESSION_ALLOWED_BASH, SUBSESSION_ALLOWED_FILES } from "../subsession/index.js";
 
 const GLOB_CHARS = /[*?[\]{}]/;
 
@@ -106,16 +107,30 @@ function looksLikePathToken(token: string): boolean {
   return /\.[A-Za-z][A-Za-z0-9_-]*$/.test(token);
 }
 
+function isAllowedByPattern(
+  raw: string,
+  allowList: AgentAllowList | undefined,
+  bash = false,
+): boolean {
+  return Boolean(
+    allowList === "all" ||
+    (allowList && allowList.some((pattern: string) => matchesPattern(raw, pattern, bash))),
+  );
+}
+
 function checkAgentRules(agentMeta: AgentMeta | null, check: PermissionCheck): boolean {
-  if (!agentMeta) return true;
+  if (!agentMeta) return false;
   const { category, raw } = check;
 
-  if (category === "bash" && agentMeta.bash) {
-    return agentMeta.bash.some((pattern) => matchesPattern(raw, pattern, true));
+  if (category === "bash") {
+    const subsessionBash = JSON.parse(SUBSESSION_ALLOWED_BASH ?? "") as string[] | undefined;
+    return isAllowedByPattern(raw, subsessionBash ?? agentMeta.bash, true);
   }
-  if (category === "file" && agentMeta.files) {
-    return agentMeta.files.some((pattern) => matchesPattern(raw, pattern));
+  if (category === "file") {
+    const subsessionFiles = JSON.parse(SUBSESSION_ALLOWED_FILES ?? "") as string[] | undefined;
+    return isAllowedByPattern(raw, subsessionFiles ?? agentMeta.files);
   }
+
   return true;
 }
 
@@ -152,7 +167,6 @@ export async function resolvePermission(
 
   // Agent meta rules take priority — block immediately if not allowed
   if (!checkAgentRules(agentMeta, check)) return false;
-
   // For bash: also check any path-like args as file reads
   if (category === "bash") {
     for (const path of extractPathsFromCommand(raw)) {

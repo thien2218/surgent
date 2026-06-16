@@ -1,10 +1,9 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import pm from "picomatch";
 import { agentsCommandHandler } from "./command.js";
 import { loadMainAgent } from "./load.js";
 import { loadAgents, readSessionAgent } from "./storage.js";
 import { loadResolvedConfigSet } from "../mcp-client/storage.js";
-import { IS_SUBSESSION, ALLOWED_FILES } from "../subsession/index.js";
+import { IS_SUBSESSION } from "../subsession/index.js";
 
 export default function (pi: ExtensionAPI) {
   pi.registerCommand("agents", {
@@ -13,28 +12,25 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("tool_call", (event) => {
-    if (!IS_SUBSESSION || !ALLOWED_FILES) return;
+    if (!IS_SUBSESSION) return; // Subsession handling
 
-    let allowedFiles: string[];
-    try {
-      allowedFiles = JSON.parse(ALLOWED_FILES) as string[];
-    } catch {
-      return;
+    const subsessionStrippedTools = new Set(["bash", "subagent"]);
+    if (subsessionStrippedTools.has(event.toolName)) {
+      return {
+        block: true,
+        reason: `${event.toolName} is not allowed in subsession. Try a different approach`,
+      };
     }
 
-    const matchers = allowedFiles.map((pattern) => pm(pattern, { dot: true }));
     const pathTools = new Set(["read", "write", "edit", "grep", "find", "ls"]);
     const eventWithPath = event as { toolName: string; input: { path?: string } };
     if (!pathTools.has(eventWithPath.toolName)) return;
 
     const target = eventWithPath.input.path;
+    // grep/find/ls without explicit path would search cwd implicitly — block it
     if (!target) {
-      // grep/find/ls without explicit path would search cwd implicitly — block it
       return { block: true, reason: "Explicit path required in subsession" };
     }
-
-    const allowed = matchers.some((match) => match(target));
-    if (!allowed) return { block: true, reason: `Path outside allowed scope: ${target}` };
   });
 
   pi.on("session_start", async (_event, ctx) => {

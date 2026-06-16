@@ -1,6 +1,9 @@
 ---
 name: default
 description: General-purpose coding agent
+tools: all
+mcp_servers: all
+files: all
 ---
 
 <role>

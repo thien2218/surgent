@@ -9,19 +9,6 @@ type AvailableSettings = {
   mcp: ResolvedMcpServerConfig[];
 };
 
-async function writeSystemPrompt(
-  cwd: string,
-  prompt: string,
-  allowed: Omit<AvailableSettings, "tools">,
-) {
-  const lines = allowed.mcp.map((cfg) =>
-    cfg.description ? `- ${cfg.name} - ${cfg.description}` : `- ${cfg.name}`,
-  );
-  const appendContent = lines.length > 0 ? `## Enabled MCP Servers\n${lines.join("\n")}\n` : "";
-  await writeAgentPrompt(appendContent, "appendSystem", cwd);
-  await writeAgentPrompt(prompt, "system");
-}
-
 export async function loadMainAgent(
   ctx: ExtensionContext,
   agents: Agent[],
@@ -37,13 +24,10 @@ export async function loadMainAgent(
   if (!agent) return config;
   const { meta } = agent;
 
-  const allowedTools = !meta.tools
-    ? available.tools
-    : available.tools.filter((tool) => meta.tools!.includes(tool));
-
-  if (allowedTools) {
-    config.tools = allowedTools;
-  }
+  config.tools =
+    meta.tools === "all"
+      ? available.tools
+      : available.tools.filter((name) => (meta.tools ?? []).includes(name));
 
   if (meta.model) {
     const existing = ctx.modelRegistry
@@ -57,11 +41,16 @@ export async function loadMainAgent(
     }
   }
 
-  const allowedMcp = !meta.mcp_servers
-    ? available.mcp
-    : available.mcp.filter((cfg) => meta.mcp_servers!.includes(cfg.name));
+  const allowedMcp =
+    meta.mcp_servers === "all"
+      ? available.mcp
+      : available.mcp.filter((cfg) => (meta.mcp_servers ?? []).includes(cfg.name));
+  const lines = allowedMcp.map((cfg) =>
+    cfg.description ? `- ${cfg.name} - ${cfg.description}` : `- ${cfg.name}`,
+  );
+  const appendContent = lines.length > 0 ? `## Enabled MCP Servers\n${lines.join("\n")}\n` : "";
 
-  await writeSystemPrompt(ctx.cwd, agent.body, { mcp: allowedMcp });
+  await writeAgentPrompt(appendContent, "appendSystem", ctx.cwd);
 
   return config;
 }

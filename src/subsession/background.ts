@@ -1,9 +1,8 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createJsonLineParser, getFinalOutput } from "./parser.js";
-import { getPiInvocation, filterSubsessionTools } from "./herlpers.js";
+import { getPiInvocation } from "./herlpers.js";
 import type { BackgroundRequest, SubsessionResult, SubsessionSnapshot } from "./types.js";
 import { resolveRuntime } from "./storage.js";
-import { union } from "../utils.js";
 
 export default async function runBackground(
   request: BackgroundRequest,
@@ -20,14 +19,15 @@ export default async function runBackground(
   };
 
   onSnapshot?.(snapshot);
-  const safeTools = filterSubsessionTools(runtime.tools);
 
   const args: string[] = ["--mode", "json", "-p", "--no-session"];
   if (runtime.systemPrompt) {
     args.push("--system-prompt", runtime.systemPrompt);
   }
-  if (safeTools.length > 0) {
-    args.push("--tools", safeTools.join(","));
+  if (Array.isArray(runtime.tools) && runtime.tools.length > 0) {
+    args.push("--tools", runtime.tools.join(","));
+  } else {
+    args.push("--no-tools");
   }
   if (runtime.modelId) {
     args.push("--model", runtime.modelId);
@@ -35,7 +35,6 @@ export default async function runBackground(
   args.push(`Task: ${request.task}`);
 
   const parser = createJsonLineParser(snapshot, onSnapshot);
-
   let wasAborted = false;
   let stderrOutput = "";
 
@@ -48,7 +47,9 @@ export default async function runBackground(
       env: {
         ...process.env,
         SURGENT_SUBSESSION: "true",
-        SURGENT_SUBSESSION_FILES: JSON.stringify(union(request.files, runtime.files)),
+        SURGENT_SUBAGENT: request.agent,
+        SURGENT_SUBSESSION_FILES: JSON.stringify(request.files),
+        SURGENT_SUBSESSION_BASH: JSON.stringify(request.bash),
       },
     }) as ChildProcess;
 

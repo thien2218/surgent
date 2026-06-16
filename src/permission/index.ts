@@ -1,75 +1,31 @@
-import type {
-  ExtensionAPI,
-  ExtensionContext,
-  ToolCallEvent,
-  BashToolCallEvent,
-  ReadToolCallEvent,
-  SessionEntry,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { cleanup } from "./cleanup.js";
 import { handlePermissionsCommand } from "./command.js";
 import { resolvePermission } from "./resolution.js";
 import { getPiIgnoreInputs, resolvePiIgnorePathBlock } from "./piignore.js";
-import { addRule, checkExprStored, readAgentMode, writeAgentMode } from "./storage.js";
-import type { AgentMode, PermissionCheck, PromptDecision, PermissiveToolName } from "./types.js";
-import { readSessionAgent } from "../agent/storage.js";
-import { MODE_ENTRY } from "../commands/index.js";
+import {
+  addRule,
+  checkExprStored,
+  readAgentMode,
+  writeAgentMode,
+  loadMainAgent,
+} from "./storage.js";
+import type { AgentMode, PromptDecision } from "./types.js";
 import PermissionPrompt from "./components/prompt.js";
-import { SUSPICIOUS_BASH_PATTERNS, PERMISSIVE_TOOLS } from "./constants.js";
 import { toPermExpr } from "./expression.js";
 import { IS_SUBSESSION } from "../subsession/index.js";
+import { findRecentModeOverride, getPermissionCheck } from "./helpers.js";
+import type { AgentMeta } from "../agent/types.js";
 
 const SWITCH_MODE_KEY = Key.ctrlAlt("y");
 
-function getPermissionCheck(event: ToolCallEvent): PermissionCheck | null {
-  if (!(event.toolName in PERMISSIVE_TOOLS)) return null;
-  const toolName = event.toolName as PermissiveToolName;
-  let danger: string | undefined;
-  let raw: string;
-
-  switch (toolName) {
-    case "read":
-    case "write":
-    case "edit":
-      raw = (event as ReadToolCallEvent).input.path;
-      break;
-    case "bash":
-      raw = (event as BashToolCallEvent).input.command;
-      break;
-    case "web_fetch":
-      raw = (event.input as Record<"url", string>).url;
-      break;
-  }
-
-  if (toolName === "bash") {
-    for (const { pattern, reason } of SUSPICIOUS_BASH_PATTERNS) {
-      if (pattern.test(raw)) danger = reason;
-    }
-  }
-
-  return { toolName, ...PERMISSIVE_TOOLS[toolName], danger, raw };
-}
-
-function findRecentModeOverride(entries: SessionEntry[]): AgentMode | null {
-  const startIndex = Math.max(0, entries.length - 5);
-
-  for (let entryIndex = entries.length - 1; entryIndex >= startIndex; entryIndex -= 1) {
-    const entry = entries[entryIndex];
-    if (!entry || entry.type !== "custom" || entry.customType !== MODE_ENTRY) {
-      continue;
-    }
-    return (entry.data as { mode: AgentMode }).mode;
-  }
-
-  return null;
-}
-
 export default function (pi: ExtensionAPI) {
   let sessionId: string | null = null;
+  let agentMeta: AgentMeta;
   let agentMode: AgentMode = "assistant";
   let turnMode: AgentMode | null = null;
-  let agentModeLoaded = false;
+  let agentLoaded = false;
   let updateStatus: (() => void) | undefined;
 
   const updateAgentMode = (ctx: ExtensionContext) => {
@@ -87,12 +43,11 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     if (IS_SUBSESSION) return;
     sessionId = ctx.sessionManager.getSessionId();
-    turnMode = null;
     cleanup(ctx.cwd);
 
-    if (!agentModeLoaded) {
-      agentMode = await readAgentMode(ctx.cwd);
-      agentModeLoaded = true;
+    if (!agentLoaded) {
+      [agentMeta, agentMode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode(ctx.cwd)]);
+      agentLoaded = true;
     }
     if (updateStatus) {
       process.stdout.off("resize", updateStatus);
@@ -154,9 +109,8 @@ export default function (pi: ExtensionAPI) {
     const effectiveMode = turnMode ?? agentMode;
     if (!check || effectiveMode === "yolo" || !sessionId) return;
 
-    const agent = await readSessionAgent(ctx.cwd, sessionId);
     const expr = toPermExpr(check.toolName, check.raw);
-    const allowed = await resolvePermission(ctx.cwd, sessionId, agent, check);
+    const allowed = await resolvePermission(ctx.cwd, sessionId, agentMeta, check);
     if (allowed && !check.danger) return;
 
     if (!ctx.hasUI) {

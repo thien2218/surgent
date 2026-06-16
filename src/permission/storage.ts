@@ -10,6 +10,9 @@ import type {
 } from "./types.js";
 import { getPiPath } from "../utils.js";
 import { CATEGORIES } from "./constants.js";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { loadMcpConfigSet } from "../mcp-client/storage.js";
+import { loadAgents, readSessionAgent, writeAgentPrompt } from "../agent/storage.js";
 
 interface LocalSchema {
   project?: PermissionRule;
@@ -33,6 +36,10 @@ export async function readGlobal(): Promise<PermissionRule> {
   return readJson<PermissionRule>(getPiPath("permissions"), {});
 }
 
+export async function writeGlobal(data: PermissionRule): Promise<void> {
+  return writeJson(getPiPath("permissions"), data);
+}
+
 export async function readAgentMode(cwd: string): Promise<AgentMode> {
   const settings = await readJson<SettingsSchema>(getPiPath("settings", cwd), {});
   return settings.agentMode === "yolo" ? "yolo" : "assistant";
@@ -42,10 +49,6 @@ export async function writeAgentMode(cwd: string, agentMode: AgentMode): Promise
   const settings = await readJson<SettingsSchema>(getPiPath("settings", cwd), {});
   settings.agentMode = agentMode;
   await writeJson(getPiPath("settings", cwd), settings);
-}
-
-export async function writeGlobal(data: PermissionRule): Promise<void> {
-  return writeJson(getPiPath("permissions"), data);
 }
 
 function getScopeKey(scope: Scope, sessionId: string): string {
@@ -193,4 +196,48 @@ export async function checkExprStored(
   };
 
   return inSchema(global) || Object.values(local).some(inSchema);
+}
+
+export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
+  const sessionAgent = await readSessionAgent(ctx.cwd, ctx.sessionManager.getSessionId());
+  ctx.ui.setStatus("agent", ctx.ui.theme.fg("dim", `agent: ${sessionAgent}`));
+
+  const allMcpConfigs = await loadMcpConfigSet(ctx.cwd);
+  const available = {
+    tools: pi.getAllTools().map((tool) => tool.name),
+    mcp: allMcpConfigs.filter((cfg) => cfg.enabled === true),
+  };
+
+  const [agent] = await loadAgents(ctx.cwd, sessionAgent);
+  const { meta } = agent;
+
+  pi.setActiveTools(
+    available.tools.filter((name) => (meta.tools ?? []).includes(name) || meta.tools === "all"),
+  );
+
+  if (meta.model) {
+    const existing = ctx.modelRegistry
+      .getAll()
+      .find((item) => item.id === meta.model || item.id.endsWith(`/${meta.model}`));
+
+    if (existing) {
+      const ok = pi.setModel(existing);
+      if (!ok) ctx.ui.notify("Agent model unavailable", "warning");
+    } else {
+      ctx.ui.notify(`Unknown model "${meta.model}" in agent config`, "warning");
+    }
+  }
+
+  const allowedMcp =
+    meta.mcp_servers === "all"
+      ? available.mcp
+      : available.mcp.filter((cfg) => (meta.mcp_servers ?? []).includes(cfg.name));
+  const lines = allowedMcp.map((cfg) =>
+    cfg.description ? `- ${cfg.name} - ${cfg.description}` : `- ${cfg.name}`,
+  );
+  const appendContent = lines.length > 0 ? `## Enabled MCP Servers\n${lines.join("\n")}\n` : "";
+
+  await writeAgentPrompt(appendContent, "appendSystem", ctx.cwd);
+
+  return meta;
 }

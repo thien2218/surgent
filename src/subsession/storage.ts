@@ -50,17 +50,7 @@ export async function saveSubsession(
   await persistStore(process.cwd());
 }
 
-export async function resolveRuntime(agentName: string): Promise<RuntimeConfig> {
-  const agents = await loadAgents(process.cwd());
-  const agent = agents.find((agentEntry) => agentEntry.meta.name === agentName);
-  if (!agent) {
-    return { systemPrompt: "", tools: [], files: [], modelId: undefined };
-  }
-
-  return {
-    systemPrompt: agent.body,
-    tools: agent.meta.tools ?? [],
-    files: agent.meta.files ?? [],
-    modelId: agent.meta.model,
-  };
+export async function resolveRuntime(name: string): Promise<RuntimeConfig> {
+  const [agent] = await loadAgents(process.cwd(), name);
+  return { systemPrompt: agent.body, tools: agent.meta.tools, modelId: agent.meta.model };
 }

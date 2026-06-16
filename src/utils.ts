@@ -67,7 +67,3 @@ export function customText(text: string, pad?: { x?: number; y?: number }) {
 export function isMissingFileError(error: any) {
   return Boolean(error) && typeof error === "object" && "code" in error && error.code === "ENOENT";
 }
-
-export function union<T extends string | number>(first: T[], second: T[]) {
-  return [...new Set([...first, ...second])];
-}

@@ -1,7 +1,7 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Spacer } from "@earendil-works/pi-tui";
 import {
-  loadResolvedConfigSet,
+  loadMcpConfigSet,
   normalizeServerConfig,
   readConfigFile,
   upsertServerConfig,
@@ -107,7 +107,7 @@ async function showConfiguredMcpJson(
   ctx: ExtensionCommandContext,
   configuredMcpName?: string,
 ): Promise<void> {
-  const servers = await loadResolvedConfigSet(ctx.cwd);
+  const servers = await loadMcpConfigSet(ctx.cwd);
   const targetServer = configuredMcpName
     ? servers.find((server) => server.name === configuredMcpName)
     : await selectConfiguredMcp(ctx, servers);

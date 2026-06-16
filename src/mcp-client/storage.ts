@@ -23,7 +23,7 @@ export async function upsertServerConfig(
   return { path, replaced };
 }
 
-export async function loadResolvedConfigSet(cwd: string): Promise<ResolvedMcpServerConfig[]> {
+export async function loadMcpConfigSet(cwd: string): Promise<ResolvedMcpServerConfig[]> {
   const localPath = getPiPath("mcp", cwd);
   const merged = new Map<string, ResolvedMcpServerConfig>();
   const [localServers, globalServers] = await Promise.all([
@@ -45,7 +45,7 @@ export async function resolveServerConfig(
   cwd: string,
   serverName: string,
 ): Promise<ResolvedMcpServerConfig | undefined> {
-  const mcpServers = await loadResolvedConfigSet(cwd);
+  const mcpServers = await loadMcpConfigSet(cwd);
   return mcpServers.find((server) => server.name === serverName);
 }
 

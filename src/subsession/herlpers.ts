@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import type { AgentAllowList } from "../agent/types.js";
 
 export function getPiInvocation(args: string[]): { command: string; args: string[] } {
   const currentScript = process.argv[1];
@@ -16,17 +17,18 @@ export function getPiInvocation(args: string[]): { command: string; args: string
   return { command: "surgent", args };
 }
 
-export function filterSubsessionTools(toolNames: string[]): string[] {
-  const stripped = new Set(["bash", "subagent", "questionnaire", "permission"]);
-  const safeTools: string[] = [];
-  const seenTools = new Set<string>();
-
-  for (const toolName of toolNames) {
-    if (stripped.has(toolName)) continue;
-    if (seenTools.has(toolName)) continue;
-    seenTools.add(toolName);
-    safeTools.push(toolName);
+export function allowListUnion(
+  request: AgentAllowList | undefined,
+  runtime: AgentAllowList | undefined,
+) {
+  if (request === "all") return runtime;
+  if (typeof request === "undefined" || runtime === "all" || typeof runtime === "undefined") {
+    return request;
   }
+  return [...new Set([...request, ...runtime])];
+}
 
-  return safeTools;
+export function safeParseAllowList(value?: string) {
+  if (typeof value === "undefined") return value;
+  return JSON.parse(value) as AgentAllowList;
 }

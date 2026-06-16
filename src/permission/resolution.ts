@@ -2,12 +2,15 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import pm from "picomatch";
 import type { AgentAllowList, AgentMeta } from "../agent/types.js";
-import { loadAgents } from "../agent/storage.js";
 import { readGlobal, readLocal } from "./storage.js";
 import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./types.js";
 import { getPiPath } from "../utils.js";
 import { BASH_TOKEN } from "./constants.js";
-import { SUBSESSION_ALLOWED_BASH, SUBSESSION_ALLOWED_FILES } from "../subsession/index.js";
+import {
+  SUBSESSION_ALLOWED_BASH,
+  SUBSESSION_ALLOWED_FILES,
+  allowListUnion,
+} from "../subsession/index.js";
 
 const GLOB_CHARS = /[*?[\]{}]/;
 
@@ -110,7 +113,7 @@ function looksLikePathToken(token: string): boolean {
 function isAllowedByPattern(
   raw: string,
   allowList: AgentAllowList | undefined,
-  bash = false,
+  bash?: boolean,
 ): boolean {
   return Boolean(
     allowList === "all" ||
@@ -123,12 +126,10 @@ function checkAgentRules(agentMeta: AgentMeta | null, check: PermissionCheck): b
   const { category, raw } = check;
 
   if (category === "bash") {
-    const subsessionBash = JSON.parse(SUBSESSION_ALLOWED_BASH ?? "") as string[] | undefined;
-    return isAllowedByPattern(raw, subsessionBash ?? agentMeta.bash, true);
+    return isAllowedByPattern(raw, allowListUnion(agentMeta.bash, SUBSESSION_ALLOWED_BASH), true);
   }
   if (category === "file") {
-    const subsessionFiles = JSON.parse(SUBSESSION_ALLOWED_FILES ?? "") as string[] | undefined;
-    return isAllowedByPattern(raw, subsessionFiles ?? agentMeta.files);
+    return isAllowedByPattern(raw, allowListUnion(agentMeta.files, SUBSESSION_ALLOWED_FILES));
   }
 
   return true;
@@ -158,20 +159,17 @@ export function getRelativePathInRoot(rawPath: string, rootPath: string): string
 export async function resolvePermission(
   cwd: string,
   sessionId: string,
-  agent: string,
+  agentMeta: AgentMeta,
   check: PermissionCheck,
 ): Promise<boolean> {
-  const agents = await loadAgents(cwd);
-  const agentMeta = agents.find((candidate) => candidate.meta.name === agent)?.meta ?? null;
   const { category, raw, op } = check;
-
   // Agent meta rules take priority — block immediately if not allowed
   if (!checkAgentRules(agentMeta, check)) return false;
   // For bash: also check any path-like args as file reads
   if (category === "bash") {
     for (const path of extractPathsFromCommand(raw)) {
       const fileCheck = { category: "file", raw: path, op: "read", toolName: "bash" } as const;
-      if (!(await resolvePermission(cwd, sessionId, agent, fileCheck))) return false;
+      if (!(await resolvePermission(cwd, sessionId, agentMeta, fileCheck))) return false;
     }
   }
 

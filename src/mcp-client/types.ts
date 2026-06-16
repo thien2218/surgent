@@ -29,7 +29,7 @@ export type ResolvedMcpServerConfig = McpServerConfig & {
   sourcePath: string;
 };
 
-export interface McpCallToolDetails {
+export interface McpToolCallDetails {
   server: string;
   transport: McpTransport;
   remoteTool: string;

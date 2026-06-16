@@ -1,4 +1,5 @@
 import type { AssistantMessage, Message, ToolCall } from "@earendil-works/pi-ai";
+import type { SubsessionSnapshot } from "./types.js";
 
 interface ParserState {
   sessionId: string;
@@ -8,12 +9,6 @@ interface ParserState {
   tokenOutput: number;
   stopReason?: string;
   activity: string;
-}
-
-interface ParserHooks {
-  onActivity?: (activity: string) => void;
-  onToolUse?: (toolUse: string) => void;
-  onSessionId?: (id: string) => void;
 }
 
 interface JsonLineParser {
@@ -65,7 +60,8 @@ function formatToolUse(toolCall: ToolCall): string {
 function applyMessageEndEvent(
   event: Record<string, unknown>,
   state: ParserState,
-  hooks: ParserHooks,
+  snapshot: SubsessionSnapshot,
+  onSnapshot?: (snapshot: SubsessionSnapshot) => void,
 ): void {
   const eventMessage = event["message"];
   if (!eventMessage || typeof eventMessage !== "object") return;
@@ -75,7 +71,8 @@ function applyMessageEndEvent(
 
   if (!isAssistantMessage(message)) {
     state.activity = "thinking";
-    hooks.onActivity?.(state.activity);
+    snapshot.activity = state.activity;
+    onSnapshot?.(snapshot);
     return;
   }
 
@@ -89,21 +86,30 @@ function applyMessageEndEvent(
     const toolCall = contentPart as ToolCall;
     const toolName = toolCall.name;
     state.toolCounts[toolName] = (state.toolCounts[toolName] ?? 0) + 1;
-    hooks.onToolUse?.(formatToolUse(toolCall));
+
+    snapshot.toolsUsed.push(formatToolUse(toolCall));
+    onSnapshot?.(snapshot);
   }
 
   state.activity = "thinking";
-  hooks.onActivity?.(state.activity);
+  snapshot.activity = state.activity;
+  onSnapshot?.(snapshot);
 }
 
-function applyEvent(event: Record<string, unknown>, state: ParserState, hooks: ParserHooks): void {
+function applyEvent(
+  event: Record<string, unknown>,
+  state: ParserState,
+  snapshot: SubsessionSnapshot,
+  onSnapshot?: (snapshot: SubsessionSnapshot) => void,
+): void {
   const eventType = event["type"];
 
   if (eventType === "session") {
     const sessionId = event["id"];
     if (typeof sessionId === "string") {
       state.sessionId = sessionId;
-      hooks.onSessionId?.(sessionId);
+      snapshot.id = sessionId;
+      onSnapshot?.(snapshot);
     }
     return;
   }
@@ -112,24 +118,28 @@ function applyEvent(event: Record<string, unknown>, state: ParserState, hooks: P
     const toolName = event["toolName"];
     if (typeof toolName === "string") {
       state.activity = toolName;
-      hooks.onActivity?.(state.activity);
+      snapshot.activity = state.activity;
+      onSnapshot?.(snapshot);
     }
     return;
   }
 
   if (eventType === "message_end") {
-    applyMessageEndEvent(event, state, hooks);
+    applyMessageEndEvent(event, state, snapshot, onSnapshot);
   }
 }
 
-export function createJsonLineParser(hooks: ParserHooks = {}): JsonLineParser {
+export function createJsonLineParser(
+  snapshot: SubsessionSnapshot,
+  onSnapshot?: (snapshot: SubsessionSnapshot) => void,
+): JsonLineParser {
   const state: ParserState = {
-    sessionId: "",
+    sessionId: snapshot.id,
     messages: [],
     toolCounts: {},
     tokenInput: 0,
     tokenOutput: 0,
-    activity: "thinking",
+    activity: snapshot.activity,
   };
 
   let pendingBuffer = "";
@@ -137,7 +147,7 @@ export function createJsonLineParser(hooks: ParserHooks = {}): JsonLineParser {
   const processLine = (line: string) => {
     const parsedEvent = parseJsonLine(line);
     if (!parsedEvent) return;
-    applyEvent(parsedEvent, state, hooks);
+    applyEvent(parsedEvent, state, snapshot, onSnapshot);
   };
 
   return {

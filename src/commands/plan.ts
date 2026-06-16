@@ -21,7 +21,7 @@ const FORWARD_OPTIONS: ActionSelectOption[] = [
   { value: "exit", label: "Exit planning" },
 ];
 
-export async function commandHandler(
+export async function planCommandHandler(
   pi: ExtensionAPI,
   args: string,
   ctx: ExtensionCommandContext,
@@ -30,14 +30,38 @@ export async function commandHandler(
     ctx.ui.notify("/plan requires interactive UI", "error");
     return;
   }
-
   const parsedInput = parseCommandInput(args);
   const session = await resolveSession(ctx, parsedInput);
   if (!session) {
     return;
   }
 
-  await runLoop(pi, ctx, session);
+  const initialStatus = session.result.status;
+  if (initialStatus === "error") {
+    ctx.ui.notify(session.result.output, "error");
+    return;
+  }
+
+  while (true) {
+    const action = await showUi(ctx, session.result.output);
+    if (!action || action.kind === "exit") {
+      return;
+    }
+
+    if (action.kind === "forward") {
+      const didForward = await forwardAction(pi, ctx, action.mode, session.result.output);
+      if (didForward) {
+        return;
+      }
+      continue;
+    }
+
+    await session.exec(action.feedback);
+
+    if (session.result.status === "error") {
+      ctx.ui.notify("Planner turn failed. Please revise and retry.", "error");
+    }
+  }
 }
 
 export function parseCommandInput(rawArgs: string): PlanCommandInput {
@@ -131,34 +155,7 @@ function formatSessionOption(preview: PlanSessionPreview): string {
   return `${preview.title} (${shortId})`;
 }
 
-async function runLoop(
-  pi: ExtensionAPI,
-  ctx: ExtensionCommandContext,
-  session: InteractiveSubsession,
-): Promise<void> {
-  while (true) {
-    const action = await showUiCycle(ctx, session.result.output);
-    if (!action || action.kind === "exit") {
-      return;
-    }
-
-    if (action.kind === "forward") {
-      const didForward = await forwardAction(pi, ctx, action.mode, session.result.output);
-      if (didForward) {
-        return;
-      }
-      continue;
-    }
-
-    await session.exec(action.feedback);
-
-    if (session.result.status === "error") {
-      ctx.ui.notify("Planner turn failed. You can revise and retry.", "error");
-    }
-  }
-}
-
-async function showUiCycle(
+async function showUi(
   ctx: ExtensionCommandContext,
   plannerOutput: string,
 ): Promise<PlanAction | null> {

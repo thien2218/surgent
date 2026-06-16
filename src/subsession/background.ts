@@ -19,10 +19,7 @@ export default async function runBackground(
     toolsUsed: [],
   };
 
-  const emitSnapshot = () => {
-    onSnapshot?.(snapshot);
-  };
-
+  onSnapshot?.(snapshot);
   const safeTools = filterSubsessionTools(runtime.tools);
 
   const args: string[] = ["--mode", "json", "-p", "--no-session"];
@@ -37,16 +34,7 @@ export default async function runBackground(
   }
   args.push(`Task: ${request.task}`);
 
-  const parser = createJsonLineParser({
-    onActivity(activity: string) {
-      snapshot.activity = activity;
-      emitSnapshot();
-    },
-    onToolUse(toolUse: string) {
-      snapshot.toolsUsed.push(toolUse);
-      emitSnapshot();
-    },
-  });
+  const parser = createJsonLineParser(snapshot, onSnapshot);
 
   let wasAborted = false;
   let stderrOutput = "";
@@ -104,7 +92,7 @@ export default async function runBackground(
   const output = getFinalOutput(parser.state.messages) || (isError ? stderrOutput.trim() : "");
 
   snapshot.status = status;
-  emitSnapshot();
+  onSnapshot?.(snapshot);
 
   return {
     status,

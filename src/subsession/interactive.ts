@@ -3,6 +3,7 @@ import { findSubsession, resolveRuntime, saveSubsession } from "./storage.js";
 import { createJsonLineParser, getFinalOutput } from "./parser.js";
 import { filterSubsessionTools, getPiInvocation } from "./herlpers.js";
 import type {
+  InteractiveLabel,
   InteractiveRequest,
   InteractiveSubsession,
   RuntimeConfig,
@@ -26,19 +27,15 @@ interface ExecuteTurnResult {
 interface CreateSubsessionParams {
   id: string;
   parentId: string;
-  label: InteractiveSubsession["label"];
+  label: InteractiveLabel;
   title: string;
-  initialResult: SubsessionResult;
+  result: SubsessionResult;
   runtime: RuntimeConfig;
   onSnapshot?: (snapshot: SubsessionSnapshot) => void;
 }
 
 function createErrorResult(message: string): SubsessionResult {
-  return {
-    status: "error",
-    output: message,
-    toolCounts: {},
-  };
+  return { status: "error", output: message, toolCounts: {} };
 }
 
 async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResult> {
@@ -66,29 +63,14 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResu
     toolsUsed: [],
   };
 
-  const emitSnapshot = () => {
-    request.onSnapshot?.(snapshot);
-  };
-
-  const parser = createJsonLineParser({
-    onSessionId(sessionId: string) {
-      if (!snapshot.id) {
-        snapshot.id = sessionId;
-        emitSnapshot();
-      }
-    },
-    onActivity(activity: string) {
-      snapshot.activity = activity;
-      emitSnapshot();
-    },
-    onToolUse(toolUse: string) {
-      snapshot.toolsUsed.push(toolUse);
-      emitSnapshot();
-    },
-  });
+  request.onSnapshot?.(snapshot);
+  const parser = createJsonLineParser(snapshot, request.onSnapshot);
 
   let wasAborted = false;
   let stderrOutput = "";
+
+  const subsessionFiles =
+    request.runtime.files.length > 0 ? JSON.stringify(request.runtime.files) : undefined;
 
   const exitCode = await new Promise<number>((resolve) => {
     const invocation = getPiInvocation(args);
@@ -99,7 +81,7 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResu
       env: {
         ...process.env,
         SURGENT_SUBSESSION: "true",
-        SURGENT_SUBSESSION_FILES: JSON.stringify(request.runtime.files),
+        ...(subsessionFiles ? { SURGENT_SUBSESSION_FILES: subsessionFiles } : {}),
       },
     }) as ChildProcess;
 
@@ -143,7 +125,7 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResu
   const output = getFinalOutput(parser.state.messages) || (isError ? stderrOutput.trim() : "");
 
   snapshot.status = status;
-  emitSnapshot();
+  request.onSnapshot?.(snapshot);
 
   return {
     id: parser.state.sessionId || request.sessionId || "",
@@ -157,23 +139,17 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResu
 }
 
 function createSubsession(params: CreateSubsessionParams): InteractiveSubsession {
+  const { onSnapshot, ...rest } = params;
   const subsession: InteractiveSubsession = {
-    id: params.id,
-    parentId: params.parentId,
-    label: params.label,
-    title: params.title,
-    result: params.initialResult,
-    runtime: params.runtime,
-
+    ...rest,
     async exec(input: string, signal?: AbortSignal): Promise<void> {
       const nextTurn = await executeTurn({
         sessionId: subsession.id,
         input,
-        runtime: params.runtime,
+        runtime: rest.runtime,
         signal,
-        onSnapshot: params.onSnapshot,
+        onSnapshot,
       });
-
       subsession.result = nextTurn.result;
     },
   };
@@ -190,7 +166,7 @@ export default async function runInteractive(
     id: request.id ?? "",
     label: request.label,
     title: "",
-    initialResult: { status: "done", output: "", toolCounts: {} },
+    result: { status: "done", output: "", toolCounts: {} },
     parentId: request.parentId,
     runtime,
     onSnapshot,
@@ -200,7 +176,7 @@ export default async function runInteractive(
     const existing = await findSubsession(request.parentId, request.id);
     if (!existing) {
       params.title = "Unknown subsession";
-      params.initialResult = createErrorResult(`Subsession not found: ${request.id}`);
+      params.result = createErrorResult(`Subsession not found: ${request.id}`);
     } else {
       params.label = existing.label;
       params.title = existing.title;
@@ -216,10 +192,10 @@ export default async function runInteractive(
     });
 
     if (!initialTurn.id) {
-      params.initialResult = createErrorResult("Cannot start interactive subsession");
+      params.result = createErrorResult("Cannot start interactive subsession");
     } else {
       params.id = initialTurn.id;
-      params.initialResult = initialTurn.result;
+      params.result = initialTurn.result;
 
       await saveSubsession(request.parentId, initialTurn.id, {
         label: request.label,

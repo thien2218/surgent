@@ -17,20 +17,14 @@ import { customText, getPiPath } from "../utils.js";
 
 const execAsync = promisify(exec);
 
-async function isVsCodeAvailable(): Promise<boolean> {
+async function openInVsCode(ctx: ExtensionCommandContext, filePath: string) {
   try {
     await execAsync("which code");
-    return true;
   } catch {
-    return false;
-  }
-}
-
-async function openInVsCode(ctx: ExtensionCommandContext, filePath: string): Promise<void> {
-  if (!(await isVsCodeAvailable())) {
     ctx.ui.notify("VS Code not found — install it or open the file manually: " + filePath, "error");
     return;
   }
+
   await new Promise<void>((resolve, reject) => {
     const child = spawn("code", ["--wait", filePath], { stdio: "inherit" });
     child.on("close", (code) =>
@@ -47,8 +41,8 @@ async function showAgentPicker(
   const items: SelectItem[] = [
     { value: "__new__", label: "[Create new agent]" },
     ...agents.map((agent) => ({
-      value: agent.meta.name,
-      label: isBuiltIn(agent.filePath) ? `${agent.meta.name} (built-in)` : agent.meta.name,
+      value: agent.name,
+      label: isBuiltIn(agent.filePath) ? `${agent.name} (built-in)` : agent.name,
       description: agent.meta.description,
     })),
   ];
@@ -93,13 +87,13 @@ async function handleExistingAgent(ctx: ExtensionCommandContext, agent: Agent): 
   while (true) {
     const options = ["Start in new session", "Open in VS Code"];
     if (!isBuiltIn(agent.filePath)) options.push("Delete agent");
-    const action = await ctx.ui.select(`Agent: ${agent.meta.name}`, options);
+    const action = await ctx.ui.select(`Agent: ${agent.name}`, options);
     if (!action) return;
 
     if (action === "Start in new session") {
       await ctx.newSession({
         setup: async (nextSessionManager) => {
-          await writeSessionAgent(ctx.cwd, nextSessionManager.getSessionId(), agent.meta.name);
+          await writeSessionAgent(ctx.cwd, nextSessionManager.getSessionId(), agent.name);
         },
       });
       return;
@@ -112,12 +106,12 @@ async function handleExistingAgent(ctx: ExtensionCommandContext, agent: Agent): 
 
     if (action === "Delete agent") {
       const ok = await ctx.ui.confirm(
-        `Delete agent "${agent.meta.name}"?`,
+        `Delete agent "${agent.name}"?`,
         "Removes all local and global copies of this agent.",
       );
       if (!ok) continue;
-      await deleteAgentFiles(agent.meta.name, ctx.cwd);
-      ctx.ui.notify(`Agent "${agent.meta.name}" deleted`, "info");
+      await deleteAgentFiles(agent.name, ctx.cwd);
+      ctx.ui.notify(`Agent "${agent.name}" deleted`, "info");
     }
   }
 }
@@ -151,6 +145,6 @@ export async function agentsCommandHandler(ctx: ExtensionCommandContext) {
     return;
   }
 
-  const agent = agents.find((candidate) => candidate.meta.name === selected);
+  const agent = agents.find((candidate) => candidate.name === selected);
   if (agent) await handleExistingAgent(ctx, agent);
 }

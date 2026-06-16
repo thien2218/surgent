@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { findSubsession, resolveRuntime, saveSubsession } from "./storage.js";
 import { createJsonLineParser, getFinalOutput } from "./parser.js";
-import { filterSubsessionTools, getPiInvocation } from "./herlpers.js";
+import { getPiInvocation } from "./herlpers.js";
 import type {
   InteractiveLabel,
   InteractiveRequest,
@@ -15,6 +15,7 @@ interface ExecuteTurnRequest {
   sessionId?: string;
   input: string;
   runtime: RuntimeConfig;
+  agent: string;
   signal?: AbortSignal;
   onSnapshot?: (snapshot: SubsessionSnapshot) => void;
 }
@@ -26,6 +27,7 @@ interface ExecuteTurnResult {
 
 interface CreateSubsessionParams {
   id: string;
+  agent: string;
   parentId: string;
   label: InteractiveLabel;
   title: string;
@@ -39,8 +41,8 @@ function createErrorResult(message: string): SubsessionResult {
 }
 
 async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResult> {
-  const safeTools = filterSubsessionTools(request.runtime.tools);
   const args: string[] = ["--mode", "json", "-p"];
+  const allowedTools = request.runtime.tools;
 
   if (request.sessionId) {
     args.push("--session", request.sessionId);
@@ -48,8 +50,10 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResu
   if (request.runtime.systemPrompt) {
     args.push("--system-prompt", request.runtime.systemPrompt);
   }
-  if (safeTools.length > 0) {
-    args.push("--tools", safeTools.join(","));
+  if (Array.isArray(allowedTools) && allowedTools.length > 0) {
+    args.push("--tools", allowedTools.join(","));
+  } else {
+    args.push("--no-tools");
   }
   if (request.runtime.modelId) {
     args.push("--model", request.runtime.modelId);
@@ -64,13 +68,10 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResu
   };
 
   request.onSnapshot?.(snapshot);
-  const parser = createJsonLineParser(snapshot, request.onSnapshot);
 
+  const parser = createJsonLineParser(snapshot, request.onSnapshot);
   let wasAborted = false;
   let stderrOutput = "";
-
-  const subsessionFiles =
-    request.runtime.files.length > 0 ? JSON.stringify(request.runtime.files) : undefined;
 
   const exitCode = await new Promise<number>((resolve) => {
     const invocation = getPiInvocation(args);
@@ -78,11 +79,7 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResu
       cwd: process.cwd(),
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
-      env: {
-        ...process.env,
-        SURGENT_SUBSESSION: "true",
-        ...(subsessionFiles ? { SURGENT_SUBSESSION_FILES: subsessionFiles } : {}),
-      },
+      env: { ...process.env, SURGENT_SUBSESSION: "true", SURGENT_SUBAGENT: request.agent },
     }) as ChildProcess;
 
     childProcess.stdout?.on("data", (chunk: Buffer) => {
@@ -139,11 +136,12 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResu
 }
 
 function createSubsession(params: CreateSubsessionParams): InteractiveSubsession {
-  const { onSnapshot, ...rest } = params;
+  const { onSnapshot, agent, ...rest } = params;
   const subsession: InteractiveSubsession = {
     ...rest,
     async exec(input: string, signal?: AbortSignal): Promise<void> {
       const nextTurn = await executeTurn({
+        agent,
         sessionId: subsession.id,
         input,
         runtime: rest.runtime,
@@ -164,6 +162,7 @@ export default async function runInteractive(
   const runtime = await resolveRuntime(request.agent);
   const params: CreateSubsessionParams = {
     id: request.id ?? "",
+    agent: request.agent,
     label: request.label,
     title: "",
     result: { status: "done", output: "", toolCounts: {} },
@@ -185,6 +184,7 @@ export default async function runInteractive(
     params.title = request.input.trim() || "Untitled";
 
     const initialTurn = await executeTurn({
+      agent: request.agent,
       input: request.input,
       runtime,
       signal: request.signal,

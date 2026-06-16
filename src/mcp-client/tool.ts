@@ -3,7 +3,7 @@ import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { resolveServerConfig } from "./storage.js";
 import { McpClientManager } from "./client.js";
-import type { McpCallToolDetails } from "./types.js";
+import type { McpToolCallDetails } from "./types.js";
 
 export function createMcpCallTool(clientManager: McpClientManager) {
   return defineTool({
@@ -70,7 +70,7 @@ export function createMcpCallTool(clientManager: McpClientManager) {
           transport: serverConfig.transport,
           remoteTool: toolName,
           ...(result.isError ? { isError: true } : {}),
-        } satisfies McpCallToolDetails,
+        } satisfies McpToolCallDetails,
       };
     },
     renderCall(args, theme) {
@@ -85,7 +85,7 @@ export function createMcpCallTool(clientManager: McpClientManager) {
         return new Text(theme.fg("warning", "Calling MCP tool..."), 0, 0);
       }
 
-      const details = result.details as McpCallToolDetails | undefined;
+      const details = result.details as McpToolCallDetails | undefined;
       if (!details) {
         return new Text(theme.fg("dim", "MCP tool completed"), 0, 0);
       }

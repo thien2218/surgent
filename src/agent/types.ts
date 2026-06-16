@@ -1,7 +1,6 @@
 export type AgentAllowList = "all" | string[];
 
 export interface AgentMeta {
-  name: string;
   description: string;
   tools?: AgentAllowList;
   mcp_servers?: AgentAllowList;
@@ -12,6 +11,7 @@ export interface AgentMeta {
 }
 
 export interface Agent {
+  name: string;
   meta: AgentMeta;
   body: string;
   filePath: string;

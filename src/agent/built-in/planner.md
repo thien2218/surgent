@@ -1,5 +1,4 @@
 ---
-name: planner
 description: Produces implementation-ready plans
 tools: [read, grep, find, ls, questionnaire]
 files: all

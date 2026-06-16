@@ -1,5 +1,6 @@
-export type SubsessionResultStatus = "done" | "aborted" | "error";
+import type { AgentAllowList } from "../agent/types.js";
 
+export type SubsessionResultStatus = "done" | "aborted" | "error";
 export type InteractiveLabel = "plan" | "review";
 
 interface SubsessionRequestBase {
@@ -24,7 +25,8 @@ export interface SubsessionResult {
 
 export interface BackgroundRequest extends SubsessionRequestBase {
   task: string;
-  files: string[];
+  files?: AgentAllowList;
+  bash?: AgentAllowList;
 }
 
 export interface InteractiveMeta {
@@ -41,8 +43,7 @@ export interface InteractiveSubsessions {
 
 export interface RuntimeConfig {
   systemPrompt: string;
-  tools: string[];
-  files: string[];
+  tools?: AgentAllowList;
   modelId?: string;
 }
 

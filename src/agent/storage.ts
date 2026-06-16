@@ -4,7 +4,6 @@ import { readJson, writeJson } from "../utils.js";
 import { fileURLToPath } from "node:url";
 import { getPiPath } from "../utils.js";
 import type { AgentMeta, Agent, AgentAllowList } from "./types.js";
-import { SUBAGENT } from "../subsession/index.js";
 
 const FRONTMATTER_BLOCK = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 const LINE_ENDING = /\r?\n/;
@@ -15,7 +14,6 @@ const QUOTED_STRING = /^["']|["']$/g;
 const ARRAY_KEYS = new Set<keyof AgentMeta>(["tools", "mcp_servers", "skills", "bash", "files"]);
 const STRING_KEYS = new Set<keyof AgentMeta>(["description", "model"]);
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
-const DEFAULT_AGENT = "default";
 
 function parseAllowList(value: string): AgentAllowList | undefined {
   const inlineArray = value.match(INLINE_ARRAY);
@@ -69,8 +67,8 @@ async function getAgentFiles(cwd: string, name?: string, skipBuiltIn?: boolean):
   for (const dir of dirs) {
     try {
       const entries = await readdir(dir, { withFileTypes: true });
-      files.concat(
-        entries
+      files.push(
+        ...entries
           .filter((entry) => {
             if (seen.has(entry.name)) return false;
             seen.add(entry.name);
@@ -81,7 +79,7 @@ async function getAgentFiles(cwd: string, name?: string, skipBuiltIn?: boolean):
           .map((entry) => join(dir, entry.name)),
       );
     } catch {
-      return [];
+      continue;
     }
   }
 
@@ -144,20 +142,12 @@ export async function writeAgentPrompt(
   await writeFile(filePath, prompt, "utf8");
 }
 
-export async function readSessionAgent(cwd: string, sessionId: string): Promise<string> {
-  const file = await readJson<Record<string, unknown>>(getPiPath("sessionAgents", cwd), {});
-  const sessionAgent = file[sessionId];
-  return typeof sessionAgent === "string" ? sessionAgent : (SUBAGENT ?? DEFAULT_AGENT);
-}
-
 export async function writeSessionAgent(
   cwd: string,
   sessionId: string,
   agent: string,
 ): Promise<void> {
   const file = await readJson<Record<string, string>>(getPiPath("sessionAgents", cwd), {});
-  if (agent !== DEFAULT_AGENT) {
-    file[sessionId] = agent;
-  }
+  if (agent !== "default") file[sessionId] = agent;
   await writeJson(getPiPath("sessionAgents", cwd), file);
 }

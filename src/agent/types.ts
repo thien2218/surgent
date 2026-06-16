@@ -1,11 +1,13 @@
+export type AgentAllowList = "all" | string[];
+
 export interface AgentMeta {
   name: string;
   description: string;
-  tools?: string[];
-  mcp_servers?: string[];
-  skills?: string[];
-  bash?: string[];
-  files?: string[];
+  tools?: AgentAllowList;
+  mcp_servers?: AgentAllowList;
+  skills?: AgentAllowList;
+  bash?: AgentAllowList;
+  files?: AgentAllowList;
   model?: string;
 }
 

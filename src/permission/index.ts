@@ -164,7 +164,6 @@ export default function (pi: ExtensionAPI) {
     }
 
     const exprExists = expr ? await checkExprStored(ctx.cwd, check.category, expr) : false;
-
     const decision = await ctx.ui.custom<PromptDecision>((_tui, theme, _keybindings, done) => {
       const component = new PermissionPrompt(theme, expr, check, exprExists);
       component.onDone = done;

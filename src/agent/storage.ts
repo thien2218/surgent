@@ -3,12 +3,12 @@ import { dirname, join, resolve } from "node:path";
 import { readJson, writeJson } from "../utils.js";
 import { fileURLToPath } from "node:url";
 import { getPiPath } from "../utils.js";
-import type { AgentMeta, Agent } from "./types.js";
+import type { AgentMeta, Agent, AgentAllowList } from "./types.js";
 
 const FRONTMATTER_BLOCK = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 const LINE_ENDING = /\r?\n/;
 const KEY_VALUE_PAIR = /^(\w+):\s*(.*)$/;
-const INLINE_ARRAY = /^\[(.+)\]$/;
+const INLINE_ARRAY = /^\[(.*)\]$/;
 const QUOTED_STRING = /^["']|["']$/g;
 
 const ARRAY_KEYS = new Set<keyof AgentMeta>(["tools", "mcp_servers", "skills", "bash", "files"]);
@@ -110,6 +110,20 @@ export async function writeAgentPrompt(
   await writeFile(filePath, prompt, "utf8");
 }
 
+function parseAllowList(value: string): AgentAllowList | undefined {
+  const inlineArray = value.match(INLINE_ARRAY);
+  if (inlineArray) {
+    return inlineArray[1]!
+      .split(",")
+      .map((part) => part.trim().replace(QUOTED_STRING, ""))
+      .filter(Boolean);
+  }
+
+  const normalized = value.replace(QUOTED_STRING, "").trim();
+  if (normalized === "all") return "all";
+  return undefined;
+}
+
 function parseFrontmatter(content: string, filePath: string): Agent | null {
   const match = content.match(FRONTMATTER_BLOCK);
   if (!match) return null;
@@ -125,12 +139,9 @@ function parseFrontmatter(content: string, filePath: string): Agent | null {
     const value = kv[2]!.trim();
 
     if (ARRAY_KEYS.has(key)) {
-      const inlineArray = value.match(INLINE_ARRAY);
-      if (inlineArray) {
-        (meta as Record<string, string[]>)[key] = inlineArray[1]!
-          .split(",")
-          .map((part) => part.trim().replace(QUOTED_STRING, ""))
-          .filter(Boolean);
+      const parsedAllowList = parseAllowList(value);
+      if (parsedAllowList !== undefined) {
+        (meta as Record<string, AgentAllowList>)[key] = parsedAllowList;
       }
     } else if (STRING_KEYS.has(key)) {
       (meta as Record<string, string>)[key] = value.replace(QUOTED_STRING, "");

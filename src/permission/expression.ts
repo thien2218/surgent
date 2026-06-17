@@ -28,7 +28,7 @@ function parseBashTopLevel(command: string): { statements: string[]; operators: 
       operators.push(part);
       continue;
     }
-    current += part;
+    current += (current ? " " : "") + part;
   }
 
   pushCurrent();
@@ -61,7 +61,7 @@ function statementToExpr(statement: string): string {
   const tokens = statement.trim().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return statement;
 
-  const splitIdx = tokens.findIndex((token, tokenIndex) => tokenIndex > 0 && !isStableToken(token));
+  const splitIdx = tokens.findIndex((token, idx) => idx > 0 && !isStableToken(token));
   if (splitIdx === -1) return tokens.join(" ");
 
   return `${tokens.slice(0, splitIdx).join(" ")} *`;

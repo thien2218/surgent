@@ -15,7 +15,7 @@ export default function (pi: ExtensionAPI) {
     if (subsessionStrippedTools.has(event.toolName)) {
       return {
         block: true,
-        reason: `${event.toolName} is not allowed in subsession. Try a different approach`,
+        reason: `${event.toolName} is not allowed in subsession. Try a different approach.`,
       };
     }
 
@@ -26,7 +26,7 @@ export default function (pi: ExtensionAPI) {
     const target = eventWithPath.input.path;
     // grep/find/ls without explicit path would search cwd implicitly — block it
     if (!target) {
-      return { block: true, reason: "Explicit path required in subsession" };
+      return { block: true, reason: "Explicit path required in subsession." };
     }
   });
 }

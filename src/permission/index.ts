@@ -23,7 +23,7 @@ const SWITCH_MODE_KEY = Key.ctrlAlt("y");
 export default function (pi: ExtensionAPI) {
   let sessionId: string | null = null;
   let agentMeta: AgentMeta;
-  let agentMode: AgentMode = "assistant";
+  let agentMode: AgentMode;
   let turnMode: AgentMode | null = null;
   let agentLoaded = false;
   let updateStatus: (() => void) | undefined;

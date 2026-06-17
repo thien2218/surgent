@@ -12,7 +12,7 @@ const args = process.argv.slice(2);
 
 const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLEAR_SCREEN = "\x1b[H\x1b[2J\x1b[3J";
-  const NON_EXTENSION_DIRS = new Set(["subsession"]);
+const NON_EXTENSION_DIRS = new Set(["subsession"]);
 
 async function setupGlobalConfig() {
   const srcDir = resolve(PACKAGE_DIR, "src");

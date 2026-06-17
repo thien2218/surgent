@@ -2,7 +2,7 @@
 
 import { main } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,15 +23,14 @@ async function setupGlobalConfig() {
     .filter((e) => e.isDirectory() && !NON_EXTENSION_DIRS.has(e.name))
     .map((e) => resolve(srcDir, e.name));
 
+  let rawSettings;
   const globalSettingsPath = resolve(agentDir, "settings.json");
 
-  let rawSettings;
   try {
     rawSettings = await readFile(globalSettingsPath, "utf8");
   } catch (err) {
-    // ~/.pi/agent/ doesn't exist
+    // ~/.pi/agent/settings.json doesn't exist
     if (err.code !== "ENOENT") throw err;
-    await mkdir(agentDir, { recursive: true });
     rawSettings = "{}";
   }
 
@@ -54,10 +53,7 @@ function rewriteHelpLine(line) {
 }
 
 function rewriteHelpText(text) {
-  return text
-    .split("\n")
-    .map(rewriteHelpLine)
-    .join("\n");
+  return text.split("\n").map(rewriteHelpLine).join("\n");
 }
 
 async function runRewrittenHelp(args) {

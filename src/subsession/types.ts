@@ -25,8 +25,6 @@ export interface SubsessionResult {
 
 export interface BackgroundRequest extends SubsessionRequestBase {
   task: string;
-  files?: AgentAllowList;
-  bash?: AgentAllowList;
 }
 
 export interface InteractiveMeta {

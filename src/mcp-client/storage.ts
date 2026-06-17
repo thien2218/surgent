@@ -1,5 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
 import { getPiPath, isMissingFileError } from "../utils.js";
 import type {
   HttpMcpServerConfig,
@@ -17,25 +16,25 @@ export async function upsertServerConfig(
   const replaced = Object.hasOwn(mcpServers, name);
 
   mcpServers[name] = normalizeServerConfig(name, serverConfig);
-
-  await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify({ mcpServers }, null, 2)}\n`, "utf8");
+
   return { path, replaced };
 }
 
 export async function loadMcpConfigSet(cwd: string): Promise<ResolvedMcpServerConfig[]> {
+  const globalPath = getPiPath("mcp");
   const localPath = getPiPath("mcp", cwd);
   const merged = new Map<string, ResolvedMcpServerConfig>();
   const [localServers, globalServers] = await Promise.all([
     readConfigFile(localPath),
-    readConfigFile(getPiPath("mcp")),
+    readConfigFile(globalPath),
   ]);
 
   for (const [name, serverConfig] of Object.entries(localServers)) {
     merged.set(name, { ...serverConfig, name, scope: "project", sourcePath: localPath });
   }
   for (const [name, serverConfig] of Object.entries(globalServers)) {
-    merged.set(name, { ...serverConfig, name, scope: "global", sourcePath: getPiPath("mcp") });
+    merged.set(name, { ...serverConfig, name, scope: "global", sourcePath: globalPath });
   }
 
   return Array.from(merged.values());

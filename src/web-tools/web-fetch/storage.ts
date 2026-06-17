@@ -1,6 +1,6 @@
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { toCanonicalUrl } from "./helpers.js";
 import { getPiPath } from "../../utils.js";
 
@@ -56,7 +56,6 @@ export async function writeFetchedResult(
   date = getCurrentCacheDate(),
 ): Promise<void> {
   const filePath = getCacheFilePath(url, date);
-  await mkdir(dirname(filePath), { recursive: true });
   await writeFile(filePath, content, "utf8");
 }
 

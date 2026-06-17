@@ -2,15 +2,10 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { cleanup } from "./cleanup.js";
 import { handlePermissionsCommand } from "./command.js";
-import { resolvePermission } from "./resolution.js";
+import { checkAgentRules, resolvePermission } from "./resolution.js";
 import { getPiIgnoreInputs, resolvePiIgnorePathBlock } from "./piignore.js";
-import {
-  addRule,
-  checkExprStored,
-  readAgentMode,
-  writeAgentMode,
-  loadMainAgent,
-} from "./storage.js";
+import { addRule, checkExprStored, readAgentMode, writeAgentMode } from "./storage.js";
+import { loadMainAgent } from "../agent/storage.js";
 import type { AgentMode, PromptDecision } from "./types.js";
 import PermissionPrompt from "./components/prompt.js";
 import { toPermExpr } from "./expression.js";
@@ -109,12 +104,17 @@ export default function (pi: ExtensionAPI) {
     const effectiveMode = turnMode ?? agentMode;
     if (!check || effectiveMode === "yolo" || !sessionId) return;
 
+    const runtimeAllowed = checkAgentRules(agentMeta, check);
+    if (!runtimeAllowed) {
+      return { block: true, reason: "Access to this resource is beyond your scope" };
+    }
+
     const expr = toPermExpr(check.toolName, check.raw);
-    const allowed = await resolvePermission(ctx.cwd, sessionId, agentMeta, check);
+    const allowed = await resolvePermission(ctx.cwd, sessionId, check);
     if (allowed && !check.danger) return;
 
     if (!ctx.hasUI) {
-      return { block: true, reason: "No UI to prompt for permission" };
+      return { block: true, reason: "No UI to prompt for permission in current mode" };
     }
 
     const exprExists = expr ? await checkExprStored(ctx.cwd, check.category, expr) : false;

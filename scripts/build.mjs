@@ -2,6 +2,7 @@
 
 import { spawn } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,6 +13,9 @@ const piIgnorePath = resolve(projectRoot, ".piignore");
 
 async function main() {
   process.chdir(projectRoot);
+
+  console.log("Ensuring existence of local .pi/ and global ~/.pi/agent/ dirs");
+  await ensurePiDirs();
 
   console.log("Adding .pi to git exclude file...");
   await ensurePiExcluded();
@@ -26,12 +30,21 @@ async function main() {
   await syncPiIgnore();
 }
 
-async function ensurePiExcluded() {
-  const excludePath = await getGitExcludePath();
-  const excludeDir = dirname(excludePath);
-  await mkdir(excludeDir, { recursive: true });
+async function ensurePiDirs() {
+  const localPiDirPath = resolve(projectRoot, ".pi");
+  const globalPiAgentDirPath = resolve(homedir(), ".pi", "agent");
 
+  await Promise.all([
+    mkdir(localPiDirPath, { recursive: true }),
+    mkdir(globalPiAgentDirPath, { recursive: true }),
+  ]);
+}
+
+async function ensurePiExcluded() {
   let excludeContents = "";
+  const excludePath = await getGitExcludePath();
+  await mkdir(dirname(excludePath), { recursive: true });
+
   try {
     excludeContents = await readFile(excludePath, "utf8");
   } catch (error) {
@@ -40,9 +53,7 @@ async function ensurePiExcluded() {
     }
   }
 
-  const existingPatterns = excludeContents
-    .split(/\r?\n/)
-    .map((line) => line.trim());
+  const existingPatterns = excludeContents.split(/\r?\n/).map((line) => line.trim());
 
   if (existingPatterns.includes(".pi")) {
     return;
@@ -53,7 +64,33 @@ async function ensurePiExcluded() {
 }
 
 async function getGitExcludePath() {
-  const excludePath = (await getCommandOutput("git", ["rev-parse", "--git-path", "info/exclude"])).trim();
+  const excludePath = (
+    await new Promise((resolve, reject) => {
+      const childProcess = spawn(resolveCommandName(commandName), commandArgs, {
+        cwd: projectRoot,
+        env: process.env,
+        stdio: ["inherit", "pipe", "inherit"],
+      });
+
+      let stdout = "";
+
+      childProcess.stdout.on("data", (chunk) => {
+        stdout += chunk.toString();
+      });
+
+      childProcess.on("error", (error) => {
+        reject(error);
+      });
+
+      childProcess.on("close", (exitCode) => {
+        if (exitCode === 0) {
+          resolve(stdout);
+          return;
+        }
+        reject(new Error(`Command failed: ${commandName} ${commandArgs.join(" ")}`));
+      });
+    })
+  ).trim();
 
   if (!excludePath) {
     throw new Error("Could not resolve .git/info/exclude path.");
@@ -98,37 +135,8 @@ async function installDependencies() {
   }
 }
 
-async function getCommandOutput(commandName, commandArgs) {
-  return new Promise((resolvePromise, rejectPromise) => {
-    const childProcess = spawn(resolveCommandName(commandName), commandArgs, {
-      cwd: projectRoot,
-      env: process.env,
-      stdio: ["inherit", "pipe", "inherit"],
-    });
-
-    let stdout = "";
-
-    childProcess.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-
-    childProcess.on("error", (error) => {
-      rejectPromise(error);
-    });
-
-    childProcess.on("close", (exitCode) => {
-      if (exitCode === 0) {
-        resolvePromise(stdout);
-        return;
-      }
-
-      rejectPromise(new Error(`Command failed: ${commandName} ${commandArgs.join(" ")}`));
-    });
-  });
-}
-
 async function runCommand(commandName, commandArgs) {
-  await new Promise((resolvePromise, rejectPromise) => {
+  await new Promise((resolve, reject) => {
     const childProcess = spawn(resolveCommandName(commandName), commandArgs, {
       cwd: projectRoot,
       env: process.env,
@@ -136,16 +144,16 @@ async function runCommand(commandName, commandArgs) {
     });
 
     childProcess.on("error", (error) => {
-      rejectPromise(error);
+      reject(error);
     });
 
     childProcess.on("close", (exitCode) => {
       if (exitCode === 0) {
-        resolvePromise();
+        resolve();
         return;
       }
 
-      rejectPromise(new Error(`Command failed: ${commandName} ${commandArgs.join(" ")}`));
+      reject(new Error(`Command failed: ${commandName} ${commandArgs.join(" ")}`));
     });
   });
 }

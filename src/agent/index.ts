@@ -10,12 +10,10 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("tool_call", (event) => {
     if (!IS_SUBSESSION) return; // Subsession handling
-
-    const subsessionStrippedTools = new Set(["bash", "subagent"]);
-    if (subsessionStrippedTools.has(event.toolName)) {
+    if (event.toolName === "subagent") {
       return {
         block: true,
-        reason: `${event.toolName} is not allowed in subsession. Try a different approach.`,
+        reason: "subagent tool is not allowed in subsession. Try a different approach.",
       };
     }
 

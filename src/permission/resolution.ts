@@ -6,11 +6,6 @@ import { readGlobal, readLocal } from "./storage.js";
 import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./types.js";
 import { getPiPath } from "../utils.js";
 import { BASH_TOKEN } from "./constants.js";
-import {
-  SUBSESSION_ALLOWED_BASH,
-  SUBSESSION_ALLOWED_FILES,
-  allowListUnion,
-} from "../subsession/index.js";
 
 const GLOB_CHARS = /[*?[\]{}]/;
 
@@ -116,22 +111,19 @@ function isAllowedByPattern(
   bash?: boolean,
 ): boolean {
   return Boolean(
-    allowList === "all" ||
-    (allowList && allowList.some((pattern: string) => matchesPattern(raw, pattern, bash))),
+    allowList !== "none" &&
+    (!allowList || allowList.some((pattern: string) => matchesPattern(raw, pattern, bash))),
   );
 }
 
-function checkAgentRules(agentMeta: AgentMeta | null, check: PermissionCheck): boolean {
-  if (!agentMeta) return false;
+export function checkAgentRules(agentMeta: AgentMeta, check: PermissionCheck): boolean {
   const { category, raw } = check;
-
   if (category === "bash") {
-    return isAllowedByPattern(raw, allowListUnion(agentMeta.bash, SUBSESSION_ALLOWED_BASH), true);
+    return isAllowedByPattern(raw, agentMeta.bash, true);
   }
   if (category === "file") {
-    return isAllowedByPattern(raw, allowListUnion(agentMeta.files, SUBSESSION_ALLOWED_FILES));
+    return isAllowedByPattern(raw, agentMeta.files);
   }
-
   return true;
 }
 
@@ -159,17 +151,14 @@ export function getRelativePathInRoot(rawPath: string, rootPath: string): string
 export async function resolvePermission(
   cwd: string,
   sessionId: string,
-  agentMeta: AgentMeta,
   check: PermissionCheck,
 ): Promise<boolean> {
   const { category, raw, op } = check;
-  // Agent meta rules take priority — block immediately if not allowed
-  if (!checkAgentRules(agentMeta, check)) return false;
   // For bash: also check any path-like args as file reads
   if (category === "bash") {
     for (const path of extractPathsFromCommand(raw)) {
       const fileCheck = { category: "file", raw: path, op: "read", toolName: "bash" } as const;
-      if (!(await resolvePermission(cwd, sessionId, agentMeta, fileCheck))) return false;
+      if (!(await resolvePermission(cwd, sessionId, fileCheck))) return false;
     }
   }
 

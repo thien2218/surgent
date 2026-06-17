@@ -1,9 +1,12 @@
-import { readdir, unlink, readFile, writeFile, mkdir } from "node:fs/promises";
+import { readdir, unlink, readFile, writeFile } from "node:fs/promises";
 import path, { dirname, join, resolve } from "node:path";
 import { readJson, writeJson } from "../utils.js";
 import { fileURLToPath } from "node:url";
 import { getPiPath } from "../utils.js";
 import type { AgentMeta, Agent, AgentAllowList } from "./types.js";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { SUBAGENT } from "../subsession/index.js";
+import { loadMcpConfigSet } from "../mcp-client/storage.js";
 
 const FRONTMATTER_BLOCK = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 const LINE_ENDING = /\r?\n/;
@@ -14,6 +17,7 @@ const QUOTED_STRING = /^["']|["']$/g;
 const ARRAY_KEYS = new Set<keyof AgentMeta>(["tools", "mcp_servers", "skills", "bash", "files"]);
 const STRING_KEYS = new Set<keyof AgentMeta>(["description", "model"]);
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
+const DEFAULT_AGENT = "default";
 
 function parseAllowList(value: string): AgentAllowList | undefined {
   const inlineArray = value.match(INLINE_ARRAY);
@@ -25,7 +29,7 @@ function parseAllowList(value: string): AgentAllowList | undefined {
   }
 
   const normalized = value.replace(QUOTED_STRING, "").trim();
-  if (normalized === "all") return "all";
+  if (normalized === "none") return normalized;
   return undefined;
 }
 
@@ -107,7 +111,6 @@ export async function loadAgents(cwd: string, name?: string): Promise<[Agent, ..
 }
 
 export async function createAgentFile(name: string, dir: string): Promise<string> {
-  await mkdir(dir, { recursive: true });
   const filePath = join(dir, `${name}.md`);
   await writeFile(
     filePath,
@@ -132,22 +135,59 @@ export function isBuiltIn(filePath: string): boolean {
   return filePath.startsWith(BUILT_IN_DIR);
 }
 
-export async function writeAgentPrompt(
-  prompt: string,
-  type: "appendSystem" | "system",
-  cwd?: string,
-): Promise<void> {
-  const filePath = getPiPath(type, cwd ?? "");
-  await mkdir(dirname(filePath), { recursive: true });
-  await writeFile(filePath, prompt, "utf8");
-}
-
 export async function writeSessionAgent(
   cwd: string,
   sessionId: string,
   agent: string,
 ): Promise<void> {
   const file = await readJson<Record<string, string>>(getPiPath("sessionAgents", cwd), {});
-  if (agent !== "default") file[sessionId] = agent;
+  if (agent !== DEFAULT_AGENT) file[sessionId] = agent;
   await writeJson(getPiPath("sessionAgents", cwd), file);
+}
+
+export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
+  const filePath = getPiPath("appendSystem", ctx.cwd);
+  const file = await readJson<Record<string, unknown>>(filePath, {});
+  const sessionAgent = file[ctx.sessionManager.getSessionId()];
+  const mainAgent = typeof sessionAgent === "string" ? sessionAgent : (SUBAGENT ?? DEFAULT_AGENT);
+  ctx.ui.setStatus("agent", ctx.ui.theme.fg("dim", `agent: ${mainAgent}`));
+
+  const allMcpConfigs = await loadMcpConfigSet(ctx.cwd);
+  const available = {
+    tools: pi.getAllTools().map((tool) => tool.name),
+    mcp: allMcpConfigs.filter((cfg) => cfg.enabled === true),
+  };
+
+  const [agent] = await loadAgents(ctx.cwd, mainAgent);
+  const { meta } = agent;
+
+  pi.setActiveTools(
+    available.tools.filter(
+      (name) => meta.tools !== "none" && (meta.tools ?? [name]).includes(name),
+    ),
+  );
+
+  if (meta.model) {
+    const existing = ctx.modelRegistry
+      .getAll()
+      .find((item) => item.id === meta.model || item.id.endsWith(`/${meta.model}`));
+
+    if (existing) {
+      const ok = pi.setModel(existing);
+      if (!ok) ctx.ui.notify("Agent model unavailable", "warning");
+    } else {
+      ctx.ui.notify(`Unknown model "${meta.model}" in agent config`, "warning");
+    }
+  }
+
+  const lines = available.mcp
+    .filter(
+      (cfg) => meta.mcp_servers !== "none" && (meta.mcp_servers ?? [cfg.name]).includes(cfg.name),
+    )
+    .map((cfg) => (cfg.description ? `- ${cfg.name} - ${cfg.description}` : `- ${cfg.name}`));
+  const appendContent = lines.length > 0 ? `## Enabled MCP Servers\n${lines.join("\n")}\n` : "";
+
+  await writeFile(filePath, appendContent, "utf8");
+
+  return meta;
 }

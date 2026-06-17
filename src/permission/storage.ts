@@ -10,10 +10,6 @@ import type {
 } from "./types.js";
 import { getPiPath } from "../utils.js";
 import { CATEGORIES } from "./constants.js";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { loadMcpConfigSet } from "../mcp-client/storage.js";
-import { loadAgents, writeAgentPrompt } from "../agent/storage.js";
-import { SUBAGENT } from "../subsession/index.js";
 
 interface LocalSchema {
   project?: PermissionRule;
@@ -197,46 +193,4 @@ export async function checkExprStored(
   };
 
   return inSchema(global) || Object.values(local).some(inSchema);
-}
-
-export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
-  const file = await readJson<Record<string, unknown>>(getPiPath("sessionAgents", ctx.cwd), {});
-  const sessionAgent = file[ctx.sessionManager.getSessionId()];
-  const mainAgent = typeof sessionAgent === "string" ? sessionAgent : (SUBAGENT ?? "default");
-  ctx.ui.setStatus("agent", ctx.ui.theme.fg("dim", `agent: ${mainAgent}`));
-
-  const allMcpConfigs = await loadMcpConfigSet(ctx.cwd);
-  const available = {
-    tools: pi.getAllTools().map((tool) => tool.name),
-    mcp: allMcpConfigs.filter((cfg) => cfg.enabled === true),
-  };
-
-  const [agent] = await loadAgents(ctx.cwd, mainAgent);
-  const { meta } = agent;
-
-  pi.setActiveTools(
-    available.tools.filter((name) => meta.tools === "all" || (meta.tools ?? []).includes(name)),
-  );
-
-  if (meta.model) {
-    const existing = ctx.modelRegistry
-      .getAll()
-      .find((item) => item.id === meta.model || item.id.endsWith(`/${meta.model}`));
-
-    if (existing) {
-      const ok = pi.setModel(existing);
-      if (!ok) ctx.ui.notify("Agent model unavailable", "warning");
-    } else {
-      ctx.ui.notify(`Unknown model "${meta.model}" in agent config`, "warning");
-    }
-  }
-
-  const lines = available.mcp
-    .filter((cfg) => meta.mcp_servers === "all" || (meta.mcp_servers ?? []).includes(cfg.name))
-    .map((cfg) => (cfg.description ? `- ${cfg.name} - ${cfg.description}` : `- ${cfg.name}`));
-  const appendContent = lines.length > 0 ? `## Enabled MCP Servers\n${lines.join("\n")}\n` : "";
-
-  await writeAgentPrompt(appendContent, "appendSystem", ctx.cwd);
-
-  return meta;
 }

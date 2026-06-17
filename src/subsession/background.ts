@@ -44,13 +44,7 @@ export default async function runBackground(
       cwd: process.cwd(),
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
-      env: {
-        ...process.env,
-        SURGENT_SUBSESSION: "true",
-        SURGENT_SUBAGENT: request.agent,
-        SURGENT_SUBSESSION_FILES: JSON.stringify(request.files),
-        SURGENT_SUBSESSION_BASH: JSON.stringify(request.bash),
-      },
+      env: { ...process.env, SURGENT_SUBSESSION: "true", SURGENT_SUBAGENT: request.agent },
     }) as ChildProcess;
 
     processHandle.stdout?.on("data", (chunk: Buffer) => {

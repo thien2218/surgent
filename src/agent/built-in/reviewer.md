@@ -1,7 +1,6 @@
 ---
 description: Performs concise, evidence-based code review from provided diff context
 tools: [read, grep, find, ls]
-files: all
 ---
 
 <role>

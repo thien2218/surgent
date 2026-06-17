@@ -1,4 +1,4 @@
-export type AgentAllowList = "all" | string[];
+export type AgentAllowList = "none" | string[];
 
 export interface AgentMeta {
   description: string;

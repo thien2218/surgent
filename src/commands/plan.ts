@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import type { InteractiveSubsession } from "../subsession/types.js";
+import type { InteractiveRequest, InteractiveSubsession } from "../subsession/types.js";
 import { MODE_ENTRY } from "./index.js";
 import { runInteractive } from "../subsession/index.js";
 import {
@@ -80,45 +80,32 @@ async function resolveSession(
   parsedInput: PlanCommandInput,
 ): Promise<InteractiveSubsession | null> {
   const parentSessionId = ctx.sessionManager.getSessionId();
-
-  if (parsedInput.kind === "prompt") {
-    const session = await runInteractive({
-      parentId: parentSessionId,
-      label: PLAN_LABEL,
-      agent: PLAN_AGENT,
-      input: parsedInput.prompt,
-    });
-
-    if (!session.id) {
-      ctx.ui.notify(session.result.output || "Failed to create planning session", "error");
-      return null;
-    }
-
-    return session;
-  }
-
-  const selectedSubsessionId =
-    parsedInput.kind === "resume"
-      ? parsedInput.subsessionId
-      : await pickStoredPlanSessionId(ctx, parentSessionId);
-
-  if (!selectedSubsessionId) {
-    return null;
-  }
-
-  const session = await runInteractive({
+  const request: InteractiveRequest = {
     parentId: parentSessionId,
-    id: selectedSubsessionId,
     label: PLAN_LABEL,
     agent: PLAN_AGENT,
     input: "",
-  });
+  };
 
+  if (parsedInput.kind === "prompt") {
+    request.input = parsedInput.prompt;
+  } else {
+    const selectedSubsessionId =
+      parsedInput.kind === "resume"
+        ? parsedInput.subsessionId
+        : await pickStoredPlanSessionId(ctx, parentSessionId);
+
+    if (!selectedSubsessionId) {
+      ctx.ui.notify(`Plan subsession not found: ${selectedSubsessionId}`, "error");
+      return null;
+    }
+
+    request.id = selectedSubsessionId;
+  }
+
+  const session = await runInteractive(request);
   if (!session.id) {
-    ctx.ui.notify(
-      session.result.output || `Plan subsession not found: ${selectedSubsessionId}`,
-      "error",
-    );
+    ctx.ui.notify(session.result.output || "Failed to initiate planning session", "error");
     return null;
   }
 

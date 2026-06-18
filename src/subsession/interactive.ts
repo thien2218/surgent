@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { findSubsession, resolveRuntime, saveSubsession } from "./storage.js";
 import { createJsonLineParser, getFinalOutput } from "./parser.js";
-import { getSurgentInvoker } from "./herlpers.js";
+import { extractSubsessionTitle, getSurgentInvoker } from "./herlpers.js";
 import type {
   InteractiveLabel,
   InteractiveRequest,
@@ -199,6 +199,11 @@ export default async function runInteractive(
     } else {
       params.id = initialTurn.id;
       params.result = initialTurn.result;
+
+      const extractedTitle = extractSubsessionTitle(initialTurn.result.output);
+      if (extractedTitle) {
+        params.title = extractedTitle;
+      }
 
       await saveSubsession(request.pid, initialTurn.id, {
         label: request.label,

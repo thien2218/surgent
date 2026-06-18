@@ -13,8 +13,8 @@ interface ParserState {
 
 interface JsonLineParser {
   readonly state: ParserState;
-  push(chunk: string);
-  flush();
+  push(chunk: string): void;
+  flush(): void;
 }
 
 function parseJsonLine(line: string): Record<string, unknown> | null {

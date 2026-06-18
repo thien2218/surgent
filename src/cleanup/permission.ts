@@ -1,7 +1,7 @@
-import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { matchesPattern } from "../permission/resolution.js";
 import { readRules, writeRules } from "../permission/storage.js";
 import type { FileAccess, PermissionRule } from "../permission/types.js";
+import { pruneSessionMap } from "./helpers.js";
 
 function pruneRules<T extends FileAccess | boolean>(
   rules: Record<string, T>,
@@ -43,21 +43,14 @@ function pruneSchema(schema: PermissionRule): PermissionRule {
   return result;
 }
 
-export async function cleanupPermissions(cwd: string): Promise<void> {
-  await Promise.all([cleanupLocal(cwd), cleanupGlobal()]);
+export async function cleanupPermissions(cwd: string, sessionIds: Set<string>) {
+  cleanupLocal(cwd, sessionIds);
+  cleanupGlobal();
 }
 
-async function cleanupLocal(cwd: string): Promise<void> {
-  const [local, sessions] = await Promise.all([readRules(cwd), SessionManager.list(cwd)]);
-  const existingIds = new Set(sessions.map((s) => s.id));
-  let changed = false;
-
-  for (const pattern of Object.keys(local)) {
-    if (pattern !== "project" && !existingIds.has(pattern)) {
-      delete local[pattern];
-      changed = true;
-    }
-  }
+async function cleanupLocal(cwd: string, sessionIds: Set<string>): Promise<void> {
+  const local = await readRules(cwd);
+  let changed = pruneSessionMap(local, sessionIds);
 
   if (local.project) {
     const pruned = pruneSchema(local.project);

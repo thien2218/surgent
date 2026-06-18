@@ -7,5 +7,4 @@ export type PlanCommandInput =
 
 export type PlanAction =
   | { kind: "forward"; mode: AgentMode }
-  | { kind: "exit" }
   | { kind: "revise"; feedback: string };

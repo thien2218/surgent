@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -10,12 +11,10 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, "..");
 const gitIgnorePath = resolve(projectRoot, ".gitignore");
 const piIgnorePath = resolve(projectRoot, ".piignore");
+const localPiDirPath = resolve(projectRoot, ".pi");
 
 async function main() {
   process.chdir(projectRoot);
-
-  console.log("Ensuring existence of local .pi/ and global ~/.pi/agent/ dirs");
-  await ensurePiDirs();
 
   console.log("Adding .pi to git exclude file...");
   await ensurePiExcluded();
@@ -28,16 +27,9 @@ async function main() {
 
   console.log("Syncing .piignore from .gitignore...");
   await syncPiIgnore();
-}
 
-async function ensurePiDirs() {
-  const localPiDirPath = resolve(projectRoot, ".pi");
-  const globalPiAgentDirPath = resolve(homedir(), ".pi", "agent");
-
-  await Promise.all([
-    mkdir(localPiDirPath, { recursive: true }),
-    mkdir(globalPiAgentDirPath, { recursive: true }),
-  ]);
+  console.log("Ensuring existence of local .pi/ and global ~/.pi/agent/ dirs");
+  await ensurePiDirs();
 }
 
 async function ensurePiExcluded() {
@@ -66,11 +58,11 @@ async function ensurePiExcluded() {
 async function getGitExcludePath() {
   const excludePath = (
     await new Promise((resolve, reject) => {
-      const childProcess = spawn(resolveCommandName(commandName), commandArgs, {
-        cwd: projectRoot,
-        env: process.env,
-        stdio: ["inherit", "pipe", "inherit"],
-      });
+      const childProcess = spawn(
+        resolveCommandName("git"),
+        ["rev-parse", "--git-path", "info/exclude"],
+        { cwd: projectRoot, env: process.env, stdio: ["inherit", "pipe", "inherit"] },
+      );
 
       let stdout = "";
 
@@ -99,20 +91,6 @@ async function getGitExcludePath() {
   return resolve(projectRoot, excludePath);
 }
 
-async function syncPiIgnore() {
-  try {
-    await readFile(piIgnorePath, "utf8");
-    return;
-  } catch (error) {
-    if (!isMissingFileError(error)) {
-      throw error;
-    }
-  }
-
-  const gitIgnoreContents = await readFile(gitIgnorePath, "utf8");
-  await writeFile(piIgnorePath, gitIgnoreContents);
-}
-
 async function installDependencies() {
   try {
     await runCommand("pnpm", ["install"]);
@@ -133,6 +111,23 @@ async function installDependencies() {
     }
     throw error;
   }
+}
+
+function isMissingCommandError(error, commandName) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const hasMissingErrorName = "name" in error && error.name === "MissingCommandError";
+  if (!hasMissingErrorName) {
+    return false;
+  }
+
+  if (!commandName) {
+    return true;
+  }
+
+  return "missingCommandName" in error && error.missingCommandName === commandName;
 }
 
 async function runCommand(commandName, commandArgs) {
@@ -162,21 +157,30 @@ function resolveCommandName(commandName) {
   return process.platform === "win32" ? `${commandName}.cmd` : commandName;
 }
 
-function isMissingCommandError(error, commandName) {
-  if (!error || typeof error !== "object") {
-    return false;
+async function syncPiIgnore() {
+  try {
+    await readFile(piIgnorePath, "utf8");
+    return;
+  } catch (error) {
+    if (!isMissingFileError(error)) {
+      throw error;
+    }
   }
 
-  const hasMissingErrorName = "name" in error && error.name === "MissingCommandError";
-  if (!hasMissingErrorName) {
-    return false;
+  if (existsSync(localPiDirPath)) {
+    return;
   }
 
-  if (!commandName) {
-    return true;
-  }
+  const gitIgnoreContents = await readFile(gitIgnorePath, "utf8");
+  await writeFile(piIgnorePath, gitIgnoreContents);
+}
 
-  return "missingCommandName" in error && error.missingCommandName === commandName;
+async function ensurePiDirs() {
+  const globalSubsessionDirPath = resolve(homedir(), ".pi", "agent");
+  await Promise.all([
+    mkdir(localPiDirPath, { recursive: true }),
+    mkdir(globalSubsessionDirPath, { recursive: true }),
+  ]);
 }
 
 function isMissingFileError(error) {

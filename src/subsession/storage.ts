@@ -2,64 +2,52 @@ import { loadAgents } from "../agent/storage.js";
 import { getPiPath, readJson, writeJson } from "../utils.js";
 import type { InteractiveSubsessions, InteractiveMeta, RuntimeConfig } from "./types.js";
 
+const STORE_FILE = getPiPath("subsessions", process.cwd());
 const interactiveSubsessions: InteractiveSubsessions = {};
 let isStoreLoaded = false;
 
-async function loadStore(cwd: string) {
+async function loadStore() {
   if (isStoreLoaded) return;
-
-  const filePath = getPiPath("subsessions", cwd);
-  const persistedStore = await readJson<InteractiveSubsessions>(filePath, {});
-
+  const persistedStore = await readJson<InteractiveSubsessions>(STORE_FILE, {});
   for (const [parentId, subsessions] of Object.entries(persistedStore)) {
     interactiveSubsessions[parentId] = subsessions;
   }
-
   isStoreLoaded = true;
-}
-
-async function persistStore(cwd: string) {
-  const filePath = getPiPath("subsessions", cwd);
-  await writeJson(filePath, interactiveSubsessions);
 }
 
 export async function findSubsession(
   parentId: string,
   id: string,
 ): Promise<InteractiveMeta | null> {
-  await loadStore(process.cwd());
-
+  await loadStore();
   const parentSubsessions = interactiveSubsessions[parentId];
   if (!parentSubsessions) return null;
-
   return parentSubsessions[id] ?? null;
 }
 
 export async function saveSubsession(parentId: string, id: string, entry: InteractiveMeta) {
-  await loadStore(process.cwd());
-
+  await loadStore();
   if (!interactiveSubsessions[parentId]) {
     interactiveSubsessions[parentId] = {};
   }
-
   interactiveSubsessions[parentId]![id] = entry;
-  await persistStore(process.cwd());
+  await writeJson(STORE_FILE, interactiveSubsessions);
 }
 
-export async function deleteSubsession(parentId: string, id: string) {
-  await loadStore(process.cwd());
+export async function deleteSubsession(pid: string, id: string) {
+  await loadStore();
 
-  const parentSubsessions = interactiveSubsessions[parentId];
+  const parentSubsessions = interactiveSubsessions[pid];
   if (!parentSubsessions || !parentSubsessions[id]) {
     return;
   }
 
   delete parentSubsessions[id];
   if (Object.keys(parentSubsessions).length === 0) {
-    delete interactiveSubsessions[parentId];
+    delete interactiveSubsessions[pid];
   }
 
-  await persistStore(process.cwd());
+  await writeJson(STORE_FILE, interactiveSubsessions);
 }
 
 export async function resolveRuntime(name: string, model?: string): Promise<RuntimeConfig> {

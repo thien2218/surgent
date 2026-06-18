@@ -14,6 +14,16 @@ const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLEAR_SCREEN = "\x1b[H\x1b[2J\x1b[3J";
 const NON_EXTENSION_DIRS = new Set(["subsession"]);
 
+function isJsonModeActive(args) {
+  for (let i = 0; i < args.length - 1; i++) {
+    const arg = args[i];
+    if (arg === "--mode" && args[i + 1] === "json") {
+      return true;
+    }
+  }
+  return false;
+}
+
 async function setupGlobalConfig() {
   const srcDir = resolve(PACKAGE_DIR, "src");
   const agentDir = resolve(homedir(), ".pi", "agent");
@@ -89,12 +99,12 @@ async function runRewrittenHelp(args) {
 if (args.includes("--help") || args.includes("-h")) {
   await runRewrittenHelp(args);
 } else {
-  await setupGlobalConfig();
-  process.stdout.write(CLEAR_SCREEN);
-  process.on("exit", (code) => {
-    if (code === 0) {
-      process.stdout.write(CLEAR_SCREEN);
-    }
-  });
+  if (!isJsonModeActive(args)) {
+    await setupGlobalConfig();
+    process.stdout.write(CLEAR_SCREEN);
+    process.on("exit", (code) => {
+      if (code === 0) process.stdout.write(CLEAR_SCREEN);
+    });
+  }
   await main(args);
 }

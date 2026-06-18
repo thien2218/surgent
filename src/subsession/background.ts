@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createJsonLineParser, getFinalOutput } from "./parser.js";
-import { getPiInvocation } from "./herlpers.js";
+import { getSurgentInvoker } from "./herlpers.js";
 import type { BackgroundRequest, SubsessionResult, SubsessionSnapshot } from "./types.js";
 import { resolveRuntime } from "./storage.js";
 
@@ -8,7 +8,7 @@ export default async function runBackground(
   request: BackgroundRequest,
   onSnapshot?: (snapshot: SubsessionSnapshot) => void,
 ): Promise<SubsessionResult> {
-  const runtime = await resolveRuntime(request.agent);
+  const runtime = await resolveRuntime(request.agent, request.modelId);
   const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
   const snapshot: SubsessionSnapshot = {
@@ -39,8 +39,8 @@ export default async function runBackground(
   let stderrOutput = "";
 
   const exitCode = await new Promise<number>((resolve) => {
-    const invocation = getPiInvocation(args);
-    const processHandle = spawn(invocation.command, invocation.args, {
+    const invoker = getSurgentInvoker(args);
+    const processHandle = spawn(invoker.command, invoker.args, {
       cwd: process.cwd(),
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],

@@ -30,7 +30,7 @@ interface ExecuteTurnResult {
 interface CreateSubsessionParams {
   id: string;
   agent: string;
-  parentId: string;
+  pid: string;
   label: InteractiveLabel;
   title: string;
   result: SubsessionResult;
@@ -166,15 +166,15 @@ export default async function runInteractive(
     id: request.id ?? "",
     agent: request.agent,
     label: request.label,
+    pid: request.pid,
     title: "",
     result: { status: "done", output: "", toolCounts: {} },
-    parentId: request.parentId,
     runtime,
     onSnapshot,
   };
 
   if (request.id) {
-    const existing = await findSubsession(request.parentId, request.id);
+    const existing = await findSubsession(request.pid, request.id);
     if (!existing) {
       params.title = "Unknown subsession";
       params.result = createErrorResult(`Subsession not found: ${request.id}`);
@@ -200,7 +200,7 @@ export default async function runInteractive(
       params.id = initialTurn.id;
       params.result = initialTurn.result;
 
-      await saveSubsession(request.parentId, initialTurn.id, {
+      await saveSubsession(request.pid, initialTurn.id, {
         label: request.label,
         agent: request.agent,
         title: params.title,

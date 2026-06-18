@@ -16,7 +16,6 @@ const PLAN_LABEL = "plan";
 const FORWARD_OPTIONS: ActionSelectOption[] = [
   { value: "assistant", label: "Yes, proceed with assistant mode" },
   { value: "yolo", label: "Yes, proceed with YOLO mode" },
-  { value: "exit", label: "Exit planning" },
 ];
 
 export async function planCommandHandler(
@@ -45,14 +44,10 @@ export async function planCommandHandler(
     while (true) {
       ctx.ui.setWidget(PLAN_LABEL, undefined);
       const action = await showUi(ctx, session.result.output);
-      if (!action || action.kind === "exit") {
-        return;
-      }
+      if (!action) return;
 
       if (action.kind === "forward") {
-        if (await forwardAction(pi, ctx, action.mode, session)) {
-          return;
-        }
+        if (await forwardAction(pi, ctx, action.mode, session)) return;
         continue;
       }
 
@@ -175,7 +170,7 @@ async function showUi(
   });
 }
 
-function mapActionResult(result: ActionSelectResult): PlanAction {
+function mapActionResult(result: ActionSelectResult): PlanAction | null {
   if (result.type === "input") {
     return { kind: "revise", feedback: result.value };
   }
@@ -185,5 +180,5 @@ function mapActionResult(result: ActionSelectResult): PlanAction {
   if (result.value === "yolo") {
     return { kind: "forward", mode: "yolo" };
   }
-  return { kind: "exit" };
+  return null;
 }

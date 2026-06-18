@@ -1,6 +1,6 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { Category, DisplayRule, FileAccess } from "./types.js";
-import { getRulesForDisplay, addRule, readLocal, writeLocal, writeGlobal } from "./storage.js";
+import { getRulesForDisplay, addRule, readRules, writeRules } from "./storage.js";
 import PermissionRulesList from "./components/rules-list.js";
 import EditableOption from "./components/editable-option.js";
 import { Frame } from "../ui/components/frame.js";
@@ -19,12 +19,12 @@ export async function handlePermissionsCommand(ctx: ExtensionCommandContext): Pr
       const component = new PermissionRulesList(theme, rules);
       component.onDone = done;
       component.onSave = (data) => {
-        readLocal(ctx.cwd).then((local) => {
+        readRules(ctx.cwd).then((local) => {
           local[sessionId] = data.session;
           local.project = data.project;
-          return writeLocal(ctx.cwd, local);
+          return writeRules(local, ctx.cwd);
         });
-        writeGlobal(data.global);
+        writeRules(data.global);
       };
       return component;
     });

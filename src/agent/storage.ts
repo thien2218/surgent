@@ -188,6 +188,5 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
   const appendContent = lines.length > 0 ? `## Enabled MCP Servers\n${lines.join("\n")}\n` : "";
 
   await writeFile(filePath, appendContent, "utf8");
-
   return meta;
 }

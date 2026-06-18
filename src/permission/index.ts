@@ -1,6 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key, visibleWidth } from "@earendil-works/pi-tui";
-import { cleanup } from "./cleanup.js";
 import { handlePermissionsCommand } from "./command.js";
 import { checkAgentRules, resolvePermission } from "./resolution.js";
 import { getPiIgnoreInputs, resolvePiIgnorePathBlock } from "./piignore.js";
@@ -38,7 +37,6 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     if (IS_SUBSESSION) return;
     sessionId = ctx.sessionManager.getSessionId();
-    cleanup(ctx.cwd);
 
     if (!agentLoaded) {
       [agentMeta, agentMode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode(ctx.cwd)]);

@@ -60,7 +60,6 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResu
   if (request.runtime.modelId) {
     args.push("--model", request.runtime.modelId);
   }
-  args.push(request.input);
 
   const snapshot: SubsessionSnapshot = {
     id: request.sessionId ?? "",
@@ -80,9 +79,11 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResu
     const childProcess = spawn(invoker.command, invoker.args, {
       cwd: process.cwd(),
       shell: false,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env, SURGENT_SUBSESSION: "true", SURGENT_SUBAGENT: request.agent },
     }) as ChildProcess;
+
+    childProcess.stdin?.end(request.input);
 
     childProcess.stdout?.on("data", (chunk: Buffer) => {
       parser.push(chunk.toString());

@@ -8,9 +8,10 @@ import { MODE_ENTRY } from "./index.js";
 import type { InteractiveSubsession } from "../subsession/types.js";
 import { unlink } from "node:fs/promises";
 import { deleteSubsession } from "../subsession/storage.js";
+import { SUBSESSION_DIR_NAME } from "../subsession/index.js";
 
 async function deleteSessionFile(cwd: string, sessionId: string) {
-  const sessions = await SessionManager.list(cwd);
+  const sessions = await SessionManager.list(cwd, SUBSESSION_DIR_NAME);
   const targetSession = sessions.find((session) => session.id === sessionId);
   if (!targetSession) {
     return;

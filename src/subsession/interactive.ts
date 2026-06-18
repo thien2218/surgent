@@ -11,6 +11,8 @@ import type {
   SubsessionSnapshot,
 } from "./types.js";
 
+export const SUBSESSION_DIR_NAME = "subsessions";
+
 interface ExecuteTurnRequest {
   sessionId?: string;
   input: string;
@@ -41,7 +43,7 @@ function createErrorResult(message: string): SubsessionResult {
 }
 
 async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResult> {
-  const args: string[] = ["--mode", "json", "-p"];
+  const args: string[] = ["--mode", "json", "-p", "--session-dir", SUBSESSION_DIR_NAME];
   const allowedTools = request.runtime.tools;
 
   if (request.sessionId) {

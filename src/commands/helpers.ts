@@ -8,10 +8,10 @@ import { MODE_ENTRY } from "./index.js";
 import type { InteractiveSubsession, SubsessionSnapshot } from "../subsession/types.js";
 import { unlink } from "node:fs/promises";
 import { deleteSubsession } from "../subsession/storage.js";
-import { SUBSESSION_DIR_NAME } from "../subsession/index.js";
+import { getPiPath } from "../utils.js";
 
 async function deleteSessionFile(cwd: string, sessionId: string) {
-  const sessions = await SessionManager.list(cwd, SUBSESSION_DIR_NAME);
+  const sessions = await SessionManager.list(cwd, getPiPath("subsessionsDir"));
   const targetSession = sessions.find((session) => session.id === sessionId);
   if (!targetSession) {
     return;
@@ -54,7 +54,7 @@ export function renderSnapshotWidget(
   snapshot: SubsessionSnapshot,
 ) {
   const recentToolCalls = snapshot.toolsUsed.slice(-5);
-  const lines = [`${label}: ${snapshot.toolsUsed.length} tool calls`];
+  const lines = ["\n", `${label}: ${snapshot.toolsUsed.length} tool calls`];
 
   if (recentToolCalls.length === 0) {
     lines.push(` └─ ${snapshot.activity}`);
@@ -67,5 +67,6 @@ export function renderSnapshotWidget(
     }
   }
 
+  lines.push("\n");
   ctx.ui.setWidget(label, lines);
 }

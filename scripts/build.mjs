@@ -176,10 +176,10 @@ async function syncPiIgnore() {
 }
 
 async function ensurePiDirs() {
-  const globalSubsessionDirPath = resolve(homedir(), ".pi", "agent");
+  const globalAgentDirPath = resolve(homedir(), ".pi", "agent");
   await Promise.all([
     mkdir(localPiDirPath, { recursive: true }),
-    mkdir(globalSubsessionDirPath, { recursive: true }),
+    mkdir(globalAgentDirPath, { recursive: true }),
   ]);
 }
 

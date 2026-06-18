@@ -1,7 +1,6 @@
 import { unlink } from "node:fs/promises";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { InteractiveSubsessions } from "../subsession/types.js";
-import { SUBSESSION_DIR_NAME } from "../subsession/index.js";
 import { getPiPath, isMissingFileError, readJson, writeJson } from "../utils.js";
 
 function collectDeletedParentSessionIds(
@@ -37,7 +36,7 @@ async function deleteSessionFilesByIds(cwd: string, sessionIds: Set<string>): Pr
     return;
   }
 
-  const sessions = await SessionManager.list(cwd, SUBSESSION_DIR_NAME);
+  const sessions = await SessionManager.list(cwd, getPiPath("subsessionsDir"));
   const sessionPaths = sessions
     .filter((session) => sessionIds.has(session.id))
     .map((session) => session.path);

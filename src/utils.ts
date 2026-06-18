@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { Text } from "@earendil-works/pi-tui";
 
-const CUSTOM_PI_PATHS = {
+const PI_PATHS = {
   web: "web-results",
   agents: "agents",
   settings: "settings.json",
@@ -12,17 +12,18 @@ const CUSTOM_PI_PATHS = {
   sessionAgents: "agents.json",
   checkpoints: "checkpoints.json",
   subsessions: "subsessions.json",
+  subsessionsDir: "subsessions",
   system: "SYSTEM.md",
   appendSystem: "APPEND_SYSTEM.md",
 } as const;
 
-type PathKey = keyof typeof CUSTOM_PI_PATHS;
+type PathKey = keyof typeof PI_PATHS;
 
 export function getPiPath(key: PathKey, scope: "global", ...path: string[]): string;
 export function getPiPath(key: PathKey, cwd: string, ...path: string[]): string;
 export function getPiPath(key: PathKey): string;
 export function getPiPath(key: PathKey, ...full: string[]): string {
-  const path = CUSTOM_PI_PATHS[key];
+  const path = PI_PATHS[key];
   const remaining = path.includes(".") ? [] : full.slice(1);
   const isGlobal = !full[0] || full[0] === "global";
   const baseDir = isGlobal ? homedir() : full[0]!;

@@ -10,6 +10,7 @@ import type {
   SubsessionResult,
   SubsessionSnapshot,
 } from "./types.js";
+import { getPiPath } from "../utils.js";
 
 export const SUBSESSION_DIR_NAME = "subsessions";
 
@@ -43,7 +44,7 @@ function createErrorResult(message: string): SubsessionResult {
 }
 
 async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResult> {
-  const args: string[] = ["--mode", "json", "-p", "--session-dir", SUBSESSION_DIR_NAME];
+  const args: string[] = ["--mode", "json", "-p", "--session-dir", getPiPath("subsessionsDir")];
   const allowedTools = request.runtime.tools;
 
   if (request.sessionId) {

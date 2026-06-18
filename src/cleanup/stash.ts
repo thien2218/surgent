@@ -28,7 +28,7 @@ export async function cleanupCheckpointStashes(
   pi: ExtensionAPI,
   cwd: string,
   sessionIds: Set<string>,
-): Promise<void> {
+) {
   let listResult: Awaited<ReturnType<ExtensionAPI["exec"]>>;
 
   try {

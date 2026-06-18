@@ -65,13 +65,13 @@ export class ScrollableView extends Frame implements Focusable {
     return hints;
   }
 
-  override invalidate(): void {
+  override invalidate() {
     super.invalidate();
     this.markdownRenderer.invalidate();
     this.inputComponent?.invalidate();
   }
 
-  handleInput(data: string): void {
+  handleInput(data: string) {
     if (matchesKey(data, Key.escape)) {
       this.onCancel?.();
       return;
@@ -144,18 +144,18 @@ export class ScrollableView extends Frame implements Focusable {
     return lines.get();
   }
 
-  private scrollBy(amount: number): void {
+  private scrollBy(amount: number) {
     this.contentScrollOffset += amount;
     this.clampScrollOffset();
   }
 
-  private clampScrollOffset(totalMarkdownLines?: number): void {
+  private clampScrollOffset(totalMarkdownLines?: number) {
     const lineCount = totalMarkdownLines ?? this.lastMarkdownLineCount;
     const maxOffset = Math.max(0, lineCount - this.lastViewportHeight);
     this.contentScrollOffset = Math.max(0, Math.min(maxOffset, this.contentScrollOffset));
   }
 
-  private syncInputFocus(): void {
+  private syncInputFocus() {
     if (!this.inputComponent || !isFocusable(this.inputComponent)) {
       return;
     }

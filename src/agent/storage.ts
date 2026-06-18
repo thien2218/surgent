@@ -120,7 +120,7 @@ export async function createAgentFile(name: string, dir: string): Promise<string
   return filePath;
 }
 
-export async function deleteAgentFiles(name: string, cwd: string): Promise<void> {
+export async function deleteAgentFiles(name: string, cwd: string) {
   const files = await getAgentFiles(cwd, name, true);
   for (const file of files) {
     try {
@@ -135,11 +135,7 @@ export function isBuiltIn(filePath: string): boolean {
   return filePath.startsWith(BUILT_IN_DIR);
 }
 
-export async function writeSessionAgent(
-  cwd: string,
-  sessionId: string,
-  agent: string,
-): Promise<void> {
+export async function writeSessionAgent(cwd: string, sessionId: string, agent: string) {
   const file = await readJson<Record<string, string>>(getPiPath("sessionAgents", cwd), {});
   if (agent !== DEFAULT_AGENT) file[sessionId] = agent;
   await writeJson(getPiPath("sessionAgents", cwd), file);

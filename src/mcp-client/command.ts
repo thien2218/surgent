@@ -54,7 +54,7 @@ async function selectAction(ctx: ExtensionCommandContext): Promise<McpCommandAct
   return token;
 }
 
-async function handleSaveFlow(ctx: ExtensionCommandContext): Promise<void> {
+async function handleSaveFlow(ctx: ExtensionCommandContext) {
   if (!ctx.hasUI) {
     ctx.ui.notify("mcp save requires an interactive UI.", "error");
     return;
@@ -103,10 +103,7 @@ async function handleSaveFlow(ctx: ExtensionCommandContext): Promise<void> {
   );
 }
 
-async function showConfiguredMcpJson(
-  ctx: ExtensionCommandContext,
-  configuredMcpName?: string,
-): Promise<void> {
+async function showConfiguredMcpJson(ctx: ExtensionCommandContext, configuredMcpName?: string) {
   const servers = await loadMcpConfigSet(ctx.cwd);
   const targetServer = configuredMcpName
     ? servers.find((server) => server.name === configuredMcpName)

@@ -83,7 +83,7 @@ async function showAgentPicker(
   });
 }
 
-async function handleExistingAgent(ctx: ExtensionCommandContext, agent: Agent): Promise<void> {
+async function handleExistingAgent(ctx: ExtensionCommandContext, agent: Agent) {
   while (true) {
     const options = ["Start in new session", "Open in VS Code"];
     if (!isBuiltIn(agent.filePath)) options.push("Delete agent");
@@ -116,7 +116,7 @@ async function handleExistingAgent(ctx: ExtensionCommandContext, agent: Agent): 
   }
 }
 
-async function handleNewAgent(ctx: ExtensionCommandContext): Promise<void> {
+async function handleNewAgent(ctx: ExtensionCommandContext) {
   const result = await ctx.ui.custom<{ name: string; scope: string } | null>(
     (_tui, theme, _kb, done) => {
       const scopedInput = new ScopedInput(theme, "Agent name");

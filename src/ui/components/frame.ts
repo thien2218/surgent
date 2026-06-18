@@ -22,7 +22,7 @@ export class Frame implements Component {
     this.custom.push(child);
   }
 
-  invalidate(): void {
+  invalidate() {
     this.border.invalidate();
   }
 

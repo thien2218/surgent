@@ -53,12 +53,12 @@ export class ScopedInput extends Frame implements Focusable {
     return lines.get();
   }
 
-  override invalidate(): void {
+  override invalidate() {
     super.invalidate();
     this.input.invalidate();
   }
 
-  handleInput(data: string): void {
+  handleInput(data: string) {
     if (matchesKey(data, Key.shift("tab"))) {
       this.scopeIndex = (this.scopeIndex + 1) % this.scopes.length;
       return;

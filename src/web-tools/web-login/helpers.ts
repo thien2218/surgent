@@ -39,11 +39,11 @@ export function setApiKey(
   authStorage: AuthStorage,
   providerId: WebToolsProviderId,
   apiKey: string,
-): void {
+) {
   authStorage.set(providerId, { type: "api_key", key: apiKey });
 }
 
-export function clearApiKey(authStorage: AuthStorage, providerId: WebToolsProviderId): void {
+export function clearApiKey(authStorage: AuthStorage, providerId: WebToolsProviderId) {
   authStorage.remove(providerId);
 }
 

@@ -53,7 +53,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
     }
   }
 
-  override invalidate(): void {
+  override invalidate() {
     super.invalidate();
     for (const options of this.editableOptions.values()) {
       for (const option of options) {
@@ -118,7 +118,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
     ];
   }
 
-  handleInput(data: string): void {
+  handleInput(data: string) {
     const opt = this.getEditingRule();
 
     if (this.editing && opt) {
@@ -178,7 +178,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
     }
   }
 
-  private save(): void {
+  private save() {
     const global: PermissionRule = {};
     const session: PermissionRule = {};
     const project: PermissionRule = {};

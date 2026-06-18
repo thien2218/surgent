@@ -46,10 +46,7 @@ async function chooseAction(
   return "save";
 }
 
-async function saveProviderKey(
-  ctx: ExtensionCommandContext,
-  provider: WebToolsProvider,
-): Promise<void> {
+async function saveProviderKey(ctx: ExtensionCommandContext, provider: WebToolsProvider) {
   const authStorage = ctx.modelRegistry.authStorage;
   const note = provider.name === "jina" ? ` (${provider.note})` : "";
 
@@ -77,10 +74,7 @@ async function saveProviderKey(
   ctx.ui.notify(`Saved ${provider.label} API key`, "info");
 }
 
-async function clearProviderKey(
-  ctx: ExtensionCommandContext,
-  provider: WebToolsProvider,
-): Promise<void> {
+async function clearProviderKey(ctx: ExtensionCommandContext, provider: WebToolsProvider) {
   const confirmed = await ctx.ui.confirm(
     `Clear ${provider.label} API key`,
     `Remove the saved ${provider.label} API key from shared auth storage?`,

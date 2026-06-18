@@ -65,7 +65,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
     this.input.focused = value && this.amending;
   }
 
-  override invalidate(): void {
+  override invalidate() {
     this.cachedLines = undefined;
     super.invalidate();
     this.input.invalidate();
@@ -113,7 +113,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
     ];
   }
 
-  handleInput(data: string): void {
+  handleInput(data: string) {
     if (matchesKey(data, Key.escape)) {
       this.onDone?.({ allowed: false });
       this.cachedLines = undefined;
@@ -168,7 +168,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
     }
   }
 
-  private addRawLines(lines: Lines, raw: string, width: number): void {
+  private addRawLines(lines: Lines, raw: string, width: number) {
     const normalized = raw.replace(/\r\n?/g, "\n");
     const truncated = normalized.length > 100 ? `${normalized.slice(0, 100)}…` : normalized;
 
@@ -183,13 +183,13 @@ export default class PermissionPrompt extends Frame implements Focusable {
     }
   }
 
-  private setAmending(value: boolean): void {
+  private setAmending(value: boolean) {
     this.amending = value;
     this.input.focused = this._focused && value;
     if (!value) this.input.setValue("");
   }
 
-  private commitSelection(): void {
+  private commitSelection() {
     const option = this.options[this.cursor];
     if (!option) return;
 

@@ -80,7 +80,7 @@ export class BashModeEditor extends CustomEditor {
     return `${match?.[1] ?? ""}${bangPrefix}${match?.[2] ?? ""}`;
   }
 
-  private installWrappedCallbacks(): void {
+  private installWrappedCallbacks() {
     Object.defineProperty(this, "onSubmit", {
       configurable: true,
       enumerable: true,
@@ -114,7 +114,7 @@ export class BashModeEditor extends CustomEditor {
     this.externalOnChange?.(this.toActualText(text, this.mode));
   };
 
-  private withSuppressedChange(fn: () => void): void {
+  private withSuppressedChange(fn: () => void) {
     this.suppressWrappedChange = true;
     try {
       fn();
@@ -123,7 +123,7 @@ export class BashModeEditor extends CustomEditor {
     }
   }
 
-  private emitChange(): void {
+  private emitChange() {
     this.externalOnChange?.(this.toActualText(super.getText(), this.mode));
   }
 
@@ -135,12 +135,12 @@ export class BashModeEditor extends CustomEditor {
     );
   }
 
-  private setDisplayText(displayText: string): void {
+  private setDisplayText(displayText: string) {
     const editorInternals = this as unknown as { setTextInternal: (text: string) => void };
     editorInternals.setTextInternal(displayText);
   }
 
-  private handleHistoryNavInput(data: string): void {
+  private handleHistoryNavInput(data: string) {
     const text = this.toActualText(super.getText(), this.mode);
     const rawBeforeNav = super.getText();
 
@@ -165,7 +165,7 @@ export class BashModeEditor extends CustomEditor {
     }
   }
 
-  private applyMode(mode: EditorMode, persistent = this.persistent): void {
+  private applyMode(mode: EditorMode, persistent = this.persistent) {
     this.mode = mode;
     this.persistent = persistent;
     this.emitChange();
@@ -191,7 +191,7 @@ export class BashModeEditor extends CustomEditor {
     return !(cursor.col > 0 && currentLine[cursor.col - 1] === "\\");
   }
 
-  private submitCurrentValue(): void {
+  private submitCurrentValue() {
     const actualText = this.toActualText(super.getExpandedText(), this.mode).trim();
     this.withSuppressedChange(() => super.setText(""));
 
@@ -203,7 +203,7 @@ export class BashModeEditor extends CustomEditor {
     this.externalOnSubmit?.(actualText);
   }
 
-  cycleMode(): void {
+  cycleMode() {
     if (this.mode !== "prompt" && !this.persistent) {
       return;
     }
@@ -211,7 +211,7 @@ export class BashModeEditor extends CustomEditor {
     this.applyMode(nextMode, nextMode !== "prompt");
   }
 
-  override handleInput(data: string): void {
+  override handleInput(data: string) {
     if (this.isHistoryNavInput(data)) {
       this.handleHistoryNavInput(data);
       return;
@@ -266,14 +266,14 @@ export class BashModeEditor extends CustomEditor {
     return this.toActualText(super.getExpandedText(), this.mode);
   }
 
-  override setText(text: string): void {
+  override setText(text: string) {
     const parsed = this.parseActualText(text);
     this.mode = parsed.mode;
     this.persistent = false;
     super.setText(parsed.displayText);
   }
 
-  override insertTextAtCursor(text: string): void {
+  override insertTextAtCursor(text: string) {
     const parsed = this.parseActualText(text);
 
     if (this.mode === "prompt" && this.isBashMode(parsed.mode) && /^\s*$/.test(super.getText())) {

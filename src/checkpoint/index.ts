@@ -42,7 +42,7 @@ async function ensureBaseCheckpoint(
   pi: ExtensionAPI,
   ctx: ExtensionContext,
   checkpoints: Map<string, string>,
-): Promise<void> {
+) {
   if (checkpoints.has(BASE_CHECKPOINT_KEY)) {
     return;
   }
@@ -135,7 +135,7 @@ async function restoreCheckpoint(
   ctx.ui.notify("Code restored to checkpoint", "info");
 }
 
-export default function (pi: ExtensionAPI): void {
+export default function (pi: ExtensionAPI) {
   const checkpoints = new Map<string, string>();
 
   pi.on("session_start", async (_event, ctx) => {

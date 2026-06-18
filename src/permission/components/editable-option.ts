@@ -59,14 +59,14 @@ export default class EditableOption implements Focusable {
     return this.rule;
   }
 
-  startEditing(): void {
+  startEditing() {
     this._editing = true;
     this.focused = true;
     this.input.setValue(this.rule.expr);
     this.input.focused = this._focused;
   }
 
-  invalidate(): void {
+  invalidate() {
     this.input.invalidate();
   }
 
@@ -84,7 +84,7 @@ export default class EditableOption implements Focusable {
     ];
   }
 
-  handleInput(data: string): void {
+  handleInput(data: string) {
     if (!this._editing) return;
 
     if (this._editing && matchesKey(data, Key.shift("tab"))) {

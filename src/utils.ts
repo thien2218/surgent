@@ -38,7 +38,7 @@ export async function readJson<T>(filePath: string, fallback: T): Promise<T> {
   }
 }
 
-export async function writeJson(filePath: string, data: unknown): Promise<void> {
+export async function writeJson(filePath: string, data: unknown) {
   await writeFile(filePath, JSON.stringify(data, null, 2) + "\n", "utf8");
 }
 
@@ -64,4 +64,9 @@ export function customText(text: string, pad?: { x?: number; y?: number }) {
 
 export function isMissingFileError(error: any) {
   return Boolean(error) && typeof error === "object" && "code" in error && error.code === "ENOENT";
+}
+
+export function isUuid(input: string): boolean {
+  const pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return pattern.test(input);
 }

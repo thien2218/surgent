@@ -1,6 +1,5 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { InteractiveRequest, InteractiveSubsession } from "../subsession/types.js";
-import { MODE_ENTRY } from "./index.js";
 import { runInteractive } from "../subsession/index.js";
 import {
   ActionSelectList,
@@ -8,13 +7,13 @@ import {
   type ActionSelectResult,
 } from "../ui/components/action-select-list.js";
 import { ScrollableView } from "../ui/components/scrollable-view.js";
+import { forwardAction } from "./helpers.js";
 import { listPlanSessions, type PlanSessionPreview } from "./storage.js";
 import type { PlanAction, PlanCommandInput } from "./types.js";
-import type { AgentMode } from "../permission/types.js";
+import { isUuid } from "../utils.js";
 
 const PLAN_AGENT = "planner";
 const PLAN_LABEL = "plan";
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FORWARD_OPTIONS: ActionSelectOption[] = [
   { value: "assistant", label: "Yes, proceed with assistant mode" },
   { value: "yolo", label: "Yes, proceed with YOLO mode" },
@@ -25,7 +24,7 @@ export async function planCommandHandler(
   pi: ExtensionAPI,
   args: string,
   ctx: ExtensionCommandContext,
-): Promise<void> {
+) {
   if (!ctx.hasUI) {
     ctx.ui.notify("/plan requires interactive UI", "error");
     return;
@@ -49,8 +48,7 @@ export async function planCommandHandler(
     }
 
     if (action.kind === "forward") {
-      const didForward = await forwardAction(pi, ctx, action.mode, session.result.output);
-      if (didForward) {
+      if (await forwardAction(pi, ctx, action.mode, session)) {
         return;
       }
       continue;
@@ -69,7 +67,7 @@ export function parseCommandInput(rawArgs: string): PlanCommandInput {
   if (!normalizedArgs) {
     return { kind: "list" };
   }
-  if (UUID_PATTERN.test(normalizedArgs)) {
+  if (isUuid(normalizedArgs)) {
     return { kind: "resume", subsessionId: normalizedArgs };
   }
   return { kind: "prompt", prompt: normalizedArgs };
@@ -186,29 +184,4 @@ function mapActionResult(result: ActionSelectResult): PlanAction {
     return { kind: "forward", mode: "yolo" };
   }
   return { kind: "exit" };
-}
-
-async function forwardAction(
-  pi: ExtensionAPI,
-  ctx: ExtensionCommandContext,
-  mode: AgentMode,
-  plannerOutput: string,
-): Promise<boolean> {
-  const normalizedOutput = plannerOutput.trim();
-  if (!normalizedOutput) {
-    ctx.ui.notify("No planner output to forward", "warning");
-    return false;
-  }
-  pi.appendEntry<{ mode: AgentMode }>(MODE_ENTRY, { mode });
-
-  try {
-    pi.sendUserMessage(normalizedOutput);
-  } catch {
-    ctx.ui.notify("Failed to forward plan", "error");
-    return false;
-  }
-
-  const modeLabel = mode === "yolo" ? "YOLO" : "assistant";
-  ctx.ui.notify(`Forwarded plan to main agent (${modeLabel} next turn).`, "info");
-  return true;
 }

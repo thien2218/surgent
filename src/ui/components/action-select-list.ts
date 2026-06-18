@@ -76,11 +76,11 @@ export class ActionSelectList implements Component, Focusable {
     return lines.get();
   }
 
-  invalidate(): void {
+  invalidate() {
     this.customInput.invalidate();
   }
 
-  handleInput(data: string): void {
+  handleInput(data: string) {
     if (matchesKey(data, Key.escape)) {
       this.onCancel?.();
       return;
@@ -111,7 +111,7 @@ export class ActionSelectList implements Component, Focusable {
     }
   }
 
-  private handleInputEditingMode(data: string): void {
+  private handleInputEditingMode(data: string) {
     if (matchesKey(data, Key.tab)) {
       this.setEditingInput(false);
       return;
@@ -129,7 +129,7 @@ export class ActionSelectList implements Component, Focusable {
     this.customInput.handleInput(data);
   }
 
-  private commitCurrentSelection(): void {
+  private commitCurrentSelection() {
     if (!this.isInputRowSelected()) {
       const selectedOption = this.options[this.cursor];
       if (!selectedOption) {
@@ -152,7 +152,7 @@ export class ActionSelectList implements Component, Focusable {
     this.submitInputSelection();
   }
 
-  private submitInputSelection(): void {
+  private submitInputSelection() {
     const trimmedInput = this.customInput.getText().trim();
     if (trimmedInput.length === 0) {
       return;
@@ -192,7 +192,7 @@ export class ActionSelectList implements Component, Focusable {
     return renderedLines;
   }
 
-  private moveCursor(delta: number): void {
+  private moveCursor(delta: number) {
     const lastIndex = this.options.length;
     this.cursor = Math.max(0, Math.min(lastIndex, this.cursor + delta));
     this.syncInputFocus();
@@ -202,12 +202,12 @@ export class ActionSelectList implements Component, Focusable {
     return this.cursor === this.options.length;
   }
 
-  private setEditingInput(value: boolean): void {
+  private setEditingInput(value: boolean) {
     this.editing = value;
     this.syncInputFocus();
   }
 
-  private syncInputFocus(): void {
+  private syncInputFocus() {
     this.customInput.focused = this._focused && this.isInputRowSelected();
   }
 

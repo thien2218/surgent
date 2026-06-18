@@ -36,7 +36,7 @@ export async function readAgentMode(cwd: string): Promise<AgentMode> {
   return settings.agentMode === "yolo" ? "yolo" : "assistant";
 }
 
-export async function writeAgentMode(cwd: string, agentMode: AgentMode): Promise<void> {
+export async function writeAgentMode(cwd: string, agentMode: AgentMode) {
   const settings = await readJson<SettingsSchema>(getPiPath("settings", cwd), {});
   settings.agentMode = agentMode;
   await writeJson(getPiPath("settings", cwd), settings);
@@ -48,7 +48,7 @@ async function mutateRules(
   scope: Scope,
   category: Category,
   mutate: (rules: Record<string, FileAccess | boolean>) => void,
-): Promise<void> {
+) {
   if (scope === "always") {
     const global = await readRules();
     const rules = { ...global[category] };
@@ -77,7 +77,7 @@ export async function addRule(
   category: Category,
   expr: string,
   value: boolean | FileAccess,
-): Promise<void> {
+) {
   await mutateRules(cwd, sessionId, scope, category, (rules) => {
     rules[expr] = value;
   });
@@ -89,7 +89,7 @@ export async function removeRule(
   scope: Scope,
   category: Category,
   expr: string,
-): Promise<void> {
+) {
   await mutateRules(cwd, sessionId, scope, category, (rules) => {
     delete rules[expr];
   });
@@ -101,7 +101,7 @@ export async function toggleRule(
   scope: Scope,
   category: Category,
   expr: string,
-): Promise<void> {
+) {
   await mutateRules(cwd, sessionId, scope, category, (rules) => {
     if (category === "file") {
       const cycle: FileAccess[] = ["write", "read", "blocked"];

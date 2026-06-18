@@ -60,13 +60,13 @@ export default class Questionnaire extends Frame implements Focusable {
     this.syncEditorFocus();
   }
 
-  invalidate(): void {
+  invalidate() {
     for (const editor of this.editors) {
       editor.invalidate();
     }
   }
 
-  handleInput(data: string): void {
+  handleInput(data: string) {
     if (matchesKey(data, Key.escape)) {
       this.onDone?.({ cancelled: true, answers: [] });
       return;
@@ -236,14 +236,14 @@ export default class Questionnaire extends Frame implements Focusable {
     return this.editors[this.currentQuestionIndex]!;
   }
 
-  private moveQuestion(delta: number): void {
+  private moveQuestion(delta: number) {
     const lastIndex = this.questions.length - 1;
     this.currentQuestionIndex = Math.max(0, Math.min(lastIndex, this.currentQuestionIndex + delta));
     this.statusMessage = undefined;
     this.syncEditorFocus();
   }
 
-  private setFocusMode(focusMode: FocusMode): void {
+  private setFocusMode(focusMode: FocusMode) {
     this.currentDraft().focusMode = focusMode;
     this.statusMessage = undefined;
     this.syncEditorFocus();
@@ -292,7 +292,7 @@ export default class Questionnaire extends Frame implements Focusable {
     return false;
   }
 
-  private submitCurrentQuestion(): void {
+  private submitCurrentQuestion() {
     const question = this.currentQuestion();
     const withFallbackSelection = ensureSingleSelection(question, this.currentDraft());
     this.drafts[this.currentQuestionIndex] = withFallbackSelection;
@@ -374,7 +374,7 @@ export default class Questionnaire extends Frame implements Focusable {
     );
   }
 
-  private syncEditorFocus(): void {
+  private syncEditorFocus() {
     for (const [index, editor] of this.editors.entries()) {
       const draft = this.drafts[index]!;
       editor.focused =

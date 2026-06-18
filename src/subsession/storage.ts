@@ -5,7 +5,7 @@ import type { InteractiveSubsessions, InteractiveMeta, RuntimeConfig } from "./t
 const interactiveSubsessions: InteractiveSubsessions = {};
 let isStoreLoaded = false;
 
-async function loadStore(cwd: string): Promise<void> {
+async function loadStore(cwd: string) {
   if (isStoreLoaded) return;
 
   const filePath = getPiPath("subsessions", cwd);
@@ -18,7 +18,7 @@ async function loadStore(cwd: string): Promise<void> {
   isStoreLoaded = true;
 }
 
-async function persistStore(cwd: string): Promise<void> {
+async function persistStore(cwd: string) {
   const filePath = getPiPath("subsessions", cwd);
   await writeJson(filePath, interactiveSubsessions);
 }
@@ -35,11 +35,7 @@ export async function findSubsession(
   return parentSubsessions[id] ?? null;
 }
 
-export async function saveSubsession(
-  parentId: string,
-  id: string,
-  entry: InteractiveMeta,
-): Promise<void> {
+export async function saveSubsession(parentId: string, id: string, entry: InteractiveMeta) {
   await loadStore(process.cwd());
 
   if (!interactiveSubsessions[parentId]) {
@@ -47,6 +43,22 @@ export async function saveSubsession(
   }
 
   interactiveSubsessions[parentId]![id] = entry;
+  await persistStore(process.cwd());
+}
+
+export async function deleteSubsession(parentId: string, id: string) {
+  await loadStore(process.cwd());
+
+  const parentSubsessions = interactiveSubsessions[parentId];
+  if (!parentSubsessions || !parentSubsessions[id]) {
+    return;
+  }
+
+  delete parentSubsessions[id];
+  if (Object.keys(parentSubsessions).length === 0) {
+    delete interactiveSubsessions[parentId];
+  }
+
   await persistStore(process.cwd());
 }
 

@@ -139,7 +139,7 @@ function createSubsession(params: CreateSubsessionParams): InteractiveSubsession
   const { onSnapshot, agent, ...rest } = params;
   const subsession: InteractiveSubsession = {
     ...rest,
-    async exec(input: string, signal?: AbortSignal): Promise<void> {
+    async exec(input: string, signal?: AbortSignal) {
       const nextTurn = await executeTurn({
         agent,
         sessionId: subsession.id,

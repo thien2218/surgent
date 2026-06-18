@@ -21,7 +21,7 @@ export default class ModeIndicatorEditor extends BashModeEditor {
     return this.uiTheme.fg("accent", "❯");
   }
 
-  private applyModeBorderColor(): void {
+  private applyModeBorderColor() {
     if (this.getMode() === "bash-included") {
       this.borderColor = (text) => this.uiTheme.fg("bashMode", text);
       return;
@@ -57,7 +57,7 @@ export default class ModeIndicatorEditor extends BashModeEditor {
     return this.actualPaddingX;
   }
 
-  override setPaddingX(padding: number): void {
+  override setPaddingX(padding: number) {
     this.actualPaddingX = Math.max(0, Math.floor(padding));
     super.setPaddingX(this.actualPaddingX + 2); // Indicator takes up width of 2
   }

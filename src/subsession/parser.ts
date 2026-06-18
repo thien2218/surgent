@@ -13,8 +13,8 @@ interface ParserState {
 
 interface JsonLineParser {
   readonly state: ParserState;
-  push(chunk: string): void;
-  flush(): void;
+  push(chunk: string);
+  flush();
 }
 
 function parseJsonLine(line: string): Record<string, unknown> | null {
@@ -62,7 +62,7 @@ function applyMessageEndEvent(
   state: ParserState,
   snapshot: SubsessionSnapshot,
   onSnapshot?: (snapshot: SubsessionSnapshot) => void,
-): void {
+) {
   const eventMessage = event["message"];
   if (!eventMessage || typeof eventMessage !== "object") return;
 
@@ -101,7 +101,7 @@ function applyEvent(
   state: ParserState,
   snapshot: SubsessionSnapshot,
   onSnapshot?: (snapshot: SubsessionSnapshot) => void,
-): void {
+) {
   const eventType = event["type"];
 
   if (eventType === "session") {

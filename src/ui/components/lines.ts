@@ -13,7 +13,7 @@ export class Lines {
     this.lines = lines ?? [];
   }
 
-  add(line: string, pl = 0): void {
+  add(line: string, pl = 0) {
     this.lines.push(truncateToWidth(" ".repeat(pl) + line, this.width));
   }
 

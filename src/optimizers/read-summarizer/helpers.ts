@@ -12,7 +12,7 @@ export function rebuildActiveSummaries(
   store: SummaryStore,
   branchEntries: Array<{ type: string; customType?: string; data?: unknown }>,
   customEntryType: string,
-): void {
+) {
   store.active.clear();
 
   for (const entry of branchEntries) {
@@ -42,7 +42,7 @@ export function rewriteSessionTailWithSummaries(
   sessionFile: string,
   runStartOffset: number,
   completedRunSummaries: Map<string, string>,
-): void {
+) {
   if (completedRunSummaries.size === 0) {
     return;
   }

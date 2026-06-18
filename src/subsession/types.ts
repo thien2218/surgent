@@ -59,5 +59,5 @@ export interface InteractiveSubsession {
   title: string;
   result: SubsessionResult;
   runtime: RuntimeConfig;
-  exec(input: string, signal?: AbortSignal): Promise<void>;
+  exec(input: string, signal?: AbortSignal);
 }

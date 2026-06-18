@@ -18,7 +18,7 @@ export function getCacheFilePath(url: string, date = getCurrentCacheDate()): str
   return getPiPath("web", "global", date, fileName);
 }
 
-export async function pruneExpiredCacheDirs(today = getCurrentCacheDate()): Promise<void> {
+export async function pruneExpiredCacheDirs(today = getCurrentCacheDate()) {
   const cacheRoot = getPiPath("web");
   try {
     const entries = await readdir(cacheRoot, { withFileTypes: true });
@@ -54,7 +54,7 @@ export async function writeFetchedResult(
   url: string,
   content: string,
   date = getCurrentCacheDate(),
-): Promise<void> {
+) {
   const filePath = getCacheFilePath(url, date);
   await writeFile(filePath, content, "utf8");
 }

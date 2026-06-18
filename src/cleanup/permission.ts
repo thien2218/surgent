@@ -48,7 +48,7 @@ export async function cleanupPermissions(cwd: string, sessionIds: Set<string>) {
   cleanupGlobal();
 }
 
-async function cleanupLocal(cwd: string, sessionIds: Set<string>): Promise<void> {
+async function cleanupLocal(cwd: string, sessionIds: Set<string>) {
   const local = await readRules(cwd);
   let changed = pruneSessionMap(local, sessionIds);
 
@@ -63,7 +63,7 @@ async function cleanupLocal(cwd: string, sessionIds: Set<string>): Promise<void>
   }
 }
 
-async function cleanupGlobal(): Promise<void> {
+async function cleanupGlobal() {
   const global = await readRules();
   const pruned = pruneSchema(global);
   await writeRules(pruned);

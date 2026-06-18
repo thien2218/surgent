@@ -1,4 +1,4 @@
-import { readJson, writeJson } from "../utils.js";
+import { isUuid, readJson, writeJson } from "../utils.js";
 
 export function pruneSessionMap(
   data: { [sessionId: string]: unknown },
@@ -6,7 +6,7 @@ export function pruneSessionMap(
 ): boolean {
   let hasChanges = false;
   for (const sessionId of Object.keys(data)) {
-    if (sessionIds.has(sessionId)) {
+    if (isUuid(sessionId) && sessionIds.has(sessionId)) {
       continue;
     }
     delete data[sessionId];
@@ -15,7 +15,7 @@ export function pruneSessionMap(
   return hasChanges;
 }
 
-export async function pruneSessionFile(filePath: string, sessionIds: Set<string>): Promise<void> {
+export async function pruneSessionFile(filePath: string, sessionIds: Set<string>) {
   const data = await readJson<{ [sessionId: string]: unknown }>(filePath, {});
   const hasChanges = pruneSessionMap(data, sessionIds);
   if (hasChanges) {

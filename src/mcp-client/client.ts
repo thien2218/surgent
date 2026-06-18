@@ -27,7 +27,7 @@ export class McpClientManager {
     return connection.client.callTool(params);
   }
 
-  async disposeAll(): Promise<void> {
+  async disposeAll() {
     const activeConnections = Array.from(this.connections.values());
     this.connections.clear();
     await Promise.allSettled(
@@ -76,7 +76,7 @@ export class McpClientManager {
     return { client, transport, configHash };
   }
 
-  private async disposeConnection(connection: ManagedConnection): Promise<void> {
+  private async disposeConnection(connection: ManagedConnection) {
     if (connection.transport instanceof StreamableHTTPClientTransport) {
       await Promise.allSettled([
         connection.transport.terminateSession(),

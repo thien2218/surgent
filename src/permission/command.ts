@@ -5,7 +5,7 @@ import PermissionRulesList from "./components/rules-list.js";
 import EditableOption from "./components/editable-option.js";
 import { Frame } from "../ui/components/frame.js";
 
-export async function handlePermissionsCommand(ctx: ExtensionCommandContext): Promise<void> {
+export async function handlePermissionsCommand(ctx: ExtensionCommandContext) {
   if (!ctx.hasUI) {
     ctx.ui.notify("The /permissions command requires an interactive UI.", "error");
     return;

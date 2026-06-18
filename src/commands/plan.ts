@@ -7,12 +7,11 @@ import {
   type ActionSelectResult,
 } from "../ui/components/action-select-list.js";
 import { ScrollableView } from "../ui/components/scrollable-view.js";
-import { forwardAction } from "./helpers.js";
+import { forwardAction, renderSnapshotWidget } from "./helpers.js";
 import { listPlanSessions, type PlanSessionPreview } from "./storage.js";
 import type { PlanAction, PlanCommandInput } from "./types.js";
 import { isUuid } from "../utils.js";
 
-const PLAN_AGENT = "planner";
 const PLAN_LABEL = "plan";
 const FORWARD_OPTIONS: ActionSelectOption[] = [
   { value: "assistant", label: "Yes, proceed with assistant mode" },
@@ -29,36 +28,42 @@ export async function planCommandHandler(
     ctx.ui.notify("/plan requires interactive UI", "error");
     return;
   }
-  const parsedInput = parseCommandInput(args);
-  const session = await resolveSession(ctx, parsedInput);
-  if (!session) {
-    return;
-  }
 
-  const initialStatus = session.result.status;
-  if (initialStatus === "error") {
-    ctx.ui.notify(session.result.output, "error");
-    return;
-  }
-
-  while (true) {
-    const action = await showUi(ctx, session.result.output);
-    if (!action || action.kind === "exit") {
+  try {
+    const parsedInput = parseCommandInput(args);
+    const session = await resolveSession(ctx, parsedInput);
+    if (!session) {
       return;
     }
 
-    if (action.kind === "forward") {
-      if (await forwardAction(pi, ctx, action.mode, session)) {
+    const initialStatus = session.result.status;
+    if (initialStatus === "error") {
+      ctx.ui.notify(session.result.output, "error");
+      return;
+    }
+
+    while (true) {
+      ctx.ui.setWidget(PLAN_LABEL, undefined);
+      const action = await showUi(ctx, session.result.output);
+      if (!action || action.kind === "exit") {
         return;
       }
-      continue;
-    }
 
-    await session.exec(action.feedback);
+      if (action.kind === "forward") {
+        if (await forwardAction(pi, ctx, action.mode, session)) {
+          return;
+        }
+        continue;
+      }
 
-    if (session.result.status === "error") {
-      ctx.ui.notify("Planner turn failed. Please revise and retry.", "error");
+      await session.exec(action.feedback);
+
+      if (session.result.status === "error") {
+        ctx.ui.notify("Planner turn failed. Please revise and retry.", "error");
+      }
     }
+  } finally {
+    ctx.ui.setWidget(PLAN_LABEL, undefined);
   }
 }
 
@@ -77,13 +82,8 @@ async function resolveSession(
   ctx: ExtensionCommandContext,
   parsedInput: PlanCommandInput,
 ): Promise<InteractiveSubsession | null> {
-  const parentSessionId = ctx.sessionManager.getSessionId();
-  const request: InteractiveRequest = {
-    parentId: parentSessionId,
-    label: PLAN_LABEL,
-    agent: PLAN_AGENT,
-    input: "",
-  };
+  const pid = ctx.sessionManager.getSessionId();
+  const request: InteractiveRequest = { pid, label: PLAN_LABEL, agent: "planner", input: "" };
 
   if (parsedInput.kind === "prompt") {
     request.input = parsedInput.prompt;
@@ -96,7 +96,7 @@ async function resolveSession(
     const selectedSubsessionId =
       parsedInput.kind === "resume"
         ? parsedInput.subsessionId
-        : await pickStoredPlanSessionId(ctx, parentSessionId);
+        : await pickStoredPlanSessionId(ctx, pid);
 
     if (!selectedSubsessionId) {
       ctx.ui.notify(`Plan subsession not found: ${selectedSubsessionId}`, "error");
@@ -106,7 +106,9 @@ async function resolveSession(
     request.id = selectedSubsessionId;
   }
 
-  const session = await runInteractive(request);
+  const session = await runInteractive(request, (snapshot) =>
+    renderSnapshotWidget(ctx, PLAN_LABEL, snapshot),
+  );
   if (!session.id) {
     ctx.ui.notify(session.result.output || "Failed to initiate planning session", "error");
     return null;

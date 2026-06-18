@@ -5,7 +5,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { AgentMode } from "../permission/types.js";
 import { MODE_ENTRY } from "./index.js";
-import type { InteractiveSubsession } from "../subsession/types.js";
+import type { InteractiveSubsession, SubsessionSnapshot } from "../subsession/types.js";
 import { unlink } from "node:fs/promises";
 import { deleteSubsession } from "../subsession/storage.js";
 import { SUBSESSION_DIR_NAME } from "../subsession/index.js";
@@ -40,10 +40,32 @@ export async function forwardAction(
     return false;
   }
 
-  deleteSubsession(subsession.parentId, subsession.id).catch(() => undefined);
+  deleteSubsession(subsession.pid, subsession.id).catch(() => undefined);
   deleteSessionFile(ctx.cwd, subsession.id).catch(() => undefined);
 
   const modeLabel = mode === "yolo" ? "YOLO" : "assistant";
   ctx.ui.notify(`Forwarded plan to main agent (${modeLabel} next turn).`, "info");
   return true;
+}
+
+export function renderSnapshotWidget(
+  ctx: ExtensionCommandContext,
+  label: string,
+  snapshot: SubsessionSnapshot,
+) {
+  const recentToolCalls = snapshot.toolsUsed.slice(-5);
+  const lines = [`${label}: ${snapshot.toolsUsed.length} tool calls`];
+
+  if (recentToolCalls.length === 0) {
+    lines.push(` └─ ${snapshot.activity}`);
+  } else {
+    const lastToolCallIndex = recentToolCalls.length - 1;
+
+    for (let toolCallIndex = 0; toolCallIndex < recentToolCalls.length; toolCallIndex += 1) {
+      const branchIndicator = toolCallIndex === lastToolCallIndex ? "└─" : "├─";
+      lines.push(` ${branchIndicator} ${recentToolCalls[toolCallIndex]}`);
+    }
+  }
+
+  ctx.ui.setWidget(label, lines);
 }

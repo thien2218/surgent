@@ -9,28 +9,25 @@ let isStoreLoaded = false;
 async function loadStore() {
   if (isStoreLoaded) return;
   const persistedStore = await readJson<InteractiveSubsessions>(STORE_FILE, {});
-  for (const [parentId, subsessions] of Object.entries(persistedStore)) {
-    interactiveSubsessions[parentId] = subsessions;
+  for (const [pid, subsessions] of Object.entries(persistedStore)) {
+    interactiveSubsessions[pid] = subsessions;
   }
   isStoreLoaded = true;
 }
 
-export async function findSubsession(
-  parentId: string,
-  id: string,
-): Promise<InteractiveMeta | null> {
+export async function findSubsession(pid: string, id: string): Promise<InteractiveMeta | null> {
   await loadStore();
-  const parentSubsessions = interactiveSubsessions[parentId];
+  const parentSubsessions = interactiveSubsessions[pid];
   if (!parentSubsessions) return null;
   return parentSubsessions[id] ?? null;
 }
 
-export async function saveSubsession(parentId: string, id: string, entry: InteractiveMeta) {
+export async function saveSubsession(pid: string, id: string, entry: InteractiveMeta) {
   await loadStore();
-  if (!interactiveSubsessions[parentId]) {
-    interactiveSubsessions[parentId] = {};
+  if (!interactiveSubsessions[pid]) {
+    interactiveSubsessions[pid] = {};
   }
-  interactiveSubsessions[parentId]![id] = entry;
+  interactiveSubsessions[pid]![id] = entry;
   await writeJson(STORE_FILE, interactiveSubsessions);
 }
 

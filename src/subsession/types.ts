@@ -4,7 +4,7 @@ export type SubsessionResultStatus = "done" | "aborted" | "error";
 export type InteractiveLabel = "plan" | "review";
 
 interface SubsessionRequestBase {
-  parentId: string;
+  pid: string;
   agent: string;
   modelId?: string;
   signal?: AbortSignal;
@@ -35,7 +35,7 @@ export interface InteractiveMeta {
 }
 
 export interface InteractiveSubsessions {
-  [parentId: string]: {
+  [pid: string]: {
     [id: string]: InteractiveMeta;
   };
 }
@@ -54,10 +54,10 @@ export interface InteractiveRequest extends SubsessionRequestBase {
 
 export interface InteractiveSubsession {
   id: string;
-  parentId: string;
+  pid: string;
   label: InteractiveLabel;
   title: string;
   result: SubsessionResult;
   runtime: RuntimeConfig;
-  exec(input: string, signal?: AbortSignal);
+  exec(input: string, signal?: AbortSignal): Promise<void>;
 }

@@ -2,7 +2,7 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import pm from "picomatch";
 import type { AgentAllowList, AgentMeta } from "../agent/types.js";
-import { readGlobal, readLocal } from "./storage.js";
+import { readRules } from "./storage.js";
 import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./types.js";
 import { getPiPath } from "../utils.js";
 import { BASH_TOKEN } from "./constants.js";
@@ -163,7 +163,7 @@ export async function resolvePermission(
   }
 
   // Scope rules: always (global) > project > session — first match wins
-  const [local, global] = await Promise.all([readLocal(cwd), readGlobal()]);
+  const [local, global] = await Promise.all([readRules(cwd), readRules()]);
   const scopes = [global, local.project, local[sessionId]];
 
   for (const schema of scopes) {

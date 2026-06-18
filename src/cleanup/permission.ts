@@ -1,7 +1,7 @@
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { matchesPattern } from "./resolution.js";
-import { readGlobal, readLocal, writeGlobal, writeLocal } from "./storage.js";
-import type { FileAccess, PermissionRule } from "./types.js";
+import { matchesPattern } from "../permission/resolution.js";
+import { readRules, writeRules } from "../permission/storage.js";
+import type { FileAccess, PermissionRule } from "../permission/types.js";
 
 function pruneRules<T extends FileAccess | boolean>(
   rules: Record<string, T>,
@@ -43,12 +43,12 @@ function pruneSchema(schema: PermissionRule): PermissionRule {
   return result;
 }
 
-export async function cleanup(cwd: string): Promise<void> {
+export async function cleanupPermissions(cwd: string): Promise<void> {
   await Promise.all([cleanupLocal(cwd), cleanupGlobal()]);
 }
 
 async function cleanupLocal(cwd: string): Promise<void> {
-  const [local, sessions] = await Promise.all([readLocal(cwd), SessionManager.list(cwd)]);
+  const [local, sessions] = await Promise.all([readRules(cwd), SessionManager.list(cwd)]);
   const existingIds = new Set(sessions.map((s) => s.id));
   let changed = false;
 
@@ -66,12 +66,12 @@ async function cleanupLocal(cwd: string): Promise<void> {
   }
 
   if (changed) {
-    await writeLocal(cwd, local);
+    await writeRules(local, cwd);
   }
 }
 
 async function cleanupGlobal(): Promise<void> {
-  const global = await readGlobal();
+  const global = await readRules();
   const pruned = pruneSchema(global);
-  await writeGlobal(pruned);
+  await writeRules(pruned);
 }

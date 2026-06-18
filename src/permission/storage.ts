@@ -21,20 +21,14 @@ interface SettingsSchema {
   [key: string]: unknown;
 }
 
-export async function readLocal(cwd: string): Promise<LocalSchema> {
-  return readJson<LocalSchema>(getPiPath("permissions", cwd), {});
-}
-
-export async function writeLocal(cwd: string, data: LocalSchema): Promise<void> {
+export async function writeRules(data: PermissionRule | LocalSchema, cwd: string = "") {
   return writeJson(getPiPath("permissions", cwd), data);
 }
 
-export async function readGlobal(): Promise<PermissionRule> {
-  return readJson<PermissionRule>(getPiPath("permissions"), {});
-}
-
-export async function writeGlobal(data: PermissionRule): Promise<void> {
-  return writeJson(getPiPath("permissions"), data);
+export function readRules(cwd: string): Promise<LocalSchema>;
+export function readRules(): Promise<PermissionRule>;
+export function readRules(cwd: string = ""): Promise<LocalSchema | PermissionRule> {
+  return readJson<LocalSchema | PermissionRule>(getPiPath("permissions", cwd), {});
 }
 
 export async function readAgentMode(cwd: string): Promise<AgentMode> {
@@ -48,27 +42,32 @@ export async function writeAgentMode(cwd: string, agentMode: AgentMode): Promise
   await writeJson(getPiPath("settings", cwd), settings);
 }
 
-function getScopeKey(scope: Scope, sessionId: string): string {
-  return scope === "project" ? "project" : sessionId;
-}
-
-function getCategoryRules(
-  schema: PermissionRule,
+async function mutateRules(
+  cwd: string,
+  sessionId: string,
+  scope: Scope,
   category: Category,
-): Record<string, FileAccess | boolean> {
-  if (category === "file") return (schema.file as Record<string, FileAccess>) ?? {};
-  if (category === "web") return schema.web ?? {};
-  return schema.bash ?? {};
-}
+  mutate: (rules: Record<string, FileAccess | boolean>) => void,
+): Promise<void> {
+  if (scope === "always") {
+    const global = await readRules();
+    const rules = { ...global[category] };
 
-function setCategoryRules(
-  schema: PermissionRule,
-  category: Category,
-  rules: Record<string, FileAccess | boolean>,
-): void {
-  if (category === "file") schema.file = rules as Record<string, FileAccess>;
-  else if (category === "web") schema.web = rules as Record<string, boolean>;
-  else schema.bash = rules as Record<string, boolean>;
+    mutate(rules);
+    global[category] = rules;
+    await writeRules(global);
+    return;
+  }
+
+  const local = await readRules(cwd);
+  const scopeKey = scope === "project" ? "project" : sessionId;
+  const scopeSchema: PermissionRule = local[scopeKey] ?? {};
+  const rules = { ...scopeSchema[category] };
+
+  mutate(rules);
+  scopeSchema[category] = rules;
+  local[scopeKey] = scopeSchema;
+  await writeRules(local, cwd);
 }
 
 export async function addRule(
@@ -79,20 +78,9 @@ export async function addRule(
   expr: string,
   value: boolean | FileAccess,
 ): Promise<void> {
-  if (scope === "always") {
-    const global = await readGlobal();
-    const rules = { ...getCategoryRules(global, category), [expr]: value };
-    setCategoryRules(global, category, rules);
-    await writeGlobal(global);
-  } else {
-    const local = await readLocal(cwd);
-    const scopeKey = getScopeKey(scope, sessionId);
-    const scopeSchema: PermissionRule = local[scopeKey] ?? {};
-    const rules = { ...getCategoryRules(scopeSchema, category), [expr]: value };
-    setCategoryRules(scopeSchema, category, rules);
-    local[scopeKey] = scopeSchema;
-    await writeLocal(cwd, local);
-  }
+  await mutateRules(cwd, sessionId, scope, category, (rules) => {
+    rules[expr] = value;
+  });
 }
 
 export async function removeRule(
@@ -102,22 +90,9 @@ export async function removeRule(
   category: Category,
   expr: string,
 ): Promise<void> {
-  if (scope === "always") {
-    const global = await readGlobal();
-    const rules = { ...getCategoryRules(global, category) };
+  await mutateRules(cwd, sessionId, scope, category, (rules) => {
     delete rules[expr];
-    setCategoryRules(global, category, rules);
-    await writeGlobal(global);
-  } else {
-    const local = await readLocal(cwd);
-    const scopeKey = getScopeKey(scope, sessionId);
-    const scopeSchema: PermissionRule = local[scopeKey] ?? {};
-    const rules = { ...getCategoryRules(scopeSchema, category) };
-    delete rules[expr];
-    setCategoryRules(scopeSchema, category, rules);
-    local[scopeKey] = scopeSchema;
-    await writeLocal(cwd, local);
-  }
+  });
 }
 
 export async function toggleRule(
@@ -127,35 +102,25 @@ export async function toggleRule(
   category: Category,
   expr: string,
 ): Promise<void> {
-  let currentValue: boolean | FileAccess | undefined;
+  await mutateRules(cwd, sessionId, scope, category, (rules) => {
+    if (category === "file") {
+      const cycle: FileAccess[] = ["write", "read", "blocked"];
+      const currentValue = rules[expr] as FileAccess | undefined;
+      const cycleIndex = cycle.indexOf(currentValue as FileAccess);
+      rules[expr] = cycle[(cycleIndex + 1) % cycle.length]!;
+      return;
+    }
 
-  if (scope === "always") {
-    const global = await readGlobal();
-    currentValue = getCategoryRules(global, category)[expr];
-  } else {
-    const local = await readLocal(cwd);
-    const scopeKey = getScopeKey(scope, sessionId);
-    const scopeSchema: PermissionRule = local[scopeKey] ?? {};
-    currentValue = getCategoryRules(scopeSchema, category)[expr];
-  }
-
-  let nextValue: boolean | FileAccess;
-  if (category === "file") {
-    const cycle: FileAccess[] = ["write", "read", "blocked"];
-    const idx = cycle.indexOf(currentValue as FileAccess);
-    nextValue = cycle[(idx + 1) % cycle.length]!;
-  } else {
-    nextValue = !currentValue;
-  }
-
-  await addRule(cwd, sessionId, scope, category, expr, nextValue);
+    const currentValue = rules[expr] as boolean | undefined;
+    rules[expr] = !currentValue;
+  });
 }
 
 export async function getRulesForDisplay(
   cwd: string,
   sessionId: string,
 ): Promise<GroupedDisplayRules> {
-  const [local, global] = await Promise.all([readLocal(cwd), readGlobal()]);
+  const [local, global] = await Promise.all([readRules(cwd), readRules()]);
   const rules = Object.fromEntries(
     CATEGORIES.map((cat) => [cat, [] as DisplayRule[]]),
   ) as GroupedDisplayRules;
@@ -184,7 +149,7 @@ export async function checkExprStored(
   category: Category,
   expr: string,
 ): Promise<boolean> {
-  const [local, global] = await Promise.all([readLocal(cwd), readGlobal()]);
+  const [local, global] = await Promise.all([readRules(cwd), readRules()]);
 
   const inSchema = (schema: PermissionRule | undefined): boolean => {
     if (!schema) return false;

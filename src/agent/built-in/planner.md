@@ -87,7 +87,7 @@ One paragraph: what will be achieved and why.
 
 ## Assumptions
 - ...
-(Only assumptions that affect correctness. `None` if no assumption)
+(Only assumptions that affect correctness. Omit section if no assumption)
 
 ## Steps
 For each step, use this template:
@@ -112,7 +112,7 @@ For each step, use this template:
 
 ## Open Questions
 - ...
-(Non-blocking questions. Write `None` if no questions.)
+(Non-blocking questions. Omit section if no questions.)
 ```
 </output_contract>
 

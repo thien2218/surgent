@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const HEAD_REF_PREFIX = "head:";
+export const CHECKPOINT_LABEL_PREFIX = "checkpoint:";
 
 type GitCommandResult = { code: number; stdout: string; stderr: string };
 
@@ -20,7 +21,7 @@ export async function createCheckpoint(
     return undefined;
   }
 
-  const checkpointLabel = `pi-checkpoint:${sessionId}:${leafEntryId}`;
+  const checkpointLabel = `${CHECKPOINT_LABEL_PREFIX}${sessionId}:${leafEntryId}`;
   const stashStoreResult = await pi.exec(
     "git",
     ["stash", "store", "-m", checkpointLabel, stashRef],

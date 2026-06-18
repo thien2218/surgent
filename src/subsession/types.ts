@@ -6,6 +6,7 @@ export type InteractiveLabel = "plan" | "review";
 interface SubsessionRequestBase {
   parentId: string;
   agent: string;
+  modelId?: string;
   signal?: AbortSignal;
 }
 

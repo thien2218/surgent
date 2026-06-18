@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { findSubsession, resolveRuntime, saveSubsession } from "./storage.js";
 import { createJsonLineParser, getFinalOutput } from "./parser.js";
-import { getPiInvocation } from "./herlpers.js";
+import { getSurgentInvoker } from "./herlpers.js";
 import type {
   InteractiveLabel,
   InteractiveRequest,
@@ -74,8 +74,8 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResu
   let stderrOutput = "";
 
   const exitCode = await new Promise<number>((resolve) => {
-    const invocation = getPiInvocation(args);
-    const childProcess = spawn(invocation.command, invocation.args, {
+    const invoker = getSurgentInvoker(args);
+    const childProcess = spawn(invoker.command, invoker.args, {
       cwd: process.cwd(),
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
@@ -159,7 +159,7 @@ export default async function runInteractive(
   request: InteractiveRequest,
   onSnapshot?: (snapshot: SubsessionSnapshot) => void,
 ): Promise<InteractiveSubsession> {
-  const runtime = await resolveRuntime(request.agent);
+  const runtime = await resolveRuntime(request.agent, request.modelId);
   const params: CreateSubsessionParams = {
     id: request.id ?? "",
     agent: request.agent,
@@ -192,7 +192,8 @@ export default async function runInteractive(
     });
 
     if (!initialTurn.id) {
-      params.result = createErrorResult("Cannot start interactive subsession");
+      const errorOutput = initialTurn.result.output.trim();
+      params.result = createErrorResult(errorOutput || "Cannot start interactive subsession");
     } else {
       params.id = initialTurn.id;
       params.result = initialTurn.result;

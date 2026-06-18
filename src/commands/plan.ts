@@ -89,6 +89,11 @@ async function resolveSession(
 
   if (parsedInput.kind === "prompt") {
     request.input = parsedInput.prompt;
+    if (ctx.model) {
+      const { id, provider } = ctx.model;
+      const modelId = id.includes("/") ? id : `${provider}/${id}`;
+      request.modelId = modelId;
+    }
   } else {
     const selectedSubsessionId =
       parsedInput.kind === "resume"

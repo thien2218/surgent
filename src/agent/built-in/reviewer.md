@@ -100,7 +100,7 @@ For each finding:
 
 ## Missing context
 - ...
-(Only if needed to validate uncertain areas; otherwise `None`.)
+(Only if needed to validate uncertain areas; otherwise omit section.)
 
 ## Checks performed
 - `<tool or method used to inspect changes>`

@@ -168,10 +168,7 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
   );
 
   if (meta.model) {
-    const existing = ctx.modelRegistry
-      .getAll()
-      .find((item) => item.id === meta.model || item.id.endsWith(`/${meta.model}`));
-
+    const existing = ctx.modelRegistry.getAll().find((item) => meta.model?.endsWith(item.id));
     if (existing) {
       const ok = pi.setModel(existing);
       if (!ok) ctx.ui.notify("Agent model unavailable", "warning");

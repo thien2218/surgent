@@ -1,10 +1,10 @@
 import { unlink } from "node:fs/promises";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import type { InteractiveSubsessions } from "../subsession/types.js";
+import type { StoredSubsessions } from "../subsession/types.js";
 import { getPiPath, isMissingFileError, readJson, writeJson } from "../utils.js";
 
 function collectDeletedParentSessionIds(
-  store: InteractiveSubsessions,
+  store: StoredSubsessions,
   sessionIds: Set<string>,
 ): string[] {
   const deletedParentSessionIds: string[] = [];
@@ -17,10 +17,7 @@ function collectDeletedParentSessionIds(
   return deletedParentSessionIds;
 }
 
-function collectSubsessionIds(
-  store: InteractiveSubsessions,
-  parentSessionIds: string[],
-): Set<string> {
+function collectSubsessionIds(store: StoredSubsessions, parentSessionIds: string[]): Set<string> {
   const subsessionIds = new Set<string>();
   for (const parentSessionId of parentSessionIds) {
     const subsessions = store[parentSessionId] ?? {};
@@ -55,7 +52,7 @@ async function deleteSessionFilesByIds(cwd: string, sessionIds: Set<string>): Pr
 
 export async function cleanupSubsessions(cwd: string, sessionIds: Set<string>): Promise<void> {
   const storeFilePath = getPiPath("subsessions", cwd);
-  const store = await readJson<InteractiveSubsessions>(storeFilePath, {});
+  const store = await readJson<StoredSubsessions>(storeFilePath, {});
 
   const deletedParentSessionIds = collectDeletedParentSessionIds(store, sessionIds);
   if (deletedParentSessionIds.length === 0) {

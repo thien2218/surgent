@@ -1,18 +1,22 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { findSubsession, resolveRuntime, saveSubsession } from "./storage.js";
 import { createJsonLineParser, getFinalOutput } from "./parser.js";
-import { extractSubsessionTitle, getSurgentInvoker } from "./herlpers.js";
+import {
+  createErrorResult,
+  extractSubsessionTitle,
+  getSurgentInvoker,
+  parseInteractionHandoff,
+} from "./helpers.js";
 import type {
-  InteractiveLabel,
-  InteractiveRequest,
-  InteractiveSubsession,
+  SubsessionLabel,
+  SubsessionRequest,
+  Subsession,
   RuntimeConfig,
   SubsessionResult,
   SubsessionSnapshot,
+  SubsessionStatus,
 } from "./types.js";
 import { getPiPath } from "../utils.js";
-
-export const SUBSESSION_DIR_NAME = "subsessions";
 
 interface ExecuteTurnRequest {
   sessionId?: string;
@@ -23,27 +27,18 @@ interface ExecuteTurnRequest {
   onSnapshot?: (snapshot: SubsessionSnapshot) => void;
 }
 
-interface ExecuteTurnResult {
-  id: string;
-  result: SubsessionResult;
-}
-
 interface CreateSubsessionParams {
   id: string;
   agent: string;
   pid: string;
-  label: InteractiveLabel;
+  label: SubsessionLabel;
   title: string;
   result: SubsessionResult;
   runtime: RuntimeConfig;
   onSnapshot?: (snapshot: SubsessionSnapshot) => void;
 }
 
-function createErrorResult(message: string): SubsessionResult {
-  return { status: "error", output: message, toolCounts: {} };
-}
-
-async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResult> {
+async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResult> {
   const args: string[] = ["--mode", "json", "-p", "--session-dir", getPiPath("subsessionsDir")];
   const allowedTools = request.runtime.tools;
 
@@ -121,38 +116,44 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<ExecuteTurnResu
     }
   });
 
+  const interaction = parseInteractionHandoff(stderrOutput);
   const isError = exitCode !== 0 || parser.state.stopReason === "error";
-  const status: SubsessionResult["status"] = wasAborted ? "aborted" : isError ? "error" : "done";
   const output = getFinalOutput(parser.state.messages) || (isError ? stderrOutput.trim() : "");
+  const status: SubsessionStatus = interaction
+    ? "pending"
+    : wasAborted || parser.state.stopReason === "aborted"
+      ? "aborted"
+      : isError
+        ? "error"
+        : "done";
 
   snapshot.status = status;
   request.onSnapshot?.(snapshot);
 
   return {
     id: parser.state.sessionId || request.sessionId || "",
-    result: {
-      status,
-      output,
-      usage: { input: parser.state.tokenInput, output: parser.state.tokenOutput },
-      toolCounts: parser.state.toolCounts,
-    },
+    status,
+    output,
+    usage: { input: parser.state.tokenInput, output: parser.state.tokenOutput },
+    toolCounts: parser.state.toolCounts,
+    interaction,
   };
 }
 
-function createSubsession(params: CreateSubsessionParams): InteractiveSubsession {
+function createSubsession(params: CreateSubsessionParams): Subsession {
   const { onSnapshot, agent, ...rest } = params;
-  const subsession: InteractiveSubsession = {
+  const subsession: Subsession = {
     ...rest,
     async exec(input: string, signal?: AbortSignal) {
       const nextTurn = await executeTurn({
         agent,
-        sessionId: subsession.id,
+        sessionId: subsession.result.id,
         input,
         runtime: rest.runtime,
         signal,
         onSnapshot,
       });
-      subsession.result = nextTurn.result;
+      subsession.result = nextTurn;
     },
   };
 
@@ -160,9 +161,9 @@ function createSubsession(params: CreateSubsessionParams): InteractiveSubsession
 }
 
 export default async function runInteractive(
-  request: InteractiveRequest,
+  request: SubsessionRequest,
   onSnapshot?: (snapshot: SubsessionSnapshot) => void,
-): Promise<InteractiveSubsession> {
+): Promise<Subsession> {
   const runtime = await resolveRuntime(request.agent, request.modelId);
   const params: CreateSubsessionParams = {
     id: request.id ?? "",
@@ -196,13 +197,13 @@ export default async function runInteractive(
     });
 
     if (!initialTurn.id) {
-      const errorOutput = initialTurn.result.output.trim();
+      const errorOutput = initialTurn.output.trim();
       params.result = createErrorResult(errorOutput || "Cannot start interactive subsession");
     } else {
       params.id = initialTurn.id;
-      params.result = initialTurn.result;
+      params.result = initialTurn;
 
-      const extractedTitle = extractSubsessionTitle(initialTurn.result.output);
+      const extractedTitle = extractSubsessionTitle(initialTurn.output);
       if (extractedTitle) {
         params.title = extractedTitle;
       }

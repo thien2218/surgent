@@ -7,7 +7,7 @@ import type { PersistedState, SummaryStore } from "./types.js";
 
 const CUSTOM_ENTRY_TYPE = "read-summarizer";
 
-export default function readSummarizer(pi: ExtensionAPI) {
+export default function (pi: ExtensionAPI) {
   const store: SummaryStore = { active: new Map(), pending: new Map() };
   let runStartOffset = 0;
 

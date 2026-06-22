@@ -1,24 +1,9 @@
-import {
-  SessionManager,
-  type ExtensionAPI,
-  type ExtensionCommandContext,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { AgentMode } from "../permission/types.js";
 import { MODE_ENTRY } from "./index.js";
 import type { Subsession, SubsessionSnapshot } from "../subsession/types.js";
-import { unlink } from "node:fs/promises";
 import { Container, Loader, Spacer, TruncatedText } from "@earendil-works/pi-tui";
-import { deleteSubsession } from "../subsession/storage.js";
-import { getPiPath } from "../utils.js";
-
-async function deleteSessionFile(cwd: string, sessionId?: string) {
-  const sessions = await SessionManager.list(cwd, getPiPath("subsessionsDir"));
-  const targetSession = sessions.find((session) => sessionId && session.id === sessionId);
-  if (!targetSession) {
-    return;
-  }
-  await unlink(targetSession.path);
-}
+import { terminateSubsession } from "../subsession/storage.js";
 
 export async function forwardAction(
   pi: ExtensionAPI,
@@ -41,11 +26,10 @@ export async function forwardAction(
     return false;
   }
 
-  deleteSubsession(subsession.pid, subsession.result.id).catch(() => undefined);
-  deleteSessionFile(ctx.cwd, subsession.result.id).catch(() => undefined);
-
   const modeLabel = mode === "yolo" ? "YOLO" : "assistant";
   ctx.ui.notify(`Forwarded plan to main agent (${modeLabel} next turn).`, "info");
+
+  terminateSubsession(ctx.cwd, subsession.result.id!).catch(() => undefined);
   return true;
 }
 

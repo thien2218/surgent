@@ -1,50 +1,46 @@
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { loadAgents } from "../agent/storage.js";
 import { getPiPath, readJson, writeJson } from "../utils.js";
 import type { StoredSubsessions, SubsessionMeta, RuntimeConfig } from "./types.js";
+import { unlink } from "node:fs/promises";
 
 const STORE_FILE = getPiPath("subsessions", process.cwd());
-const interactiveSubsessions: StoredSubsessions = {};
+const subsessions: StoredSubsessions = {};
 let isStoreLoaded = false;
 
 async function loadStore() {
   if (isStoreLoaded) return;
   const persistedStore = await readJson<StoredSubsessions>(STORE_FILE, {});
-  for (const [pid, subsessions] of Object.entries(persistedStore)) {
-    interactiveSubsessions[pid] = subsessions;
+  for (const [id, sessions] of Object.entries(persistedStore)) {
+    subsessions[id] = sessions;
   }
   isStoreLoaded = true;
 }
 
-export async function findSubsession(pid: string, id: string): Promise<SubsessionMeta | null> {
+export async function findSubsession(id: string, pid?: string): Promise<SubsessionMeta | null> {
   await loadStore();
-  const parentSubsessions = interactiveSubsessions[pid];
-  if (!parentSubsessions) return null;
-  return parentSubsessions[id] ?? null;
+  const found = subsessions[id];
+  if (!found || (pid && found.pid !== pid)) return null;
+  return found;
 }
 
-export async function saveSubsession(pid: string, id: string, entry: SubsessionMeta) {
+export async function saveSubsession(id: string, entry: SubsessionMeta) {
   await loadStore();
-  if (!interactiveSubsessions[pid]) {
-    interactiveSubsessions[pid] = {};
-  }
-  interactiveSubsessions[pid]![id] = entry;
-  await writeJson(STORE_FILE, interactiveSubsessions);
+  subsessions[id] = entry;
+  await writeJson(STORE_FILE, subsessions);
 }
 
-export async function deleteSubsession(pid: string, id?: string) {
+export async function terminateSubsession(cwd: string, id: string) {
   await loadStore();
+  if (!subsessions[id]) return;
 
-  const parentSubsessions = interactiveSubsessions[pid];
-  if (!parentSubsessions || !id || !parentSubsessions[id]) {
-    return;
-  }
+  const sessions = await SessionManager.list(cwd, getPiPath("subsessionsDir"));
+  const target = sessions.find((session) => session.id === id);
+  if (!target) return;
+  await unlink(target.path);
 
-  delete parentSubsessions[id];
-  if (Object.keys(parentSubsessions).length === 0) {
-    delete interactiveSubsessions[pid];
-  }
-
-  await writeJson(STORE_FILE, interactiveSubsessions);
+  delete subsessions[id];
+  await writeJson(STORE_FILE, subsessions);
 }
 
 export async function resolveRuntime(name: string, model?: string): Promise<RuntimeConfig> {

@@ -6,20 +6,14 @@ export interface PlanSessionPreview {
   title: string;
 }
 
-export async function listPlanSessions(
-  cwd: string,
-  parentSessionId: string,
-): Promise<PlanSessionPreview[]> {
+export async function listPlanSessions(cwd: string, pid: string): Promise<PlanSessionPreview[]> {
   const store = await readJson<StoredSubsessions>(getPiPath("subsessions", cwd), {});
-  const currentSessionSubsessions = store[parentSessionId] ?? {};
-
   const previews: PlanSessionPreview[] = [];
-  for (const [subsessionId, metadata] of Object.entries(currentSessionSubsessions)) {
-    if (metadata.label !== "plan") {
-      continue;
-    }
 
-    previews.push({ subsessionId, title: metadata.title });
+  for (const [subsessionId, metadata] of Object.entries(store)) {
+    if (metadata.label === "plan" && metadata.pid === pid) {
+      previews.push({ subsessionId, title: metadata.title });
+    }
   }
 
   return previews;

@@ -42,15 +42,11 @@ export function renderSnapshotWidget(
 
   ctx.ui.setWidget(label, (tui, theme) => {
     const widget = new Container() as Container & { dispose?: () => void };
-    const loaderLabel =
-      snapshot.status === "running"
-        ? `running: ${snapshot.activity}`
-        : `status: ${snapshot.status}`;
     const loader = new Loader(
       tui,
       (content) => theme.fg("accent", content),
       (content) => theme.fg("muted", content),
-      loaderLabel,
+      `${label}: ${snapshot.toolsUsed.length} tool calls`,
     );
 
     if (snapshot.status !== "running") {
@@ -58,7 +54,6 @@ export function renderSnapshotWidget(
     }
 
     widget.addChild(loader);
-    widget.addChild(new TruncatedText(`${label}: ${snapshot.toolsUsed.length} tool calls`, 1, 0));
 
     if (recentToolCalls.length === 0) {
       widget.addChild(new TruncatedText(`  └─ ${snapshot.activity}`, 1, 0));

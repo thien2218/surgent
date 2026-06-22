@@ -1,5 +1,6 @@
 import type { ToolResultEvent } from "@earendil-works/pi-coding-agent";
 
+type BashToolResultEvent = Extract<ToolResultEvent, { toolName: "bash" }>;
 type ReadToolResultEvent = Extract<ToolResultEvent, { toolName: "read" }>;
 type GrepToolResultEvent = Extract<ToolResultEvent, { toolName: "grep" }>;
 
@@ -8,6 +9,27 @@ const READ_CONTINUATION_NOTICE = /\n\n\[\d+ more lines in file\. Use offset=\d+ 
 function getTextContent(event: ToolResultEvent): string {
   const block = event.content.find((contentBlock) => contentBlock.type === "text");
   return block?.type === "text" ? block.text : "";
+}
+
+export function extractBashSummary(event: BashToolResultEvent): string | null {
+  const commandInput = event.input.command;
+  if (typeof commandInput !== "string") {
+    return null;
+  }
+
+  const status = event.isError ? "error" : "ok";
+  const truncation = event.details?.truncation;
+
+  if (truncation?.truncated) {
+    const startLine = truncation.totalLines - truncation.outputLines + 1;
+    const endLine = truncation.totalLines;
+    const partialLastLine = truncation.lastLinePartial === true ? "true" : "false";
+    return `Bash command="${commandInput}" | status=${status} | output=tail:L${startLine}-L${endLine}/L${truncation.totalLines} | partialLastLine=${partialLastLine}`;
+  }
+
+  const contentText = getTextContent(event).trim();
+  const outputState = !contentText || contentText === "(no output)" ? "none" : "present";
+  return `Bash command="${commandInput}" | status=${status} | output=${outputState}`;
 }
 
 export function extractReadSummary(event: ReadToolResultEvent): string | null {

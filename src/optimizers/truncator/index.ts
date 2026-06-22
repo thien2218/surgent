@@ -1,8 +1,12 @@
 import { statSync } from "node:fs";
-import { isGrepToolResult, isReadToolResult } from "@earendil-works/pi-coding-agent";
+import {
+  isBashToolResult,
+  isGrepToolResult,
+  isReadToolResult,
+} from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { rebuildActiveSummaries, rewriteSessionTailWithSummaries } from "./helpers.js";
-import { extractGrepSummary, extractReadSummary } from "./summarize.js";
+import { extractBashSummary, extractGrepSummary, extractReadSummary } from "./extractors.js";
 import type { PersistedState, SummaryStore } from "./types.js";
 
 const CUSTOM_ENTRY_TYPE = "read-summarizer";
@@ -48,6 +52,11 @@ export default function (pi: ExtensionAPI) {
       if (summary) {
         store.pending.set(event.toolCallId, summary);
       }
+    } else if (isBashToolResult(event)) {
+      const summary = extractBashSummary(event);
+      if (summary) {
+        store.pending.set(event.toolCallId, summary);
+      }
     }
   });
 
@@ -58,7 +67,9 @@ export default function (pi: ExtensionAPI) {
       for (const message of event.messages) {
         if (
           message.role === "toolResult" &&
-          (message.toolName === "read" || message.toolName === "grep") &&
+          (message.toolName === "read" ||
+            message.toolName === "grep" ||
+            message.toolName === "bash") &&
           store.pending.has(message.toolCallId)
         ) {
           completedRunSummaries.set(message.toolCallId, store.pending.get(message.toolCallId)!);

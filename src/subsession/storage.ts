@@ -32,15 +32,13 @@ export async function saveSubsession(id: string, entry: SubsessionMeta) {
 
 export async function terminateSubsession(cwd: string, id: string) {
   await loadStore();
-  if (!subsessions[id]) return;
+  delete subsessions[id];
+  await writeJson(STORE_FILE, subsessions);
 
   const sessions = await SessionManager.list(cwd, getPiPath("subsessionsDir"));
   const target = sessions.find((session) => session.id === id);
   if (!target) return;
   await unlink(target.path);
-
-  delete subsessions[id];
-  await writeJson(STORE_FILE, subsessions);
 }
 
 export async function resolveRuntime(name: string, model?: string): Promise<RuntimeConfig> {

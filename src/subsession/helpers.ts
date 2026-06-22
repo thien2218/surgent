@@ -1,20 +1,8 @@
 import { existsSync } from "node:fs";
-import type { ExtensionContext, ToolCallEvent } from "@earendil-works/pi-coding-agent";
 import type { Interaction, SubsessionResult } from "./types.js";
-import { IS_SUBSESSION } from "./index.js";
+import { HANDOFF_PREFIX } from "./index.js";
 
 const MARKDOWN_HEADING_PATTERN = /^\s*#\s+(.+?)\s*$/m;
-const HANDOFF_PREFIX = "subsession_handoff:";
-
-export function emitInteractionHandoff(event: ToolCallEvent, ctx: ExtensionContext) {
-  if (ctx.hasUI || !IS_SUBSESSION) {
-    return;
-  }
-  const serializedRequest = JSON.stringify({ toolName: event.toolName, input: event.input });
-  process.stderr.write(`${HANDOFF_PREFIX}${serializedRequest}\n`);
-  ctx.abort();
-  return { block: true, reason: "Interactive tool call requires handoff to parent session UI." };
-}
 
 export function parseInteractionHandoff(output: string): Interaction | undefined {
   const outputLines = output.split(/\r?\n/);

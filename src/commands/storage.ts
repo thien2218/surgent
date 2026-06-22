@@ -1,4 +1,4 @@
-import type { InteractiveSubsessions } from "../subsession/types.js";
+import type { StoredSubsessions } from "../subsession/types.js";
 import { getPiPath, readJson } from "../utils.js";
 
 export interface PlanSessionPreview {
@@ -10,7 +10,7 @@ export async function listPlanSessions(
   cwd: string,
   parentSessionId: string,
 ): Promise<PlanSessionPreview[]> {
-  const store = await readJson<InteractiveSubsessions>(getPiPath("subsessions", cwd), {});
+  const store = await readJson<StoredSubsessions>(getPiPath("subsessions", cwd), {});
   const currentSessionSubsessions = store[parentSessionId] ?? {};
 
   const previews: PlanSessionPreview[] = [];

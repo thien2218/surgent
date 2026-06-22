@@ -3,7 +3,7 @@ import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { handlePermissionsCommand } from "./command.js";
 import { checkAgentRules, resolvePermission } from "./resolution.js";
 import { getPiIgnoreInputs, resolvePiIgnorePathBlock } from "./piignore.js";
-import { addRule, checkExprStored, readAgentMode, writeAgentMode } from "./storage.js";
+import { addRule, readAgentMode, writeAgentMode } from "./storage.js";
 import { loadMainAgent } from "../agent/storage.js";
 import type { AgentMode, PromptDecision } from "./types.js";
 import PermissionPrompt from "./components/prompt.js";
@@ -15,7 +15,6 @@ import type { AgentMeta } from "../agent/types.js";
 const SWITCH_MODE_KEY = Key.ctrlAlt("y");
 
 export default function (pi: ExtensionAPI) {
-  let sessionId: string | null = null;
   let agentMeta: AgentMeta;
   let agentMode: AgentMode;
   let turnMode: AgentMode | null = null;
@@ -36,8 +35,6 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_start", async (_event, ctx) => {
     if (IS_SUBSESSION) return;
-    sessionId = ctx.sessionManager.getSessionId();
-
     if (!agentLoaded) {
       [agentMeta, agentMode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode(ctx.cwd)]);
       agentLoaded = true;
@@ -99,27 +96,30 @@ export default function (pi: ExtensionAPI) {
     }
 
     const check = getPermissionCheck(event);
-    const effectiveMode = turnMode ?? agentMode;
-    if (!check || effectiveMode === "yolo" || !sessionId) return;
+    if (!check || (turnMode ?? agentMode) === "yolo") return;
 
     const runtimeAllowed = checkAgentRules(agentMeta, check);
     if (!runtimeAllowed) {
       return { block: true, reason: "Access to this resource is beyond allowed scope" };
     }
 
+    const sessionId = ctx.sessionManager.getSessionId();
     const expr = toPermExpr(check.toolName, check.raw);
-    const allowed = await resolvePermission(ctx.cwd, sessionId, check);
-    if (allowed && !check.danger) return;
+    const permission = await resolvePermission(ctx.cwd, sessionId, check);
+    if (permission === "allowed" && !check.danger) return;
 
-    if (!ctx.hasUI) {
-      return { block: true, reason: "No UI to prompt for permission in current mode" };
-    }
+    const reason =
+      permission === "blocked"
+        ? "Access to this resource is denied"
+        : !ctx.hasUI
+          ? "No UI to prompt for permission in current mode"
+          : undefined;
+    if (reason) return { block: true, reason };
 
-    const exprExists = expr ? await checkExprStored(ctx.cwd, check.category, expr) : false;
     const decision = await ctx.ui.custom<PromptDecision>((_tui, theme, _keybindings, done) => {
-      const component = new PermissionPrompt(theme, expr, check, exprExists);
+      const component = new PermissionPrompt(theme, expr, check);
       component.onDone = done;
-      component.onStoreRule = (...args) => addRule(ctx.cwd, sessionId!, ...args);
+      component.onStoreRule = (...args) => addRule(ctx.cwd, sessionId, ...args);
       return component;
     });
 

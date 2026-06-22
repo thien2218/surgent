@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import type { InteractiveRequest, InteractiveSubsession } from "../subsession/types.js";
-import { runInteractive } from "../subsession/index.js";
+import type { SubsessionRequest, Subsession } from "../subsession/types.js";
+import { createResumeInput, runInteractive } from "../subsession/index.js";
 import {
   ActionSelectList,
   type ActionSelectOption,
@@ -11,6 +11,8 @@ import { forwardAction, renderSnapshotWidget } from "./helpers.js";
 import { listPlanSessions, type PlanSessionPreview } from "./storage.js";
 import type { PlanAction, PlanCommandInput } from "./types.js";
 import { isUuid } from "../utils.js";
+import { askQuestions } from "../questionnaire/helpers.js";
+import type { Question } from "../questionnaire/types.js";
 
 const PLAN_LABEL = "plan";
 const FORWARD_OPTIONS: ActionSelectOption[] = [
@@ -29,32 +31,33 @@ export async function planCommandHandler(
   }
 
   try {
-    const parsedInput = parseCommandInput(args);
-    const session = await resolveSession(ctx, parsedInput);
-    if (!session) {
-      return;
-    }
-
-    const initialStatus = session.result.status;
-    if (initialStatus === "error") {
-      ctx.ui.notify(session.result.output, "error");
-      return;
-    }
+    let subsession: Subsession | null = null;
 
     while (true) {
-      ctx.ui.setWidget(PLAN_LABEL, undefined);
-      const action = await showUi(ctx, session.result.output);
-      if (!action) return;
-
-      if (action.kind === "forward") {
-        if (await forwardAction(pi, ctx, action.mode, session)) return;
-        continue;
+      if (!subsession) {
+        subsession = await resolveSession(ctx, parseCommandInput(args));
+        if (!subsession) return;
+      }
+      if (subsession.result.status === "error") {
+        ctx.ui.notify(subsession.result.output, "error");
+        return;
       }
 
-      await session.exec(action.feedback);
+      const interaction = subsession.result.interaction;
 
-      if (session.result.status === "error") {
-        ctx.ui.notify("Planner turn failed. Please revise and retry.", "error");
+      if (interaction && interaction.toolName === "questionnaire") {
+        const result = await askQuestions(interaction.input["questions"] as Question[], ctx.ui);
+        await subsession.exec(createResumeInput(interaction, result));
+      } else {
+        ctx.ui.setWidget(PLAN_LABEL, undefined);
+        const action = await showUi(ctx, subsession.result.output);
+        if (!action) return;
+
+        if (action.kind === "forward") {
+          if (await forwardAction(pi, ctx, action.mode, subsession)) return;
+          continue;
+        }
+        subsession.exec(action.feedback);
       }
     }
   } finally {
@@ -76,9 +79,9 @@ export function parseCommandInput(rawArgs: string): PlanCommandInput {
 async function resolveSession(
   ctx: ExtensionCommandContext,
   parsedInput: PlanCommandInput,
-): Promise<InteractiveSubsession | null> {
+): Promise<Subsession | null> {
   const pid = ctx.sessionManager.getSessionId();
-  const request: InteractiveRequest = { pid, label: PLAN_LABEL, agent: "planner", input: "" };
+  const request: SubsessionRequest = { pid, label: PLAN_LABEL, agent: "planner", input: "" };
 
   if (parsedInput.kind === "prompt") {
     request.input = parsedInput.prompt;
@@ -104,7 +107,7 @@ async function resolveSession(
   const session = await runInteractive(request, (snapshot) =>
     renderSnapshotWidget(ctx, PLAN_LABEL, snapshot),
   );
-  if (!session.id) {
+  if (!session.result.id) {
     ctx.ui.notify(session.result.output || "Failed to initiate planning session", "error");
     return null;
   }

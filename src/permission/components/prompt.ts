@@ -50,7 +50,6 @@ export default class PermissionPrompt extends Frame implements Focusable {
     protected theme: Theme,
     private readonly expr: string,
     private readonly check: PermissionCheck,
-    private readonly exprExists: boolean,
   ) {
     super(theme);
     this.setOptions();
@@ -221,23 +220,22 @@ export default class PermissionPrompt extends Frame implements Focusable {
     this.options = [...INIT_OPTIONS];
 
     if (this.expr) {
-      this.options.push({
-        label: `Yes, allow ${toolName} tool call [${scopeLabel}] for`,
-        defaultText: this.expr,
-        separator: ":",
-        value: { allowed: true },
-        persists: true,
-      });
-
-      if (!this.exprExists) {
-        this.options.push({
+      this.options.push(
+        {
+          label: `Yes, allow ${toolName} tool call [${scopeLabel}] for`,
+          defaultText: this.expr,
+          separator: ":",
+          value: { allowed: true },
+          persists: true,
+        },
+        {
           label: `No, disallow ${toolName} tool call [${scopeLabel}] for`,
           defaultText: this.expr,
           separator: ":",
           value: { allowed: false },
           persists: true,
-        });
-      }
+        },
+      );
     }
   }
 }

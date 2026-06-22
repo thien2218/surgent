@@ -105,11 +105,7 @@ function looksLikePathToken(token: string): boolean {
   return /\.[A-Za-z][A-Za-z0-9_-]*$/.test(token);
 }
 
-function isAllowedByPattern(
-  raw: string,
-  allowList: AgentAllowList | undefined,
-  bash?: boolean,
-): boolean {
+function isAllowedByPattern(raw: string, allowList?: AgentAllowList, bash?: boolean): boolean {
   return Boolean(
     allowList !== "none" &&
     (!allowList || allowList.some((pattern: string) => matchesPattern(raw, pattern, bash))),
@@ -152,13 +148,14 @@ export async function resolvePermission(
   cwd: string,
   sessionId: string,
   check: PermissionCheck,
-): Promise<boolean> {
+): Promise<"allowed" | "blocked" | "ask"> {
   const { category, raw, op } = check;
   // For bash: also check any path-like args as file reads
   if (category === "bash") {
     for (const path of extractPathsFromCommand(raw)) {
       const fileCheck = { category: "file", raw: path, op: "read", toolName: "bash" } as const;
-      if (!(await resolvePermission(cwd, sessionId, fileCheck))) return false;
+      const filePermission = await resolvePermission(cwd, sessionId, fileCheck);
+      if (filePermission !== "allowed") return filePermission;
     }
   }
 
@@ -172,16 +169,19 @@ export async function resolvePermission(
 
     if (typeof match === "undefined") continue;
     if (category === "file") {
-      if (match === "write") return true;
-      return op === match;
+      if (match === "write") return "allowed";
+      if (op === match) return "allowed";
+      return "blocked";
     }
-    return match as boolean;
+    return (match as boolean) ? "allowed" : "blocked";
   }
 
   if (category === "file") {
     const globalPiPath = dirname(getPiPath("settings", "global"));
-    return Boolean(getRelativePathInRoot(raw, cwd) || getRelativePathInRoot(raw, globalPiPath));
+    return getRelativePathInRoot(raw, cwd) || getRelativePathInRoot(raw, globalPiPath)
+      ? "allowed"
+      : "ask";
   }
 
-  return false;
+  return "ask";
 }

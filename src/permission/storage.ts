@@ -143,19 +143,3 @@ export async function getRulesForDisplay(
 
   return rules;
 }
-
-export async function checkExprStored(
-  cwd: string,
-  category: Category,
-  expr: string,
-): Promise<boolean> {
-  const [local, global] = await Promise.all([readRules(cwd), readRules()]);
-
-  const inSchema = (schema: PermissionRule | undefined): boolean => {
-    if (!schema) return false;
-    const rules = category === "file" ? schema.file : category === "web" ? schema.web : schema.bash;
-    return rules ? expr in rules : false;
-  };
-
-  return inSchema(global) || Object.values(local).some(inSchema);
-}

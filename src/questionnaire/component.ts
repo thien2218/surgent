@@ -68,7 +68,7 @@ export default class Questionnaire extends Frame implements Focusable {
 
   handleInput(data: string) {
     if (matchesKey(data, Key.escape)) {
-      this.onDone?.({ cancelled: true, answers: [] });
+      this.onDone?.({ cancelled: true, questions: [], answers: [] });
       return;
     }
 
@@ -309,6 +309,7 @@ export default class Questionnaire extends Frame implements Focusable {
       if (this.allQuestionsAnswered()) {
         this.onDone?.({
           cancelled: false,
+          questions: this.questions.map((entry) => entry.prompt),
           answers: this.questions.map((entry, index) =>
             serializeQuestionAnswer(entry, this.drafts[index]!),
           ),

@@ -21,14 +21,11 @@ export interface Question {
   maxSelections?: number;
 }
 
-export interface QuestionnaireParams {
-  questions: Question[];
-}
-
 // ==================== OUTPUT (for agent) ====================
 
 export interface QuestionnaireResult {
   cancelled: boolean;
+  questions: string[];
   answers: string[];
 }
 

@@ -104,7 +104,7 @@ export default function (pi: ExtensionAPI) {
 
     const runtimeAllowed = checkAgentRules(agentMeta, check);
     if (!runtimeAllowed) {
-      return { block: true, reason: "Access to this resource is beyond your scope" };
+      return { block: true, reason: "Access to this resource is beyond allowed scope" };
     }
 
     const expr = toPermExpr(check.toolName, check.raw);

@@ -1,22 +1,16 @@
+import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import Questionnaire from "./component.js";
 import type {
   NormalizedQuestion,
   Question,
   QuestionDraft,
+  QuestionnaireResult,
   QuestionOption,
-  QuestionnaireParams,
   ToggleSelectionResult,
 } from "./types.js";
 
-export function normalizeQuestions(params: QuestionnaireParams): NormalizedQuestion[] {
-  if (params.questions.length === 0) {
-    throw new Error("At least one question is required.");
-  }
-  return params.questions.map(normalizeQuestion);
-}
-
 export function createInitialDraft(question: NormalizedQuestion): QuestionDraft {
   const selectedOptionIndexes = getRecommendedOptionIndexes(question);
-
   return {
     text: "",
     selectedOptionIndexes,
@@ -50,7 +44,6 @@ export function getQuestionValidationMessage(
   if (selectedCount < question.minSelections) {
     return `Select at least ${question.minSelections} option${question.minSelections === 1 ? "" : "s"}, or type an answer.`;
   }
-
   return undefined;
 }
 
@@ -135,12 +128,8 @@ export function ensureSingleSelection(
   if (question.multi || question.options.length === 0 || draft.selectedOptionIndexes.length > 0) {
     return draft;
   }
-
   const nextCursorIndex = clampCursorIndex(question, draft.cursorIndex);
-  return {
-    ...draft,
-    selectedOptionIndexes: [nextCursorIndex],
-  };
+  return { ...draft, selectedOptionIndexes: [nextCursorIndex] };
 }
 
 export function moveCursor(
@@ -157,6 +146,19 @@ export function moveCursor(
     ...draft,
     cursorIndex: Math.max(0, Math.min(lastIndex, draft.cursorIndex + delta)),
   };
+}
+
+export async function askQuestions(questions: Question[], ui: ExtensionUIContext) {
+  if (questions.length === 0) {
+    throw new Error("At least one question is required.");
+  }
+  const normalized = questions.map(normalizeQuestion);
+
+  return ui.custom<QuestionnaireResult>((tui, theme, _keybindings, done) => {
+    const component = new Questionnaire(tui, theme, normalized);
+    component.onDone = done;
+    return component;
+  });
 }
 
 function normalizeQuestion(question: Question): NormalizedQuestion {
@@ -253,6 +255,5 @@ function clampCursorIndex(question: NormalizedQuestion, cursorIndex: number): nu
   if (question.options.length === 0) {
     return 0;
   }
-
   return Math.max(0, Math.min(question.options.length - 1, cursorIndex));
 }

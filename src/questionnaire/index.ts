@@ -1,7 +1,6 @@
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import Questionnaire from "./component.js";
-import { normalizeQuestions, summarizeAnswer } from "./helpers.js";
+import { askQuestions, summarizeAnswer } from "./helpers.js";
 import { QuestionnaireParamsSchema, type Question, type QuestionnaireResult } from "./types.js";
 
 const questionnaire = defineTool({
@@ -24,17 +23,11 @@ const questionnaire = defineTool({
     if (!ctx.hasUI) {
       return {
         content: [{ type: "text", text: "Questionnaire requires an interactive UI." }],
-        details: { cancelled: true, answers: [] } satisfies QuestionnaireResult,
+        details: { cancelled: true, questions: [], answers: [] } satisfies QuestionnaireResult,
       };
     }
 
-    const questions = normalizeQuestions(params);
-    const result = await ctx.ui.custom<QuestionnaireResult>((tui, theme, _keybindings, done) => {
-      const component = new Questionnaire(tui, theme, questions);
-      component.onDone = done;
-      return component;
-    });
-
+    const result = await askQuestions(params.questions, ctx.ui);
     if (result.cancelled) {
       return {
         content: [{ type: "text", text: "User cancelled the questionnaire." }],
@@ -42,11 +35,8 @@ const questionnaire = defineTool({
       };
     }
 
-    const content = questions
-      .map(
-        (question, index) =>
-          `Q${index + 1}: ${question.prompt}\nA${index + 1}: ${result.answers[index] ?? ""}`,
-      )
+    const content = result.questions
+      .map((question, idx) => `Q${idx + 1}: ${question}\nA${idx + 1}: ${result.answers[idx] ?? ""}`)
       .join("\n\n");
 
     return {
@@ -71,11 +61,11 @@ const questionnaire = defineTool({
     }
 
     const details = result.details as QuestionnaireResult | undefined;
+
     if (!details) {
       const firstBlock = result.content[0];
       return new Text(firstBlock?.type === "text" ? firstBlock.text : "", 0, 0);
     }
-
     if (details.cancelled) {
       return new Text(theme.fg("warning", "Cancelled"), 0, 0);
     }

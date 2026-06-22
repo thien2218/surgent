@@ -6,7 +6,7 @@ export function pruneSessionMap(
 ): boolean {
   let hasChanges = false;
   for (const sessionId of Object.keys(data)) {
-    if (isUuid(sessionId) && sessionIds.has(sessionId)) {
+    if (!isUuid(sessionId) || sessionIds.has(sessionId)) {
       continue;
     }
     delete data[sessionId];

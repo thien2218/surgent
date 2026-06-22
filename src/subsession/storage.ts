@@ -1,28 +1,28 @@
 import { loadAgents } from "../agent/storage.js";
 import { getPiPath, readJson, writeJson } from "../utils.js";
-import type { InteractiveSubsessions, InteractiveMeta, RuntimeConfig } from "./types.js";
+import type { StoredSubsessions, SubsessionMeta, RuntimeConfig } from "./types.js";
 
 const STORE_FILE = getPiPath("subsessions", process.cwd());
-const interactiveSubsessions: InteractiveSubsessions = {};
+const interactiveSubsessions: StoredSubsessions = {};
 let isStoreLoaded = false;
 
 async function loadStore() {
   if (isStoreLoaded) return;
-  const persistedStore = await readJson<InteractiveSubsessions>(STORE_FILE, {});
+  const persistedStore = await readJson<StoredSubsessions>(STORE_FILE, {});
   for (const [pid, subsessions] of Object.entries(persistedStore)) {
     interactiveSubsessions[pid] = subsessions;
   }
   isStoreLoaded = true;
 }
 
-export async function findSubsession(pid: string, id: string): Promise<InteractiveMeta | null> {
+export async function findSubsession(pid: string, id: string): Promise<SubsessionMeta | null> {
   await loadStore();
   const parentSubsessions = interactiveSubsessions[pid];
   if (!parentSubsessions) return null;
   return parentSubsessions[id] ?? null;
 }
 
-export async function saveSubsession(pid: string, id: string, entry: InteractiveMeta) {
+export async function saveSubsession(pid: string, id: string, entry: SubsessionMeta) {
   await loadStore();
   if (!interactiveSubsessions[pid]) {
     interactiveSubsessions[pid] = {};
@@ -31,11 +31,11 @@ export async function saveSubsession(pid: string, id: string, entry: Interactive
   await writeJson(STORE_FILE, interactiveSubsessions);
 }
 
-export async function deleteSubsession(pid: string, id: string) {
+export async function deleteSubsession(pid: string, id?: string) {
   await loadStore();
 
   const parentSubsessions = interactiveSubsessions[pid];
-  if (!parentSubsessions || !parentSubsessions[id]) {
+  if (!parentSubsessions || !id || !parentSubsessions[id]) {
     return;
   }
 

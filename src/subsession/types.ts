@@ -1,43 +1,33 @@
 import type { AgentAllowList } from "../agent/types.js";
 
-export type SubsessionResultStatus = "done" | "aborted" | "error";
-export type InteractiveLabel = "plan" | "review";
-
-interface SubsessionRequestBase {
-  pid: string;
-  agent: string;
-  modelId?: string;
-  signal?: AbortSignal;
+export interface Interaction {
+  toolName: string;
+  input: Record<string, any>;
 }
+
+export type SubsessionStatus = "done" | "aborted" | "error" | "pending";
+export type SubsessionLabel = "plan" | "review" | "other";
 
 export interface SubsessionSnapshot {
   id: string;
-  status: "running" | SubsessionResultStatus;
+  status: "running" | SubsessionStatus;
   activity: string;
   toolsUsed: string[];
 }
 
 export interface SubsessionResult {
-  status: SubsessionResultStatus;
+  id?: string;
+  status: SubsessionStatus;
   output: string;
   usage?: { input: number; output: number };
   toolCounts: Record<string, number>;
+  interaction?: Interaction;
 }
 
-export interface BackgroundRequest extends SubsessionRequestBase {
-  task: string;
-}
-
-export interface InteractiveMeta {
-  label: InteractiveLabel;
+export interface SubsessionMeta {
+  label: SubsessionLabel;
   agent: string;
   title: string;
-}
-
-export interface InteractiveSubsessions {
-  [pid: string]: {
-    [id: string]: InteractiveMeta;
-  };
 }
 
 export interface RuntimeConfig {
@@ -46,16 +36,23 @@ export interface RuntimeConfig {
   modelId?: string;
 }
 
-export interface InteractiveRequest extends SubsessionRequestBase {
+export interface SubsessionRequest {
+  pid: string;
+  agent: string;
+  modelId?: string;
+  signal?: AbortSignal;
   id?: string;
-  label: InteractiveLabel;
+  label: SubsessionLabel;
   input: string;
 }
 
-export interface InteractiveSubsession {
-  id: string;
+export interface StoredSubsessions {
+  [pid: string]: { [id: string]: SubsessionMeta };
+}
+
+export interface Subsession {
   pid: string;
-  label: InteractiveLabel;
+  label: SubsessionLabel;
   title: string;
   result: SubsessionResult;
   runtime: RuntimeConfig;

@@ -26,7 +26,7 @@ export interface SubsessionResult {
 
 export interface SubsessionMeta {
   label: SubsessionLabel;
-  agent: string;
+  pid: string;
   title: string;
 }
 
@@ -47,7 +47,7 @@ export interface SubsessionRequest {
 }
 
 export interface StoredSubsessions {
-  [pid: string]: { [id: string]: SubsessionMeta };
+  [id: string]: SubsessionMeta;
 }
 
 export interface Subsession {

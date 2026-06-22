@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { SubsessionRequest, Subsession } from "../subsession/types.js";
-import { createResumeInput, runInteractive } from "../subsession/index.js";
+import { runInteractive, resolveInteractionHandoff } from "../subsession/index.js";
 import {
   ActionSelectList,
   type ActionSelectOption,
@@ -11,8 +11,6 @@ import { forwardAction, renderSnapshotWidget } from "./helpers.js";
 import { listPlanSessions, type PlanSessionPreview } from "./storage.js";
 import type { PlanAction, PlanCommandInput } from "./types.js";
 import { isUuid } from "../utils.js";
-import { askQuestions } from "../questionnaire/helpers.js";
-import type { Question } from "../questionnaire/types.js";
 
 const PLAN_LABEL = "plan";
 const FORWARD_OPTIONS: ActionSelectOption[] = [
@@ -32,7 +30,6 @@ export async function planCommandHandler(
 
   try {
     let subsession: Subsession | null = null;
-
     while (true) {
       if (!subsession) {
         subsession = await resolveSession(ctx, parseCommandInput(args));
@@ -43,22 +40,21 @@ export async function planCommandHandler(
         return;
       }
 
-      const interaction = subsession.result.interaction;
-
-      if (interaction && interaction.toolName === "questionnaire") {
-        const result = await askQuestions(interaction.input["questions"] as Question[], ctx.ui);
-        await subsession.exec(createResumeInput(interaction, result));
-      } else {
+      let input = await resolveInteractionHandoff(ctx, subsession.result.interaction);
+      if (!input) {
         ctx.ui.setWidget(PLAN_LABEL, undefined);
         const action = await showUi(ctx, subsession.result.output);
-        if (!action) return;
 
+        if (!action) return;
         if (action.kind === "forward") {
           if (await forwardAction(pi, ctx, action.mode, subsession)) return;
           continue;
         }
-        subsession.exec(action.feedback);
+
+        input = action.feedback;
       }
+
+      await subsession.exec(input);
     }
   } finally {
     ctx.ui.setWidget(PLAN_LABEL, undefined);

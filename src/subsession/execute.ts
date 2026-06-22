@@ -177,7 +177,7 @@ export default async function runInteractive(
   };
 
   if (request.id) {
-    const existing = await findSubsession(request.pid, request.id);
+    const existing = await findSubsession(request.id, request.pid);
     if (!existing) {
       params.title = "Unknown subsession";
       params.result = createErrorResult(`Subsession not found: ${request.id}`);
@@ -208,9 +208,9 @@ export default async function runInteractive(
         params.title = extractedTitle;
       }
 
-      await saveSubsession(request.pid, initialTurn.id, {
+      await saveSubsession(initialTurn.id, {
         label: request.label,
-        agent: request.agent,
+        pid: request.pid,
         title: params.title,
       });
     }

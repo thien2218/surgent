@@ -15,6 +15,7 @@ export interface PermissionRule {
 }
 
 export interface PermissionCheck {
+  sessionId: string;
   toolName: PermissiveToolName;
   category: Category;
   raw: string;

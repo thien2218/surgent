@@ -3,29 +3,14 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { StoredSubsessions } from "../subsession/types.js";
 import { getPiPath, isMissingFileError, readJson, writeJson } from "../utils.js";
 
-function collectDeletedParentSessionIds(
-  store: StoredSubsessions,
-  sessionIds: Set<string>,
-): string[] {
-  const deletedParentSessionIds: string[] = [];
-  for (const parentSessionId of Object.keys(store)) {
-    if (sessionIds.has(parentSessionId)) {
-      continue;
-    }
-    deletedParentSessionIds.push(parentSessionId);
-  }
-  return deletedParentSessionIds;
-}
-
-function collectSubsessionIds(store: StoredSubsessions, parentSessionIds: string[]): Set<string> {
-  const subsessionIds = new Set<string>();
-  for (const parentSessionId of parentSessionIds) {
-    const subsessions = store[parentSessionId] ?? {};
-    for (const subsessionId of Object.keys(subsessions)) {
-      subsessionIds.add(subsessionId);
+function collectOrphanedSubsessionIds(store: StoredSubsessions, pids: Set<string>): Set<string> {
+  const orphanedIds = new Set<string>();
+  for (const [subsessionId, metadata] of Object.entries(store)) {
+    if (!pids.has(metadata.pid)) {
+      orphanedIds.add(subsessionId);
     }
   }
-  return subsessionIds;
+  return orphanedIds;
 }
 
 async function deleteSessionFilesByIds(cwd: string, sessionIds: Set<string>): Promise<void> {
@@ -42,28 +27,25 @@ async function deleteSessionFilesByIds(cwd: string, sessionIds: Set<string>): Pr
     try {
       await unlink(sessionPath);
     } catch (error) {
-      if (isMissingFileError(error)) {
-        continue;
-      }
+      if (isMissingFileError(error)) continue;
       throw error;
     }
   }
 }
 
-export async function cleanupSubsessions(cwd: string, sessionIds: Set<string>): Promise<void> {
+export async function cleanupSubsessions(cwd: string, pids: Set<string>): Promise<void> {
   const storeFilePath = getPiPath("subsessions", cwd);
   const store = await readJson<StoredSubsessions>(storeFilePath, {});
 
-  const deletedParentSessionIds = collectDeletedParentSessionIds(store, sessionIds);
-  if (deletedParentSessionIds.length === 0) {
+  const orphanedIds = collectOrphanedSubsessionIds(store, pids);
+  if (orphanedIds.size === 0) {
     return;
   }
 
-  const subsessionIdsToDelete = collectSubsessionIds(store, deletedParentSessionIds);
-  await deleteSessionFilesByIds(cwd, subsessionIdsToDelete);
+  await deleteSessionFilesByIds(cwd, orphanedIds);
 
-  for (const parentSessionId of deletedParentSessionIds) {
-    delete store[parentSessionId];
+  for (const subsessionId of orphanedIds) {
+    delete store[subsessionId];
   }
 
   await writeJson(storeFilePath, store);

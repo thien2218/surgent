@@ -152,8 +152,8 @@ export async function askQuestions(questions: Question[], ui: ExtensionUIContext
   if (questions.length === 0) {
     throw new Error("At least one question is required.");
   }
-  const normalized = questions.map(normalizeQuestion);
 
+  const normalized = questions.map(normalizeQuestion);
   return ui.custom<QuestionnaireResult>((tui, theme, _keybindings, done) => {
     const component = new Questionnaire(tui, theme, normalized);
     component.onDone = done;

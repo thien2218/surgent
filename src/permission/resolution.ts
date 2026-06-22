@@ -6,6 +6,7 @@ import { readRules } from "./storage.js";
 import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./types.js";
 import { getPiPath } from "../utils.js";
 import { BASH_TOKEN } from "./constants.js";
+import { findSubsession } from "../subsession/storage.js";
 
 const GLOB_CHARS = /[*?[\]{}]/;
 
@@ -123,20 +124,20 @@ export function checkAgentRules(agentMeta: AgentMeta, check: PermissionCheck): b
   return true;
 }
 
-export function expandFilePath(rawPath: string, cwd: string): string | null {
-  if (!rawPath) return null;
-  if (rawPath === "~") return homedir();
-  if (rawPath.startsWith("~/")) {
-    return resolve(homedir(), rawPath.slice(2));
+export function expandFilePath(path: string, cwd: string): string | null {
+  if (!path) return null;
+  if (path === "~") return homedir();
+  if (path.startsWith("~/")) {
+    return resolve(homedir(), path.slice(2));
   }
-  return resolve(cwd, rawPath);
+  return resolve(cwd, path);
 }
 
-export function getRelativePathInRoot(rawPath: string, rootPath: string): string | null {
-  const resolvedPath = expandFilePath(rawPath, rootPath);
+export function getRelativePathInRoot(path: string, root: string): string | null {
+  const resolvedPath = expandFilePath(path, root);
   if (!resolvedPath) return null;
 
-  const relativePath = relative(rootPath, resolvedPath);
+  const relativePath = relative(root, resolvedPath);
   if (relativePath !== "" && (relativePath.startsWith("..") || isAbsolute(relativePath))) {
     return null;
   }
@@ -146,22 +147,32 @@ export function getRelativePathInRoot(rawPath: string, rootPath: string): string
 
 export async function resolvePermission(
   cwd: string,
-  sessionId: string,
   check: PermissionCheck,
 ): Promise<"allowed" | "blocked" | "ask"> {
-  const { category, raw, op } = check;
+  const { category, raw, op, sessionId } = check;
   // For bash: also check any path-like args as file reads
   if (category === "bash") {
     for (const path of extractPathsFromCommand(raw)) {
       const fileCheck = { category: "file", raw: path, op: "read", toolName: "bash" } as const;
-      const filePermission = await resolvePermission(cwd, sessionId, fileCheck);
+      const filePermission = await resolvePermission(cwd, { ...fileCheck, sessionId });
       if (filePermission !== "allowed") return filePermission;
     }
   }
 
-  // Scope rules: always (global) > project > session — first match wins
-  const [local, global] = await Promise.all([readRules(cwd), readRules()]);
-  const scopes = [global, local.project, local[sessionId]];
+  // Scope rules: always (global) > project > parent session > subsession — first match wins
+  const [local, global, subsession] = await Promise.all([
+    readRules(cwd),
+    readRules(),
+    findSubsession(sessionId),
+  ]);
+
+  const scopes: Array<PermissionRule | undefined> = [global, local.project];
+  if (subsession?.pid) {
+    scopes.push(local[subsession.pid]);
+  }
+  if (!subsession || subsession.pid !== sessionId) {
+    scopes.push(local[sessionId]);
+  }
 
   for (const schema of scopes) {
     const rules = getSchemaRules(schema, category);
@@ -177,10 +188,10 @@ export async function resolvePermission(
   }
 
   if (category === "file") {
-    const globalPiPath = dirname(getPiPath("settings", "global"));
-    return getRelativePathInRoot(raw, cwd) || getRelativePathInRoot(raw, globalPiPath)
-      ? "allowed"
-      : "ask";
+    const inAllowedDir = Boolean(
+      getRelativePathInRoot(raw, cwd) || getRelativePathInRoot(raw, dirname(getPiPath("settings"))),
+    );
+    return inAllowedDir ? "allowed" : "ask";
   }
 
   return "ask";

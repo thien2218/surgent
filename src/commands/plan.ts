@@ -90,17 +90,13 @@ async function resolveSession(
       const modelId = id.includes("/") ? id : `${provider}/${id}`;
       request.modelId = modelId;
     }
+  } else if (parsedInput.kind === "resume") {
+    request.id = parsedInput.subsessionId;
   } else {
-    const selectedSubsessionId =
-      parsedInput.kind === "resume"
-        ? parsedInput.subsessionId
-        : await pickStoredPlanSessionId(ctx, pid);
-
+    const selectedSubsessionId = await pickPlanSessionId(ctx, pid);
     if (!selectedSubsessionId) {
-      ctx.ui.notify(`Plan subsession not found: ${selectedSubsessionId}`, "error");
       return null;
     }
-
     request.id = selectedSubsessionId;
   }
 
@@ -115,11 +111,11 @@ async function resolveSession(
   return session;
 }
 
-async function pickStoredPlanSessionId(
+async function pickPlanSessionId(
   ctx: ExtensionCommandContext,
-  parentSessionId: string,
+  pid: string,
 ): Promise<string | null> {
-  const planSessions = await listPlanSessions(ctx.cwd, parentSessionId);
+  const planSessions = await listPlanSessions(ctx.cwd, pid);
   if (planSessions.length === 0) {
     ctx.ui.notify("No stored planning sessions", "warning");
     return null;

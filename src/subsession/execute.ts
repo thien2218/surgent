@@ -28,7 +28,6 @@ interface ExecuteTurnRequest {
 }
 
 interface CreateSubsessionParams {
-  id: string;
   agent: string;
   pid: string;
   label: SubsessionLabel;
@@ -62,11 +61,12 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
     status: "running",
     activity: "thinking",
     toolsUsed: [],
+    usage: { input: 0, output: 0, toolCalls: 0 },
   };
 
   request.onSnapshot?.(snapshot);
-
   const parser = createJsonLineParser(snapshot, request.onSnapshot);
+
   let wasAborted = false;
   let stderrOutput = "";
 
@@ -131,10 +131,10 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
   request.onSnapshot?.(snapshot);
 
   return {
-    id: parser.state.sessionId || request.sessionId || "",
+    id: snapshot.id || request.sessionId || "",
     status,
     output,
-    usage: { input: parser.state.tokenInput, output: parser.state.tokenOutput },
+    usage: snapshot.usage,
     toolCounts: parser.state.toolCounts,
     interaction,
   };
@@ -165,13 +165,11 @@ export default async function runInteractive(
   onSnapshot?: (snapshot: SubsessionSnapshot) => void,
 ): Promise<Subsession> {
   const runtime = await resolveRuntime(request.agent, request.modelId);
-  const params: CreateSubsessionParams = {
-    id: request.id ?? "",
+  const params: Partial<CreateSubsessionParams> = {
     agent: request.agent,
     label: request.label,
     pid: request.pid,
     title: "",
-    result: { status: "done", output: "", toolCounts: {} },
     runtime,
     onSnapshot,
   };
@@ -200,9 +198,7 @@ export default async function runInteractive(
       const errorOutput = initialTurn.output.trim();
       params.result = createErrorResult(errorOutput || "Cannot start interactive subsession");
     } else {
-      params.id = initialTurn.id;
       params.result = initialTurn;
-
       const extractedTitle = extractSubsessionTitle(initialTurn.output);
       if (extractedTitle) {
         params.title = extractedTitle;
@@ -212,9 +208,10 @@ export default async function runInteractive(
         label: request.label,
         pid: request.pid,
         title: params.title,
+        usage: initialTurn.usage,
       });
     }
   }
 
-  return createSubsession(params);
+  return createSubsession(params as CreateSubsessionParams);
 }

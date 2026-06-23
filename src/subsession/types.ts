@@ -1,5 +1,11 @@
 import type { AgentAllowList } from "../agent/types.js";
 
+export type SubsessionUsage = {
+  input: number;
+  output: number;
+  toolCalls: number;
+};
+
 export interface Interaction {
   toolName: string;
   input: Record<string, any>;
@@ -13,13 +19,14 @@ export interface SubsessionSnapshot {
   status: "running" | SubsessionStatus;
   activity: string;
   toolsUsed: string[];
+  usage: SubsessionUsage & { context?: number };
 }
 
 export interface SubsessionResult {
   id?: string;
   status: SubsessionStatus;
   output: string;
-  usage?: { input: number; output: number };
+  usage: SubsessionUsage;
   toolCounts: Record<string, number>;
   interaction?: Interaction;
 }
@@ -28,6 +35,7 @@ export interface SubsessionMeta {
   label: SubsessionLabel;
   pid: string;
   title: string;
+  usage: SubsessionUsage;
 }
 
 export interface RuntimeConfig {
@@ -44,6 +52,7 @@ export interface SubsessionRequest {
   id?: string;
   label: SubsessionLabel;
   input: string;
+  contextWindow?: number;
 }
 
 export interface StoredSubsessions {

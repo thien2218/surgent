@@ -5,6 +5,14 @@ import type { Subsession, SubsessionSnapshot } from "../subsession/types.js";
 import { Container, Loader, Spacer, TruncatedText } from "@earendil-works/pi-tui";
 import { terminateSubsession } from "../subsession/storage.js";
 
+function formatContextUsage(snapshot: SubsessionSnapshot): string {
+  const contextWindow = snapshot.usage.context;
+  if (!contextWindow) {
+    return "n/a%";
+  }
+  return `${((snapshot.usage.input / contextWindow) * 100).toFixed(1)}%`;
+}
+
 export async function forwardAction(
   pi: ExtensionAPI,
   ctx: ExtensionCommandContext,
@@ -46,7 +54,7 @@ export function renderSnapshotWidget(
       tui,
       (content) => theme.fg("accent", content),
       (content) => theme.fg("muted", content),
-      `${label}: ${snapshot.toolsUsed.length} tool calls`,
+      `${label}: tools_count=${snapshot.usage.toolCalls} | in=${snapshot.usage.input} | out=${snapshot.usage.output} | ctx=${formatContextUsage(snapshot)}`,
     );
 
     if (snapshot.status !== "running") {

@@ -67,7 +67,7 @@ export function isMissingFileError(error: any) {
   return Boolean(error) && typeof error === "object" && "code" in error && error.code === "ENOENT";
 }
 
-export function isUuid(input: string): boolean {
-  const pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export function isUuidv7(input: string): boolean {
+  const pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   return pattern.test(input);
 }

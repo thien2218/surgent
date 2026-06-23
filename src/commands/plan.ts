@@ -14,7 +14,7 @@ import { ScrollableView } from "../ui/components/scrollable-view.js";
 import { forwardAction } from "./helpers.js";
 import { listPlanSessions, type PlanSessionPreview } from "./storage.js";
 import type { PlanAction, PlanCommandInput } from "./types.js";
-import { isUuid } from "../utils.js";
+import { isUuidv7 } from "../utils.js";
 
 const PLAN_AGENT = "planner";
 const FORWARD_OPTIONS: ActionSelectOption[] = [
@@ -70,7 +70,7 @@ export function parseCommandInput(args: string): PlanCommandInput {
   if (!normalized) {
     return { kind: "list" };
   }
-  if (isUuid(normalized)) {
+  if (isUuidv7(normalized)) {
     return { kind: "resume", subsessionId: normalized };
   }
   return { kind: "prompt", prompt: normalized };

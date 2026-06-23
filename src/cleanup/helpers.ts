@@ -1,4 +1,4 @@
-import { isUuid, readJson, writeJson } from "../utils.js";
+import { isUuidv7, readJson, writeJson } from "../utils.js";
 
 export function pruneSessionMap(
   data: { [sessionId: string]: unknown },
@@ -6,7 +6,7 @@ export function pruneSessionMap(
 ): boolean {
   let hasChanges = false;
   for (const sessionId of Object.keys(data)) {
-    if (!isUuid(sessionId) || sessionIds.has(sessionId)) {
+    if (!isUuidv7(sessionId) || sessionIds.has(sessionId)) {
       continue;
     }
     delete data[sessionId];

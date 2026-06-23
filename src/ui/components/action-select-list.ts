@@ -154,9 +154,7 @@ export class ActionSelectList implements Component, Focusable {
 
   private submitInputSelection() {
     const trimmedInput = this.customInput.getText().trim();
-    if (trimmedInput.length === 0) {
-      return;
-    }
+    if (trimmedInput.length === 0) return;
     this.onSubmit?.({ type: "input", value: trimmedInput });
   }
 

@@ -55,9 +55,7 @@ async function saveProviderKey(ctx: ExtensionCommandContext, provider: WebToolsP
       `${provider.label} API key`,
       `${provider.label} already has a saved API key. Replace it?`,
     );
-    if (!replace) {
-      return;
-    }
+    if (!replace) return;
   }
 
   const apiKey = await ctx.ui.input(
@@ -79,9 +77,7 @@ async function clearProviderKey(ctx: ExtensionCommandContext, provider: WebTools
     `Clear ${provider.label} API key`,
     `Remove the saved ${provider.label} API key from shared auth storage?`,
   );
-  if (!confirmed) {
-    return;
-  }
+  if (!confirmed) return;
 
   clearApiKey(ctx.modelRegistry.authStorage, provider.name);
   ctx.ui.notify(`Cleared ${provider.label} API key`, "info");
@@ -104,10 +100,8 @@ export default async function webLoginCommand(args: string, ctx: ExtensionComman
   ctx.ui.notify(formatProviderStatus(ctx.modelRegistry.authStorage, provider), "info");
 
   const action = await chooseAction(ctx, provider);
-  if (!action) {
-    return;
-  }
 
+  if (!action) return;
   if (action === "clear") {
     await clearProviderKey(ctx, provider);
     return;

@@ -76,9 +76,7 @@ export default function (pi: ExtensionAPI) {
         }
       }
 
-      if (completedRunSummaries.size === 0) {
-        return;
-      }
+      if (completedRunSummaries.size === 0) return;
 
       for (const [toolCallId, summaryText] of completedRunSummaries) {
         store.active.set(toolCallId, summaryText);
@@ -115,9 +113,7 @@ export default function (pi: ExtensionAPI) {
       changed = true;
     }
 
-    if (!changed) {
-      return;
-    }
+    if (!changed) return;
 
     return { messages: event.messages };
   });

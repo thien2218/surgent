@@ -62,6 +62,7 @@ export class ScrollableView extends Frame implements Focusable {
     }
 
     hints.push(["Esc", "close and save"]);
+    hints.push(["Enter", "select"]);
     return hints;
   }
 
@@ -79,6 +80,10 @@ export class ScrollableView extends Frame implements Focusable {
     if (this.inputComponent && matchesKey(data, Key.tab)) {
       this.activePane = this.activePane === "content" ? "input" : "content";
       this.syncInputFocus();
+      return;
+    }
+    if (this.inputComponent && matchesKey(data, Key.enter)) {
+      this.inputComponent.handleInput?.(data);
       return;
     }
     if (this.activePane === "input") {

@@ -1,9 +1,9 @@
-import type { AssistantMessage, Message, ToolCall } from "@earendil-works/pi-ai";
+import type { Message, ToolCall } from "@earendil-works/pi-ai";
 import type { SubsessionSnapshot } from "./types.js";
 
 interface ParserState {
-  messages: Message[];
   toolCounts: Record<string, number>;
+  lastMessage?: string;
   stopReason?: string;
 }
 
@@ -20,23 +20,6 @@ function parseJsonLine(line: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
-}
-
-function isAssistantMessage(message: Message): message is AssistantMessage {
-  return message.role === "assistant";
-}
-
-export function getFinalOutput(messages: Message[]): string {
-  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
-    const message = messages[messageIndex];
-    if (!message || message.role !== "assistant") continue;
-
-    for (const contentPart of message.content) {
-      if (contentPart.type === "text") return contentPart.text;
-    }
-  }
-
-  return "";
 }
 
 function formatToolUse(toolCall: ToolCall): string {
@@ -58,13 +41,16 @@ function applyMessageEndEvent(
   snapshot: SubsessionSnapshot,
   onSnapshot?: (snapshot: SubsessionSnapshot) => void,
 ) {
-  const eventMessage = event["message"];
-  if (!eventMessage || typeof eventMessage !== "object") return;
+  const message = event["message"] as Message;
+  if (!message || typeof message !== "object") return;
 
-  const message = eventMessage as Message;
-  state.messages.push(message);
-
-  if (!isAssistantMessage(message)) {
+  if (message.role === "assistant") {
+    for (const contentPart of message.content) {
+      if (contentPart.type === "text") {
+        state.lastMessage = contentPart.text;
+      }
+    }
+  } else {
     snapshot.activity = "thinking";
     onSnapshot?.(snapshot);
     return;
@@ -77,9 +63,9 @@ function applyMessageEndEvent(
   for (const contentPart of message.content) {
     if (contentPart.type !== "toolCall") continue;
     const toolCall = contentPart as ToolCall;
-    const toolName = toolCall.name;
+    const toolCount = (state.toolCounts[toolCall.name] ?? 0) + 1;
 
-    state.toolCounts[toolName] = (state.toolCounts[toolName] ?? 0) + 1;
+    state.toolCounts[toolCall.name] = toolCount;
     snapshot.usage.toolCalls += 1;
     snapshot.toolsUsed.push(formatToolUse(toolCall));
     onSnapshot?.(snapshot);
@@ -109,7 +95,7 @@ function applyEvent(
   if (eventType === "tool_execution_start") {
     const toolName = event["toolName"];
     if (typeof toolName === "string") {
-      snapshot.activity = toolName;
+      snapshot.activity = "working";
       onSnapshot?.(snapshot);
     }
     return;
@@ -125,7 +111,7 @@ export function createJsonLineParser(
   onSnapshot?: (snapshot: SubsessionSnapshot) => void,
 ): JsonLineParser {
   let pendingBuffer = "";
-  const state: ParserState = { messages: [], toolCounts: {} };
+  const state: ParserState = { toolCounts: {} };
 
   const processLine = (line: string) => {
     const parsedEvent = parseJsonLine(line);

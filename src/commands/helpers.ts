@@ -1,17 +1,8 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { AgentMode } from "../permission/types.js";
 import { MODE_ENTRY } from "./index.js";
-import type { Subsession, SubsessionSnapshot } from "../subsession/types.js";
-import { Container, Loader, Spacer, TruncatedText } from "@earendil-works/pi-tui";
+import type { Subsession } from "../subsession/types.js";
 import { terminateSubsession } from "../subsession/storage.js";
-
-function formatContextUsage(snapshot: SubsessionSnapshot): string {
-  const contextWindow = snapshot.usage.context;
-  if (!contextWindow) {
-    return "n/a%";
-  }
-  return `${((snapshot.usage.input / contextWindow) * 100).toFixed(1)}%`;
-}
 
 export async function forwardAction(
   pi: ExtensionAPI,
@@ -39,43 +30,4 @@ export async function forwardAction(
 
   terminateSubsession(ctx.cwd, subsession.result.id!).catch(() => undefined);
   return true;
-}
-
-export function renderSnapshotWidget(
-  ctx: ExtensionCommandContext,
-  label: string,
-  snapshot: SubsessionSnapshot,
-) {
-  const recentToolCalls = snapshot.toolsUsed.slice(-5);
-
-  ctx.ui.setWidget(label, (tui, theme) => {
-    const widget = new Container() as Container & { dispose?: () => void };
-    const loader = new Loader(
-      tui,
-      (content) => theme.fg("accent", content),
-      (content) => theme.fg("muted", content),
-      `${label}: tools_count=${snapshot.usage.toolCalls} | in=${snapshot.usage.input} | out=${snapshot.usage.output} | ctx=${formatContextUsage(snapshot)}`,
-    );
-
-    if (snapshot.status !== "running") {
-      loader.setIndicator({ frames: ["•"] });
-    }
-
-    widget.addChild(loader);
-
-    if (recentToolCalls.length === 0) {
-      widget.addChild(new TruncatedText(`  └─ ${snapshot.activity}`, 1, 0));
-    } else {
-      const lastToolCallIndex = recentToolCalls.length - 1;
-      for (let toolCallIndex = 0; toolCallIndex < recentToolCalls.length; toolCallIndex += 1) {
-        const branchIndicator = toolCallIndex === lastToolCallIndex ? "└─" : "├─";
-        const toolCallLine = `  ${branchIndicator} ${recentToolCalls[toolCallIndex]}`;
-        widget.addChild(new TruncatedText(toolCallLine, 1, 0));
-      }
-    }
-
-    widget.addChild(new Spacer(1));
-    widget.dispose = () => loader.stop();
-    return widget;
-  });
 }

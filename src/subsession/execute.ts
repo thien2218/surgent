@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { findSubsession, resolveRuntime, saveSubsession } from "./storage.js";
-import { createJsonLineParser, getFinalOutput } from "./parser.js";
+import { createJsonLineParser } from "./parser.js";
 import {
   createErrorResult,
   extractSubsessionTitle,
@@ -15,6 +15,7 @@ import type {
   SubsessionResult,
   SubsessionSnapshot,
   SubsessionStatus,
+  SubsessionUsage,
 } from "./types.js";
 import { getPiPath } from "../utils.js";
 
@@ -25,6 +26,7 @@ interface ExecuteTurnRequest {
   agent: string;
   signal?: AbortSignal;
   onSnapshot?: (snapshot: SubsessionSnapshot) => void;
+  usage: SubsessionUsage;
 }
 
 interface CreateSubsessionParams {
@@ -61,7 +63,7 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
     status: "running",
     activity: "thinking",
     toolsUsed: [],
-    usage: { input: 0, output: 0, toolCalls: 0 },
+    usage: request.usage,
   };
 
   request.onSnapshot?.(snapshot);
@@ -118,7 +120,7 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
 
   const interaction = parseInteractionHandoff(stderrOutput);
   const isError = exitCode !== 0 || parser.state.stopReason === "error";
-  const output = getFinalOutput(parser.state.messages) || (isError ? stderrOutput.trim() : "");
+  const output = parser.state.lastMessage || (isError ? stderrOutput.trim() : "");
   const status: SubsessionStatus = interaction
     ? "pending"
     : wasAborted || parser.state.stopReason === "aborted"
@@ -142,18 +144,28 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
 
 function createSubsession(params: CreateSubsessionParams): Subsession {
   const { onSnapshot, agent, ...rest } = params;
+
   const subsession: Subsession = {
     ...rest,
     async exec(input: string, signal?: AbortSignal) {
-      const nextTurn = await executeTurn({
+      subsession.result = await executeTurn({
         agent,
         sessionId: subsession.result.id,
         input,
-        runtime: rest.runtime,
+        runtime: subsession.runtime,
         signal,
         onSnapshot,
+        usage: subsession.result.usage,
       });
-      subsession.result = nextTurn;
+
+      if (subsession.result.id) {
+        await saveSubsession(subsession.result.id, {
+          label: subsession.label,
+          pid: subsession.pid,
+          title: subsession.title,
+          usage: subsession.result.usage,
+        });
+      }
     },
   };
 
@@ -165,11 +177,17 @@ export default async function runInteractive(
   onSnapshot?: (snapshot: SubsessionSnapshot) => void,
 ): Promise<Subsession> {
   const runtime = await resolveRuntime(request.agent, request.modelId);
-  const params: Partial<CreateSubsessionParams> = {
+  const params: CreateSubsessionParams = {
     agent: request.agent,
     label: request.label,
     pid: request.pid,
     title: "",
+    result: {
+      status: "done",
+      output: "",
+      usage: { input: 0, output: 0, toolCalls: 0 },
+      toolCounts: {},
+    },
     runtime,
     onSnapshot,
   };
@@ -182,6 +200,8 @@ export default async function runInteractive(
     } else {
       params.label = existing.label;
       params.title = existing.title;
+      params.result.id = request.id;
+      params.result.usage = existing.usage;
     }
   } else {
     params.title = request.input.trim() || "Untitled";
@@ -192,6 +212,7 @@ export default async function runInteractive(
       runtime,
       signal: request.signal,
       onSnapshot,
+      usage: { input: 0, output: 0, toolCalls: 0 },
     });
 
     if (!initialTurn.id) {
@@ -203,15 +224,8 @@ export default async function runInteractive(
       if (extractedTitle) {
         params.title = extractedTitle;
       }
-
-      await saveSubsession(initialTurn.id, {
-        label: request.label,
-        pid: request.pid,
-        title: params.title,
-        usage: initialTurn.usage,
-      });
     }
   }
 
-  return createSubsession(params as CreateSubsessionParams);
+  return createSubsession(params);
 }

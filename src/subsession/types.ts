@@ -19,7 +19,7 @@ export interface SubsessionSnapshot {
   status: "running" | SubsessionStatus;
   activity: string;
   toolsUsed: string[];
-  usage: SubsessionUsage & { context?: number };
+  usage: SubsessionUsage;
 }
 
 export interface SubsessionResult {
@@ -52,7 +52,6 @@ export interface SubsessionRequest {
   id?: string;
   label: SubsessionLabel;
   input: string;
-  contextWindow?: number;
 }
 
 export interface StoredSubsessions {

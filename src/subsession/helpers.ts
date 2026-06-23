@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import type { ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { Interaction, SubsessionResult } from "./types.js";
+import type { Interaction, SubsessionResult, SubsessionSnapshot } from "./types.js";
 import { IS_SUBSESSION } from "./index.js";
 import { askQuestions } from "../questionnaire/helpers.js";
 import type { Question } from "../questionnaire/types.js";
@@ -8,6 +8,7 @@ import type { PermissionCheck } from "../permission/types.js";
 import { askForPermission } from "../permission/index.js";
 import { addRule } from "../permission/storage.js";
 import { PERMISSIVE_TOOLS } from "../permission/constants.js";
+import { Container, Loader, Spacer, TruncatedText } from "@earendil-works/pi-tui";
 
 const MARKDOWN_HEADING_PATTERN = /^\s*#\s+(.+?)\s*$/m;
 const HANDOFF_PREFIX = "subsession_handoff:";
@@ -96,7 +97,12 @@ export function getSurgentInvoker(args: string[]): { command: string; args: stri
 }
 
 export function createErrorResult(message: string): SubsessionResult {
-  return { status: "error", output: message, toolCounts: {} };
+  return {
+    status: "error",
+    output: message,
+    usage: { input: 0, output: 0, toolCalls: 0 },
+    toolCounts: {},
+  };
 }
 
 export async function resolveInteractionHandoff(
@@ -134,4 +140,46 @@ export async function resolveInteractionHandoff(
       blocked ?? "Tool use allowed. Initiate tool call again to get result",
     );
   }
+}
+
+export function renderSnapshotWidget(
+  ctx: ExtensionCommandContext,
+  label: string,
+  snapshot: SubsessionSnapshot,
+  contextWindow?: number,
+) {
+  const usage = snapshot.usage;
+  const recentToolCalls = snapshot.toolsUsed.slice(-5);
+  const context = contextWindow ? `${((usage.input / contextWindow) * 100).toFixed(1)}%` : "n/a";
+
+  ctx.ui.setWidget(label, (tui, theme) => {
+    const widget = new Container() as Container & { dispose?: () => void };
+    const loader = new Loader(
+      tui,
+      (content) => theme.fg("accent", content),
+      (content) => theme.fg("muted", content),
+      `${label}: tools_count=${usage.toolCalls} | in=${usage.input} | out=${usage.output} | ctx=${context} | activity=${snapshot.activity}`,
+    );
+
+    if (snapshot.status !== "running") {
+      loader.setIndicator({ frames: ["•"] });
+    }
+
+    widget.addChild(loader);
+
+    if (recentToolCalls.length === 0) {
+      widget.addChild(new TruncatedText(`  └─ ${snapshot.activity}`, 1, 0));
+    } else {
+      const lastToolCallIndex = recentToolCalls.length - 1;
+      for (let toolCallIndex = 0; toolCallIndex < recentToolCalls.length; toolCallIndex += 1) {
+        const branchIndicator = toolCallIndex === lastToolCallIndex ? "└─" : "├─";
+        const toolCallLine = `  ${branchIndicator} ${recentToolCalls[toolCallIndex]}`;
+        widget.addChild(new TruncatedText(toolCallLine, 1, 0));
+      }
+    }
+
+    widget.addChild(new Spacer(1));
+    widget.dispose = () => loader.stop();
+    return widget;
+  });
 }

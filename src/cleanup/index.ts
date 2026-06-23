@@ -7,10 +7,12 @@ import { getPiPath } from "../utils.js";
 
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
-    const sessions = await SessionManager.list(ctx.cwd);
-    const subsession = await SessionManager.list(ctx.cwd, getPiPath("subsessionsDir"));
+    const [sessions, subsessions] = await Promise.all([
+      SessionManager.list(ctx.cwd),
+      SessionManager.list(ctx.cwd, getPiPath("subsessionsDir")),
+    ]);
     const sessionIds = new Set(sessions.map((session) => session.id));
-    const allSessionIds = new Set([...sessionIds, ...subsession.map((session) => session.id)]);
+    const allSessionIds = new Set([...sessionIds, ...subsessions.map((session) => session.id)]);
 
     cleanupPermissions(ctx.cwd, allSessionIds).catch(() => undefined);
     pruneSessionFile(getPiPath("checkpoints", ctx.cwd), allSessionIds).catch(() => undefined);

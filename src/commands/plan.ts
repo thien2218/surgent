@@ -1,13 +1,17 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { SubsessionRequest, Subsession } from "../subsession/types.js";
-import { runInteractive, resolveInteractionHandoff } from "../subsession/index.js";
+import {
+  runInteractive,
+  resolveInteractionHandoff,
+  renderSnapshotWidget,
+} from "../subsession/index.js";
 import {
   ActionSelectList,
   type ActionSelectOption,
   type ActionSelectResult,
 } from "../ui/components/action-select-list.js";
 import { ScrollableView } from "../ui/components/scrollable-view.js";
-import { forwardAction, renderSnapshotWidget } from "./helpers.js";
+import { forwardAction } from "./helpers.js";
 import { listPlanSessions, type PlanSessionPreview } from "./storage.js";
 import type { PlanAction, PlanCommandInput } from "./types.js";
 import { isUuid } from "../utils.js";
@@ -77,13 +81,7 @@ async function resolveSession(
   parsedInput: PlanCommandInput,
 ): Promise<Subsession | null> {
   const pid = ctx.sessionManager.getSessionId();
-  const request: SubsessionRequest = {
-    pid,
-    label: "plan",
-    agent: PLAN_AGENT,
-    input: "",
-    contextWindow: ctx.model?.contextWindow,
-  };
+  const request: SubsessionRequest = { pid, label: "plan", agent: PLAN_AGENT, input: "" };
 
   if (parsedInput.kind === "prompt") {
     request.input = parsedInput.prompt;
@@ -107,7 +105,7 @@ async function resolveSession(
   }
 
   const session = await runInteractive(request, (snapshot) =>
-    renderSnapshotWidget(ctx, PLAN_AGENT, snapshot),
+    renderSnapshotWidget(ctx, PLAN_AGENT, snapshot, ctx.model?.contextWindow),
   );
   if (!session.result.id) {
     ctx.ui.notify(session.result.output || "Failed to initiate planning session", "error");

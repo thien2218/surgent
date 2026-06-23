@@ -14,9 +14,7 @@ const MARKDOWN_HEADING_PATTERN = /^\s*#\s+(.+?)\s*$/m;
 const HANDOFF_PREFIX = "subsession_handoff:";
 
 export function emitInteractionHandoff(toolName: string, input: any, ctx: ExtensionContext) {
-  if (ctx.hasUI || !IS_SUBSESSION) {
-    return;
-  }
+  if (ctx.hasUI || !IS_SUBSESSION) return;
   const serializedRequest = JSON.stringify({ toolName, input });
   process.stderr.write(`${HANDOFF_PREFIX}${serializedRequest}\n`);
   ctx.abort();
@@ -61,22 +59,16 @@ export function createResumeInput(toolName: string, result: unknown): string {
 
 export function extractSubsessionTitle(output: string): string | undefined {
   const headingMatch = output.match(MARKDOWN_HEADING_PATTERN);
-  if (!headingMatch) {
-    return;
-  }
+  if (!headingMatch) return;
 
   const headingText = headingMatch[1]?.trim();
-  if (!headingText) {
-    return;
-  }
+  if (!headingText) return;
 
   const separatorIndex = headingText.indexOf(":");
   const titleText =
     separatorIndex >= 0 ? headingText.slice(separatorIndex + 1).trim() : headingText;
+  if (!titleText) return;
 
-  if (!titleText) {
-    return;
-  }
   return titleText;
 }
 

@@ -30,9 +30,7 @@ export async function mcpConfigCommandHandler(args: string, ctx: ExtensionComman
 
   const selectedAction = !ctx.hasUI ? "show" : (action ?? (await selectAction(ctx)));
 
-  if (!selectedAction) {
-    return;
-  }
+  if (!selectedAction) return;
   if (selectedAction === "save") {
     await handleSaveFlow(ctx);
     return;
@@ -82,18 +80,14 @@ async function handleSaveFlow(ctx: ExtensionCommandContext) {
       `Replace ${name} MCP`,
       `${name} MCP already exists ${scope}ly. Do you want to replace it?`,
     );
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
   }
 
   const transportType = await ctx.ui.select("Server type", ["Remote", "Local"]);
   const transport = transportType === "Remote" ? "http" : "stdio";
 
   const serverConfig = await promptServerConfigJson(ctx, transport, name, configuredServers[name]);
-  if (!serverConfig) {
-    return;
-  }
+  if (!serverConfig) return;
 
   const path = getPiPath("mcp", scope === "project" ? ctx.cwd : scope);
   const upsertResult = await upsertServerConfig(path, name, serverConfig);

@@ -94,10 +94,7 @@ export default class Questionnaire extends Frame implements Focusable {
     }
 
     if (draft.focusMode === "options") {
-      if (this.handleOptionsInput(data)) {
-        return;
-      }
-
+      if (this.handleOptionsInput(data)) return;
       if (this.shouldRouteToEditor(data)) {
         this.setFocusMode("editor");
         this.currentEditor().handleInput(data);

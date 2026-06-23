@@ -43,20 +43,14 @@ export function rewriteSessionTailWithSummaries(
   runStartOffset: number,
   completedRunSummaries: Map<string, string>,
 ) {
-  if (completedRunSummaries.size === 0) {
-    return;
-  }
+  if (completedRunSummaries.size === 0) return;
 
   const sessionBuffer = readFileSync(sessionFile);
-  if (runStartOffset > sessionBuffer.length) {
-    return;
-  }
+  if (runStartOffset > sessionBuffer.length) return;
 
   const prefixBuffer = sessionBuffer.subarray(0, runStartOffset);
   const tailText = sessionBuffer.subarray(runStartOffset).toString("utf-8");
-  if (tailText.length === 0) {
-    return;
-  }
+  if (tailText.length === 0) return;
 
   let changed = false;
   const rewrittenTail = tailText
@@ -84,11 +78,9 @@ export function rewriteSessionTailWithSummaries(
     })
     .join("\n");
 
-  if (!changed) {
-    return;
-  }
-
+  if (!changed) return;
   const tempFile = `${sessionFile}.${process.pid}.${Date.now()}.tmp`;
+
   try {
     writeFileSync(tempFile, prefixBuffer);
     appendFileSync(tempFile, `${rewrittenTail}\n`, "utf8");

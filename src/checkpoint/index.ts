@@ -43,9 +43,7 @@ async function ensureBaseCheckpoint(
   ctx: ExtensionContext,
   checkpoints: Map<string, string>,
 ) {
-  if (checkpoints.has(BASE_CHECKPOINT_KEY)) {
-    return;
-  }
+  if (checkpoints.has(BASE_CHECKPOINT_KEY)) return;
 
   const sessionId = ctx.sessionManager.getSessionId();
   const stashCheckpointRef = await createCheckpoint(pi, ctx.cwd, sessionId, BASE_CHECKPOINT_KEY);
@@ -106,21 +104,13 @@ async function restoreCheckpoint(
   targetEntryId: string,
   currentEntryId: string | null,
 ): Promise<{ cancel: boolean } | void> {
-  if (!ctx.hasUI) {
-    return;
-  }
-
+  if (!ctx.hasUI) return;
   const decision = shouldOfferRestore(targetEntryId, currentEntryId, ctx, checkpoints);
-  if (!decision.shouldRestore || !decision.checkpointRef) {
-    return;
-  }
+  if (!decision.shouldRestore || !decision.checkpointRef) return;
 
   const options = ["Yes, restore code to that point", "No, keep current code"];
   const choice = await ctx.ui.select("Restore code state?", options);
-
-  if (choice !== options[0]) {
-    return;
-  }
+  if (choice !== options[0]) return;
 
   const restoreResult = await applyCheckpoint(pi, ctx.cwd, decision.checkpointRef);
   if (restoreResult.code !== 0) {
@@ -153,20 +143,13 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("tool_result", async (event, ctx) => {
-    if (event.toolName !== "write" && event.toolName !== "edit") {
-      return;
-    }
-
+    if (event.toolName !== "write" && event.toolName !== "edit") return;
     const leafEntryId = ctx.sessionManager.getLeafId();
-    if (!leafEntryId) {
-      return;
-    }
+    if (!leafEntryId) return;
 
     const sessionId = ctx.sessionManager.getSessionId();
     const checkpointRef = await createCheckpoint(pi, ctx.cwd, sessionId, leafEntryId);
-    if (!checkpointRef) {
-      return;
-    }
+    if (!checkpointRef) return;
 
     checkpoints.set(leafEntryId, checkpointRef);
   });

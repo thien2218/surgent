@@ -28,9 +28,7 @@ export async function pruneExpiredCacheDirs(today = getCurrentCacheDate()) {
         .map((entry) => rm(join(cacheRoot, entry.name), { force: true, recursive: true })),
     );
   } catch (error) {
-    if (isMissingFileError(error)) {
-      return;
-    }
+    if (isMissingFileError(error)) return;
     throw error;
   }
 }

@@ -161,9 +161,7 @@ export class ScrollableView extends Frame implements Focusable {
   }
 
   private syncInputFocus() {
-    if (!this.inputComponent || !isFocusable(this.inputComponent)) {
-      return;
-    }
+    if (!this.inputComponent || !isFocusable(this.inputComponent)) return;
     this.inputComponent.focused = this._focused && this.activePane === "input";
   }
 }

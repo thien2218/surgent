@@ -37,10 +37,7 @@ export async function cleanupCheckpointStashes(
     return;
   }
 
-  if (listResult.code !== 0) {
-    return;
-  }
-
+  if (listResult.code !== 0) return;
   const indexedStaleStashes: Array<{ stashRef: string; stashIndex: number }> = [];
   const directStaleStashRefs: string[] = [];
 

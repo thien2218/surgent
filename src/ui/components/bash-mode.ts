@@ -107,10 +107,7 @@ export class BashModeEditor extends CustomEditor {
   };
 
   private readonly changeProxy = (text: string) => {
-    if (this.suppressWrappedChange) {
-      return;
-    }
-
+    if (this.suppressWrappedChange) return;
     this.externalOnChange?.(this.toActualText(text, this.mode));
   };
 
@@ -147,9 +144,7 @@ export class BashModeEditor extends CustomEditor {
     this.withSuppressedChange(() => super.handleInput(data));
 
     const rawAfterNav = super.getText();
-    if (rawAfterNav === rawBeforeNav) {
-      return;
-    }
+    if (rawAfterNav === rawBeforeNav) return;
 
     const parsedHistoryText = this.parseActualText(rawAfterNav);
     this.mode = parsedHistoryText.mode;
@@ -204,9 +199,7 @@ export class BashModeEditor extends CustomEditor {
   }
 
   cycleMode() {
-    if (this.mode !== "prompt" && !this.persistent) {
-      return;
-    }
+    if (this.mode !== "prompt" && !this.persistent) return;
     const nextMode = this.getNextMode();
     this.applyMode(nextMode, nextMode !== "prompt");
   }

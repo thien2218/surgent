@@ -12,7 +12,7 @@ import { listPlanSessions, type PlanSessionPreview } from "./storage.js";
 import type { PlanAction, PlanCommandInput } from "./types.js";
 import { isUuid } from "../utils.js";
 
-const PLAN_LABEL = "plan";
+const PLAN_AGENT = "planner";
 const FORWARD_OPTIONS: ActionSelectOption[] = [
   { value: "assistant", label: "Yes, proceed with assistant mode" },
   { value: "yolo", label: "Yes, proceed with YOLO mode" },
@@ -42,7 +42,7 @@ export async function planCommandHandler(
 
       let input = await resolveInteractionHandoff(ctx, subsession.result.interaction);
       if (!input) {
-        ctx.ui.setWidget(PLAN_LABEL, undefined);
+        ctx.ui.setWidget(PLAN_AGENT, undefined);
         const action = await showUi(ctx, subsession.result.output);
 
         if (!action) return;
@@ -57,19 +57,19 @@ export async function planCommandHandler(
       await subsession.exec(input);
     }
   } finally {
-    ctx.ui.setWidget(PLAN_LABEL, undefined);
+    ctx.ui.setWidget(PLAN_AGENT, undefined);
   }
 }
 
-export function parseCommandInput(rawArgs: string): PlanCommandInput {
-  const normalizedArgs = rawArgs.trim();
-  if (!normalizedArgs) {
+export function parseCommandInput(args: string): PlanCommandInput {
+  const normalized = args.trim();
+  if (!normalized) {
     return { kind: "list" };
   }
-  if (isUuid(normalizedArgs)) {
-    return { kind: "resume", subsessionId: normalizedArgs };
+  if (isUuid(normalized)) {
+    return { kind: "resume", subsessionId: normalized };
   }
-  return { kind: "prompt", prompt: normalizedArgs };
+  return { kind: "prompt", prompt: normalized };
 }
 
 async function resolveSession(
@@ -77,7 +77,13 @@ async function resolveSession(
   parsedInput: PlanCommandInput,
 ): Promise<Subsession | null> {
   const pid = ctx.sessionManager.getSessionId();
-  const request: SubsessionRequest = { pid, label: PLAN_LABEL, agent: "planner", input: "" };
+  const request: SubsessionRequest = {
+    pid,
+    label: "plan",
+    agent: PLAN_AGENT,
+    input: "",
+    contextWindow: ctx.model?.contextWindow,
+  };
 
   if (parsedInput.kind === "prompt") {
     request.input = parsedInput.prompt;
@@ -101,7 +107,7 @@ async function resolveSession(
   }
 
   const session = await runInteractive(request, (snapshot) =>
-    renderSnapshotWidget(ctx, PLAN_LABEL, snapshot),
+    renderSnapshotWidget(ctx, PLAN_AGENT, snapshot),
   );
   if (!session.result.id) {
     ctx.ui.notify(session.result.output || "Failed to initiate planning session", "error");

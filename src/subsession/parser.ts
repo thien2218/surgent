@@ -2,13 +2,9 @@ import type { AssistantMessage, Message, ToolCall } from "@earendil-works/pi-ai"
 import type { SubsessionSnapshot } from "./types.js";
 
 interface ParserState {
-  sessionId: string;
   messages: Message[];
   toolCounts: Record<string, number>;
-  tokenInput: number;
-  tokenOutput: number;
   stopReason?: string;
-  activity: string;
 }
 
 interface JsonLineParser {
@@ -19,7 +15,6 @@ interface JsonLineParser {
 
 function parseJsonLine(line: string): Record<string, unknown> | null {
   if (!line.trim()) return null;
-
   try {
     return JSON.parse(line) as Record<string, unknown>;
   } catch {
@@ -70,29 +65,27 @@ function applyMessageEndEvent(
   state.messages.push(message);
 
   if (!isAssistantMessage(message)) {
-    state.activity = "thinking";
-    snapshot.activity = state.activity;
+    snapshot.activity = "thinking";
     onSnapshot?.(snapshot);
     return;
   }
 
-  state.tokenInput += message.usage?.input ?? 0;
-  state.tokenOutput += message.usage?.output ?? 0;
+  snapshot.usage.input += message.usage?.input ?? 0;
+  snapshot.usage.output += message.usage?.output ?? 0;
   if (message.stopReason) state.stopReason = message.stopReason;
 
   for (const contentPart of message.content) {
     if (contentPart.type !== "toolCall") continue;
-
     const toolCall = contentPart as ToolCall;
     const toolName = toolCall.name;
-    state.toolCounts[toolName] = (state.toolCounts[toolName] ?? 0) + 1;
 
+    state.toolCounts[toolName] = (state.toolCounts[toolName] ?? 0) + 1;
+    snapshot.usage.toolCalls += 1;
     snapshot.toolsUsed.push(formatToolUse(toolCall));
     onSnapshot?.(snapshot);
   }
 
-  state.activity = "thinking";
-  snapshot.activity = state.activity;
+  snapshot.activity = "thinking";
   onSnapshot?.(snapshot);
 }
 
@@ -107,7 +100,6 @@ function applyEvent(
   if (eventType === "session") {
     const sessionId = event["id"];
     if (typeof sessionId === "string") {
-      state.sessionId = sessionId;
       snapshot.id = sessionId;
       onSnapshot?.(snapshot);
     }
@@ -117,8 +109,7 @@ function applyEvent(
   if (eventType === "tool_execution_start") {
     const toolName = event["toolName"];
     if (typeof toolName === "string") {
-      state.activity = toolName;
-      snapshot.activity = state.activity;
+      snapshot.activity = toolName;
       onSnapshot?.(snapshot);
     }
     return;
@@ -133,16 +124,8 @@ export function createJsonLineParser(
   snapshot: SubsessionSnapshot,
   onSnapshot?: (snapshot: SubsessionSnapshot) => void,
 ): JsonLineParser {
-  const state: ParserState = {
-    sessionId: snapshot.id,
-    messages: [],
-    toolCounts: {},
-    tokenInput: 0,
-    tokenOutput: 0,
-    activity: snapshot.activity,
-  };
-
   let pendingBuffer = "";
+  const state: ParserState = { messages: [], toolCounts: {} };
 
   const processLine = (line: string) => {
     const parsedEvent = parseJsonLine(line);

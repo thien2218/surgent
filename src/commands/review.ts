@@ -29,33 +29,27 @@ export async function reviewCommandHandler(
     return;
   }
 
-  const reviewSession = await startReviewSession(ctx, reviewPrompt);
-  if (!reviewSession) {
+  const subsession = await startReviewSubsession(ctx, reviewPrompt);
+  if (!subsession) {
     ctx.ui.setWidget(REVIEW_AGENT, undefined);
     return;
   }
 
-  if (reviewSession.result.status === "error") {
+  if (subsession.result.status === "error") {
     ctx.ui.setWidget(REVIEW_AGENT, undefined);
-    ctx.ui.notify(reviewSession.result.output, "error");
+    ctx.ui.notify(subsession.result.output, "error");
     return;
   }
 
-  await runSubsessionLoop(pi, ctx, reviewSession, {
+  await runSubsessionLoop(pi, ctx, subsession, {
     agent: REVIEW_AGENT,
-    actionUi: {
-      title: "Next step?",
-      prefix: "Fix issues",
-      placeholder: "Tell reviewer what to check again...",
-    },
-    messages: {
-      emptyOutput: "No reviewer output to forward",
-      sendFailure: "Failed to forward review",
-    },
+    title: "Next step?",
+    prefix: "Fix issues",
+    placeholder: "Tell reviewer what to check again...",
   });
 }
 
-async function startReviewSession(
+async function startReviewSubsession(
   ctx: ExtensionCommandContext,
   reviewPrompt: string,
 ): Promise<Subsession | null> {

@@ -14,8 +14,12 @@ async function persistRules(
   local[sessionId] = data.session;
   local.project = data.project;
 
-  await writeRules(local, ctx.cwd);
-  await writeRules(data.global);
+  if (Object.keys(data.session).length > 0 || Object.keys(data.project).length > 0) {
+    await writeRules(local, ctx.cwd);
+  }
+  if (Object.keys(data.global).length > 0) {
+    await writeRules(data.global);
+  }
 }
 
 function notifyError(ctx: ExtensionContext, error: unknown, done?: () => void) {
@@ -54,11 +58,10 @@ export async function handlePermissionsCommand(ctx: ExtensionCommandContext) {
       const option = new EditableOption(tui, keybindings, theme, toAdd, true);
 
       option.focused = true;
-      option.onChange = (rule) => {
+      option.onChange = (rule) =>
         addRule(ctx.cwd, sessionId, rule.scope, category, rule.expr, rule.value)
           .then(done)
           .catch((error) => notifyError(ctx, error, done));
-      };
       option.onCancel = done;
       frame.addCustom(option);
 

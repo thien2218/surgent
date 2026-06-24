@@ -142,11 +142,9 @@ export async function writeSessionAgent(cwd: string, sessionId: string, agent: s
 }
 
 export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
-  const filePath = getPiPath("appendSystem", ctx.cwd);
-  const file = await readJson<Record<string, unknown>>(filePath, {});
-  const sessionAgent = file[ctx.sessionManager.getSessionId()];
-  const mainAgent = typeof sessionAgent === "string" ? sessionAgent : (SUBAGENT ?? DEFAULT_AGENT);
-  ctx.ui.setStatus("agent", ctx.ui.theme.fg("dim", `agent: ${mainAgent}`));
+  const file = await readJson<Record<string, string>>(getPiPath("sessionAgents", ctx.cwd), {});
+  const name = file[ctx.sessionManager.getSessionId()] ?? SUBAGENT ?? DEFAULT_AGENT;
+  ctx.ui.setStatus("agent", ctx.ui.theme.fg("dim", `agent: ${name}`));
 
   const allMcpConfigs = await loadMcpConfigSet(ctx.cwd);
   const available = {
@@ -154,8 +152,8 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
     mcp: allMcpConfigs.filter((cfg) => cfg.enabled === true),
   };
 
-  const [agent] = await loadAgents(ctx.cwd, mainAgent);
-  const { meta } = agent;
+  const [agent] = await loadAgents(ctx.cwd, name);
+  const { meta, body } = agent;
 
   pi.setActiveTools(
     available.tools.filter(
@@ -180,6 +178,7 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
     .map((cfg) => (cfg.description ? `- ${cfg.name} - ${cfg.description}` : `- ${cfg.name}`));
   const appendContent = lines.length > 0 ? `## Enabled MCP Servers\n${lines.join("\n")}\n` : "";
 
-  await writeFile(filePath, appendContent, "utf8");
+  await writeFile(getPiPath("appendSystem", ctx.cwd), appendContent, "utf8");
+  await writeFile(getPiPath("system"), body, "utf8");
   return meta;
 }

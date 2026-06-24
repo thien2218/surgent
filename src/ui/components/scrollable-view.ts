@@ -82,7 +82,7 @@ export class ScrollableView extends Frame implements Focusable {
       this.syncInputFocus();
       return;
     }
-    if (this.inputComponent && matchesKey(data, Key.enter)) {
+    if (this.inputComponent && matchesKey(data, Key.enter) && data !== "\n") {
       this.inputComponent.handleInput?.(data);
       return;
     }

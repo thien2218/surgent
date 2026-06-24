@@ -90,7 +90,7 @@ export default class EditableOption implements Focusable {
     if (this._deleted) return [];
 
     const labelWidth = 36;
-    const label = `(${getScopeLabel(this.rule.scope)}) ${getValueLabel(this.rule.value)}`;
+    const label = `[${getScopeLabel(this.rule.scope)}] ${getValueLabel(this.rule.value)}`;
     const padding = " ".repeat(labelWidth - label.length);
     const prefix = this.theme.fg("dim", label + padding);
     const availableWidth = Math.max(1, width - labelWidth);

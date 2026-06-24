@@ -14,21 +14,13 @@ async function readCheckpointStore(filePath: string): Promise<SessionCheckpointS
   const normalized: SessionCheckpointStore = {};
 
   for (const [sessionId, checkpoints] of Object.entries(data as Record<string, unknown>)) {
-    if (!checkpoints || typeof checkpoints !== "object" || Array.isArray(checkpoints)) {
-      continue;
-    }
-
+    if (!checkpoints || typeof checkpoints !== "object" || Array.isArray(checkpoints)) continue;
     const normalizedCheckpoints: Record<string, string> = {};
+
     for (const [entryId, stashRef] of Object.entries(checkpoints as Record<string, unknown>)) {
-      if (typeof stashRef !== "string") {
-        continue;
-      }
-
+      if (typeof stashRef !== "string") continue;
       const normalizedRef = stashRef.trim();
-      if (!normalizedRef) {
-        continue;
-      }
-
+      if (!normalizedRef) continue;
       normalizedCheckpoints[entryId] = normalizedRef;
     }
 

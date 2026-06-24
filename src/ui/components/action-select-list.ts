@@ -101,7 +101,7 @@ export class ActionSelectList implements Component, Focusable {
       this.setEditingInput(true);
       return;
     }
-    if (matchesKey(data, Key.enter)) {
+    if (matchesKey(data, Key.enter) && data !== "\n") {
       this.commitCurrentSelection();
       return;
     }
@@ -121,7 +121,7 @@ export class ActionSelectList implements Component, Focusable {
       this.moveCursor(-1);
       return;
     }
-    if (matchesKey(data, Key.enter)) {
+    if (matchesKey(data, Key.enter) && data !== "\n") {
       this.submitInputSelection();
       return;
     }

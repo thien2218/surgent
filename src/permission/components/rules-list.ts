@@ -83,7 +83,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
       if (visibleOptions.length === 0) continue;
 
       lines.space();
-      lines.add(this.theme.fg("muted", `[${category}]`), 2);
+      lines.add(this.theme.fg("muted", category), 2);
 
       for (const option of visibleOptions) {
         const isSelected = this.cursor === orderedIndex;

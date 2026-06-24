@@ -1,20 +1,15 @@
 import type { CodeDiffSummaryFile, SourceSelector, SourceSelectorInput } from "./types.js";
 
-function normalizeTextInput(input: string | undefined): string | undefined {
-  const normalizedValue = input?.trim();
-  return normalizedValue ? normalizedValue : undefined;
-}
-
 export function parseSourceSelector(source: SourceSelectorInput): SourceSelector {
-  const normalizedHash = normalizeTextInput(source.hash);
+  const normalizedHash = source.hash?.trim();
   const hasPr = source.pr !== undefined;
   const hasHash = normalizedHash !== undefined;
 
   if (source.uncommitted === false) {
     throw new Error("source.uncommitted must be true when provided.");
   }
-  const hasUncommitted = source.uncommitted === true;
 
+  const hasUncommitted = source.uncommitted === true;
   const selectorCount = [hasPr, hasHash, hasUncommitted].filter(Boolean).length;
 
   if (selectorCount !== 1) {
@@ -30,11 +25,9 @@ export function parseSourceSelector(source: SourceSelectorInput): SourceSelector
     }
     return { kind: "pr", value: prNumber };
   }
-
   if (hasHash) {
     return { kind: "hash", value: normalizedHash as string };
   }
-
   return { kind: "uncommitted" };
 }
 
@@ -42,11 +35,9 @@ export function getSourceLabel(sourceSelector: SourceSelector): string {
   if (sourceSelector.kind === "pr") {
     return `pr:${sourceSelector.value}`;
   }
-
   if (sourceSelector.kind === "hash") {
     return `hash:${sourceSelector.value}`;
   }
-
   return "uncommitted";
 }
 
@@ -78,19 +69,6 @@ export function parseNumstatLine(rawLine: string): CodeDiffSummaryFile | null {
     removedLines,
     isBinary: addedLines === null || removedLines === null,
   };
-}
-
-export function normalizeSelectedFiles(files: string[]): string[] {
-  const dedupedFiles = new Set<string>();
-
-  for (const rawFile of files) {
-    const normalizedFile = rawFile.trim();
-    if (normalizedFile) {
-      dedupedFiles.add(normalizedFile);
-    }
-  }
-
-  return [...dedupedFiles];
 }
 
 export function describeSourceForRender(source: unknown): string {

@@ -1,8 +1,6 @@
 import type { CodeDiffPatchDetails, CodeDiffSummaryDetails, CodeDiffSummaryFile } from "./types.js";
 
 type SummaryResultOptions = {
-  noChangesText: string;
-  headerText: string;
   changedFiles: CodeDiffSummaryFile[];
   detailsBase: Omit<CodeDiffSummaryDetails, "mode" | "files">;
 };
@@ -13,13 +11,21 @@ type PatchResultOptions = {
   detailsBase: Omit<CodeDiffPatchDetails, "mode" | "selectedFiles" | "hasChanges">;
 };
 
-export function requireSelectedFiles(selectedFiles: string[]): string[] {
-  if (selectedFiles.length === 0) {
+export function requireSelectedFiles(files: string[]): string[] {
+  const deduped = new Set<string>();
+  for (const file of files) {
+    const normalized = file.trim();
+    if (normalized) {
+      deduped.add(normalized);
+    }
+  }
+
+  if (deduped.size === 0) {
     throw new Error(
       "files was provided, but no non-empty file paths remained after normalization.",
     );
   }
-  return selectedFiles;
+  return [...deduped];
 }
 
 function formatSummaryLine(fileChange: CodeDiffSummaryFile): string {
@@ -32,7 +38,7 @@ function formatSummaryLine(fileChange: CodeDiffSummaryFile): string {
 export function buildSummaryResult(options: SummaryResultOptions) {
   if (options.changedFiles.length === 0) {
     return {
-      content: [{ type: "text" as const, text: options.noChangesText }],
+      content: [{ type: "text" as const, text: "No changes found." }],
       details: {
         mode: "summary",
         ...options.detailsBase,
@@ -44,12 +50,7 @@ export function buildSummaryResult(options: SummaryResultOptions) {
   const lines = options.changedFiles.map((fileChange) => formatSummaryLine(fileChange));
 
   return {
-    content: [
-      {
-        type: "text" as const,
-        text: [options.headerText, ...lines].join("\n"),
-      },
-    ],
+    content: [{ type: "text" as const, text: ["Changed files:", ...lines].join("\n") }],
     details: {
       mode: "summary",
       ...options.detailsBase,

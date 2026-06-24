@@ -1,16 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-export type SourceSelectorInput = {
-  pr?: number;
-  hash?: string;
-  uncommitted?: boolean;
-};
-
-export type SourceSelector =
-  | { kind: "pr"; value: number }
-  | { kind: "hash"; value: string }
-  | { kind: "uncommitted" };
-
 export type GitCommandResult = Awaited<ReturnType<ExtensionAPI["exec"]>>;
 
 export type CommandContext = {
@@ -47,8 +36,28 @@ export type CodeDiffPatchDetails = {
 
 export type CodeDiffToolDetails = CodeDiffSummaryDetails | CodeDiffPatchDetails;
 
-export type CodeDiffToolParams = {
-  source: SourceSelectorInput;
+export type CodeDiffPrParams = {
+  mode: "pr";
+  pr: number;
+  files?: string[];
+};
+
+export type CodeDiffHashParams = {
+  mode: "hash";
+  base: string;
+  hash: string;
+  files?: string[];
+};
+
+export type CodeDiffUncommittedParams = {
+  mode: "uncommitted";
+  base?: string;
+  files?: string[];
+};
+
+export type CodeDiffToolParams = CodeDiffPrParams | CodeDiffHashParams | CodeDiffUncommittedParams;
+
+export type CodeDiffFlowRequest = {
   base?: string;
   files?: string[];
 };

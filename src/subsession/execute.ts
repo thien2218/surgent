@@ -61,7 +61,6 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
   const snapshot: SubsessionSnapshot = {
     id: request.sessionId ?? "",
     status: "running",
-    activity: "working",
     toolsUsed: [],
     usage: request.usage,
   };

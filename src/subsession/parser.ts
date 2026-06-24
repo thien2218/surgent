@@ -63,7 +63,6 @@ function applyEvent(
         }
       }
     } else {
-      snapshot.activity = "working";
       onSnapshot?.(snapshot);
       return;
     }
@@ -83,7 +82,6 @@ function applyEvent(
       onSnapshot?.(snapshot);
     }
 
-    snapshot.activity = "working";
     onSnapshot?.(snapshot);
   }
 }

@@ -60,6 +60,27 @@ export default function (pi: ExtensionAPI) {
     ctx.ui.setStatus("mode", `\x1b[${width}G` + modeText);
   };
 
+  pi.registerShortcut(SWITCH_MODE_KEY, {
+    description: "Toggle YOLO mode (bypass all access control)",
+    handler: async (ctx) => {
+      agentMode = agentMode === "yolo" ? "assistant" : "yolo";
+      await writeAgentMode(ctx.cwd, agentMode);
+      updateStatus?.();
+
+      ctx.ui.notify(
+        agentMode === "yolo"
+          ? "YOLO mode ON - agents can now run commands and tools without asking for permission"
+          : "YOLO mode OFF",
+        "info",
+      );
+    },
+  });
+
+  pi.registerCommand("permissions", {
+    description: "View and manage file, web, and bash permissions",
+    handler: async (_args, ctx) => await handlePermissionsCommand(ctx),
+  });
+
   pi.on("session_start", async (_event, ctx) => {
     if (IS_SUBSESSION) return;
     if (!agentLoaded) {
@@ -91,27 +112,6 @@ export default function (pi: ExtensionAPI) {
     if (updateStatus) {
       process.stdout.off("resize", updateStatus);
     }
-  });
-
-  pi.registerShortcut(SWITCH_MODE_KEY, {
-    description: "Toggle YOLO mode (bypass all access control)",
-    handler: async (ctx) => {
-      agentMode = agentMode === "yolo" ? "assistant" : "yolo";
-      await writeAgentMode(ctx.cwd, agentMode);
-      updateStatus?.();
-
-      ctx.ui.notify(
-        agentMode === "yolo"
-          ? "YOLO mode ON - agents can now run commands and tools without asking for permission"
-          : "YOLO mode OFF",
-        "info",
-      );
-    },
-  });
-
-  pi.registerCommand("permissions", {
-    description: "View and manage file, web, and bash permissions",
-    handler: async (_args, ctx) => await handlePermissionsCommand(ctx),
   });
 
   pi.on("tool_call", async (event, ctx) => {

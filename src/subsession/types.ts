@@ -17,7 +17,6 @@ export type SubsessionLabel = "plan" | "review" | "other";
 export interface SubsessionSnapshot {
   id: string;
   status: "running" | SubsessionStatus;
-  activity: string;
   toolsUsed: string[];
   usage: SubsessionUsage;
 }

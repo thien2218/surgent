@@ -12,6 +12,21 @@ import { Container, Loader, Spacer, TruncatedText } from "@earendil-works/pi-tui
 
 const MARKDOWN_HEADING_PATTERN = /^\s*#\s+(.+?)\s*$/m;
 const HANDOFF_PREFIX = "subsession_handoff:";
+const ACTIVITY_LABELS = [
+  "analyzing",
+  "researching",
+  "synthesizing",
+  "scrutinizing",
+  "processing",
+  "cooking",
+] as const;
+
+function formatUsageCount(value: number): string {
+  if (value >= 10000) {
+    return `${Math.trunc(value / 1000)}k`;
+  }
+  return `${(value / 1000).toFixed(1)}k`;
+}
 
 export function emitInteractionHandoff(toolName: string, input: any, ctx: ExtensionContext) {
   if (ctx.hasUI || !IS_SUBSESSION) return;
@@ -138,9 +153,10 @@ export function renderSnapshotWidget(
   snapshot: SubsessionSnapshot,
   contextWindow?: number,
 ) {
-  const usage = snapshot.usage;
-  const recentToolCalls = snapshot.toolsUsed.slice(-5);
+  const { usage, status, toolsUsed } = snapshot;
+  const recentToolCalls = toolsUsed.slice(-5);
   const context = contextWindow ? `${((usage.input / contextWindow) * 100).toFixed(1)}%` : "n/a";
+  const activity = ACTIVITY_LABELS[Math.floor(Math.random() * ACTIVITY_LABELS.length)]!;
 
   ctx.ui.setWidget(label, (tui, theme) => {
     const widget = new Container() as Container & { dispose?: () => void };
@@ -148,10 +164,10 @@ export function renderSnapshotWidget(
       tui,
       (content) => theme.fg("accent", content),
       (content) => theme.fg("muted", content),
-      `${label} (${snapshot.activity}): tools_used=${usage.toolCalls} | in=${usage.input} | out=${usage.output} | ctx=${context}`,
+      `${label} (${activity}): tools_used=${usage.toolCalls} | in=${formatUsageCount(usage.input)} | out=${formatUsageCount(usage.output)} | ctx=${context}`,
     );
 
-    if (snapshot.status !== "running") {
+    if (status !== "running") {
       loader.setIndicator({ frames: ["•"] });
     }
 

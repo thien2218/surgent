@@ -1,5 +1,5 @@
-import { Key, matchesKey, type Focusable } from "@earendil-works/pi-tui";
-import type { Theme } from "@earendil-works/pi-coding-agent";
+import type { KeybindingsManager, Theme } from "@earendil-works/pi-coding-agent";
+import { Key, matchesKey, type Focusable, type TUI } from "@earendil-works/pi-tui";
 import type { Category, FileAccess, GroupedDisplayRules, PermissionRule } from "../types.js";
 import { Frame } from "../../ui/components/frame.js";
 import { Lines } from "../../ui/components/lines.js";
@@ -19,17 +19,21 @@ export default class PermissionRulesList extends Frame implements Focusable {
     session: PermissionRule;
     project: PermissionRule;
     global: PermissionRule;
-  }) => void;
+  }) => Promise<void> | void;
+  onSaveErr?: (error: unknown) => void;
 
   constructor(
+    tui: TUI,
+    keybindings: KeybindingsManager,
     protected theme: Theme,
     groups: GroupedDisplayRules,
   ) {
     super(theme);
 
     for (const [group, rules] of Object.entries(groups)) {
+      const category = group as Category;
       const options = rules.map((rule) => {
-        const option = new EditableOption(theme, rule);
+        const option = new EditableOption(tui, keybindings, theme, rule, false);
         option.onChange = () => {
           this.saved = false;
           this.editing = false;
@@ -37,7 +41,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
         option.onCancel = () => (this.editing = false);
         return option;
       });
-      this.editableOptions.set(group as Category, options);
+      this.editableOptions.set(category, options);
     }
   }
 
@@ -47,9 +51,9 @@ export default class PermissionRulesList extends Frame implements Focusable {
 
   set focused(value: boolean) {
     this._focused = value;
-    const editingRule = this.getEditingRule();
-    if (editingRule) {
-      editingRule.focused = value;
+    const selectedRule = this.getSelectedRule();
+    if (selectedRule) {
+      selectedRule.focused = value;
     }
   }
 
@@ -66,29 +70,31 @@ export default class PermissionRulesList extends Frame implements Focusable {
     const lines = new Lines(width);
     const unsavedWarning = this.theme.fg("warning", !this.saved ? " (unsaved)" : "");
 
-    lines.add(this.theme.bold("All permission rules") + unsavedWarning);
+    lines.add(this.theme.bold("All permission rules") + this.theme.fg("warning", unsavedWarning));
     lines.space();
 
     const addSelected = this.cursor === 0;
     const addText = `${addSelected ? "→" : " "} Add a new permission rule`;
     lines.add(this.theme.fg(addSelected ? "accent" : "text", addText));
 
-    let orderedIdx = 0;
+    let orderedIndex = 1;
     for (const category of CATEGORIES) {
-      const options = this.editableOptions.get(category)!;
-      if (options.length === 0) continue;
+      const visibleOptions = this.getOptionsForCategory(category);
+      if (visibleOptions.length === 0) continue;
 
       lines.space();
       lines.add(this.theme.fg("muted", `[${category}]`), 2);
 
-      for (const option of options) {
-        const isSelected = this.cursor === orderedIdx + 1;
+      for (const option of visibleOptions) {
+        const isSelected = this.cursor === orderedIndex;
         const prefix = isSelected ? this.theme.fg("accent", "→") : " ";
         option.highlighted = isSelected;
-        // 4 chars overhead (2 pad + 2 prefix)
-        const line = `${prefix} ${option.render(width - 4)[0]!}`;
-        lines.add(line, 2);
-        orderedIdx++;
+
+        const renderedOption = option.render(width - 4);
+        if (renderedOption.length > 0) {
+          lines.add(`${prefix} ${renderedOption[0]!}`, 2);
+        }
+        orderedIndex++;
       }
     }
 
@@ -119,16 +125,16 @@ export default class PermissionRulesList extends Frame implements Focusable {
   }
 
   handleInput(data: string) {
-    const opt = this.getEditingRule();
-
-    if (this.editing && opt) {
-      opt.handleInput(data);
+    const selectedRule = this.getSelectedRule();
+    if (this.editing && selectedRule) {
+      selectedRule.handleInput(data);
       return;
     }
 
     if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) {
       if (this.saved) {
         this.onDone?.("exit");
+        return;
       }
 
       this.escapeCount++;
@@ -144,10 +150,9 @@ export default class PermissionRulesList extends Frame implements Focusable {
     }
 
     if (!this.saved && matchesKey(data, Key.ctrl("s"))) {
-      this.save();
+      this.save().catch(this.onSaveErr);
       return;
     }
-
     if (matchesKey(data, Key.up)) {
       this.cursor = Math.max(0, this.cursor - 1);
       return;
@@ -158,27 +163,31 @@ export default class PermissionRulesList extends Frame implements Focusable {
     }
 
     if (matchesKey(data, Key.enter) && this.cursor === 0) {
-      this.save();
-      this.onDone?.("add");
+      if (this.saved) {
+        this.onDone?.("add");
+        return;
+      }
+      this.save()
+        .then(() => this.onDone?.("add"))
+        .catch(this.onSaveErr);
       return;
     }
 
-    if (!opt) return;
-
+    if (!selectedRule) return;
     if (matchesKey(data, Key.ctrl("d"))) {
-      opt.deleted = true;
+      selectedRule.deleted = true;
+      this.saved = false;
       this.cursor = Math.min(this.cursor, this.getTotalRules());
       return;
     }
-
     if (matchesKey(data, Key.enter)) {
-      opt.startEditing();
+      selectedRule.startEditing();
       this.editing = true;
       return;
     }
   }
 
-  private save() {
+  private async save() {
     const global: PermissionRule = {};
     const session: PermissionRule = {};
     const project: PermissionRule = {};
@@ -204,28 +213,32 @@ export default class PermissionRulesList extends Frame implements Focusable {
     }
 
     const data = { session, project, global };
+    await this.onSave?.(data);
     this.saved = true;
-    this.onSave?.(data);
   }
 
-  private getEditingRule() {
-    let len = 1;
-    for (const category of CATEGORIES) {
-      const options = this.editableOptions.get(category)!.filter((opt) => !opt.deleted);
-      if (this.cursor >= len + options.length) {
-        len += options.length;
-        continue;
-      }
-      return this.editableOptions.get(category)![this.cursor - len];
+  private getSelectedRule(): EditableOption | undefined {
+    if (this.cursor === 0) {
+      return undefined;
     }
+    const visibleOptions = this.getVisibleOptions();
+    return visibleOptions[this.cursor - 1];
+  }
+
+  private getVisibleOptions(): EditableOption[] {
+    const visibleOptions: EditableOption[] = [];
+    for (const category of CATEGORIES) {
+      visibleOptions.push(...this.getOptionsForCategory(category));
+    }
+    return visibleOptions;
+  }
+
+  private getOptionsForCategory(category: Category): EditableOption[] {
+    const options = this.editableOptions.get(category) ?? [];
+    return options.filter((option) => !option.deleted);
   }
 
   private getTotalRules() {
-    let len = 0;
-    for (const category of CATEGORIES) {
-      const options = this.editableOptions.get(category)!.filter((opt) => !opt.deleted);
-      len += options.length;
-    }
-    return len;
+    return this.getVisibleOptions().length;
   }
 }

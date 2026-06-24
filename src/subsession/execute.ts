@@ -141,8 +141,19 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
   };
 }
 
-function createSubsession(params: CreateSubsessionParams): Subsession {
+async function createSubsession(params: CreateSubsessionParams): Promise<Subsession> {
   const { onSnapshot, agent, ...rest } = params;
+
+  const save = async (subsession: Subsession) => {
+    if (subsession.result.id) {
+      await saveSubsession(subsession.result.id, {
+        label: subsession.label,
+        pid: subsession.pid,
+        title: subsession.title,
+        usage: subsession.result.usage,
+      });
+    }
+  };
 
   const subsession: Subsession = {
     ...rest,
@@ -157,17 +168,11 @@ function createSubsession(params: CreateSubsessionParams): Subsession {
         usage: subsession.result.usage,
       });
 
-      if (subsession.result.id) {
-        await saveSubsession(subsession.result.id, {
-          label: subsession.label,
-          pid: subsession.pid,
-          title: subsession.title,
-          usage: subsession.result.usage,
-        });
-      }
+      await save(subsession);
     },
   };
 
+  await save(subsession);
   return subsession;
 }
 

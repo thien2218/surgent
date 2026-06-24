@@ -113,13 +113,13 @@ function isAllowedByPattern(raw: string, allowList?: AgentAllowList, bash?: bool
   );
 }
 
-export function checkAgentRules(agentMeta: AgentMeta, check: PermissionCheck): boolean {
+export function checkAgentRules(meta: AgentMeta, check: PermissionCheck): boolean {
   const { category, raw } = check;
   if (category === "bash") {
-    return isAllowedByPattern(raw, agentMeta.bash, true);
+    return isAllowedByPattern(raw, meta.bash, true);
   }
   if (category === "file") {
-    return isAllowedByPattern(raw, agentMeta.files);
+    return isAllowedByPattern(raw, meta.files);
   }
   return true;
 }

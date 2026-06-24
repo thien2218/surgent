@@ -22,7 +22,7 @@ export async function planCommandHandler(
     return;
   }
 
-  const subsession = await resolveSession(ctx, parseCommandInput(args));
+  const subsession = await resolveSubsession(ctx, parseCommandInput(args));
   if (!subsession) {
     ctx.ui.setWidget(PLAN_AGENT, undefined);
     return;
@@ -36,15 +36,9 @@ export async function planCommandHandler(
 
   await runSubsessionLoop(pi, ctx, subsession, {
     agent: PLAN_AGENT,
-    actionUi: {
-      title: "Forward this plan to main agent?",
-      prefix: "Yes, proceed",
-      placeholder: "Tell planner what to revise...",
-    },
-    messages: {
-      emptyOutput: "No planner output to forward",
-      sendFailure: "Failed to forward plan",
-    },
+    title: "Forward this plan to main agent?",
+    prefix: "Yes, proceed",
+    placeholder: "Tell planner what to revise...",
   });
 }
 
@@ -59,22 +53,22 @@ export function parseCommandInput(args: string): PlanCommandInput {
   return { kind: "prompt", prompt: normalized };
 }
 
-async function resolveSession(
+async function resolveSubsession(
   ctx: ExtensionCommandContext,
-  parsedInput: PlanCommandInput,
+  input: PlanCommandInput,
 ): Promise<Subsession | null> {
   const pid = ctx.sessionManager.getSessionId();
   const request: SubsessionRequest = { pid, label: "plan", agent: PLAN_AGENT, input: "" };
 
-  if (parsedInput.kind === "prompt") {
-    request.input = parsedInput.prompt;
+  if (input.kind === "prompt") {
+    request.input = input.prompt;
     if (ctx.model) {
       const { id, provider } = ctx.model;
       const modelId = id.includes("/") ? id : `${provider}/${id}`;
       request.modelId = modelId;
     }
-  } else if (parsedInput.kind === "resume") {
-    request.id = parsedInput.subsessionId;
+  } else if (input.kind === "resume") {
+    request.id = input.subsessionId;
   } else {
     const selectedSubsessionId = await pickPlanSessionId(ctx, pid);
     if (!selectedSubsessionId) {

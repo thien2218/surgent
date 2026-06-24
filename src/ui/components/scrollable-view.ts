@@ -61,7 +61,7 @@ export class ScrollableView extends Frame implements Focusable {
       hints.push(["Tab", this.activePane === "content" ? "focus input" : "focus content"]);
     }
 
-    hints.push(["Esc", "close and save"]);
+    hints.push(["Esc", "close & save"]);
     hints.push(["Enter", "select"]);
     return hints;
   }

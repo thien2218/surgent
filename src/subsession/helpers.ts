@@ -150,7 +150,7 @@ export function renderSnapshotWidget(
       tui,
       (content) => theme.fg("accent", content),
       (content) => theme.fg("muted", content),
-      `${label}: tools_count=${usage.toolCalls} | in=${usage.input} | out=${usage.output} | ctx=${context} | activity=${snapshot.activity}`,
+      `${label} (${snapshot.activity}): tools_used=${usage.toolCalls} | in=${usage.input} | out=${usage.output} | ctx=${context}`,
     );
 
     if (snapshot.status !== "running") {

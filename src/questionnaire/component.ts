@@ -72,12 +72,12 @@ export default class Questionnaire extends Frame implements Focusable {
       return;
     }
 
-    if (matchesKey(data, Key.ctrl("left"))) {
+    if (matchesKey(data, Key.alt("left"))) {
       this.moveQuestion(-1);
       return;
     }
 
-    if (matchesKey(data, Key.ctrl("right"))) {
+    if (matchesKey(data, Key.alt("right"))) {
       this.moveQuestion(1);
       return;
     }
@@ -140,7 +140,7 @@ export default class Questionnaire extends Frame implements Focusable {
       lines.add(
         this.theme.fg(
           draft.focusMode === "options" ? "accent" : "muted",
-          `Options ${draft.focusMode === "options" ? "[selecting]" : "[press Tab or Up/Down]"}`,
+          `Options ${draft.focusMode === "options" ? "[selecting]" : "[press Tab or ↑↓]"}`,
         ),
       );
       lines.space();
@@ -190,14 +190,14 @@ export default class Questionnaire extends Frame implements Focusable {
   override getHints(): [string, string][] {
     const question = this.currentQuestion();
     const base: [string, string][] = [
-      ["Ctrl+Left/Right", "switch questions"],
+      ["Alt+←/→", "switch questions"],
       ["Enter", "continue"],
       ["Esc", "cancel"],
     ];
 
     if (question.options.length > 0) {
       base.push(["Tab", "switches focus"]);
-      base.push(["Up/Down", "move options"]);
+      base.push(["↑↓", "move options"]);
       if (question.multi) {
         base.push(["Space", "toggles options"]);
       }

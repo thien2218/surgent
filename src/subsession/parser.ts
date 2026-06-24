@@ -35,46 +35,6 @@ function formatToolUse(toolCall: ToolCall): string {
   }
 }
 
-function applyMessageEndEvent(
-  event: Record<string, unknown>,
-  state: ParserState,
-  snapshot: SubsessionSnapshot,
-  onSnapshot?: (snapshot: SubsessionSnapshot) => void,
-) {
-  const message = event["message"] as Message;
-  if (!message || typeof message !== "object") return;
-
-  if (message.role === "assistant") {
-    for (const contentPart of message.content) {
-      if (contentPart.type === "text") {
-        state.lastMessage = contentPart.text;
-      }
-    }
-  } else {
-    snapshot.activity = "thinking";
-    onSnapshot?.(snapshot);
-    return;
-  }
-
-  snapshot.usage.input += message.usage?.input ?? 0;
-  snapshot.usage.output += message.usage?.output ?? 0;
-  if (message.stopReason) state.stopReason = message.stopReason;
-
-  for (const contentPart of message.content) {
-    if (contentPart.type !== "toolCall") continue;
-    const toolCall = contentPart as ToolCall;
-    const toolCount = (state.toolCounts[toolCall.name] ?? 0) + 1;
-
-    state.toolCounts[toolCall.name] = toolCount;
-    snapshot.usage.toolCalls += 1;
-    snapshot.toolsUsed.push(formatToolUse(toolCall));
-    onSnapshot?.(snapshot);
-  }
-
-  snapshot.activity = "thinking";
-  onSnapshot?.(snapshot);
-}
-
 function applyEvent(
   event: Record<string, unknown>,
   state: ParserState,
@@ -92,17 +52,39 @@ function applyEvent(
     return;
   }
 
-  if (eventType === "tool_execution_start") {
-    const toolName = event["toolName"];
-    if (typeof toolName === "string") {
-      snapshot.activity = "working";
+  if (eventType === "message_end") {
+    const message = event["message"] as Message;
+    if (!message || typeof message !== "object") return;
+
+    if (message.role === "assistant") {
+      for (const contentPart of message.content) {
+        if (contentPart.type === "text") {
+          state.lastMessage = contentPart.text;
+        }
+      }
+    } else {
+      snapshot.activity = "thinking";
+      onSnapshot?.(snapshot);
+      return;
+    }
+
+    snapshot.usage.input += message.usage?.input ?? 0;
+    snapshot.usage.output += message.usage?.output ?? 0;
+    if (message.stopReason) state.stopReason = message.stopReason;
+
+    for (const contentPart of message.content) {
+      if (contentPart.type !== "toolCall") continue;
+      const toolCall = contentPart as ToolCall;
+      const toolCount = (state.toolCounts[toolCall.name] ?? 0) + 1;
+
+      state.toolCounts[toolCall.name] = toolCount;
+      snapshot.usage.toolCalls += 1;
+      snapshot.toolsUsed.push(formatToolUse(toolCall));
       onSnapshot?.(snapshot);
     }
-    return;
-  }
 
-  if (eventType === "message_end") {
-    applyMessageEndEvent(event, state, snapshot, onSnapshot);
+    snapshot.activity = "thinking";
+    onSnapshot?.(snapshot);
   }
 }
 

@@ -5,9 +5,16 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { SubsessionRequest, Subsession } from "../subsession/types.js";
 import { runSubsession, renderSnapshotWidget } from "../subsession/index.js";
-import { runSubsessionLoop } from "./helpers.js";
+import { applyCurrentModel, runSubsessionLoop } from "./helpers.js";
+import { pickSubsessionId } from "./storage.js";
 
 const REVIEW_AGENT = "reviewer";
+const REVIEW_LOOP_CONFIG = {
+  agent: REVIEW_AGENT,
+  title: "Next step?",
+  prefix: "Fix issues",
+  placeholder: "Tell reviewer what to check again...",
+};
 
 interface PullRequestSummary {
   number: number;
@@ -24,46 +31,57 @@ export async function reviewCommandHandler(
     return;
   }
 
-  const reviewPrompt = await resolveReviewPrompt(pi, args, ctx);
-  if (!reviewPrompt) {
-    return;
-  }
-
-  const subsession = await startReviewSubsession(ctx, reviewPrompt);
-  if (!subsession) {
+  const reviewSubsession = await resolveReviewSubsession(pi, args, ctx);
+  if (!reviewSubsession) {
     ctx.ui.setWidget(REVIEW_AGENT, undefined);
     return;
   }
 
-  if (subsession.result.status === "error") {
+  if (reviewSubsession.result.status === "error") {
     ctx.ui.setWidget(REVIEW_AGENT, undefined);
-    ctx.ui.notify(subsession.result.output, "error");
+    ctx.ui.notify(reviewSubsession.result.output, "error");
     return;
   }
 
-  await runSubsessionLoop(pi, ctx, subsession, {
-    agent: REVIEW_AGENT,
-    title: "Next step?",
-    prefix: "Fix issues",
-    placeholder: "Tell reviewer what to check again...",
-  });
+  await runSubsessionLoop(pi, ctx, reviewSubsession, REVIEW_LOOP_CONFIG);
 }
 
-async function startReviewSubsession(
+async function resolveReviewSubsession(
+  pi: ExtensionAPI,
+  args: string,
   ctx: ExtensionCommandContext,
-  reviewPrompt: string,
 ): Promise<Subsession | null> {
+  const normalizedArgs = args.trim();
   const pid = ctx.sessionManager.getSessionId();
   const request: SubsessionRequest = {
     pid,
     label: "review",
     agent: REVIEW_AGENT,
-    input: reviewPrompt,
+    input: "",
   };
 
-  if (ctx.model) {
-    const { id, provider } = ctx.model;
-    request.modelId = id.includes("/") ? id : `${provider}/${id}`;
+  if (normalizedArgs.length > 0) {
+    request.input = normalizedArgs;
+    applyCurrentModel(ctx, request);
+  } else {
+    const startOption = await ctx.ui.select("Start review", [
+      "List available PRs to review",
+      "List existing reviews",
+    ]);
+    if (!startOption) return null;
+
+    if (startOption.includes("PRs")) {
+      const reviewPrompt = await resolvePromptFromPullRequest(pi, ctx);
+      if (!reviewPrompt) return null;
+
+      request.input = reviewPrompt;
+      applyCurrentModel(ctx, request);
+      return null;
+    } else if (startOption.includes("reviews")) {
+      const selectedSubsessionId = await pickSubsessionId(ctx, pid, "review");
+      if (!selectedSubsessionId) return null;
+      request.id = selectedSubsessionId;
+    }
   }
 
   const session = await runSubsession(request, (snapshot) =>
@@ -78,20 +96,13 @@ async function startReviewSubsession(
   return session;
 }
 
-async function resolveReviewPrompt(
+async function resolvePromptFromPullRequest(
   pi: ExtensionAPI,
-  args: string,
   ctx: ExtensionCommandContext,
 ): Promise<string | null> {
-  const normalizedArgs = args.trim();
-  if (normalizedArgs.length > 0) {
-    return normalizedArgs;
-  }
-
   const pullRequests = await loadOpenPullRequests(pi, ctx);
-  if (!pullRequests) {
-    return null;
-  }
+
+  if (!pullRequests) return null;
   if (pullRequests.length === 0) {
     ctx.ui.notify("No open pull requests found", "warning");
     return null;
@@ -177,9 +188,7 @@ function parsePullRequestList(
 }
 
 function isPullRequestSummary(value: unknown): value is PullRequestSummary {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
+  if (!value || typeof value !== "object") return false;
 
   const candidate = value as Record<string, unknown>;
   return (

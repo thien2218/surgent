@@ -1,8 +1,8 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { SubsessionRequest, Subsession } from "../subsession/types.js";
 import { runSubsession, renderSnapshotWidget } from "../subsession/index.js";
-import { runSubsessionLoop } from "./helpers.js";
-import { listPlanSessions, type PlanSessionPreview } from "./storage.js";
+import { applyCurrentModel, runSubsessionLoop } from "./helpers.js";
+import { pickSubsessionId } from "./storage.js";
 import { isUuidv7 } from "../utils.js";
 
 const PLAN_AGENT = "planner";
@@ -62,15 +62,11 @@ async function resolveSubsession(
 
   if (input.kind === "prompt") {
     request.input = input.prompt;
-    if (ctx.model) {
-      const { id, provider } = ctx.model;
-      const modelId = id.includes("/") ? id : `${provider}/${id}`;
-      request.modelId = modelId;
-    }
+    applyCurrentModel(ctx, request);
   } else if (input.kind === "resume") {
     request.id = input.subsessionId;
   } else {
-    const selectedSubsessionId = await pickPlanSessionId(ctx, pid);
+    const selectedSubsessionId = await pickSubsessionId(ctx, pid, "plan");
     if (!selectedSubsessionId) {
       return null;
     }
@@ -86,34 +82,4 @@ async function resolveSubsession(
   }
 
   return session;
-}
-
-async function pickPlanSessionId(
-  ctx: ExtensionCommandContext,
-  pid: string,
-): Promise<string | null> {
-  const planSessions = await listPlanSessions(ctx.cwd, pid);
-  if (planSessions.length === 0) {
-    ctx.ui.notify("No stored planning sessions", "warning");
-    return null;
-  }
-
-  const optionMap = new Map<string, string>();
-  const options = planSessions.map((preview) => {
-    const optionLabel = formatSessionOption(preview);
-    optionMap.set(optionLabel, preview.subsessionId);
-    return optionLabel;
-  });
-
-  const selectedOption = await ctx.ui.select("Reopen plan session", options);
-  if (!selectedOption) {
-    return null;
-  }
-
-  return optionMap.get(selectedOption) ?? null;
-}
-
-function formatSessionOption(preview: PlanSessionPreview): string {
-  const shortId = preview.subsessionId.slice(0, 8);
-  return `${preview.title} (${shortId})`;
 }

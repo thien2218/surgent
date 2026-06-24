@@ -1,9 +1,28 @@
-import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import type { Category, DisplayRule, FileAccess } from "./types.js";
+import type { ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { Category, DisplayRule, FileAccess, PermissionRule } from "./types.js";
 import { getRulesForDisplay, addRule, readRules, writeRules } from "./storage.js";
 import PermissionRulesList from "./components/rules-list.js";
 import EditableOption from "./components/editable-option.js";
 import { Frame } from "../ui/components/frame.js";
+
+async function persistRules(
+  ctx: ExtensionCommandContext,
+  sessionId: string,
+  data: { session: PermissionRule; project: PermissionRule; global: PermissionRule },
+): Promise<void> {
+  const local = await readRules(ctx.cwd);
+  local[sessionId] = data.session;
+  local.project = data.project;
+
+  await writeRules(local, ctx.cwd);
+  await writeRules(data.global);
+}
+
+function notifyError(ctx: ExtensionContext, error: unknown, done?: () => void) {
+  const message = error instanceof Error ? error.message : String(error);
+  ctx.ui.notify(`Failed to save permission rule: ${message}`, "error");
+  done?.();
+}
 
 export async function handlePermissionsCommand(ctx: ExtensionCommandContext) {
   if (!ctx.hasUI) {
@@ -12,23 +31,15 @@ export async function handlePermissionsCommand(ctx: ExtensionCommandContext) {
   }
 
   const sessionId = ctx.sessionManager.getSessionId();
-  const rules = await getRulesForDisplay(ctx.cwd, sessionId);
-
   while (true) {
-    const action = await ctx.ui.custom<"save" | "exit" | "add">((_tui, theme, _kb, done) => {
-      const component = new PermissionRulesList(theme, rules);
+    const rules = await getRulesForDisplay(ctx.cwd, sessionId);
+    const action = await ctx.ui.custom<"exit" | "add">((tui, theme, keybindings, done) => {
+      const component = new PermissionRulesList(tui, keybindings, theme, rules);
       component.onDone = done;
-      component.onSave = (data) => {
-        readRules(ctx.cwd).then((local) => {
-          local[sessionId] = data.session;
-          local.project = data.project;
-          return writeRules(local, ctx.cwd);
-        });
-        writeRules(data.global);
-      };
+      component.onSave = async (data) => persistRules(ctx, sessionId, data);
+      component.onSaveErr = (error) => notifyError(ctx, error);
       return component;
     });
-
     if (action !== "add") break;
 
     const categoryLabel = await ctx.ui.select("Category", ["File", "Web", "Bash"]);
@@ -36,27 +47,28 @@ export async function handlePermissionsCommand(ctx: ExtensionCommandContext) {
 
     const category = categoryLabel.toLowerCase() as Category;
     const defaultValue: FileAccess | boolean = category === "file" ? "read" : true;
-    const newRule: DisplayRule = { expr: "", value: defaultValue, scope: "session" };
+    const toAdd: DisplayRule = { expr: "", value: defaultValue, scope: "session", category };
 
-    await ctx.ui.custom<void>((_tui, theme, _kb, done) => {
+    await ctx.ui.custom<void>((tui, theme, keybindings, done) => {
       const frame = new Frame(theme);
-      const opt = new EditableOption(theme, newRule, true);
+      const option = new EditableOption(tui, keybindings, theme, toAdd, true);
 
-      opt.focused = true;
-      opt.onChange = (rule) => {
-        addRule(ctx.cwd, sessionId, rule.scope, category, rule.expr, rule.value);
-        done();
+      option.focused = true;
+      option.onChange = (rule) => {
+        addRule(ctx.cwd, sessionId, rule.scope, category, rule.expr, rule.value)
+          .then(done)
+          .catch((error) => notifyError(ctx, error, done));
       };
-      opt.onCancel = done;
-      frame.addCustom(opt);
+      option.onCancel = done;
+      frame.addCustom(option);
 
       return {
-        render: (w) => frame.render(w),
+        render: (width) => frame.render(width),
         invalidate: () => {
           frame.invalidate();
-          opt.invalidate();
+          option.invalidate();
         },
-        handleInput: (data: string) => opt.handleInput(data),
+        handleInput: (data: string) => option.handleInput(data),
       };
     });
   }

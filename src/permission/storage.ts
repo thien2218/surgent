@@ -132,7 +132,7 @@ export async function getRulesForDisplay(
       if (!rules[category]) return;
       const categoryRules = schema[category] ?? {};
       for (const [expr, value] of Object.entries(categoryRules)) {
-        rules[category].push({ expr, value: value as FileAccess | boolean, scope });
+        rules[category].push({ expr, value: value as FileAccess | boolean, scope, category });
       }
     }
   };

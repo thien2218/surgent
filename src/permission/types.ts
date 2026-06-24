@@ -29,6 +29,7 @@ export interface PromptDecision {
 }
 
 export interface DisplayRule {
+  category: Category;
   expr: string;
   value: FileAccess | boolean;
   scope: Scope;

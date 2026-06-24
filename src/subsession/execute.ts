@@ -61,7 +61,7 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
   const snapshot: SubsessionSnapshot = {
     id: request.sessionId ?? "",
     status: "running",
-    activity: "thinking",
+    activity: "working",
     toolsUsed: [],
     usage: request.usage,
   };
@@ -172,7 +172,7 @@ function createSubsession(params: CreateSubsessionParams): Subsession {
   return subsession;
 }
 
-export default async function runInteractive(
+export default async function runSubsession(
   request: SubsessionRequest,
   onSnapshot?: (snapshot: SubsessionSnapshot) => void,
 ): Promise<Subsession> {
@@ -217,7 +217,7 @@ export default async function runInteractive(
 
     if (!initialTurn.id) {
       const errorOutput = initialTurn.output.trim();
-      params.result = createErrorResult(errorOutput || "Cannot start interactive subsession");
+      params.result = createErrorResult(errorOutput || "Cannot start subsession");
     } else {
       params.result = initialTurn;
       const extractedTitle = extractSubsessionTitle(initialTurn.output);

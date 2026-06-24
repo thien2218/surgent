@@ -23,7 +23,6 @@ export function emitInteractionHandoff(toolName: string, input: any, ctx: Extens
 
 export function parseInteractionHandoff(output: string): Interaction | undefined {
   const outputLines = output.split(/\r?\n/);
-
   for (let idx = outputLines.length - 1; idx >= 0; idx--) {
     const line = outputLines[idx];
     if (!line || !line.startsWith(HANDOFF_PREFIX)) {
@@ -37,7 +36,6 @@ export function parseInteractionHandoff(output: string): Interaction | undefined
       continue;
     }
   }
-
   return;
 }
 
@@ -159,15 +157,11 @@ export function renderSnapshotWidget(
 
     widget.addChild(loader);
 
-    if (recentToolCalls.length === 0) {
-      widget.addChild(new TruncatedText(`  └─ ${snapshot.activity}`, 1, 0));
-    } else {
-      const lastToolCallIndex = recentToolCalls.length - 1;
-      for (let toolCallIndex = 0; toolCallIndex < recentToolCalls.length; toolCallIndex += 1) {
-        const branchIndicator = toolCallIndex === lastToolCallIndex ? "└─" : "├─";
-        const toolCallLine = `  ${branchIndicator} ${recentToolCalls[toolCallIndex]}`;
-        widget.addChild(new TruncatedText(toolCallLine, 1, 0));
-      }
+    const lastToolCallIndex = recentToolCalls.length - 1;
+    for (let toolCallIndex = 0; toolCallIndex < recentToolCalls.length; toolCallIndex += 1) {
+      const branchIndicator = toolCallIndex === lastToolCallIndex ? "└─" : "├─";
+      const toolCallLine = `  ${branchIndicator} ${recentToolCalls[toolCallIndex]}`;
+      widget.addChild(new TruncatedText(toolCallLine, 1, 0));
     }
 
     widget.addChild(new Spacer(1));

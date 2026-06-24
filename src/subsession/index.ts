@@ -1,5 +1,5 @@
 export const SUBSESSION_DIR_NAME = "subsessions";
-export { default as runInteractive } from "./execute.js";
+export { default as runSubsession } from "./execute.js";
 export {
   createResumeInput,
   emitInteractionHandoff,

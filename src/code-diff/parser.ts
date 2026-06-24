@@ -1,45 +1,4 @@
-import type { CodeDiffSummaryFile, SourceSelector, SourceSelectorInput } from "./types.js";
-
-export function parseSourceSelector(source: SourceSelectorInput): SourceSelector {
-  const normalizedHash = source.hash?.trim();
-  const hasPr = source.pr !== undefined;
-  const hasHash = normalizedHash !== undefined;
-
-  if (source.uncommitted === false) {
-    throw new Error("source.uncommitted must be true when provided.");
-  }
-
-  const hasUncommitted = source.uncommitted === true;
-  const selectorCount = [hasPr, hasHash, hasUncommitted].filter(Boolean).length;
-
-  if (selectorCount !== 1) {
-    throw new Error(
-      "source must include exactly one populated selector: source.pr or source.hash or source.uncommitted.",
-    );
-  }
-
-  if (hasPr) {
-    const prNumber = source.pr as number;
-    if (!Number.isInteger(prNumber) || prNumber <= 0) {
-      throw new Error(`source.pr must be a positive integer. Received: ${source.pr}`);
-    }
-    return { kind: "pr", value: prNumber };
-  }
-  if (hasHash) {
-    return { kind: "hash", value: normalizedHash as string };
-  }
-  return { kind: "uncommitted" };
-}
-
-export function getSourceLabel(sourceSelector: SourceSelector): string {
-  if (sourceSelector.kind === "pr") {
-    return `pr:${sourceSelector.value}`;
-  }
-  if (sourceSelector.kind === "hash") {
-    return `hash:${sourceSelector.value}`;
-  }
-  return "uncommitted";
-}
+import type { CodeDiffSummaryFile } from "./types.js";
 
 export function isHashCandidate(value: string): boolean {
   return /^[0-9a-f]{7,40}$/i.test(value.trim());
@@ -62,32 +21,9 @@ export function parseNumstatLine(rawLine: string): CodeDiffSummaryFile | null {
 
   const addedLines = parseNumstatCount(rawAdded);
   const removedLines = parseNumstatCount(rawRemoved);
+  const isBinary = addedLines === null || removedLines === null;
 
-  return {
-    path,
-    addedLines,
-    removedLines,
-    isBinary: addedLines === null || removedLines === null,
-  };
-}
-
-export function describeSourceForRender(source: unknown): string {
-  if (!source || typeof source !== "object") {
-    return "source";
-  }
-
-  const sourceRecord = source as Record<string, unknown>;
-  if (sourceRecord.pr !== undefined) {
-    return `pr:${sourceRecord.pr}`;
-  }
-  if (typeof sourceRecord.hash === "string") {
-    return `hash:${sourceRecord.hash}`;
-  }
-  if (sourceRecord.uncommitted === true) {
-    return "uncommitted";
-  }
-
-  return "source";
+  return { path, addedLines, removedLines, isBinary };
 }
 
 function getDiffFilePaths(diffHeaderLine: string): { oldPath: string; newPath: string } | null {

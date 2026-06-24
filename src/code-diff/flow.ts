@@ -10,15 +10,15 @@ import {
 import { filterPatchByFiles, isHashCandidate, parseNumstatLine } from "./parser.js";
 import { buildPatchResult, buildSummaryResult, requireSelectedFiles } from "./result.js";
 import type {
+  CodeDiffFlowRequest,
   CodeDiffPatchDetails,
   CodeDiffSummaryDetails,
   CodeDiffSummaryFile,
-  CodeDiffToolParams,
   CommandContext,
 } from "./types.js";
 
 type GitDiffFlowOptions = {
-  request: CodeDiffToolParams;
+  request: CodeDiffFlowRequest;
   context: CommandContext;
   rangeArgs: string[];
   detailsBase: Omit<CodeDiffSummaryDetails, "mode" | "files"> &
@@ -58,14 +58,11 @@ async function executeGitDiffFlow(options: GitDiffFlowOptions) {
 }
 
 export async function executePrFlow(
-  request: CodeDiffToolParams,
+  request: CodeDiffFlowRequest,
   prNumber: number,
   sourceLabel: string,
   context: CommandContext,
 ) {
-  if (request.base !== undefined) {
-    throw new Error("base is not allowed when source.pr is used.");
-  }
   const repoWithOwner = await getGithubRepoWithOwner(context);
 
   if (request.files === undefined) {
@@ -85,14 +82,14 @@ export async function executePrFlow(
 }
 
 export async function executeHashFlow(
-  request: CodeDiffToolParams,
+  request: CodeDiffFlowRequest,
   sourceHashInput: string,
   sourceLabel: string,
   context: CommandContext,
 ) {
   const baseInput = request.base?.trim();
   if (!baseInput) {
-    throw new Error("base is required when source.hash is used.");
+    throw new Error("base is required when mode=hash.");
   }
 
   const sourceHash = sourceHashInput.trim();
@@ -100,12 +97,12 @@ export async function executeHashFlow(
     throw new Error(`base must be a git commit hash (7-40 hex). Received: ${baseInput}`);
   }
   if (!isHashCandidate(sourceHash)) {
-    throw new Error(`source.hash must be a git commit hash (7-40 hex). Received: ${sourceHash}`);
+    throw new Error(`hash must be a git commit hash (7-40 hex). Received: ${sourceHash}`);
   }
 
   const remoteName = await resolvePreferredRemoteName(context);
   const baseCommitHash = await resolveHashCommit(context, baseInput, "base", remoteName);
-  const sourceCommitHash = await resolveHashCommit(context, sourceHash, "source.hash", remoteName);
+  const sourceCommitHash = await resolveHashCommit(context, sourceHash, "hash", remoteName);
 
   return executeGitDiffFlow({
     request,
@@ -116,7 +113,7 @@ export async function executeHashFlow(
 }
 
 export async function executeUncommittedFlow(
-  request: CodeDiffToolParams,
+  request: CodeDiffFlowRequest,
   sourceLabel: string,
   context: CommandContext,
 ) {

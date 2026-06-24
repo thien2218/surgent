@@ -1,12 +1,10 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-export type GitCommandResult = Awaited<ReturnType<ExtensionAPI["exec"]>>;
-
-export type CommandContext = {
-  pi: ExtensionAPI;
-  cwd: string;
-  signal?: AbortSignal;
-};
+export type CommandRunner = (
+  cmd: string,
+  args: string[],
+  desc?: string,
+) => ReturnType<ExtensionAPI["exec"]>;
 
 export type CodeDiffSummaryFile = {
   path: string;
@@ -57,7 +55,7 @@ export type CodeDiffUncommittedParams = {
 
 export type CodeDiffToolParams = CodeDiffPrParams | CodeDiffHashParams | CodeDiffUncommittedParams;
 
-export type CodeDiffFlowRequest = {
+export type CodeDiffRequest = {
   base?: string;
   files?: string[];
 };

@@ -1,63 +1,7 @@
-import type { CommandContext, GitCommandResult } from "./types.js";
+import type { CommandRunner } from "./types.js";
 
-function formatCommand(command: string, argumentsList: string[]) {
-  const quotedArguments = argumentsList.map((argumentValue) =>
-    /\s/.test(argumentValue) ? JSON.stringify(argumentValue) : argumentValue,
-  );
-  return [command, ...quotedArguments].join(" ");
-}
-
-function formatCommandFailure(
-  command: string,
-  argumentsList: string[],
-  result: GitCommandResult,
-): string {
-  const stderrOutput = result.stderr.trim();
-  const stdoutOutput = result.stdout.trim();
-  const output = stderrOutput || stdoutOutput || "No command output.";
-  return `${formatCommand(command, argumentsList)} (exit ${result.code})\n${output}`;
-}
-
-export async function executeCommand(
-  context: CommandContext,
-  command: string,
-  argumentsList: string[],
-): Promise<GitCommandResult> {
-  try {
-    return await context.pi.exec(command, argumentsList, {
-      cwd: context.cwd,
-      signal: context.signal,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `Unable to start command: ${formatCommand(command, argumentsList)}\n${message}`,
-    );
-  }
-}
-
-export async function executeCommandOrThrow(
-  context: CommandContext,
-  command: string,
-  argumentsList: string[],
-  actionDescription: string,
-): Promise<GitCommandResult> {
-  const result = await executeCommand(context, command, argumentsList);
-  if (result.code !== 0) {
-    throw new Error(
-      `${actionDescription}\n${formatCommandFailure(command, argumentsList, result)}`,
-    );
-  }
-  return result;
-}
-
-export async function resolvePreferredRemoteName(context: CommandContext): Promise<string> {
-  const result = await executeCommandOrThrow(
-    context,
-    "git",
-    ["remote"],
-    "Failed to list git remotes.",
-  );
+export async function resolvePreferredRemoteName(runCommand: CommandRunner): Promise<string> {
+  const result = await runCommand("git", ["remote"], "Failed to list git remotes.");
 
   const remoteNames = result.stdout
     .split(/\r?\n/)
@@ -77,10 +21,10 @@ export async function resolvePreferredRemoteName(context: CommandContext): Promi
 }
 
 export async function resolveLocalCommit(
-  context: CommandContext,
+  runCommand: CommandRunner,
   reference: string,
 ): Promise<string | null> {
-  const result = await executeCommand(context, "git", [
+  const result = await runCommand("git", [
     "rev-parse",
     "--verify",
     "--quiet",
@@ -93,34 +37,33 @@ export async function resolveLocalCommit(
 }
 
 export async function fetchFromRemote(
-  context: CommandContext,
+  runCommand: CommandRunner,
   remoteName: string,
   remoteReference: string,
   label: string,
 ): Promise<void> {
-  await executeCommandOrThrow(
-    context,
+  await runCommand(
     "git",
     ["fetch", "--no-tags", "--quiet", remoteName, remoteReference],
-    `Failed to fetch ${label} from remote ${remoteName}.`,
+    `Failed to fetch ${label} from remote ${remoteName}`,
   );
 }
 
 export async function resolveHashCommit(
-  context: CommandContext,
+  runCommand: CommandRunner,
   hashInput: string,
   hashLabel: string,
   remoteName: string,
 ): Promise<string> {
-  const localCommitHash = await resolveLocalCommit(context, hashInput);
+  const localCommitHash = await resolveLocalCommit(runCommand, hashInput);
   if (localCommitHash) {
     return localCommitHash;
   }
 
-  await fetchFromRemote(context, remoteName, hashInput, `${hashLabel} ${hashInput}`);
+  await fetchFromRemote(runCommand, remoteName, hashInput, `${hashLabel} ${hashInput}`);
   const fetchedCommitHash =
-    (await resolveLocalCommit(context, hashInput)) ??
-    (await resolveLocalCommit(context, "FETCH_HEAD"));
+    (await resolveLocalCommit(runCommand, hashInput)) ??
+    (await resolveLocalCommit(runCommand, "FETCH_HEAD"));
 
   if (!fetchedCommitHash) {
     throw new Error(`Unable to resolve ${hashLabel}: ${hashInput}.`);
@@ -129,9 +72,8 @@ export async function resolveHashCommit(
   return fetchedCommitHash;
 }
 
-export async function getGithubRepoWithOwner(context: CommandContext): Promise<string> {
-  const result = await executeCommandOrThrow(
-    context,
+export async function getGithubRepoWithOwner(runCommand: CommandRunner): Promise<string> {
+  const result = await runCommand(
     "gh",
     ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
     "Failed to resolve GitHub repository with gh. Ensure gh is installed and authenticated.",
@@ -146,12 +88,11 @@ export async function getGithubRepoWithOwner(context: CommandContext): Promise<s
 }
 
 export async function getPrNumstatLines(
-  context: CommandContext,
+  runCommand: CommandRunner,
   repoWithOwner: string,
   prNumber: number,
 ): Promise<string[]> {
-  const result = await executeCommandOrThrow(
-    context,
+  const result = await runCommand(
     "gh",
     [
       "api",
@@ -160,7 +101,7 @@ export async function getPrNumstatLines(
       "--jq",
       '.[] | "\\(.additions)\\t\\(.deletions)\\t\\(.filename)"',
     ],
-    `Failed to fetch file summary for PR #${prNumber} with gh.`,
+    `Failed to fetch file summary for PR #${prNumber} with gh`,
   );
 
   return result.stdout
@@ -169,12 +110,11 @@ export async function getPrNumstatLines(
     .filter(Boolean);
 }
 
-export async function getPrPatch(context: CommandContext, prNumber: number): Promise<string> {
-  const result = await executeCommandOrThrow(
-    context,
+export async function getPrPatch(runCommand: CommandRunner, prNumber: number): Promise<string> {
+  const result = await runCommand(
     "gh",
     ["pr", "diff", String(prNumber), "--color", "never", "--patch"],
-    `Failed to fetch patch for PR #${prNumber} with gh.`,
+    `Failed to fetch patch for PR #${prNumber} with gh`,
   );
 
   return result.stdout;

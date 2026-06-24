@@ -1,7 +1,7 @@
-import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { defineTool, type ExecResult, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type, type TObject, type TProperties } from "typebox";
-import { executeHashFlow, executePrFlow, executeUncommittedFlow } from "./flow.js";
+import { executeFlow } from "./flow.js";
 import type { CodeDiffToolDetails, CodeDiffToolParams } from "./types.js";
 
 const FilesSchema = Type.Optional(
@@ -10,6 +10,13 @@ const FilesSchema = Type.Optional(
 
 function modeSchema(properties: TProperties): TObject<TProperties & { files: typeof FilesSchema }> {
   return Type.Object({ ...properties, files: FilesSchema }, { additionalProperties: false });
+}
+
+function formatCommand(command: string, argumentsList: string[]) {
+  const quotedArguments = argumentsList.map((argumentValue) =>
+    /\s/.test(argumentValue) ? JSON.stringify(argumentValue) : argumentValue,
+  );
+  return [command, ...quotedArguments].join(" ");
 }
 
 function createCodeDiffTool(pi: ExtensionAPI) {
@@ -37,32 +44,30 @@ function createCodeDiffTool(pi: ExtensionAPI) {
         throw new Error("code_diff was cancelled.");
       }
 
-      const request = params as CodeDiffToolParams;
-      const commandContext = { cwd: ctx.cwd, signal, pi };
+      async function runCommand(cmd: string, args: string[], desc?: string) {
+        let result: ExecResult;
+        const formatted = formatCommand(cmd, args);
 
-      if (request.mode === "pr") {
-        return executePrFlow(
-          { files: request.files },
-          request.pr,
-          `pr:${request.pr}`,
-          commandContext,
-        );
+        try {
+          result = await pi.exec(cmd, args, { cwd: ctx.cwd, signal });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          throw new Error(`Failed to start command: ${formatted}\n${message}`);
+        }
+
+        const stdoutOutput = result.stdout.trim();
+        const stderrOutput = result.stderr.trim();
+        const output = stderrOutput || stdoutOutput || "No output.";
+        const description = desc ?? "Failed to run command";
+
+        if (result.code !== 0) {
+          throw new Error(`${description}: ${formatted} (exit ${result.code})\n${output}`);
+        }
+
+        return result;
       }
 
-      if (request.mode === "hash") {
-        return executeHashFlow(
-          { base: request.base, files: request.files },
-          request.hash,
-          `hash:${request.hash}`,
-          commandContext,
-        );
-      }
-
-      return executeUncommittedFlow(
-        { base: request.base, files: request.files },
-        "uncommitted",
-        commandContext,
-      );
+      return executeFlow(params as CodeDiffToolParams, runCommand);
     },
     renderCall(args, theme) {
       const files = Array.isArray(args.files) ? args.files : [];

@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { AgentMode } from "../permission/types.js";
 import { resolveInteractionHandoff } from "../subsession/index.js";
-import type { Subsession, SubsessionLabel } from "../subsession/types.js";
+import type { Subsession, SubsessionLabel, SubsessionRequest } from "../subsession/types.js";
 import { terminateSubsession } from "../subsession/storage.js";
 import {
   ActionSelectList,
@@ -53,11 +53,10 @@ async function forwardAction(
   ctx: ExtensionCommandContext,
   mode: AgentMode,
   subsession: Subsession,
-  label: SubsessionLabel,
 ): Promise<boolean> {
   const normalizedOutput = subsession.result.output.trim();
   if (!normalizedOutput) {
-    ctx.ui.notify(`No ${label} to forward`, "warning");
+    ctx.ui.notify(`No ${subsession.label} to forward`, "warning");
     return false;
   }
 
@@ -66,7 +65,7 @@ async function forwardAction(
   try {
     pi.sendUserMessage(normalizedOutput);
   } catch {
-    ctx.ui.notify(`Failed to forward ${label}`, "error");
+    ctx.ui.notify(`Failed to forward ${subsession.label}`, "error");
     return false;
   }
 
@@ -87,14 +86,14 @@ export async function runSubsessionLoop(
       if (!resumeInput) {
         ctx.ui.setWidget(config.agent, undefined);
         const action = await showActionUi(ctx, subsession.result.output, config);
-        if (!action || action.kind === "exit") return;
 
+        if (!action || action.kind === "exit") return;
         if (action.kind === "discard") {
           discardSubsession(ctx, subsession);
           return;
         }
         if (action.kind === "forward") {
-          const forwarded = await forwardAction(pi, ctx, action.mode, subsession, subsession.label);
+          const forwarded = await forwardAction(pi, ctx, action.mode, subsession);
           if (forwarded) return;
           continue;
         }
@@ -142,4 +141,10 @@ export async function showActionUi(
 
     return scrollableView;
   });
+}
+
+export function applyCurrentModel(ctx: ExtensionCommandContext, request: SubsessionRequest) {
+  if (!ctx.model) return;
+  const { id, provider } = ctx.model;
+  request.modelId = id.includes("/") ? id : `${provider}/${id}`;
 }

@@ -1,26 +1,16 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { SubsessionRequest, Subsession } from "../subsession/types.js";
-import {
-  runInteractive,
-  resolveInteractionHandoff,
-  renderSnapshotWidget,
-} from "../subsession/index.js";
-import {
-  ActionSelectList,
-  type ActionSelectOption,
-  type ActionSelectResult,
-} from "../ui/components/action-select-list.js";
-import { ScrollableView } from "../ui/components/scrollable-view.js";
-import { forwardAction } from "./helpers.js";
+import { runSubsession, renderSnapshotWidget } from "../subsession/index.js";
+import { runSubsessionLoop } from "./helpers.js";
 import { listPlanSessions, type PlanSessionPreview } from "./storage.js";
-import type { PlanAction, PlanCommandInput } from "./types.js";
 import { isUuidv7 } from "../utils.js";
 
 const PLAN_AGENT = "planner";
-const FORWARD_OPTIONS: ActionSelectOption[] = [
-  { value: "assistant", label: "Yes, proceed with assistant mode" },
-  { value: "yolo", label: "Yes, proceed with YOLO mode" },
-];
+
+type PlanCommandInput =
+  | { kind: "list" }
+  | { kind: "resume"; subsessionId: string }
+  | { kind: "prompt"; prompt: string };
 
 export async function planCommandHandler(
   pi: ExtensionAPI,
@@ -32,37 +22,30 @@ export async function planCommandHandler(
     return;
   }
 
-  try {
-    let subsession: Subsession | null = null;
-    while (true) {
-      if (!subsession) {
-        subsession = await resolveSession(ctx, parseCommandInput(args));
-        if (!subsession) return;
-      }
-      if (subsession.result.status === "error") {
-        ctx.ui.notify(subsession.result.output, "error");
-        return;
-      }
-
-      let input = await resolveInteractionHandoff(ctx, subsession.result.interaction);
-      if (!input) {
-        ctx.ui.setWidget(PLAN_AGENT, undefined);
-        const action = await showUi(ctx, subsession.result.output);
-
-        if (!action) return;
-        if (action.kind === "forward") {
-          if (await forwardAction(pi, ctx, action.mode, subsession)) return;
-          continue;
-        }
-
-        input = action.feedback;
-      }
-
-      await subsession.exec(input);
-    }
-  } finally {
+  const subsession = await resolveSession(ctx, parseCommandInput(args));
+  if (!subsession) {
     ctx.ui.setWidget(PLAN_AGENT, undefined);
+    return;
   }
+
+  if (subsession.result.status === "error") {
+    ctx.ui.setWidget(PLAN_AGENT, undefined);
+    ctx.ui.notify(subsession.result.output, "error");
+    return;
+  }
+
+  await runSubsessionLoop(pi, ctx, subsession, {
+    agent: PLAN_AGENT,
+    actionUi: {
+      title: "Forward this plan to main agent?",
+      prefix: "Yes, proceed",
+      placeholder: "Tell planner what to revise...",
+    },
+    messages: {
+      emptyOutput: "No planner output to forward",
+      sendFailure: "Failed to forward plan",
+    },
+  });
 }
 
 export function parseCommandInput(args: string): PlanCommandInput {
@@ -100,7 +83,7 @@ async function resolveSession(
     request.id = selectedSubsessionId;
   }
 
-  const session = await runInteractive(request, (snapshot) =>
+  const session = await runSubsession(request, (snapshot) =>
     renderSnapshotWidget(ctx, PLAN_AGENT, snapshot, ctx.model?.contextWindow),
   );
   if (!session.result.id) {
@@ -139,45 +122,4 @@ async function pickPlanSessionId(
 function formatSessionOption(preview: PlanSessionPreview): string {
   const shortId = preview.subsessionId.slice(0, 8);
   return `${preview.title} (${shortId})`;
-}
-
-async function showUi(
-  ctx: ExtensionCommandContext,
-  plannerOutput: string,
-): Promise<PlanAction | null> {
-  const markdown = plannerOutput.trim().length > 0 ? plannerOutput : "_No planner output yet._";
-
-  return ctx.ui.custom<PlanAction | null>((tui, theme, keybindings, done) => {
-    const actionSelectList = new ActionSelectList(tui, keybindings, theme, {
-      title: "Forward this plan to main agent?",
-      options: FORWARD_OPTIONS,
-      placeholder: "Tell planner what to revise...",
-    });
-
-    actionSelectList.onSubmit = (result) => done(mapActionResult(result));
-    actionSelectList.onCancel = () => done(null);
-
-    const scrollableView = new ScrollableView(tui, theme, {
-      markdown,
-      inputComponent: actionSelectList,
-    });
-
-    scrollableView.focused = true;
-    scrollableView.onCancel = () => done(null);
-
-    return scrollableView;
-  });
-}
-
-function mapActionResult(result: ActionSelectResult): PlanAction | null {
-  if (result.type === "input") {
-    return { kind: "revise", feedback: result.value };
-  }
-  if (result.value === "assistant") {
-    return { kind: "forward", mode: "assistant" };
-  }
-  if (result.value === "yolo") {
-    return { kind: "forward", mode: "yolo" };
-  }
-  return null;
 }

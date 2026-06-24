@@ -5,30 +5,6 @@ import { executeHashFlow, executePrFlow, executeUncommittedFlow } from "./flow.j
 import { describeSourceForRender, getSourceLabel, parseSourceSelector } from "./parser.js";
 import type { CodeDiffToolDetails, CodeDiffToolParams } from "./types.js";
 
-const codeDiffParameters = Type.Object({
-  source: Type.Object(
-    {
-      pr: Type.Optional(Type.Number({ description: "GitHub pull request number", minimum: 1 })),
-      hash: Type.Optional(
-        Type.String({ description: "Source git commit hash (short or full SHA)" }),
-      ),
-      uncommitted: Type.Optional(
-        Type.Boolean({ description: "Compare uncommitted local changes" }),
-      ),
-    },
-    { additionalProperties: false },
-  ),
-  base: Type.Optional(
-    Type.String({
-      description:
-        "Base git commit hash (required for source.hash, optional for source.uncommitted where default is HEAD)",
-    }),
-  ),
-  files: Type.Optional(
-    Type.Array(Type.String({ description: "File path to include in patch mode" })),
-  ),
-});
-
 function createCodeDiffTool(pi: ExtensionAPI) {
   return defineTool({
     name: "code_diff",
@@ -44,7 +20,29 @@ function createCodeDiffTool(pi: ExtensionAPI) {
       "When using source.uncommitted, base is optional and defaults to HEAD.",
       "Call code_diff without files first to discover changed files before patch requests.",
     ],
-    parameters: codeDiffParameters,
+    parameters: Type.Object({
+      source: Type.Object(
+        {
+          pr: Type.Optional(Type.Number({ description: "GitHub pull request number", minimum: 1 })),
+          hash: Type.Optional(
+            Type.String({ description: "Source git commit hash (short or full SHA)" }),
+          ),
+          uncommitted: Type.Optional(
+            Type.Boolean({ description: "Compare uncommitted local changes" }),
+          ),
+        },
+        { additionalProperties: false },
+      ),
+      base: Type.Optional(
+        Type.String({
+          description:
+            "Base git commit hash (required for source.hash, optional for source.uncommitted where default is HEAD)",
+        }),
+      ),
+      files: Type.Optional(
+        Type.Array(Type.String({ description: "File path to include in patch mode" })),
+      ),
+    }),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       if (signal?.aborted) {
         throw new Error("code_diff was cancelled.");
@@ -58,11 +56,9 @@ function createCodeDiffTool(pi: ExtensionAPI) {
       if (sourceSelector.kind === "pr") {
         return executePrFlow(request, sourceSelector.value, sourceLabel, commandContext);
       }
-
       if (sourceSelector.kind === "hash") {
         return executeHashFlow(request, sourceSelector.value, sourceLabel, commandContext);
       }
-
       return executeUncommittedFlow(request, sourceLabel, commandContext);
     },
     renderCall(args, theme) {

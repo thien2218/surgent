@@ -27,7 +27,7 @@ export async function askForPermission(ctx: ExtensionContext, check: PermissionC
   });
 
   if (!decision.allowed) {
-    const appended = decision.amended ? `. Reason: ${decision.amended}` : "";
+    const appended = decision.amended ? `. User input: ${decision.amended}` : "";
     return {
       block: true,
       reason: `User rejected this tool call. Find a different approach, or skip this step, or abort and report if cannot proceed${appended}`,

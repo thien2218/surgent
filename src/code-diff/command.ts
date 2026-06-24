@@ -7,26 +7,15 @@ function formatCommand(command: string, argumentsList: string[]) {
   return [command, ...quotedArguments].join(" ");
 }
 
-function getCommandOutput(commandResult: GitCommandResult): string {
-  const stderrOutput = commandResult.stderr.trim();
-  if (stderrOutput) {
-    return stderrOutput;
-  }
-
-  const stdoutOutput = commandResult.stdout.trim();
-  if (stdoutOutput) {
-    return stdoutOutput;
-  }
-
-  return "No command output.";
-}
-
 function formatCommandFailure(
   command: string,
   argumentsList: string[],
-  commandResult: GitCommandResult,
+  result: GitCommandResult,
 ): string {
-  return `${formatCommand(command, argumentsList)} (exit ${commandResult.code})\n${getCommandOutput(commandResult)}`;
+  const stderrOutput = result.stderr.trim();
+  const stdoutOutput = result.stdout.trim();
+  const output = stderrOutput || stdoutOutput || "No command output.";
+  return `${formatCommand(command, argumentsList)} (exit ${result.code})\n${output}`;
 }
 
 export async function executeCommand(
@@ -53,24 +42,24 @@ export async function executeCommandOrThrow(
   argumentsList: string[],
   actionDescription: string,
 ): Promise<GitCommandResult> {
-  const commandResult = await executeCommand(context, command, argumentsList);
-  if (commandResult.code !== 0) {
+  const result = await executeCommand(context, command, argumentsList);
+  if (result.code !== 0) {
     throw new Error(
-      `${actionDescription}\n${formatCommandFailure(command, argumentsList, commandResult)}`,
+      `${actionDescription}\n${formatCommandFailure(command, argumentsList, result)}`,
     );
   }
-  return commandResult;
+  return result;
 }
 
 export async function resolvePreferredRemoteName(context: CommandContext): Promise<string> {
-  const commandResult = await executeCommandOrThrow(
+  const result = await executeCommandOrThrow(
     context,
     "git",
     ["remote"],
     "Failed to list git remotes.",
   );
 
-  const remoteNames = commandResult.stdout
+  const remoteNames = result.stdout
     .split(/\r?\n/)
     .map((remoteName) => remoteName.trim())
     .filter(Boolean);
@@ -80,7 +69,6 @@ export async function resolvePreferredRemoteName(context: CommandContext): Promi
       "No git remotes found. Add a remote (for example: origin) before using code_diff.",
     );
   }
-
   if (remoteNames.includes("origin")) {
     return "origin";
   }
@@ -92,18 +80,15 @@ export async function resolveLocalCommit(
   context: CommandContext,
   reference: string,
 ): Promise<string | null> {
-  const commandResult = await executeCommand(context, "git", [
+  const result = await executeCommand(context, "git", [
     "rev-parse",
     "--verify",
     "--quiet",
     `${reference}^{commit}`,
   ]);
 
-  if (commandResult.code !== 0) {
-    return null;
-  }
-
-  const resolvedCommitHash = commandResult.stdout.trim();
+  if (result.code !== 0) return null;
+  const resolvedCommitHash = result.stdout.trim();
   return resolvedCommitHash ? resolvedCommitHash : null;
 }
 
@@ -133,7 +118,6 @@ export async function resolveHashCommit(
   }
 
   await fetchFromRemote(context, remoteName, hashInput, `${hashLabel} ${hashInput}`);
-
   const fetchedCommitHash =
     (await resolveLocalCommit(context, hashInput)) ??
     (await resolveLocalCommit(context, "FETCH_HEAD"));
@@ -146,14 +130,14 @@ export async function resolveHashCommit(
 }
 
 export async function getGithubRepoWithOwner(context: CommandContext): Promise<string> {
-  const commandResult = await executeCommandOrThrow(
+  const result = await executeCommandOrThrow(
     context,
     "gh",
     ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
     "Failed to resolve GitHub repository with gh. Ensure gh is installed and authenticated.",
   );
 
-  const repoWithOwner = commandResult.stdout.trim();
+  const repoWithOwner = result.stdout.trim();
   if (!repoWithOwner) {
     throw new Error("gh returned empty repository metadata for current working directory.");
   }
@@ -166,7 +150,7 @@ export async function getPrNumstatLines(
   repoWithOwner: string,
   prNumber: number,
 ): Promise<string[]> {
-  const commandResult = await executeCommandOrThrow(
+  const result = await executeCommandOrThrow(
     context,
     "gh",
     [
@@ -179,19 +163,19 @@ export async function getPrNumstatLines(
     `Failed to fetch file summary for PR #${prNumber} with gh.`,
   );
 
-  return commandResult.stdout
+  return result.stdout
     .split(/\r?\n/)
     .map((lineText) => lineText.trim())
     .filter(Boolean);
 }
 
 export async function getPrPatch(context: CommandContext, prNumber: number): Promise<string> {
-  const commandResult = await executeCommandOrThrow(
+  const result = await executeCommandOrThrow(
     context,
     "gh",
     ["pr", "diff", String(prNumber), "--color", "never", "--patch"],
     `Failed to fetch patch for PR #${prNumber} with gh.`,
   );
 
-  return commandResult.stdout;
+  return result.stdout;
 }

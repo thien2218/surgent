@@ -14,7 +14,7 @@ export type SelectEntry<TData = unknown> = SelectItem & {
 type Options<TData = unknown> = {
   title: string;
   items: SelectEntry<TData>[];
-  addLabel: string;
+  addLabel?: string;
   maxVisibleRows?: number;
   canDelete?: (item: SelectEntry<TData>) => boolean;
 };
@@ -27,7 +27,7 @@ export class ExtendedSelectList<TData = unknown> extends Frame {
   onCancel?: () => void;
 
   private readonly title: string;
-  private readonly items: [SelectItem, ...SelectEntry<TData>[]];
+  private readonly items: [SelectItem, ...SelectEntry<TData>[]] | SelectEntry<TData>[];
   private readonly canDeleteItem: (item: SelectEntry<TData>) => boolean;
 
   private selectList: SelectList;
@@ -41,7 +41,8 @@ export class ExtendedSelectList<TData = unknown> extends Frame {
     super(theme);
 
     this.title = options.title;
-    this.items = [{ value: "__add__", label: `[${options.addLabel}]` }, ...options.items];
+    this.items = options.items;
+    if (options.addLabel) this.items.unshift({ value: "__add__", label: `[${options.addLabel}]` });
     this.canDeleteItem = options.canDelete ?? (() => true);
 
     this.selectList = new SelectList(this.items, options.maxVisibleRows ?? 7, getSelectListTheme());

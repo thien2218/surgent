@@ -30,6 +30,39 @@ export async function saveSubsession(id: string, entry: SubsessionMeta) {
   await writeJson(STORE_FILE, subsessions);
 }
 
+export async function loadSubsessionOutput(cwd: string, id: string): Promise<string> {
+  try {
+    const sessions = await SessionManager.list(cwd, getPiPath("subsessionsDir"));
+    const matchedSession = sessions.find((session) => session.id === id);
+    if (!matchedSession) return "";
+
+    const sessionManager = SessionManager.open(
+      matchedSession.path,
+      getPiPath("subsessionsDir"),
+      cwd,
+    );
+    const branchEntries = sessionManager.getBranch();
+
+    for (let entryIndex = branchEntries.length - 1; entryIndex >= 0; entryIndex -= 1) {
+      const branchEntry = branchEntries[entryIndex];
+      if (!branchEntry || branchEntry.type !== "message") continue;
+
+      const message = branchEntry.message;
+      if (message.role !== "assistant") continue;
+
+      for (let idx = message.content.length - 1; idx >= 0; idx -= 1) {
+        const contentPart = message.content[idx] as { type?: unknown; text?: unknown };
+        if (contentPart.type === "text" && typeof contentPart.text === "string") {
+          return contentPart.text;
+        }
+      }
+    }
+    return "";
+  } catch {
+    return "";
+  }
+}
+
 export async function terminateSubsession(cwd: string, id: string) {
   await loadStore();
   delete subsessions[id];

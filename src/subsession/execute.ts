@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { findSubsession, resolveRuntime, saveSubsession } from "./storage.js";
+import { findSubsession, loadSubsessionOutput, resolveRuntime, saveSubsession } from "./storage.js";
 import { createJsonLineParser } from "./parser.js";
 import {
   createErrorResult,
@@ -206,6 +206,7 @@ export default async function runSubsession(
       params.title = existing.title;
       params.result.id = request.id;
       params.result.usage = existing.usage;
+      params.result.output = await loadSubsessionOutput(process.cwd(), request.id);
     }
   } else {
     params.title = request.input.trim() || "Untitled";

@@ -1,8 +1,7 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { SubsessionRequest, Subsession } from "../subsession/types.js";
 import { runSubsession, renderSnapshotWidget } from "../subsession/index.js";
-import { applyCurrentModel, runSubsessionLoop } from "./helpers.js";
-import { pickSubsessionId } from "./storage.js";
+import { applyCurrentModel, runSubsessionLoop, pickSubsessionId } from "./helpers.js";
 import { isUuidv7 } from "../utils.js";
 
 const PLAN_AGENT = "planner";

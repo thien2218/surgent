@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { AgentMode } from "../permission/types.js";
 import { resolveInteractionHandoff } from "../subsession/index.js";
-import type { Subsession, SubsessionLabel, SubsessionRequest } from "../subsession/types.js";
+import type { Subsession, SubsessionRequest } from "../subsession/types.js";
 import { terminateSubsession } from "../subsession/storage.js";
 import {
   ActionSelectList,
@@ -10,6 +10,10 @@ import {
 } from "../ui/components/action-select-list.js";
 import { ScrollableView } from "../ui/components/scrollable-view.js";
 import { MODE_ENTRY } from "./index.js";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { StoredSubsessions } from "../subsession/types.js";
+import { ExtendedSelectList, type SelectEntry } from "../ui/components/extended-select-list.js";
+import { getPiPath, readJson } from "../utils.js";
 
 type LoopAction =
   | { kind: "forward"; mode: AgentMode }
@@ -147,4 +151,53 @@ export function applyCurrentModel(ctx: ExtensionCommandContext, request: Subsess
   if (!ctx.model) return;
   const { id, provider } = ctx.model;
   request.modelId = id.includes("/") ? id : `${provider}/${id}`;
+}
+
+export async function pickSubsessionId(
+  ctx: ExtensionContext,
+  pid: string,
+  label: "plan" | "review",
+): Promise<string | null> {
+  const store = await readJson<StoredSubsessions>(getPiPath("subsessions", ctx.cwd), {});
+  const previews: { subsessionId: string; title: string }[] = [];
+
+  for (const [subsessionId, metadata] of Object.entries(store)) {
+    if (metadata.label === label && metadata.pid === pid) {
+      previews.push({ subsessionId, title: metadata.title });
+    }
+  }
+
+  if (previews.length === 0) {
+    ctx.ui.notify(`No stored ${label} sessions`, "warning");
+    return null;
+  }
+
+  const items: SelectEntry<{ subsessionId: string }>[] = previews.map((preview) => ({
+    value: preview.subsessionId,
+    label: preview.title,
+    description: preview.subsessionId,
+    data: { subsessionId: preview.subsessionId },
+  }));
+
+  return ctx.ui.custom<string | null>((_tui, theme, keybindings, done) => {
+    const selectList = new ExtendedSelectList<{ subsessionId: string }>(keybindings, theme, {
+      title: `Reopen ${label} session`,
+      addLabel: "Cancel",
+      items,
+      maxVisibleRows: 12,
+    });
+
+    selectList.onAdd = () => done(null);
+    selectList.onCancel = () => done(null);
+    selectList.onSelect = (item) => done(item.data?.subsessionId ?? null);
+    selectList.onDelete = (item) => {
+      const subsessionId = item.data?.subsessionId;
+      if (!subsessionId) return;
+      terminateSubsession(ctx.cwd, subsessionId)
+        .then(() => ctx.ui.notify(`Deleted ${label} session`, "info"))
+        .catch(() => ctx.ui.notify(`Failed to delete ${label} session`, "error"));
+    };
+
+    return selectList;
+  });
 }

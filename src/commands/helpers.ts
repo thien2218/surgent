@@ -175,19 +175,16 @@ export async function pickSubsessionId(
   const items: SelectEntry<{ subsessionId: string }>[] = previews.map((preview) => ({
     value: preview.subsessionId,
     label: preview.title,
-    description: preview.subsessionId,
     data: { subsessionId: preview.subsessionId },
   }));
 
   return ctx.ui.custom<string | null>((_tui, theme, keybindings, done) => {
     const selectList = new ExtendedSelectList<{ subsessionId: string }>(keybindings, theme, {
       title: `Reopen ${label} session`,
-      addLabel: "Cancel",
       items,
       maxVisibleRows: 12,
     });
 
-    selectList.onAdd = () => done(null);
     selectList.onCancel = () => done(null);
     selectList.onSelect = (item) => done(item.data?.subsessionId ?? null);
     selectList.onDelete = (item) => {

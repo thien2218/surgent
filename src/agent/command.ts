@@ -1,5 +1,4 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { type SelectItem, SelectList, Spacer } from "@earendil-works/pi-tui";
 import { exec } from "node:child_process";
 import { spawn } from "node:child_process";
 import { promisify } from "node:util";
@@ -11,9 +10,9 @@ import {
   loadAgents,
   writeSessionAgent,
 } from "./storage.js";
-import { Frame } from "../ui/components/frame.js";
+import { ExtendedSelectList, type SelectEntry } from "../ui/components/extended-select-list.js";
 import { ScopedInput } from "../ui/components/scoped-input.js";
-import { customText, getPiPath } from "../utils.js";
+import { getPiPath } from "../utils.js";
 
 const execAsync = promisify(exec);
 
@@ -38,48 +37,35 @@ async function showAgentPicker(
   ctx: ExtensionCommandContext,
   agents: Agent[],
 ): Promise<string | null> {
-  const items: SelectItem[] = [
-    { value: "__new__", label: "[Create new agent]" },
-    ...agents.map((agent) => ({
-      value: agent.name,
-      label: isBuiltIn(agent.filePath) ? `${agent.name} (built-in)` : agent.name,
-      description: agent.meta.description,
-    })),
-  ];
+  const items: SelectEntry<Agent>[] = agents.map((agent) => ({
+    value: agent.name,
+    label: isBuiltIn(agent.filePath) ? `${agent.name} (built-in)` : agent.name,
+    description: agent.meta.description,
+    data: agent,
+  }));
 
-  return ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
-    const frame = new Frame(theme);
-    frame.getHints = () => [
-      ["↑↓", "navigate"],
-      ["enter", "select"],
-      ["esc", "cancel"],
-    ];
-
-    const list = new SelectList(items, Math.min(items.length, 12), {
-      selectedPrefix: (text) => theme.fg("accent", text),
-      selectedText: (text) => theme.fg("accent", text),
-      description: (text) => theme.fg("muted", text),
-      scrollInfo: (text) => theme.fg("dim", text),
-      noMatch: (text) => theme.fg("warning", text),
+  return ctx.ui.custom<string | null>((_tui, theme, keybindings, done) => {
+    const selectList = new ExtendedSelectList(keybindings, theme, {
+      title: "Agents",
+      addLabel: "Create new agent",
+      items,
+      maxVisibleRows: Math.min(items.length + 1, 12),
+      canDelete: (item) => !isBuiltIn(item.data.filePath),
     });
-    list.onSelect = (item) => done(item.value);
-    list.onCancel = () => done(null);
 
-    frame.addCustom(customText(theme.bold("Agents")));
-    frame.addCustom(new Spacer());
-    frame.addCustom(list);
+    selectList.onAdd = () => done("__new__");
+    selectList.onSelect = (item) => done(String(item.value));
+    selectList.onCancel = () => done(null);
+    selectList.onDeleteBlocked = () => ctx.ui.notify("Built-in agent cannot be deleted", "error");
 
-    return {
-      render: (width) => frame.render(width),
-      invalidate: () => {
-        frame.invalidate();
-        list.invalidate();
-      },
-      handleInput: (data) => {
-        list.handleInput(data);
-        tui.requestRender();
-      },
+    selectList.onDelete = (item) => {
+      const agentName = item.data?.name ?? String(item.value);
+      void deleteAgentFiles(agentName, ctx.cwd)
+        .then(() => ctx.ui.notify(`Agent "${agentName}" deleted`, "info"))
+        .catch(() => ctx.ui.notify(`Failed to delete agent "${agentName}"`, "error"));
     };
+
+    return selectList;
   });
 }
 

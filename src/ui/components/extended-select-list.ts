@@ -8,7 +8,7 @@ import { Frame } from "./frame.js";
 import { Lines } from "./lines.js";
 
 export type SelectEntry<TData = unknown> = SelectItem & {
-  data: TData;
+  data?: TData;
 };
 
 type Options<TData = unknown> = {

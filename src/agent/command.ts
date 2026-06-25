@@ -10,7 +10,7 @@ import {
   loadAgents,
   writeSessionAgent,
 } from "./storage.js";
-import { ExtendedSelectList, type SelectEntry } from "../ui/components/extended-select-list.js";
+import { ExtendedSelectList } from "../ui/components/extended-select-list.js";
 import { ScopedInput } from "../ui/components/scoped-input.js";
 import { getPiPath } from "../utils.js";
 
@@ -37,7 +37,7 @@ async function showAgentPicker(
   ctx: ExtensionCommandContext,
   agents: Agent[],
 ): Promise<string | null> {
-  const items: SelectEntry<Agent>[] = agents.map((agent) => ({
+  const items = agents.map((agent) => ({
     value: agent.name,
     label: isBuiltIn(agent.filePath) ? `${agent.name} (built-in)` : agent.name,
     description: agent.meta.description,
@@ -50,7 +50,7 @@ async function showAgentPicker(
       addLabel: "Create new agent",
       items,
       maxVisibleRows: Math.min(items.length + 1, 12),
-      canDelete: (item) => !isBuiltIn(item.data.filePath),
+      canDelete: (item) => item.data !== undefined && !isBuiltIn(item.data.filePath),
     });
 
     selectList.onAdd = () => done("__new__");

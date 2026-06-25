@@ -125,16 +125,13 @@ export class ActionSelectList implements Component, Focusable {
       this.submitInputSelection();
       return;
     }
-
     this.customInput.handleInput(data);
   }
 
   private commitCurrentSelection() {
     if (!this.isInputRowSelected()) {
       const selectedOption = this.options[this.cursor];
-      if (!selectedOption) {
-        return;
-      }
+      if (!selectedOption) return;
       this.onSubmit?.({
         type: "option",
         value: selectedOption.value,

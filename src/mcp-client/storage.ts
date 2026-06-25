@@ -7,18 +7,24 @@ import type {
   StdioMcpServerConfig,
 } from "./types.js";
 
-export async function upsertServerConfig(
+type Action = { kind: "delete" } | { kind: "upsert"; config: McpServerConfig };
+
+export async function updateServerConfig(
   path: string,
   name: string,
-  serverConfig: McpServerConfig,
-): Promise<{ path: string; replaced: boolean }> {
+  action: Action,
+): Promise<{ path: string; updated: boolean }> {
   const mcpServers = await readConfigFile(path);
-  const replaced = Object.hasOwn(mcpServers, name);
+  const updated = Object.hasOwn(mcpServers, name);
 
-  mcpServers[name] = normalizeServerConfig(name, serverConfig);
+  if (action.kind === "upsert") {
+    mcpServers[name] = normalizeServerConfig(name, action.config);
+  } else {
+    delete mcpServers[name];
+  }
   await writeFile(path, `${JSON.stringify({ mcpServers }, null, 2)}\n`, "utf8");
 
-  return { path, replaced };
+  return { path, updated };
 }
 
 export async function loadMcpConfigSet(cwd: string): Promise<ResolvedMcpServerConfig[]> {

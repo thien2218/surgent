@@ -4,7 +4,7 @@ import {
   loadMcpConfigSet,
   normalizeServerConfig,
   readConfigFile,
-  upsertServerConfig,
+  updateServerConfig,
 } from "./storage.js";
 import type { McpServerConfig, McpTransport, ResolvedMcpServerConfig } from "./types.js";
 import { customText, getPiPath } from "../utils.js";
@@ -41,26 +41,32 @@ async function showMcpOptions(ctx: ExtensionCommandContext): Promise<"add" | "ca
 
   return ctx.ui.custom<"add" | "cancel">((tui, theme, keybindings, done) => {
     let isPending = false;
-    const extendedSelectList = new ExtendedSelectList<ResolvedMcpServerConfig>(keybindings, theme, {
+    const selectList = new ExtendedSelectList<ResolvedMcpServerConfig>(keybindings, theme, {
       title: "MCP servers",
       addLabel: "Add MCP server",
       items,
       maxVisibleRows: 12,
     });
 
-    extendedSelectList.onAdd = () => done("add");
-    extendedSelectList.onSelect = (item) => {
+    const handleServer = (
+      item: SelectEntry<ResolvedMcpServerConfig>,
+      handler: typeof toggleMcpServer,
+    ) => {
       if (!item.data || isPending) return;
       isPending = true;
-      void toggleMcpServer(ctx, item).finally(() => {
+      handler(ctx, item).finally(() => {
         isPending = false;
-        extendedSelectList.invalidate();
+        selectList.invalidate();
         tui.requestRender();
       });
     };
-    extendedSelectList.onCancel = () => done("cancel");
 
-    return extendedSelectList;
+    selectList.onAdd = () => done("add");
+    selectList.onSelect = (item) => handleServer(item, toggleMcpServer);
+    selectList.onDelete = (item) => handleServer(item, deleteMcpServer);
+    selectList.onCancel = () => done("cancel");
+
+    return selectList;
   });
 }
 
@@ -79,25 +85,36 @@ async function toggleMcpServer(
   const server = item.data;
   if (!server) return;
 
-  const { name: _name, scope: _scope, sourcePath: _sourcePath, ...config } = server;
+  const { name, scope, sourcePath, ...config } = server;
   const nextEnabledState = !server.enabled;
-  const updatedServerConfig: McpServerConfig = { ...config, enabled: nextEnabledState };
+  const updatedConfig: McpServerConfig = { ...config, enabled: nextEnabledState };
 
   try {
-    const upsertResult = await upsertServerConfig(
-      server.sourcePath,
-      server.name,
-      updatedServerConfig,
-    );
-
+    await updateServerConfig(sourcePath, name, { config: updatedConfig, kind: "upsert" });
     const updatedServer = { ...server, enabled: nextEnabledState };
     item.data = updatedServer;
     item.description = describeEnabledState(updatedServer);
-
-    const statusLabel = nextEnabledState ? "enabled" : "disabled";
-    ctx.ui.notify(`MCP server ${server.name} ${statusLabel} (${upsertResult.path}).`, "info");
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Failed to update MCP server";
+    ctx.ui.notify(errorMessage, "error");
+  }
+}
+
+async function deleteMcpServer(
+  ctx: ExtensionCommandContext,
+  item: SelectEntry<ResolvedMcpServerConfig>,
+) {
+  const server = item.data;
+  if (!server) return;
+
+  try {
+    const result = await updateServerConfig(server.sourcePath, server.name, { kind: "delete" });
+    if (!result.updated) {
+      ctx.ui.notify(`MCP server ${server.name} no longer exists in ${result.path}.`, "warning");
+      return;
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Failed to delete MCP server";
     ctx.ui.notify(errorMessage, "error");
   }
 }
@@ -136,18 +153,18 @@ async function handleSaveFlow(ctx: ExtensionCommandContext) {
   const transportType = await ctx.ui.select("Server type", ["Remote", "Local"]);
   const transport = transportType === "Remote" ? "http" : "stdio";
 
-  const serverConfig = await promptServerConfigJson(ctx, transport, name, configuredServers[name]);
-  if (!serverConfig) return;
+  const config = await promptServerConfig(ctx, transport, name, configuredServers[name]);
+  if (!config) return;
 
   const path = getPiPath("mcp", scope === "project" ? ctx.cwd : scope);
-  const upsertResult = await upsertServerConfig(path, name, serverConfig);
+  const upsertResult = await updateServerConfig(path, name, { config, kind: "upsert" });
   ctx.ui.notify(
-    `${upsertResult.replaced ? "Updated" : "Saved"} MCP server ${name} ${scope}ly (${upsertResult.path}).`,
+    `${upsertResult.updated ? "Updated" : "Saved"} MCP server ${name} ${scope}ly (${upsertResult.path}).`,
     "info",
   );
 }
 
-async function promptServerConfigJson(
+async function promptServerConfig(
   ctx: ExtensionCommandContext,
   transport: McpTransport,
   name: string,
@@ -194,19 +211,18 @@ async function promptServerConfigJson(
 }
 
 function buildConfigTemplate(transport: McpTransport): string {
-  const template =
-    transport === "http"
-      ? {
-          url: "https://mcp.example.com/",
-          description: "This field is useful for telling agent when it should use an MCP",
-          headers: {},
-        }
-      : {
-          command: "npx",
-          description: "This field is useful for telling agent when it should use an MCP",
-          args: ["-y", "@modelcontextprotocol/server-filesystem", "."],
-          env: {},
-        };
+  const httpExample = {
+    url: "https://mcp.example.com/",
+    description: "This field is useful for telling agent when it should use an MCP",
+    headers: {},
+  };
+  const stdioExample = {
+    command: "npx",
+    description: "This field is useful for telling agent when it should use an MCP",
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "."],
+    env: {},
+  };
+  const template = transport === "http" ? httpExample : stdioExample;
 
   return JSON.stringify(template, null, 2);
 }

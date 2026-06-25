@@ -8,7 +8,7 @@ export default function mcpClientExtension(pi: ExtensionAPI) {
   const clientManager = new McpClientManager();
 
   pi.registerCommand("mcp", {
-    description: "Save MCP server configs, list local/global configs, and show configured MCP JSON",
+    description: "Manage MCP servers: add new server and toggle enabled state",
     handler: mcpConfigCommandHandler,
   });
 

@@ -7,49 +7,99 @@ import {
   upsertServerConfig,
 } from "./storage.js";
 import type { McpServerConfig, McpTransport, ResolvedMcpServerConfig } from "./types.js";
-import { customText, getPiPath, tokenizeArgs } from "../utils.js";
+import { customText, getPiPath } from "../utils.js";
+import { ExtendedSelectList, type SelectEntry } from "../ui/components/extended-select-list.js";
 import { Frame } from "../ui/components/frame.js";
 import { PlaceholderInput } from "../ui/components/placeholder-input.js";
 import { ScopedInput } from "../ui/components/scoped-input.js";
 
-const ACTIONS = ["save", "show"] as const;
-type McpCommandAction = (typeof ACTIONS)[number];
-
 export async function mcpConfigCommandHandler(args: string, ctx: ExtensionCommandContext) {
-  const [actionToken, argToken] = tokenizeArgs(args);
-  const action =
-    actionToken && ACTIONS.includes(actionToken as McpCommandAction) ? actionToken : undefined;
-
-  if (actionToken && !action) {
-    ctx.ui.notify(
-      `Unknown MCP action "${actionToken}". Supported actions: ${ACTIONS.join(", ")}.`,
-      "error",
-    );
+  if (args.trim().length > 0) {
+    ctx.ui.notify("Usage: /mcp (no arguments)", "error");
+    return;
+  }
+  if (!ctx.hasUI) {
+    ctx.ui.notify("/mcp requires an interactive UI.", "error");
     return;
   }
 
-  const selectedAction = !ctx.hasUI ? "show" : (action ?? (await selectAction(ctx)));
-
-  if (!selectedAction) return;
-  if (selectedAction === "save") {
+  while (true) {
+    const action = await showMcpOptions(ctx);
+    if (action === "cancel") return;
     await handleSaveFlow(ctx);
-    return;
   }
-  await showConfiguredMcpJson(ctx, argToken);
 }
 
-async function selectAction(ctx: ExtensionCommandContext): Promise<McpCommandAction | undefined> {
-  const selected = await ctx.ui.select("MCP configuration", [
-    "Save MCP server",
-    "Show configured MCPs",
-  ]);
+async function showMcpOptions(ctx: ExtensionCommandContext): Promise<"add" | "cancel"> {
+  const configuredServers = await loadMcpConfigSet(ctx.cwd);
+  const items = configuredServers.map((server) => ({
+    value: server.name,
+    label: `${server.name} [${server.scope}]`,
+    description: describeEnabledState(server),
+    data: server,
+  }));
 
-  if (!selected) {
-    return undefined;
+  return ctx.ui.custom<"add" | "cancel">((tui, theme, keybindings, done) => {
+    let isPending = false;
+    const extendedSelectList = new ExtendedSelectList<ResolvedMcpServerConfig>(keybindings, theme, {
+      title: "MCP servers",
+      addLabel: "Add MCP server",
+      items,
+      maxVisibleRows: 12,
+    });
+
+    extendedSelectList.onAdd = () => done("add");
+    extendedSelectList.onSelect = (item) => {
+      if (!item.data || isPending) return;
+      isPending = true;
+      void toggleMcpServer(ctx, item).finally(() => {
+        isPending = false;
+        extendedSelectList.invalidate();
+        tui.requestRender();
+      });
+    };
+    extendedSelectList.onCancel = () => done("cancel");
+
+    return extendedSelectList;
+  });
+}
+
+function describeEnabledState(server: ResolvedMcpServerConfig): string {
+  const statusLabel = server.enabled ? "Enabled" : "Disabled";
+  if (!server.description) {
+    return statusLabel;
   }
+  return `${statusLabel} • ${server.description}`;
+}
 
-  const token = selected.split(" ")[0]!.toLowerCase() as McpCommandAction;
-  return token;
+async function toggleMcpServer(
+  ctx: ExtensionCommandContext,
+  item: SelectEntry<ResolvedMcpServerConfig>,
+) {
+  const server = item.data;
+  if (!server) return;
+
+  const { name: _name, scope: _scope, sourcePath: _sourcePath, ...config } = server;
+  const nextEnabledState = !server.enabled;
+  const updatedServerConfig: McpServerConfig = { ...config, enabled: nextEnabledState };
+
+  try {
+    const upsertResult = await upsertServerConfig(
+      server.sourcePath,
+      server.name,
+      updatedServerConfig,
+    );
+
+    const updatedServer = { ...server, enabled: nextEnabledState };
+    item.data = updatedServer;
+    item.description = describeEnabledState(updatedServer);
+
+    const statusLabel = nextEnabledState ? "enabled" : "disabled";
+    ctx.ui.notify(`MCP server ${server.name} ${statusLabel} (${upsertResult.path}).`, "info");
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Failed to update MCP server";
+    ctx.ui.notify(errorMessage, "error");
+  }
 }
 
 async function handleSaveFlow(ctx: ExtensionCommandContext) {
@@ -95,56 +145,6 @@ async function handleSaveFlow(ctx: ExtensionCommandContext) {
     `${upsertResult.replaced ? "Updated" : "Saved"} MCP server ${name} ${scope}ly (${upsertResult.path}).`,
     "info",
   );
-}
-
-async function showConfiguredMcpJson(ctx: ExtensionCommandContext, configuredMcpName?: string) {
-  const servers = await loadMcpConfigSet(ctx.cwd);
-  const targetServer = configuredMcpName
-    ? servers.find((server) => server.name === configuredMcpName)
-    : await selectConfiguredMcp(ctx, servers);
-
-  if (!targetServer) {
-    const message = configuredMcpName
-      ? `No MCP server named ${configuredMcpName} is configured.`
-      : "No MCP servers configured.";
-    ctx.ui.notify(message, "warning");
-    return;
-  }
-
-  await ctx.ui.editor(
-    `Configured MCP JSON: ${targetServer.name}`,
-    JSON.stringify(stripResolvedMetadata(targetServer), null, 2),
-  );
-}
-
-async function selectConfiguredMcp(
-  ctx: ExtensionCommandContext,
-  servers: ResolvedMcpServerConfig[],
-): Promise<ResolvedMcpServerConfig | undefined> {
-  if (servers.length === 0) {
-    return undefined;
-  }
-
-  if (!ctx.hasUI) {
-    return servers[0];
-  }
-
-  const options = servers.map((server) => formatServerOption(server));
-  const selected = await ctx.ui.select("Choose configured MCP", options);
-  if (!selected) {
-    return undefined;
-  }
-
-  return servers.find((server) => formatServerOption(server) === selected);
-}
-
-function formatServerOption(server: ResolvedMcpServerConfig): string {
-  return `${server.name} [${server.scope}]`;
-}
-
-function stripResolvedMetadata(server: ResolvedMcpServerConfig): McpServerConfig {
-  const { name: _name, scope: _scope, sourcePath: _sourcePath, ...config } = server;
-  return config;
 }
 
 async function promptServerConfigJson(

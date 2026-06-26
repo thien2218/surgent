@@ -178,7 +178,9 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
     .map((cfg) => (cfg.description ? `- ${cfg.name} - ${cfg.description}` : `- ${cfg.name}`));
   const appendContent = lines.length > 0 ? `## Enabled MCP Servers\n${lines.join("\n")}\n` : "";
 
-  await writeFile(getPiPath("appendSystem", ctx.cwd), appendContent, "utf8");
+  if (appendContent) {
+    await writeFile(getPiPath("appendSystem", ctx.cwd), appendContent, "utf8");
+  }
   await writeFile(getPiPath("system"), body, "utf8");
   return meta;
 }

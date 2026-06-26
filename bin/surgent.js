@@ -2,7 +2,8 @@
 
 import { main } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,6 +14,86 @@ const args = process.argv.slice(2);
 const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLEAR_SCREEN = "\x1b[H\x1b[2J\x1b[3J";
 const NON_EXTENSION_DIRS = new Set(["subsession"]);
+
+function isMissingFileError(error) {
+  return Boolean(error) && typeof error === "object" && "code" in error && error.code === "ENOENT";
+}
+
+async function getGitExcludePath(cwd) {
+  try {
+    const excludePath = (
+      await new Promise((resolveOutput, rejectOutput) => {
+        let stdout = "";
+        const childProcess = spawn(
+          process.platform === "win32" ? "git.cmd" : "git",
+          ["rev-parse", "--git-path", "info/exclude"],
+          { cwd, env: process.env, stdio: ["ignore", "pipe", "ignore"] },
+        );
+
+        childProcess.stdout.on("data", (chunk) => {
+          stdout += chunk.toString();
+        });
+
+        childProcess.on("error", (error) => {
+          rejectOutput(error);
+        });
+
+        childProcess.on("close", (exitCode) => {
+          if (exitCode === 0) {
+            resolveOutput(stdout);
+            return;
+          }
+          rejectOutput(new Error("Git exclude path resolution failed."));
+        });
+      })
+    ).trim();
+
+    if (!excludePath) return undefined;
+    return resolve(cwd, excludePath);
+  } catch (error) {
+    return undefined;
+  }
+}
+
+async function ensurePiExcluded(cwd) {
+  const excludePath = await getGitExcludePath(cwd);
+  if (!excludePath) return;
+
+  let excludeContents = "";
+  try {
+    excludeContents = await readFile(excludePath, "utf8");
+  } catch (error) {
+    if (!isMissingFileError(error)) return;
+  }
+
+  const existingPatterns = excludeContents.split(/\r?\n/).map((line) => line.trim());
+  if (existingPatterns.includes(".pi")) return;
+
+  const separator = excludeContents.length > 0 && !excludeContents.endsWith("\n") ? "\n" : "";
+  await writeFile(excludePath, `${excludeContents}${separator}.pi\n`);
+}
+
+async function syncPiIgnore(cwd) {
+  const piIgnorePath = resolve(cwd, ".piignore");
+  try {
+    await readFile(piIgnorePath, "utf8");
+    return;
+  } catch (error) {
+    if (!isMissingFileError(error)) return;
+  }
+
+  if (existsSync(resolve(cwd, ".pi"))) return;
+  const gitIgnorePath = resolve(cwd, ".gitignore");
+  let gitIgnoreContents = "";
+
+  try {
+    gitIgnoreContents = await readFile(gitIgnorePath, "utf8");
+  } catch (error) {
+    return;
+  }
+
+  await writeFile(piIgnorePath, gitIgnoreContents);
+}
 
 function isJsonModeActive(args) {
   for (let i = 0; i < args.length - 1; i++) {
@@ -100,7 +181,12 @@ if (args.includes("--help") || args.includes("-h")) {
   await runRewrittenHelp(args);
 } else {
   if (!isJsonModeActive(args)) {
+    const cwd = process.cwd();
+    await ensurePiExcluded(cwd);
+    await syncPiIgnore(cwd);
+    await mkdir(resolve(cwd, ".pi"), { recursive: true });
     await setupGlobalConfig();
+
     process.stdout.write(CLEAR_SCREEN);
     process.on("exit", (code) => {
       if (code === 0) process.stdout.write(CLEAR_SCREEN);

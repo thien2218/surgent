@@ -1,23 +1,16 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, "..");
-const gitIgnorePath = resolve(projectRoot, ".gitignore");
-const piIgnorePath = resolve(projectRoot, ".piignore");
-const localPiDirPath = resolve(projectRoot, ".pi");
 
 async function main() {
   process.chdir(projectRoot);
-
-  console.log("Adding .pi to git exclude file...");
-  await ensurePiExcluded();
 
   console.log("Installing dependencies...");
   await installDependencies();
@@ -25,70 +18,8 @@ async function main() {
   console.log("Linking package with npm link...");
   await runCommand("npm", ["link"]);
 
-  console.log("Syncing .piignore from .gitignore...");
-  await syncPiIgnore();
-
-  console.log("Ensuring existence of local .pi/ and global ~/.pi/agent/ dirs");
-  await ensurePiDirs();
-}
-
-async function ensurePiExcluded() {
-  let excludeContents = "";
-  const excludePath = await getGitExcludePath();
-  await mkdir(dirname(excludePath), { recursive: true });
-
-  try {
-    excludeContents = await readFile(excludePath, "utf8");
-  } catch (error) {
-    if (!isMissingFileError(error)) {
-      throw error;
-    }
-  }
-
-  const existingPatterns = excludeContents.split(/\r?\n/).map((line) => line.trim());
-
-  if (existingPatterns.includes(".pi")) {
-    return;
-  }
-
-  const separator = excludeContents.length > 0 && !excludeContents.endsWith("\n") ? "\n" : "";
-  await writeFile(excludePath, `${excludeContents}${separator}.pi\n`);
-}
-
-async function getGitExcludePath() {
-  const excludePath = (
-    await new Promise((resolve, reject) => {
-      const childProcess = spawn(
-        resolveCommandName("git"),
-        ["rev-parse", "--git-path", "info/exclude"],
-        { cwd: projectRoot, env: process.env, stdio: ["inherit", "pipe", "inherit"] },
-      );
-
-      let stdout = "";
-
-      childProcess.stdout.on("data", (chunk) => {
-        stdout += chunk.toString();
-      });
-
-      childProcess.on("error", (error) => {
-        reject(error);
-      });
-
-      childProcess.on("close", (exitCode) => {
-        if (exitCode === 0) {
-          resolve(stdout);
-          return;
-        }
-        reject(new Error(`Command failed: ${commandName} ${commandArgs.join(" ")}`));
-      });
-    })
-  ).trim();
-
-  if (!excludePath) {
-    throw new Error("Could not resolve .git/info/exclude path.");
-  }
-
-  return resolve(projectRoot, excludePath);
+  console.log("Ensuring existence of global ~/.pi/agent/ dir");
+  await mkdir(resolve(homedir(), ".pi", "agent"), { recursive: true });
 }
 
 async function installDependencies() {
@@ -130,61 +61,27 @@ function isMissingCommandError(error, commandName) {
   return "missingCommandName" in error && error.missingCommandName === commandName;
 }
 
-async function runCommand(commandName, commandArgs) {
-  await new Promise((resolve, reject) => {
-    const childProcess = spawn(resolveCommandName(commandName), commandArgs, {
+async function runCommand(cmd, args) {
+  await new Promise((resolvePromise, rejectPromise) => {
+    const childProcess = spawn(process.platform === "win32" ? `${cmd}.cmd` : cmd, args, {
       cwd: projectRoot,
       env: process.env,
       stdio: "inherit",
     });
 
     childProcess.on("error", (error) => {
-      reject(error);
+      rejectPromise(error);
     });
 
     childProcess.on("close", (exitCode) => {
       if (exitCode === 0) {
-        resolve();
+        resolvePromise();
         return;
       }
 
-      reject(new Error(`Command failed: ${commandName} ${commandArgs.join(" ")}`));
+      rejectPromise(new Error(`Command failed: ${cmd} ${args.join(" ")}`));
     });
   });
-}
-
-function resolveCommandName(commandName) {
-  return process.platform === "win32" ? `${commandName}.cmd` : commandName;
-}
-
-async function syncPiIgnore() {
-  try {
-    await readFile(piIgnorePath, "utf8");
-    return;
-  } catch (error) {
-    if (!isMissingFileError(error)) {
-      throw error;
-    }
-  }
-
-  if (existsSync(localPiDirPath)) {
-    return;
-  }
-
-  const gitIgnoreContents = await readFile(gitIgnorePath, "utf8");
-  await writeFile(piIgnorePath, gitIgnoreContents);
-}
-
-async function ensurePiDirs() {
-  const globalAgentDirPath = resolve(homedir(), ".pi", "agent");
-  await Promise.all([
-    mkdir(localPiDirPath, { recursive: true }),
-    mkdir(globalAgentDirPath, { recursive: true }),
-  ]);
-}
-
-function isMissingFileError(error) {
-  return Boolean(error) && typeof error === "object" && "code" in error && error.code === "ENOENT";
 }
 
 main().catch((error) => {

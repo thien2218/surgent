@@ -1,9 +1,16 @@
 import type { ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { Key, matchesKey } from "@earendil-works/pi-tui";
 import type { Category, DisplayRule, FileAccess, PermissionRule } from "./types.js";
 import { getRulesForDisplay, addRule, readRules, writeRules } from "./storage.js";
 import PermissionRulesList from "./components/rules-list.js";
-import EditableOption from "./components/editable-option.js";
 import { Frame } from "../ui/components/frame.js";
+import { EditableOption } from "../ui/components/editable-option.js";
+import {
+  formatRuleOptionLabel,
+  getRuleExprPlaceholder,
+  cycleRuleScope,
+  cycleRuleValue,
+} from "./helpers.js";
 
 async function persistRules(
   ctx: ExtensionCommandContext,
@@ -55,14 +62,23 @@ export async function handlePermissionsCommand(ctx: ExtensionCommandContext) {
 
     await ctx.ui.custom<void>((tui, theme, keybindings, done) => {
       const frame = new Frame(theme);
-      const option = new EditableOption(tui, keybindings, theme, toAdd, true);
+      const option = new EditableOption(tui, keybindings, theme, {
+        label: formatRuleOptionLabel(toAdd.scope, toAdd.value),
+        mode: { type: "input", placeholder: getRuleExprPlaceholder(category), startEditing: true },
+      });
 
       option.focused = true;
-      option.onChange = (rule) =>
-        addRule(ctx.cwd, sessionId, rule.scope, category, rule.expr, rule.value)
+      option.onInputSubmit = (inputValue) => {
+        const nextExpr = inputValue.trim();
+        if (!nextExpr) return false;
+
+        toAdd.expr = nextExpr;
+        addRule(ctx.cwd, sessionId, toAdd.scope, category, toAdd.expr, toAdd.value)
           .then(done)
           .catch((error) => notifyError(ctx, error, done));
-      option.onCancel = done;
+        return true;
+      };
+      option.onInputCancel = done;
       frame.addCustom(option);
 
       return {
@@ -71,7 +87,19 @@ export async function handlePermissionsCommand(ctx: ExtensionCommandContext) {
           frame.invalidate();
           option.invalidate();
         },
-        handleInput: (data: string) => option.handleInput(data),
+        handleInput: (data: string) => {
+          if (matchesKey(data, Key.shift("tab"))) {
+            cycleRuleScope(toAdd);
+            option.setLabel(formatRuleOptionLabel(toAdd.scope, toAdd.value));
+            return;
+          }
+          if (matchesKey(data, Key.tab)) {
+            cycleRuleValue(toAdd);
+            option.setLabel(formatRuleOptionLabel(toAdd.scope, toAdd.value));
+            return;
+          }
+          option.handleInput(data);
+        },
       };
     });
   }

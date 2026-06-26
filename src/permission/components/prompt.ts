@@ -11,6 +11,7 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Frame } from "../../ui/components/frame.js";
 import { SCOPES } from "../constants.js";
 import { Lines } from "../../ui/components/lines.js";
+import { getScopeLabel } from "../helpers.js";
 
 type PromptOptions = {
   label: string;
@@ -24,10 +25,6 @@ const INIT_OPTIONS = [
   { label: "Yes", separator: ",", value: { allowed: true }, persists: false },
   { label: "No", separator: ",", value: { allowed: false }, persists: false },
 ];
-
-export function getScopeLabel(scope: Scope) {
-  return scope !== "always" ? `this ${scope}` : scope;
-}
 
 export default class PermissionPrompt extends Frame implements Focusable {
   private cursor: number = 0;
@@ -222,14 +219,14 @@ export default class PermissionPrompt extends Frame implements Focusable {
     if (this.expr) {
       this.options.push(
         {
-          label: `Yes, allow ${toolName} tool call [${scopeLabel}] for`,
+          label: `Yes, allow ${toolName} tool call ${scopeLabel} for`,
           defaultText: this.expr,
           separator: ":",
           value: { allowed: true },
           persists: true,
         },
         {
-          label: `No, disallow ${toolName} tool call [${scopeLabel}] for`,
+          label: `No, disallow ${toolName} tool call ${scopeLabel} for`,
           defaultText: this.expr,
           separator: ":",
           value: { allowed: false },

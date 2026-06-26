@@ -2,6 +2,54 @@ import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { AgentMode, PermissionCheck, PermissiveToolName } from "./types.js";
 import { PERMISSIVE_TOOLS, SUSPICIOUS_BASH_PATTERNS } from "./constants.js";
 import { MODE_ENTRY } from "../commands/index.js";
+import { SCOPES } from "./constants.js";
+import type { Category, DisplayRule, FileAccess, Scope } from "./types.js";
+
+function getRuleValueLabel(value: FileAccess | boolean): string {
+  if (typeof value === "boolean") {
+    return value ? "allowed" : "disallowed";
+  }
+  if (value === "read") {
+    return "read only";
+  }
+  if (value === "write") {
+    return "full access";
+  }
+  return value;
+}
+
+export function getScopeLabel(scope: Scope) {
+  return scope !== "always" ? `[this ${scope}]` : `[${scope}]`;
+}
+
+export function formatRuleOptionLabel(scope: Scope, value: FileAccess | boolean): string {
+  return `${getScopeLabel(scope)} ${getRuleValueLabel(value)}`;
+}
+
+export function getRuleExprPlaceholder(category: Category): string {
+  if (category === "file") {
+    return "Path or glob pattern (example: src/**/*.ts)";
+  }
+  if (category === "web") {
+    return "Host or URL pattern (example: api.example.com/**)";
+  }
+  return "Command pattern (example: git * or pnpm test)";
+}
+
+export function cycleRuleScope(rule: DisplayRule) {
+  const scopeIndex = SCOPES.indexOf(rule.scope);
+  rule.scope = SCOPES[(scopeIndex + 1) % SCOPES.length]!;
+}
+
+export function cycleRuleValue(rule: DisplayRule) {
+  if (typeof rule.value === "boolean") {
+    rule.value = !rule.value;
+    return;
+  }
+  const fileOps = ["read", "write", "blocked"] as const;
+  const valueIndex = fileOps.findIndex((value) => value === rule.value);
+  rule.value = fileOps[(valueIndex + 1) % fileOps.length]!;
+}
 
 export function getPermissionCheck(
   toolName: string,

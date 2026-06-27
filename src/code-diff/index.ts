@@ -1,16 +1,8 @@
 import { defineTool, type ExecResult, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { Type, type TObject, type TProperties } from "typebox";
+import { Type } from "typebox";
 import { executeFlow } from "./flow.js";
 import type { CodeDiffToolDetails, CodeDiffToolParams } from "./types.js";
-
-const FilesSchema = Type.Optional(
-  Type.Array(Type.String({ description: "File path to include in patch mode" })),
-);
-
-function modeSchema(properties: TProperties): TObject<TProperties & { files: typeof FilesSchema }> {
-  return Type.Object({ ...properties, files: FilesSchema }, { additionalProperties: false });
-}
 
 function formatCommand(command: string, argumentsList: string[]) {
   const quotedArguments = argumentsList.map((argumentValue) =>
@@ -34,11 +26,43 @@ function createCodeDiffTool(pi: ExtensionAPI) {
       "mode=uncommitted supports optional base and defaults to HEAD.",
       "Call code_diff without files first to discover changed files before patch requests.",
     ],
-    parameters: Type.Union([
-      modeSchema({ mode: Type.Literal("pr"), pr: Type.Number({ minimum: 1 }) }),
-      modeSchema({ mode: Type.Literal("hash"), base: Type.String(), hash: Type.String() }),
-      modeSchema({ mode: Type.Literal("uncommitted"), base: Type.Optional(Type.String()) }),
-    ]),
+    parameters: Type.Object(
+      {
+        mode: Type.Union(
+          [
+            Type.Literal("pr", { description: "GitHub PR diff mode" }),
+            Type.Literal("hash", { description: "Git commit hash-to-hash diff mode" }),
+            Type.Literal("uncommitted", {
+              description: "Working tree diff mode against base (or HEAD by default)",
+            }),
+          ],
+          { description: "Diff mode selector" },
+        ),
+        pr: Type.Optional(
+          Type.Number({
+            minimum: 1,
+            description: "GitHub pull request number. Required when mode=pr",
+          }),
+        ),
+        base: Type.Optional(
+          Type.String({
+            description: "Base git commit hash or ref. Required when mode=hash, optional for uncommitted",
+          }),
+        ),
+        hash: Type.Optional(
+          Type.String({
+            description: "Target git commit hash or ref. Required when mode=hash",
+          }),
+        ),
+        files: Type.Optional(
+          Type.Array(
+            Type.String({ description: "File path to include in patch mode" }),
+            { description: "Optional list of file paths to limit patch output" },
+          ),
+        ),
+      },
+      { additionalProperties: false },
+    ),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       if (signal?.aborted) {
         throw new Error("code_diff was cancelled.");

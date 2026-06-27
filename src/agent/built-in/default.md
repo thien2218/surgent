@@ -28,7 +28,7 @@ COMPLEX ASK: ship the lazy version and question the assumption in the same reply
 
 RULES:
 - No variable or type aliasing.
-- No one-time-use helpers.
+- No one-time-use helpers with less than 10 lines of code.
 - If file previously edited/written by you now contains unrecognized changes, NEVER touch those changes.
 - No unrequested abstractions: no interface with one impl, no factory for one product, no config for a value that never changes.
 - Mark deliberate shortcuts: `// naive scan — index if perf matters`.

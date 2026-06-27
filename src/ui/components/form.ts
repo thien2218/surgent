@@ -1,20 +1,12 @@
 import type { KeybindingsManager, Theme } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, type Focusable, type TUI } from "@earendil-works/pi-tui";
-import { FormField } from "./form-field.js";
+import { FormField, type Field } from "./form-field.js";
 import { Frame } from "./frame.js";
 import { Lines } from "./lines.js";
 
-export type FieldDefinition = {
-  key: string;
-  placeholder: string;
-  label?: string;
-  initialText?: string;
-  labelWidth?: number;
-};
-
 export type FormConfig<TSubmit = Record<string, string>> = {
   title: string;
-  fields: FieldDefinition[];
+  fields: Field<string | number | boolean>[];
   emptyMessage?: string;
   parseOnSave?: (values: Record<string, string>) => TSubmit;
 };
@@ -24,7 +16,7 @@ export class Form<TSubmit = Record<string, string>> extends Frame implements Foc
   onSave?: (values: TSubmit) => Promise<void> | void;
   onSaveError?: (error: unknown) => void;
 
-  private readonly fields: FormField[];
+  private readonly fields: FormField<string | number | boolean>[];
   private readonly keys: string[];
   private readonly title: string;
   private readonly emptyMessage: string;
@@ -46,13 +38,9 @@ export class Form<TSubmit = Record<string, string>> extends Frame implements Foc
     this.title = config.title;
     this.emptyMessage = config.emptyMessage ?? "No fields available for editing.";
     this.parseOnSave = config.parseOnSave;
-    this.keys = config.fields.map((definition) => definition.key);
-    this.fields = config.fields.map((definition) => {
-      const option = new FormField(tui, keybindings, theme, {
-        label: definition.label ?? definition.key,
-        labelWidth: definition.labelWidth,
-        mode: { type: "input", placeholder: definition.placeholder, text: definition.initialText },
-      });
+    this.keys = config.fields.map((field) => field.key);
+    this.fields = config.fields.map((field) => {
+      const option = new FormField<string | number | boolean>(tui, keybindings, theme, field);
 
       option.onInputSubmit = (inputValue) => {
         option.setText(inputValue);
@@ -98,7 +86,7 @@ export class Form<TSubmit = Record<string, string>> extends Frame implements Foc
 
     return [
       ["↑↓", "navigate"],
-      ["Enter", "edit field"],
+      ["Enter", "edit/toggle"],
       ["Ctrl+S", "save"],
       ["Esc", "cancel"],
     ];
@@ -114,9 +102,9 @@ export class Form<TSubmit = Record<string, string>> extends Frame implements Foc
       return lines.get();
     }
 
-    for (let idx = 0; idx < this.fields.length; idx++) {
-      const field = this.fields[idx]!;
-      const isSelected = idx === this.cursor;
+    for (let index = 0; index < this.fields.length; index++) {
+      const field = this.fields[index]!;
+      const isSelected = index === this.cursor;
       field.highlighted = isSelected;
 
       const marker = isSelected ? this.theme.fg("accent", "→") : " ";
@@ -130,7 +118,7 @@ export class Form<TSubmit = Record<string, string>> extends Frame implements Foc
   handleInput(data: string) {
     const selectedField = this.fields[this.cursor];
 
-    if (this.editing && selectedField) {
+    if (this.editing && selectedField && selectedField.modeType === "input") {
       selectedField.handleInput(data);
       return;
     }
@@ -156,6 +144,10 @@ export class Form<TSubmit = Record<string, string>> extends Frame implements Foc
       return;
     }
     if (matchesKey(data, Key.enter)) {
+      if (selectedField.modeType === "toggle") {
+        selectedField.handleInput(data);
+        return;
+      }
       this.editing = true;
       selectedField.startEditing();
       this.syncFocus();
@@ -163,17 +155,17 @@ export class Form<TSubmit = Record<string, string>> extends Frame implements Foc
   }
 
   private syncFocus() {
-    for (let idx = 0; idx < this.fields.length; idx++) {
-      const field = this.fields[idx]!;
-      field.focused = this._focused && this.editing && idx === this.cursor;
+    for (let index = 0; index < this.fields.length; index++) {
+      const field = this.fields[index]!;
+      field.focused = this._focused && this.editing && index === this.cursor;
     }
   }
 
   private serializeValues(): Record<string, string> {
     const values: Record<string, string> = {};
-    for (let idx = 0; idx < this.fields.length; idx++) {
-      const field = this.fields[idx]!;
-      const key = this.keys[idx];
+    for (let index = 0; index < this.fields.length; index++) {
+      const field = this.fields[index]!;
+      const key = this.keys[index];
       if (key) {
         values[key] = field.getText();
       }

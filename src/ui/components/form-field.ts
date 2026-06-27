@@ -4,10 +4,11 @@ import { PlaceholderInput } from "./placeholder-input.js";
 
 export type FormFieldMode<TValue> =
   | { type: "input"; placeholder: string; text?: string; startEditing?: boolean }
-  | { type: "toggle"; values: readonly TValue[]; getValueLabel?: (value: TValue) => string };
+  | { type: "toggle"; values: readonly TValue[]; initialIndex?: number };
 
-export type FormFieldOptions<TValue> = {
-  label: string;
+export type Field<TValue> = {
+  key: string;
+  label?: string;
   mode: FormFieldMode<TValue>;
   labelWidth?: number;
 };
@@ -33,11 +34,11 @@ export class FormField<TValue = string> implements Focusable {
     tui: TUI,
     keybindings: KeybindingsManager,
     private readonly theme: Theme,
-    options: FormFieldOptions<TValue>,
+    field: Field<TValue>,
   ) {
-    this.mode = options.mode;
-    this.label = options.label;
-    this.labelWidth = options.labelWidth ?? 40;
+    this.mode = field.mode;
+    this.label = field.label ?? field.key;
+    this.labelWidth = field.labelWidth ?? 40;
 
     if (this.mode.type === "input") {
       this.input = new PlaceholderInput(tui, keybindings, theme, this.mode.placeholder);
@@ -53,6 +54,9 @@ export class FormField<TValue = string> implements Focusable {
     if (this.mode.values.length === 0) {
       throw new Error("FormField toggle mode requires at least one value.");
     }
+
+    const initialIndex = this.mode.initialIndex ?? 0;
+    this.toggleIndex = Math.max(0, Math.min(this.mode.values.length - 1, initialIndex));
   }
 
   get focused(): boolean {
@@ -66,6 +70,10 @@ export class FormField<TValue = string> implements Focusable {
 
   get editing(): boolean {
     return this._editing;
+  }
+
+  get modeType(): "input" | "toggle" {
+    return this.mode.type;
   }
 
   set highlighted(value: boolean) {
@@ -83,7 +91,9 @@ export class FormField<TValue = string> implements Focusable {
   }
 
   getText(): string {
-    return this.inputText;
+    if (this.mode.type === "input") return this.inputText;
+    const currentValue = this.mode.values[this.toggleIndex]!;
+    return String(currentValue);
   }
 
   startEditing() {
@@ -114,7 +124,7 @@ export class FormField<TValue = string> implements Focusable {
     }
 
     const currentValue = this.mode.values[this.toggleIndex]!;
-    const valueLabel = this.mode.getValueLabel?.(currentValue) ?? String(currentValue);
+    const valueLabel = String(currentValue);
     const color = this._highlighted ? "accent" : "text";
     return [truncateToWidth(prefix + this.theme.fg(color, valueLabel), width)];
   }

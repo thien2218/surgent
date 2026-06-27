@@ -46,13 +46,13 @@ export interface NormalizedQuestion {
 
 export interface QuestionDraft {
   text: string;
-  selectedOptionIndexes: number[];
-  cursorIndex: number;
+  selectedIndexes: number[];
+  cursor: number;
   focusMode: FocusMode;
 }
 
 export interface ToggleSelectionResult {
-  selectedOptionIndexes: number[];
+  selectedIndexes: number[];
   message?: string;
 }
 

@@ -2,7 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { CallToolRequest } from "@modelcontextprotocol/sdk/types.js";
-import type { ResolvedMcpServerConfig } from "./types.js";
+import type { ResolvedMcpServer } from "./types.js";
 
 interface ManagedConnection {
   client: Client;
@@ -17,12 +17,12 @@ export class McpClientManager {
     version: "0.1.0",
   };
 
-  async listTools(serverConfig: ResolvedMcpServerConfig) {
+  async listTools(serverConfig: ResolvedMcpServer) {
     const connection = await this.getConnection(serverConfig);
     return connection.client.listTools();
   }
 
-  async callTool(serverConfig: ResolvedMcpServerConfig, params: CallToolRequest["params"]) {
+  async callTool(serverConfig: ResolvedMcpServer, params: CallToolRequest["params"]) {
     const connection = await this.getConnection(serverConfig);
     return connection.client.callTool(params);
   }
@@ -35,7 +35,7 @@ export class McpClientManager {
     );
   }
 
-  private async getConnection(serverConfig: ResolvedMcpServerConfig): Promise<ManagedConnection> {
+  private async getConnection(serverConfig: ResolvedMcpServer): Promise<ManagedConnection> {
     const cacheKey = serverConfig.name;
     const configHash = JSON.stringify(serverConfig);
     const existing = this.connections.get(cacheKey);
@@ -55,7 +55,7 @@ export class McpClientManager {
   }
 
   private async createConnection(
-    serverConfig: ResolvedMcpServerConfig,
+    serverConfig: ResolvedMcpServer,
     configHash: string,
   ): Promise<ManagedConnection> {
     const client = new Client(this.CLIENT_INFO);

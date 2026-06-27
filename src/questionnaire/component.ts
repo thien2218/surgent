@@ -152,8 +152,8 @@ export default class Questionnaire extends Frame implements Focusable {
       lines.space();
 
       for (const [index, option] of question.options.entries()) {
-        const selected = draft.selectedOptionIndexes.includes(index);
-        const cursor = draft.cursorIndex === index && draft.focusMode === "options";
+        const selected = draft.selectedIndexes.includes(index);
+        const cursor = draft.cursor === index && draft.focusMode === "options";
         const marker = question.multi ? (selected ? "[x]" : "[ ]") : selected ? "(*)" : "( )";
         const prefix = cursor ? this.theme.fg("accent", "→") : " ";
         const recommendation =
@@ -263,7 +263,7 @@ export default class Questionnaire extends Frame implements Focusable {
 
     if (matchesKey(data, Key.down)) {
       const moved = moveCursor(question, draft, 1);
-      if (moved.cursorIndex === draft.cursorIndex) {
+      if (moved.cursor === draft.cursor) {
         this.setFocusMode("editor");
         return true;
       }
@@ -272,10 +272,10 @@ export default class Questionnaire extends Frame implements Focusable {
     }
 
     if (matchesKey(data, Key.space) && question.multi) {
-      const result = toggleSuggestion(question, draft, draft.cursorIndex);
+      const result = toggleSuggestion(question, draft, draft.cursor);
       this.drafts[this.currentQuestionIndex] = {
         ...draft,
-        selectedOptionIndexes: result.selectedOptionIndexes,
+        selectedIndexes: result.selectedIndexes,
       };
       this.statusMessage = result.message;
       return true;
@@ -285,7 +285,7 @@ export default class Questionnaire extends Frame implements Focusable {
       if (!question.multi) {
         this.drafts[this.currentQuestionIndex] = {
           ...draft,
-          selectedOptionIndexes: [draft.cursorIndex],
+          selectedIndexes: [draft.cursor],
         };
       }
       this.submitCurrentQuestion();

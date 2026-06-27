@@ -1,13 +1,8 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { getPiPath, isMissingFileError } from "../utils.js";
-import type {
-  HttpMcpServerConfig,
-  McpServerConfig,
-  ResolvedMcpServerConfig,
-  StdioMcpServerConfig,
-} from "./types.js";
+import type { HttpMcpServer, McpServer, ResolvedMcpServer, StdioMcpServer } from "./types.js";
 
-type Action = { kind: "delete" } | { kind: "upsert"; config: McpServerConfig };
+type Action = { kind: "delete" } | { kind: "upsert"; config: McpServer };
 
 export async function updateServerConfig(
   path: string,
@@ -27,10 +22,10 @@ export async function updateServerConfig(
   return { path, updated };
 }
 
-export async function loadMcpConfigSet(cwd: string): Promise<ResolvedMcpServerConfig[]> {
+export async function loadMcpConfigSet(cwd: string): Promise<ResolvedMcpServer[]> {
   const globalPath = getPiPath("mcp");
   const localPath = getPiPath("mcp", cwd);
-  const merged = new Map<string, ResolvedMcpServerConfig>();
+  const merged = new Map<string, ResolvedMcpServer>();
   const [localServers, globalServers] = await Promise.all([
     readConfigFile(localPath),
     readConfigFile(globalPath),
@@ -49,13 +44,13 @@ export async function loadMcpConfigSet(cwd: string): Promise<ResolvedMcpServerCo
 export async function resolveServerConfig(
   cwd: string,
   serverName: string,
-): Promise<ResolvedMcpServerConfig | undefined> {
+): Promise<ResolvedMcpServer | undefined> {
   const mcpServers = await loadMcpConfigSet(cwd);
   return mcpServers.find((server) => server.name === serverName);
 }
 
-export async function readConfigFile(path: string): Promise<Record<string, McpServerConfig>> {
-  const mcpServers: Record<string, McpServerConfig> = {};
+export async function readConfigFile(path: string): Promise<Record<string, McpServer>> {
+  const mcpServers: Record<string, McpServer> = {};
   let raw: string;
   let parsed: unknown;
 
@@ -87,7 +82,7 @@ export async function readConfigFile(path: string): Promise<Record<string, McpSe
   return mcpServers;
 }
 
-export function normalizeServerConfig(name: string, raw: unknown): McpServerConfig {
+export function normalizeServerConfig(name: string, raw: unknown): McpServer {
   if (!isPlainObject(raw)) {
     throw new Error(`Invalid MCP server config for ${name}: expected an object.`);
   }
@@ -98,7 +93,7 @@ export function normalizeServerConfig(name: string, raw: unknown): McpServerConf
     raw.description === undefined ? undefined : expectString(raw.description, name, "description");
 
   if (transport === "stdio") {
-    const config: StdioMcpServerConfig = {
+    const config: StdioMcpServer = {
       transport: "stdio",
       command: expectString(raw.command, name, "command"),
       enabled,
@@ -121,7 +116,7 @@ export function normalizeServerConfig(name: string, raw: unknown): McpServerConf
   }
 
   if (transport === "http") {
-    const config: HttpMcpServerConfig = {
+    const config: HttpMcpServer = {
       transport: "http",
       url: expectString(raw.url, name, "url"),
       enabled,

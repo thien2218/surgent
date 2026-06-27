@@ -6,7 +6,7 @@ import {
   readConfigFile,
   updateServerConfig,
 } from "./storage.js";
-import type { McpServerConfig, McpTransport, ResolvedMcpServerConfig } from "./types.js";
+import type { McpServer, McpTransport, ResolvedMcpServer } from "./types.js";
 import { customText, getPiPath } from "../utils.js";
 import { ExtendedSelectList, type SelectEntry } from "../ui/components/extended-select-list.js";
 import { Frame } from "../ui/components/frame.js";
@@ -41,7 +41,7 @@ async function showMcpOptions(ctx: ExtensionCommandContext): Promise<"add" | "ca
 
   return ctx.ui.custom<"add" | "cancel">((tui, theme, keybindings, done) => {
     let isPending = false;
-    const selectList = new ExtendedSelectList<ResolvedMcpServerConfig>(keybindings, theme, {
+    const selectList = new ExtendedSelectList<ResolvedMcpServer>(keybindings, theme, {
       title: "MCP servers",
       addLabel: "Add MCP server",
       items,
@@ -49,7 +49,7 @@ async function showMcpOptions(ctx: ExtensionCommandContext): Promise<"add" | "ca
     });
 
     const handleServer = (
-      item: SelectEntry<ResolvedMcpServerConfig>,
+      item: SelectEntry<ResolvedMcpServer>,
       handler: typeof toggleMcpServer,
     ) => {
       if (!item.data || isPending) return;
@@ -70,7 +70,7 @@ async function showMcpOptions(ctx: ExtensionCommandContext): Promise<"add" | "ca
   });
 }
 
-function describeEnabledState(server: ResolvedMcpServerConfig): string {
+function describeEnabledState(server: ResolvedMcpServer): string {
   const statusLabel = server.enabled ? "Enabled" : "Disabled";
   if (!server.description) {
     return statusLabel;
@@ -78,16 +78,13 @@ function describeEnabledState(server: ResolvedMcpServerConfig): string {
   return `${statusLabel} • ${server.description}`;
 }
 
-async function toggleMcpServer(
-  ctx: ExtensionCommandContext,
-  item: SelectEntry<ResolvedMcpServerConfig>,
-) {
+async function toggleMcpServer(ctx: ExtensionCommandContext, item: SelectEntry<ResolvedMcpServer>) {
   const server = item.data;
   if (!server) return;
 
   const { name, scope, sourcePath, ...config } = server;
   const nextEnabledState = !server.enabled;
-  const updatedConfig: McpServerConfig = { ...config, enabled: nextEnabledState };
+  const updatedConfig: McpServer = { ...config, enabled: nextEnabledState };
 
   try {
     await updateServerConfig(sourcePath, name, { config: updatedConfig, kind: "upsert" });
@@ -100,10 +97,7 @@ async function toggleMcpServer(
   }
 }
 
-async function deleteMcpServer(
-  ctx: ExtensionCommandContext,
-  item: SelectEntry<ResolvedMcpServerConfig>,
-) {
+async function deleteMcpServer(ctx: ExtensionCommandContext, item: SelectEntry<ResolvedMcpServer>) {
   const server = item.data;
   if (!server) return;
 
@@ -168,8 +162,8 @@ async function promptServerConfig(
   ctx: ExtensionCommandContext,
   transport: McpTransport,
   name: string,
-  existingConfig?: McpServerConfig,
-): Promise<McpServerConfig | undefined> {
+  existingConfig?: McpServer,
+): Promise<McpServer | undefined> {
   const placeholder = existingConfig
     ? JSON.stringify(existingConfig, null, 2)
     : buildConfigTemplate(transport);

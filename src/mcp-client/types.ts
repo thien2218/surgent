@@ -1,13 +1,12 @@
 export type McpTransport = "stdio" | "http";
-export type McpConfigScope = "project" | "global";
 
-export interface McpServerConfigBase {
+interface McpServerBase {
   transport: McpTransport;
   enabled?: boolean;
   description?: string;
 }
 
-export interface StdioMcpServerConfig extends McpServerConfigBase {
+export interface StdioMcpServer extends McpServerBase {
   transport: "stdio";
   command: string;
   args?: string[];
@@ -15,17 +14,17 @@ export interface StdioMcpServerConfig extends McpServerConfigBase {
   env?: Record<string, string>;
 }
 
-export interface HttpMcpServerConfig extends McpServerConfigBase {
+export interface HttpMcpServer extends McpServerBase {
   transport: "http";
   url: string;
   headers?: Record<string, string>;
 }
 
-export type McpServerConfig = StdioMcpServerConfig | HttpMcpServerConfig;
+export type McpServer = StdioMcpServer | HttpMcpServer;
 
-export type ResolvedMcpServerConfig = McpServerConfig & {
+export type ResolvedMcpServer = McpServer & {
   name: string;
-  scope: McpConfigScope;
+  scope: "project" | "global";
   sourcePath: string;
 };
 

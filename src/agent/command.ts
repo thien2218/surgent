@@ -1,7 +1,7 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { exec, spawn } from "node:child_process";
 import { promisify } from "node:util";
-import type { Agent } from "./types.js";
+import type { Agent, AgentMeta } from "./types.js";
 import {
   createAgentFile,
   deleteAgentFiles,
@@ -12,7 +12,8 @@ import {
 } from "./storage.js";
 import { ExtendedSelectList } from "../ui/components/extended-select-list.js";
 import { ScopedInput } from "../ui/components/scoped-input.js";
-import { AgentConfigEditor } from "./component.js";
+import { Form } from "../ui/components/form.js";
+import { getAgentConfigForm } from "./helpers.js";
 
 const execAsync = promisify(exec);
 
@@ -71,7 +72,12 @@ async function showAgentPicker(
 
 async function openAgentConfigEditor(ctx: ExtensionCommandContext, agent: Agent) {
   await ctx.ui.custom<void>((tui, theme, keybindings, done) => {
-    const editor = new AgentConfigEditor(tui, keybindings, theme, agent.name, agent.meta);
+    const editor = new Form<AgentMeta>(
+      tui,
+      keybindings,
+      theme,
+      getAgentConfigForm(agent.name, agent.meta),
+    );
 
     editor.onCancel = () => done();
     editor.onSave = async (updatedMeta) => {

@@ -16,6 +16,16 @@ const QUOTED_STRING = /^["']|["']$/g;
 
 const ARRAY_KEYS = new Set<keyof AgentMeta>(["tools", "mcp_servers", "skills", "bash", "files"]);
 const STRING_KEYS = new Set<keyof AgentMeta>(["description", "model"]);
+const META_KEYS: (keyof AgentMeta)[] = [
+  "description",
+  "tools",
+  "mcp_servers",
+  "skills",
+  "bash",
+  "files",
+  "model",
+];
+const META_KEY_SET = new Set<string>(META_KEYS);
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
 const DEFAULT_AGENT = "default";
 
@@ -33,7 +43,7 @@ function parseAllowList(value: string): AgentAllowList | undefined {
   return undefined;
 }
 
-function parseFrontmatter(content: string, filePath: string): Agent | null {
+function parseAgentConfig(content: string, filePath: string): Agent | null {
   const match = content.match(FRONTMATTER_BLOCK);
   if (!match) return null;
 
@@ -97,7 +107,7 @@ export async function loadAgents(cwd: string, name?: string): Promise<[Agent, ..
   for (const file of files) {
     try {
       const content = await readFile(file, "utf8");
-      const parsed = parseFrontmatter(content, file);
+      const parsed = parseAgentConfig(content, file);
       if (!parsed || (!isBuiltIn(file) && parsed.name === "default")) continue;
       agents.push(parsed);
     } catch {} // skip unreadable files
@@ -110,14 +120,63 @@ export async function loadAgents(cwd: string, name?: string): Promise<[Agent, ..
   return agents as [Agent, ...Agent[]];
 }
 
-export async function createAgentFile(name: string, dir: string): Promise<string> {
-  const filePath = join(dir, `${name}.md`);
+function serializeMeta(meta: AgentMeta): string[] {
+  const lines: string[] = [];
+
+  for (const key of META_KEYS) {
+    const value = meta[key];
+    if (value === undefined) continue;
+
+    if (ARRAY_KEYS.has(key)) {
+      const serialized =
+        typeof value === "string"
+          ? "none"
+          : `[${value.map((entry) => JSON.stringify(entry)).join(", ")}]`;
+      lines.push(`${key}: ${serialized}`);
+      continue;
+    }
+
+    lines.push(`${key}: ${String(value)}`);
+  }
+
+  return lines;
+}
+
+export async function createAgentFile(base: string, name: string): Promise<string> {
+  const filePath = join(getPiPath("agents", base), `${name}.md`);
   await writeFile(
     filePath,
-    `---\nname: ${name}\ndescription: \n---\n\nDescribe what '${name}' agent does`,
+    `---\ndescription: Describe what \`${name}\` agent does\n---\n\nWrite \`${name}\` agent's system prompt here`,
     "utf8",
   );
   return filePath;
+}
+
+export async function writeAgentMeta(filePath: string, meta: AgentMeta) {
+  const content = await readFile(filePath, "utf8");
+  const match = content.match(FRONTMATTER_BLOCK);
+  if (!match) {
+    throw new Error(`Invalid agent file frontmatter: ${filePath}`);
+  }
+
+  const existingFrontmatter = match[1] ?? "";
+  const preservedFrontmatterLines = existingFrontmatter
+    .split(LINE_ENDING)
+    .map((line) => line.trimEnd())
+    .filter((line) => {
+      const pair = line.match(KEY_VALUE_PAIR);
+      if (!pair) {
+        return line.trim().length > 0;
+      }
+      return !META_KEY_SET.has(pair[1]!);
+    });
+
+  const body = match[2] ?? "";
+  const metaLines = serializeMeta(meta);
+  const nextFrontmatterLines = [...preservedFrontmatterLines, ...metaLines];
+
+  const nextContent = `---\n${nextFrontmatterLines.join("\n")}\n---\n${body}`;
+  await writeFile(filePath, nextContent, "utf8");
 }
 
 export async function deleteAgentFiles(name: string, cwd: string) {
@@ -125,7 +184,7 @@ export async function deleteAgentFiles(name: string, cwd: string) {
   for (const file of files) {
     try {
       const content = await readFile(file, "utf8");
-      const parsed = parseFrontmatter(content, file);
+      const parsed = parseAgentConfig(content, file);
       if (parsed?.name === name) await unlink(file);
     } catch {} // skip
   }

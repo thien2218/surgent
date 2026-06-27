@@ -184,7 +184,7 @@ if (args.includes("--help") || args.includes("-h")) {
     const cwd = process.cwd();
     await ensurePiExcluded(cwd);
     await syncPiIgnore(cwd);
-    await mkdir(resolve(cwd, ".pi"), { recursive: true });
+    await mkdir(resolve(cwd, ".pi", "agents"), { recursive: true });
     await setupGlobalConfig();
 
     process.stdout.write(CLEAR_SCREEN);

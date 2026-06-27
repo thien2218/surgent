@@ -1,6 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { exec } from "node:child_process";
-import { spawn } from "node:child_process";
+import { exec, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import type { Agent } from "./types.js";
 import {
@@ -8,11 +7,12 @@ import {
   deleteAgentFiles,
   isBuiltIn,
   loadAgents,
+  writeAgentMeta,
   writeSessionAgent,
 } from "./storage.js";
 import { ExtendedSelectList } from "../ui/components/extended-select-list.js";
 import { ScopedInput } from "../ui/components/scoped-input.js";
-import { getPiPath } from "../utils.js";
+import { AgentConfigEditor } from "./component.js";
 
 const execAsync = promisify(exec);
 
@@ -24,12 +24,12 @@ async function openInVsCode(ctx: ExtensionCommandContext, filePath: string) {
     return;
   }
 
-  await new Promise<void>((resolve, reject) => {
+  await new Promise<void>((resolvePromise, rejectPromise) => {
     const child = spawn("code", ["--wait", filePath], { stdio: "inherit" });
     child.on("close", (code) =>
-      code === 0 ? resolve() : reject(new Error(`code exited ${code}`)),
+      code === 0 ? resolvePromise() : rejectPromise(new Error(`code exited ${code}`)),
     );
-    child.on("error", reject);
+    child.on("error", rejectPromise);
   });
 }
 
@@ -49,7 +49,7 @@ async function showAgentPicker(
       title: "Agents",
       addLabel: "Create new agent",
       items,
-      maxVisibleRows: Math.min(items.length + 1, 12),
+      maxVisibleRows: 12,
       canDelete: (item) => item.data !== undefined && !isBuiltIn(item.data.filePath),
     });
 
@@ -69,10 +69,33 @@ async function showAgentPicker(
   });
 }
 
+async function openAgentConfigEditor(ctx: ExtensionCommandContext, agent: Agent) {
+  await ctx.ui.custom<void>((tui, theme, keybindings, done) => {
+    const editor = new AgentConfigEditor(tui, keybindings, theme, agent.name, agent.meta);
+
+    editor.onCancel = () => done();
+    editor.onSave = async (updatedMeta) => {
+      await writeAgentMeta(agent.filePath, updatedMeta);
+      agent.meta = updatedMeta;
+      ctx.ui.notify(`Agent "${agent.name}" config updated`, "info");
+      done();
+    };
+    editor.onSaveError = (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      ctx.ui.notify(`Failed to update agent config: ${message}`, "error");
+    };
+
+    return editor;
+  });
+}
+
 async function handleExistingAgent(ctx: ExtensionCommandContext, agent: Agent) {
   while (true) {
-    const options = ["Start in new session", "Open in VS Code"];
-    if (!isBuiltIn(agent.filePath)) options.push("Delete agent");
+    const options = ["Start in new session"];
+    if (!isBuiltIn(agent.filePath)) {
+      options.push("Edit agent config", "Open in VS Code");
+    }
+
     const action = await ctx.ui.select(`Agent: ${agent.name}`, options);
     if (!action) return;
 
@@ -84,20 +107,13 @@ async function handleExistingAgent(ctx: ExtensionCommandContext, agent: Agent) {
       });
       return;
     }
-
+    if (action === "Edit agent config") {
+      await openAgentConfigEditor(ctx, agent);
+      continue;
+    }
     if (action === "Open in VS Code") {
       await openInVsCode(ctx, agent.filePath);
       return;
-    }
-
-    if (action === "Delete agent") {
-      const ok = await ctx.ui.confirm(
-        `Delete agent "${agent.name}"?`,
-        "Removes all local and global copies of this agent.",
-      );
-      if (!ok) continue;
-      await deleteAgentFiles(agent.name, ctx.cwd);
-      ctx.ui.notify(`Agent "${agent.name}" deleted`, "info");
     }
   }
 }
@@ -114,8 +130,7 @@ async function handleNewAgent(ctx: ExtensionCommandContext) {
 
   if (!result) return;
   const { name, scope } = result;
-  const dir = getPiPath("agents", scope === "project" ? ctx.cwd : scope);
-  const filePath = await createAgentFile(dir, name);
+  const filePath = await createAgentFile(scope === "project" ? ctx.cwd : scope, name);
 
   ctx.ui.notify(`Agent created: ${filePath}`, "info");
   await openInVsCode(ctx, filePath);

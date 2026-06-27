@@ -10,11 +10,14 @@ import type {
 } from "./types.js";
 
 export function createInitialDraft(question: NormalizedQuestion): QuestionDraft {
-  const selectedOptionIndexes = getRecommendedOptionIndexes(question);
+  const selectedIndexes = question.options
+    .slice(0, question.recommendedCount)
+    .map((_option, index) => index);
+
   return {
     text: "",
-    selectedOptionIndexes,
-    cursorIndex: selectedOptionIndexes[0] ?? 0,
+    selectedIndexes,
+    cursor: selectedIndexes[0] ?? 0,
     focusMode: question.options.length > 0 ? "options" : "editor",
   };
 }
@@ -24,7 +27,7 @@ export function getQuestionValidationMessage(
   draft: QuestionDraft,
 ): string | undefined {
   const trimmedText = draft.text.trim();
-  const selectedCount = draft.selectedOptionIndexes.length;
+  const selectedCount = draft.selectedIndexes.length;
 
   if (question.multi && selectedCount > question.maxSelections) {
     return `Select at most ${question.maxSelections} option${question.maxSelections === 1 ? "" : "s"}, or type your answer.`;
@@ -56,7 +59,7 @@ export function serializeQuestionAnswer(
   draft: QuestionDraft,
 ): string {
   const trimmedText = draft.text.trim();
-  const selectedTexts = draft.selectedOptionIndexes
+  const selectedTexts = draft.selectedIndexes
     .map((index) => question.options[index]?.text)
     .filter((value): value is string => Boolean(value));
 
@@ -89,47 +92,47 @@ export function toggleSuggestion(
   optionIndex: number,
 ): ToggleSelectionResult {
   if (!question.multi) {
-    return { selectedOptionIndexes: [optionIndex] };
+    return { selectedIndexes: [optionIndex] };
   }
 
   const option = question.options[optionIndex];
   if (!option) {
-    return { selectedOptionIndexes: draft.selectedOptionIndexes };
+    return { selectedIndexes: draft.selectedIndexes };
   }
 
-  const currentlySelected = draft.selectedOptionIndexes.includes(optionIndex);
+  const currentlySelected = draft.selectedIndexes.includes(optionIndex);
   if (currentlySelected) {
     return {
-      selectedOptionIndexes: draft.selectedOptionIndexes.filter((index) => index !== optionIndex),
+      selectedIndexes: draft.selectedIndexes.filter((index) => index !== optionIndex),
     };
   }
 
   if (option.exclusive) {
-    return { selectedOptionIndexes: [optionIndex] };
+    return { selectedIndexes: [optionIndex] };
   }
 
-  const withoutExclusive = draft.selectedOptionIndexes.filter(
+  const withoutExclusive = draft.selectedIndexes.filter(
     (index) => !question.options[index]?.exclusive,
   );
   if (withoutExclusive.length >= question.maxSelections) {
     return {
-      selectedOptionIndexes: draft.selectedOptionIndexes,
+      selectedIndexes: draft.selectedIndexes,
       message: `Select at most ${question.maxSelections} option${question.maxSelections === 1 ? "" : "s"}.`,
     };
   }
 
-  return { selectedOptionIndexes: [...withoutExclusive, optionIndex] };
+  return { selectedIndexes: [...withoutExclusive, optionIndex] };
 }
 
 export function ensureSingleSelection(
   question: NormalizedQuestion,
   draft: QuestionDraft,
 ): QuestionDraft {
-  if (question.multi || question.options.length === 0 || draft.selectedOptionIndexes.length > 0) {
+  if (question.multi || question.options.length === 0 || draft.selectedIndexes.length > 0) {
     return draft;
   }
-  const nextCursorIndex = clampCursorIndex(question, draft.cursorIndex);
-  return { ...draft, selectedOptionIndexes: [nextCursorIndex] };
+  const nextCursorIndex = clampCursorIndex(question, draft.cursor);
+  return { ...draft, selectedIndexes: [nextCursorIndex] };
 }
 
 export function moveCursor(
@@ -144,7 +147,7 @@ export function moveCursor(
   const lastIndex = question.options.length - 1;
   return {
     ...draft,
-    cursorIndex: Math.max(0, Math.min(lastIndex, draft.cursorIndex + delta)),
+    cursor: Math.max(0, Math.min(lastIndex, draft.cursor + delta)),
   };
 }
 
@@ -226,16 +229,6 @@ function normalizeQuestion(question: Question): NormalizedQuestion {
   };
 }
 
-function getRecommendedOptionIndexes(
-  question: Pick<NormalizedQuestion, "options" | "recommendedCount">,
-): number[] {
-  if (!question.recommendedCount) {
-    return [];
-  }
-
-  return question.options.slice(0, question.recommendedCount).map((_option, index) => index);
-}
-
 function getRecommendedCount(question: {
   options: QuestionOption[];
   multi: boolean;
@@ -251,9 +244,9 @@ function getRecommendedCount(question: {
   return question.recommendedCount ?? question.minSelections;
 }
 
-function clampCursorIndex(question: NormalizedQuestion, cursorIndex: number): number {
+function clampCursorIndex(question: NormalizedQuestion, cursor: number): number {
   if (question.options.length === 0) {
     return 0;
   }
-  return Math.max(0, Math.min(question.options.length - 1, cursorIndex));
+  return Math.max(0, Math.min(question.options.length - 1, cursor));
 }

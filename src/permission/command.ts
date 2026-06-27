@@ -4,7 +4,7 @@ import type { Category, DisplayRule, FileAccess, PermissionRule } from "./types.
 import { getRulesForDisplay, addRule, readRules, writeRules } from "./storage.js";
 import PermissionRulesList from "./components/rules-list.js";
 import { Frame } from "../ui/components/frame.js";
-import { EditableOption } from "../ui/components/editable-option.js";
+import { FormField } from "../ui/components/form-field.js";
 import {
   formatRuleOptionLabel,
   getRuleExprPlaceholder,
@@ -62,7 +62,7 @@ export async function handlePermissionsCommand(ctx: ExtensionCommandContext) {
 
     await ctx.ui.custom<void>((tui, theme, keybindings, done) => {
       const frame = new Frame(theme);
-      const option = new EditableOption(tui, keybindings, theme, {
+      const option = new FormField(tui, keybindings, theme, {
         label: formatRuleOptionLabel(toAdd.scope, toAdd.value),
         mode: { type: "input", placeholder: getRuleExprPlaceholder(category), startEditing: true },
       });

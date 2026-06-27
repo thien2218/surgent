@@ -2,23 +2,23 @@ import type { KeybindingsManager, Theme } from "@earendil-works/pi-coding-agent"
 import { Key, matchesKey, truncateToWidth, type Focusable, type TUI } from "@earendil-works/pi-tui";
 import { PlaceholderInput } from "./placeholder-input.js";
 
-type EditableOptionMode<TValue> =
+export type FormFieldMode<TValue> =
   | { type: "input"; placeholder: string; text?: string; startEditing?: boolean }
   | { type: "toggle"; values: readonly TValue[]; getValueLabel?: (value: TValue) => string };
 
-type EditableOptionOptions<TValue> = {
+export type FormFieldOptions<TValue> = {
   label: string;
-  mode: EditableOptionMode<TValue>;
+  mode: FormFieldMode<TValue>;
   labelWidth?: number;
 };
 
-export class EditableOption<TValue = string> implements Focusable {
+export class FormField<TValue = string> implements Focusable {
   onInputSubmit?: (value: string) => boolean | void;
   onInputCancel?: () => void;
   onToggle?: (value: TValue, index: number) => void;
 
   private readonly labelWidth: number;
-  private readonly mode: EditableOptionMode<TValue>;
+  private readonly mode: FormFieldMode<TValue>;
   private readonly input?: PlaceholderInput;
 
   private label: string;
@@ -33,7 +33,7 @@ export class EditableOption<TValue = string> implements Focusable {
     tui: TUI,
     keybindings: KeybindingsManager,
     private readonly theme: Theme,
-    options: EditableOptionOptions<TValue>,
+    options: FormFieldOptions<TValue>,
   ) {
     this.mode = options.mode;
     this.label = options.label;
@@ -51,7 +51,7 @@ export class EditableOption<TValue = string> implements Focusable {
     }
 
     if (this.mode.values.length === 0) {
-      throw new Error("EditableOption toggle mode requires at least one value.");
+      throw new Error("FormField toggle mode requires at least one value.");
     }
   }
 

@@ -272,6 +272,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
     rule: DisplayRule,
   ): RuleOptionEntry {
     const option = new FormField(tui, keybindings, theme, {
+      key: "expr",
       label: formatRuleOptionLabel(rule.scope, rule.value),
       mode: { type: "input", placeholder: getRuleExprPlaceholder(category), text: rule.expr },
     });

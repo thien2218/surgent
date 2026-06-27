@@ -63,6 +63,7 @@ export async function handlePermissionsCommand(ctx: ExtensionCommandContext) {
     await ctx.ui.custom<void>((tui, theme, keybindings, done) => {
       const frame = new Frame(theme);
       const option = new FormField(tui, keybindings, theme, {
+        key: "expr",
         label: formatRuleOptionLabel(toAdd.scope, toAdd.value),
         mode: { type: "input", placeholder: getRuleExprPlaceholder(category), startEditing: true },
       });

@@ -70,20 +70,25 @@ function createCodeDiffTool(pi: ExtensionAPI) {
       return executeFlow(params as CodeDiffToolParams, runCommand);
     },
     renderCall(args, theme) {
-      const files = Array.isArray(args.files) ? args.files : [];
+      const filesValue = args.files;
+      const files = Array.isArray(filesValue)
+        ? filesValue.filter((filePath): filePath is string => typeof filePath === "string")
+        : [];
       const modeLabel = files.length > 0 ? `patch:${files.length}` : "summary";
-      const baseValue = "base" in args && typeof args.base === "string" ? args.base : undefined;
+
+      const modeValue = typeof args.mode === "string" ? args.mode : undefined;
+      const baseValue = typeof args.base === "string" ? args.base : undefined;
       const baseLabel = baseValue && baseValue.trim() ? ` vs ${baseValue}` : "";
 
-      let sourceLabel: string;
-      if (args.mode === "pr") {
-        sourceLabel = `pr:${args.pr}`;
-      } else if (args.mode === "hash") {
-        sourceLabel = `hash:${args.hash}`;
-      } else if (args.mode === "uncommitted") {
+      let sourceLabel = "source";
+      if (modeValue === "pr") {
+        const prValue = typeof args.pr === "number" ? args.pr : "?";
+        sourceLabel = `pr:${prValue}`;
+      } else if (modeValue === "hash") {
+        const hashValue = typeof args.hash === "string" ? args.hash : "?";
+        sourceLabel = `hash:${hashValue}`;
+      } else if (modeValue === "uncommitted") {
         sourceLabel = "uncommitted";
-      } else {
-        sourceLabel = "source";
       }
 
       return new Text(

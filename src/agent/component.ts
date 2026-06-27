@@ -1,7 +1,7 @@
 import type { KeybindingsManager, Theme } from "@earendil-works/pi-coding-agent";
 import type { TUI } from "@earendil-works/pi-tui";
 import type { AgentAllowList, AgentMeta } from "./types.js";
-import { Form, type FormFieldDefinition, type FormSerializedValues } from "../ui/components/form.js";
+import { Form, type FieldDefinition } from "../ui/components/form.js";
 
 const ALLOW_LIST_FIELDS = ["tools", "mcp_servers", "skills", "bash", "files"] as const;
 
@@ -27,7 +27,7 @@ function parseAllowListInput(value: string): AgentAllowList | undefined {
   return entries.length > 0 ? entries : undefined;
 }
 
-function parseMetaFields(values: FormSerializedValues): AgentMeta {
+function parseMetaFields(values: Record<string, string>): AgentMeta {
   const description = (values.description ?? "").trim();
   if (!description) {
     throw new Error("Description cannot be empty.");
@@ -79,7 +79,7 @@ function stringifyMetaFieldValue(meta: AgentMeta, field: keyof AgentMeta): strin
   return value ?? "";
 }
 
-function toFormFields(meta: AgentMeta): FormFieldDefinition[] {
+function toFormFields(meta: AgentMeta): FieldDefinition[] {
   return META_FIELDS.map((field) => ({
     key: field,
     label: field,

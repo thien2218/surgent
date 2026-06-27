@@ -42,4 +42,4 @@ Then tell the user what to manually test, why and how.
 ## Rules
 
 - Single char variable names are strictly forbidden
-- `pnpm tsc --noEmit` is run exactly once per validation
+- `pnpm tsc --noEmit` is run exact, no extra command

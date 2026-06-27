@@ -9,7 +9,7 @@ import type {
 } from "../types.js";
 import { Frame } from "../../ui/components/frame.js";
 import { Lines } from "../../ui/components/lines.js";
-import { EditableOption } from "../../ui/components/editable-option.js";
+import { FormField } from "../../ui/components/form-field.js";
 import { CATEGORIES } from "../constants.js";
 import {
   cycleRuleScope,
@@ -20,7 +20,7 @@ import {
 
 type RuleOptionEntry = {
   rule: DisplayRule;
-  option: EditableOption;
+  option: FormField;
   deleted: boolean;
 };
 
@@ -271,7 +271,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
     category: Category,
     rule: DisplayRule,
   ): RuleOptionEntry {
-    const option = new EditableOption(tui, keybindings, theme, {
+    const option = new FormField(tui, keybindings, theme, {
       label: formatRuleOptionLabel(rule.scope, rule.value),
       mode: { type: "input", placeholder: getRuleExprPlaceholder(category), text: rule.expr },
     });

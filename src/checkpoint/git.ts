@@ -65,7 +65,7 @@ export async function applyCheckpoint(
     return { code: 1, stdout: "", stderr: "Invalid checkpoint reference." };
   }
 
-  return pi.exec("git", ["restore", `--source=${sourceRef}`, "--worktree", "--all", "."], {
+  return pi.exec("git", ["restore", `--source=${sourceRef}`, "--worktree", "."], {
     cwd,
   });
 }

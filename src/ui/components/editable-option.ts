@@ -8,8 +8,8 @@ type EditableOptionMode<TValue> =
 
 type EditableOptionOptions<TValue> = {
   label: string;
-  labelWidth?: number;
   mode: EditableOptionMode<TValue>;
+  labelWidth?: number;
 };
 
 export class EditableOption<TValue = string> implements Focusable {
@@ -17,7 +17,6 @@ export class EditableOption<TValue = string> implements Focusable {
   onInputCancel?: () => void;
   onToggle?: (value: TValue, index: number) => void;
 
-  private readonly theme: Theme;
   private readonly labelWidth: number;
   private readonly mode: EditableOptionMode<TValue>;
   private readonly input?: PlaceholderInput;
@@ -33,13 +32,12 @@ export class EditableOption<TValue = string> implements Focusable {
   constructor(
     tui: TUI,
     keybindings: KeybindingsManager,
-    theme: Theme,
+    private readonly theme: Theme,
     options: EditableOptionOptions<TValue>,
   ) {
-    this.theme = theme;
     this.mode = options.mode;
     this.label = options.label;
-    this.labelWidth = options.labelWidth ?? 48;
+    this.labelWidth = options.labelWidth ?? 40;
 
     if (this.mode.type === "input") {
       this.input = new PlaceholderInput(tui, keybindings, theme, this.mode.placeholder);
@@ -100,15 +98,19 @@ export class EditableOption<TValue = string> implements Focusable {
   }
 
   render(width: number): string[] {
-    const [prefix, contentWidth] = this.renderPrefix(width);
+    const label = this.label + " ".repeat(this.labelWidth - this.label.length);
+    const prefix = truncateToWidth(this.theme.fg("dim", label), this.labelWidth);
 
     if (this.mode.type === "input") {
       if (this._editing) {
-        const inputLine = this.input?.render(contentWidth)[0] ?? "";
+        const inputLine = this.input!.render(Math.max(1, width - this.labelWidth))[0];
         return [truncateToWidth(prefix + inputLine, width)];
       }
-      const color = this._highlighted ? "accent" : "text";
-      return [truncateToWidth(prefix + this.theme.fg(color, this.inputText), width)];
+
+      const input = this.inputText
+        ? this.theme.fg(this._highlighted ? "accent" : "text", this.inputText)
+        : this.theme.fg(this._highlighted ? "muted" : "dim", this.mode.placeholder);
+      return [truncateToWidth(prefix + input, width)];
     }
 
     const currentValue = this.mode.values[this.toggleIndex]!;
@@ -120,7 +122,9 @@ export class EditableOption<TValue = string> implements Focusable {
   handleInput(data: string) {
     if (this.mode.type === "toggle") {
       if (matchesKey(data, Key.enter)) {
-        this.cycleToggle();
+        this.toggleIndex = (this.toggleIndex + 1) % this.mode.values.length;
+        const currentValue = this.mode.values[this.toggleIndex]!;
+        this.onToggle?.(currentValue, this.toggleIndex);
       }
       return;
     }
@@ -154,13 +158,6 @@ export class EditableOption<TValue = string> implements Focusable {
     return this.mode.values[this.toggleIndex];
   }
 
-  private cycleToggle() {
-    if (this.mode.type !== "toggle") return;
-    this.toggleIndex = (this.toggleIndex + 1) % this.mode.values.length;
-    const currentValue = this.mode.values[this.toggleIndex]!;
-    this.onToggle?.(currentValue, this.toggleIndex);
-  }
-
   private stopEditing() {
     this._editing = false;
     if (this.mode.type === "input") {
@@ -173,19 +170,5 @@ export class EditableOption<TValue = string> implements Focusable {
     if (this.mode.type !== "input") return;
     if (!this.input) return;
     this.input.focused = this._focused && this._editing;
-  }
-
-  private renderPrefix(width: number): [string, number] {
-    if (this.labelWidth === undefined) {
-      const label = `${this.label} `;
-      return [this.theme.fg("dim", label), Math.max(1, width - label.length)];
-    }
-
-    const labelText =
-      this.label.length >= this.labelWidth
-        ? this.label.slice(0, this.labelWidth)
-        : this.label + " ".repeat(this.labelWidth - this.label.length);
-
-    return [this.theme.fg("dim", labelText), Math.max(1, width - this.labelWidth)];
   }
 }

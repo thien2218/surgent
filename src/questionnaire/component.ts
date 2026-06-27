@@ -4,6 +4,7 @@ import {
   Key,
   matchesKey,
   parseKey,
+  wrapTextWithAnsi,
   type Focusable,
   type TUI,
 } from "@earendil-works/pi-tui";
@@ -130,9 +131,14 @@ export default class Questionnaire extends Frame implements Focusable {
       lines.space();
     }
 
-    lines.add(this.theme.bold(question.prompt));
+    for (const wrappedPromptLine of wrapTextWithAnsi(this.theme.bold(question.prompt), width)) {
+      lines.add(wrappedPromptLine);
+    }
+
     if (question.reason) {
-      lines.add(this.theme.fg("muted", question.reason));
+      for (const wrapped of wrapTextWithAnsi(this.theme.fg("muted", question.reason), width)) {
+        lines.add(wrapped);
+      }
     }
 
     if (question.options.length > 0) {

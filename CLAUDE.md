@@ -37,9 +37,8 @@ Run type checking to validate the change:
 pnpm tsc --noEmit
 ```
 
-Then tell the user what to manually test, why and how.
+Then tell the user what to manually test, why and how. This should only run as-is exactly once every time you finalize an edit/write.
 
 ## Rules
 
 - Single char variable names are strictly forbidden
-- `pnpm tsc --noEmit` is run exact, no extra command

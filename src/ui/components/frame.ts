@@ -1,8 +1,9 @@
 import { DynamicBorder, type Theme } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
+import { Keybound } from "./keybound.js";
 import { Lines } from "./lines.js";
 
-export class Frame implements Component {
+export class Frame extends Keybound implements Component {
   private readonly border: DynamicBorder;
   private readonly custom: Component[] = [];
 
@@ -10,12 +11,9 @@ export class Frame implements Component {
     return [];
   }
 
-  getHints(): [string, string][] {
-    return [];
-  }
-
   constructor(protected theme: Theme) {
-    this.border = new DynamicBorder((s) => theme.fg("accent", s));
+    super();
+    this.border = new DynamicBorder((segment) => theme.fg("accent", segment));
   }
 
   addCustom(child: Component) {
@@ -43,7 +41,7 @@ export class Frame implements Component {
       }
     }
 
-    if (this.getHints().length > 0) {
+    if (this.hints.length > 0) {
       lines.space();
       lines.add(this.renderHints(), 1);
     }
@@ -54,7 +52,7 @@ export class Frame implements Component {
   }
 
   private renderHints(): string {
-    return this.getHints()
+    return this.hints
       .map(([key, action]) => this.theme.fg("dim", key) + " " + action)
       .join(this.theme.fg("muted", " • "));
   }

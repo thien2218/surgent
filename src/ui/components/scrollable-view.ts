@@ -39,27 +39,27 @@ export class ScrollableView extends Frame implements Focusable {
     this.markdownRenderer = new Markdown(options.markdown, 0, 0, getMarkdownTheme());
 
     const keybindings: Keybindings = [
-      { key: Key.escape, handler: () => this.onCancel?.(), hint: "close" },
+      { key: Key.escape, hint: "close", handler: () => this.onCancel?.() },
       {
         key: { navigation: "vertical" },
-        navigate: (data) => this.scrollBy(data as "up" | "down"),
         hint: "scroll",
+        navigate: (data) => this.scrollBy(data as "up" | "down"),
       },
       {
         key: { navigation: "page" },
-        navigate: (data) => this.scrollBy(data as "pageUp" | "pageDown"),
         hint: "page",
+        navigate: (data) => this.scrollBy(data as "pageUp" | "pageDown"),
       },
     ];
 
     if (this.inputComponent) {
       keybindings.push({
         key: Key.tab,
+        hint: "focus input",
         handler: () => {
           this.activePane = this.activePane === "content" ? "input" : "content";
           this.syncInputFocus();
         },
-        hint: "focus input",
       });
     }
 
@@ -76,8 +76,8 @@ export class ScrollableView extends Frame implements Focusable {
     this.syncInputFocus();
   }
 
-  override get hints() {
-    return [["enter", "select"], ...super.hints] as [string, string][];
+  override get hints(): [string, string][] {
+    return [["enter", "select"], ...super.hints];
   }
 
   override invalidate() {

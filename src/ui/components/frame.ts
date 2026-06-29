@@ -53,6 +53,7 @@ export class Frame extends Keybound implements Component {
 
   private renderHints(): string {
     return this.hints
+      .filter(([_key, action]) => Boolean(action))
       .map(([key, action]) => this.theme.fg("dim", key) + " " + action)
       .join(this.theme.fg("muted", " • "));
   }

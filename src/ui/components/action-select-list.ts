@@ -1,14 +1,8 @@
 import type { KeybindingsManager, Theme } from "@earendil-works/pi-coding-agent";
-import {
-  Key,
-  matchesKey,
-  parseKey,
-  type Component,
-  type Focusable,
-  type TUI,
-} from "@earendil-works/pi-tui";
+import { Key, type Component, type Focusable, type TUI } from "@earendil-works/pi-tui";
 import { Lines } from "./lines.js";
 import { PlaceholderInput } from "./placeholder-input.js";
+import { Keybound } from "./keybound.js";
 
 export type ActionSelectOption = {
   value: string;
@@ -19,35 +13,58 @@ export type ActionSelectResult =
   | { type: "option"; value: string; index: number }
   | { type: "input"; value: string };
 
-export type ActionSelectListOptions = {
+type ActionSelectListConfig = {
   title: string;
   options: ActionSelectOption[];
   placeholder: string;
 };
 
-export class ActionSelectList implements Component, Focusable {
+export class ActionSelectList extends Keybound implements Component, Focusable {
   onSubmit?: (result: ActionSelectResult) => void;
   onCancel?: () => void;
 
-  private readonly customInput: PlaceholderInput;
+  private readonly input: PlaceholderInput;
   private readonly options: ActionSelectOption[];
   private readonly title: string;
   private readonly theme: Theme;
 
   private cursor = 0;
-  private editing = false;
   private _focused = false;
 
   constructor(
     tui: TUI,
     keybindings: KeybindingsManager,
     theme: Theme,
-    options: ActionSelectListOptions,
+    config: ActionSelectListConfig,
   ) {
-    this.title = options.title;
-    this.options = options.options;
+    super();
+
+    this.title = config.title;
+    this.options = config.options;
     this.theme = theme;
-    this.customInput = new PlaceholderInput(tui, keybindings, theme, options.placeholder);
+    this.input = new PlaceholderInput(tui, keybindings, theme, config.placeholder);
+
+    this.registerKeybindings([
+      { key: Key.escape, handler: () => this.onCancel?.() },
+      {
+        key: { navigation: "vertical" },
+        navigate: (keyId) => this.moveCursor(keyId === "up" ? -1 : 1),
+      },
+      {
+        key: Key.enter,
+        handler: (data) => {
+          if (this.isEditing()) {
+            if (data === "\n") {
+              this.input.handleInput(data);
+              return;
+            }
+            this.submitInputSelection();
+          } else if (data !== "\n") {
+            this.commitCurrentSelection();
+          }
+        },
+      },
+    ]);
   }
 
   get focused(): boolean {
@@ -77,80 +94,25 @@ export class ActionSelectList implements Component, Focusable {
   }
 
   invalidate() {
-    this.customInput.invalidate();
+    this.input.invalidate();
   }
 
   handleInput(data: string) {
-    if (matchesKey(data, Key.escape)) {
-      this.onCancel?.();
+    if (this.handleKb(data)) return;
+    if (this.isEditing()) {
+      this.input.handleInput(data);
       return;
     }
-    if (this.editing) {
-      this.handleInputEditingMode(data);
-      return;
-    }
-    if (matchesKey(data, Key.up)) {
-      this.moveCursor(-1);
-      return;
-    }
-    if (matchesKey(data, Key.down)) {
-      this.moveCursor(1);
-      return;
-    }
-    if (matchesKey(data, Key.tab) && this.isInputRowSelected()) {
-      this.setEditingInput(true);
-      return;
-    }
-    if (matchesKey(data, Key.enter) && data !== "\n") {
-      this.commitCurrentSelection();
-      return;
-    }
-    if (this.isInputRowSelected() && this.shouldRouteToInput(data)) {
-      this.setEditingInput(true);
-      this.customInput.handleInput(data);
-    }
-  }
-
-  private handleInputEditingMode(data: string) {
-    if (matchesKey(data, Key.tab)) {
-      this.setEditingInput(false);
-      return;
-    }
-    if (matchesKey(data, Key.up)) {
-      this.setEditingInput(false);
-      this.moveCursor(-1);
-      return;
-    }
-    if (matchesKey(data, Key.enter) && data !== "\n") {
-      this.submitInputSelection();
-      return;
-    }
-    this.customInput.handleInput(data);
   }
 
   private commitCurrentSelection() {
-    if (!this.isInputRowSelected()) {
-      const selectedOption = this.options[this.cursor];
-      if (!selectedOption) return;
-      this.onSubmit?.({
-        type: "option",
-        value: selectedOption.value,
-        index: this.cursor,
-      });
-      return;
-    }
-
-    const trimmedInput = this.customInput.getText().trim();
-    if (trimmedInput.length === 0) {
-      this.setEditingInput(true);
-      return;
-    }
-
-    this.submitInputSelection();
+    const selected = this.options[this.cursor];
+    if (!selected) return;
+    this.onSubmit?.({ type: "option", value: selected.value, index: this.cursor });
   }
 
   private submitInputSelection() {
-    const trimmedInput = this.customInput.getText().trim();
+    const trimmedInput = this.input.getText().trim();
     if (trimmedInput.length === 0) return;
     this.onSubmit?.({ type: "input", value: trimmedInput });
   }
@@ -171,7 +133,7 @@ export class ActionSelectList implements Component, Focusable {
     const markerText = this.theme.fg(markerColor, marker);
 
     const inputContentWidth = Math.max(1, width - marker.length);
-    const inputLines = this.customInput.render(inputContentWidth);
+    const inputLines = this.input.render(inputContentWidth);
     if (inputLines.length === 0) {
       return [markerText];
     }
@@ -193,26 +155,11 @@ export class ActionSelectList implements Component, Focusable {
     this.syncInputFocus();
   }
 
-  private isInputRowSelected(): boolean {
-    return this.cursor === this.options.length;
-  }
-
-  private setEditingInput(value: boolean) {
-    this.editing = value;
-    this.syncInputFocus();
-  }
-
   private syncInputFocus() {
-    this.customInput.focused = this._focused && this.isInputRowSelected();
+    this.input.focused = this.isEditing();
   }
 
-  private shouldRouteToInput(data: string): boolean {
-    const parsedKey = parseKey(data);
-    return (
-      (parsedKey !== undefined && parsedKey.length === 1) ||
-      matchesKey(data, Key.backspace) ||
-      matchesKey(data, Key.delete) ||
-      matchesKey(data, Key.space)
-    );
+  private isEditing() {
+    return this._focused && this.cursor === this.options.length;
   }
 }

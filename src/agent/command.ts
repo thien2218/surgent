@@ -45,8 +45,8 @@ async function showAgentPicker(
     data: agent,
   }));
 
-  return ctx.ui.custom<string | null>((_tui, theme, keybindings, done) => {
-    const selectList = new ExtendedSelectList(keybindings, theme, {
+  return ctx.ui.custom<string | null>((_tui, theme, _keybindings, done) => {
+    const selectList = new ExtendedSelectList(theme, {
       title: "Agents",
       addLabel: "Create new agent",
       items,

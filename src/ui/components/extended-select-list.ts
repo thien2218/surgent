@@ -1,9 +1,5 @@
-import {
-  getSelectListTheme,
-  type KeybindingsManager,
-  type Theme,
-} from "@earendil-works/pi-coding-agent";
-import { Key, SelectList, matchesKey, type SelectItem } from "@earendil-works/pi-tui";
+import { getSelectListTheme, type Theme } from "@earendil-works/pi-coding-agent";
+import { Key, SelectList, type SelectItem } from "@earendil-works/pi-tui";
 import { Frame } from "./frame.js";
 import { Lines } from "./lines.js";
 
@@ -33,19 +29,27 @@ export class ExtendedSelectList<TData = unknown> extends Frame {
   private selectList: SelectList;
   private deleteArmed = false;
 
-  constructor(
-    private readonly keybindings: KeybindingsManager,
-    theme: Theme,
-    options: Options<TData>,
-  ) {
+  constructor(theme: Theme, options: Options<TData>) {
     super(theme);
 
     this.title = options.title;
     this.items = options.items;
     if (options.addLabel) this.items.unshift({ value: "__add__", label: `[${options.addLabel}]` });
     this.canDeleteItem = options.canDelete ?? (() => true);
-
     this.selectList = new SelectList(this.items, options.maxVisibleRows ?? 7, getSelectListTheme());
+
+    this.registerKeybindings([
+      {
+        key: "esc",
+        hint: "cancel",
+        handler: () => {
+          this.deleteArmed = false;
+          this.onCancel?.();
+        },
+      },
+      { key: "enter", hint: "select", handler: (data) => this.confirmSelection(data) },
+      { key: Key.ctrl("d"), hint: "delete", handler: () => this.armDeletion() },
+    ]);
   }
 
   override invalidate() {
@@ -54,37 +58,15 @@ export class ExtendedSelectList<TData = unknown> extends Frame {
   }
 
   handleInput(data: string) {
-    if (this.isCancelInput(data)) {
-      this.deleteArmed = false;
-      this.onCancel?.();
-      return;
-    }
-
-    if (this.isDeleteInput(data)) {
-      this.armDeletion();
-      return;
-    }
-
-    if (this.isConfirmInput(data)) {
-      this.confirmSelection();
-      return;
-    }
-
+    if (this.handleKb(data)) return;
     if (this.deleteArmed) {
       this.deleteArmed = false;
     }
-
     this.selectList.handleInput(data);
   }
 
-  override getHints(): [string, string][] {
-    const enterLabel = this.deleteArmed ? "confirm delete" : "select";
-    return [
-      ["↑↓", "move"],
-      ["Enter", enterLabel],
-      ["Ctrl+D", "delete"],
-      ["Esc", "cancel"],
-    ];
+  override get hints(): [string, string][] {
+    return [["↑↓", "move"], ...super.hints];
   }
 
   protected override children(width: number): string[] {
@@ -105,65 +87,54 @@ export class ExtendedSelectList<TData = unknown> extends Frame {
     return lines.get();
   }
 
-  private isConfirmInput(data: string): boolean {
-    return this.keybindings.matches(data, "tui.select.confirm") && data !== "\n";
-  }
-
-  private isCancelInput(data: string): boolean {
-    return this.keybindings.matches(data, "tui.select.cancel");
-  }
-
-  private isDeleteInput(data: string): boolean {
-    return matchesKey(data, Key.ctrl("d"));
-  }
-
-  private confirmSelection() {
-    const selectedItem = this.selectList.getSelectedItem() as SelectEntry<TData>;
-    if (!selectedItem) return;
+  private confirmSelection(data: string) {
+    if (data === "\n") return;
+    const selected = this.selectList.getSelectedItem() as SelectEntry<TData>;
+    if (!selected) return;
 
     if (this.deleteArmed) {
-      this.confirmDeletion(selectedItem);
+      this.confirmDeletion(selected);
       return;
     }
 
     this.deleteArmed = false;
-    if (this.isAddRow(selectedItem)) {
+    if (this.isAddRow(selected)) {
       this.onAdd?.();
       return;
     }
 
-    this.onSelect?.(selectedItem);
+    this.onSelect?.(selected);
   }
 
   private armDeletion() {
-    const selectedItem = this.selectList.getSelectedItem() as SelectEntry<TData>;
-    if (!selectedItem || this.isAddRow(selectedItem)) {
+    this.updateHint("enter", "confirm delete");
+    const selected = this.selectList.getSelectedItem() as SelectEntry<TData>;
+    if (!selected || this.isAddRow(selected)) {
       this.deleteArmed = false;
       return;
     }
 
-    if (!this.canDeleteItem(selectedItem)) {
+    if (!this.canDeleteItem(selected)) {
       this.deleteArmed = false;
-      this.onDeleteBlocked?.(selectedItem);
+      this.onDeleteBlocked?.(selected);
       return;
     }
 
     this.deleteArmed = true;
   }
 
-  private confirmDeletion(selectedItem: SelectEntry<TData>) {
-    if (this.isAddRow(selectedItem)) {
+  private confirmDeletion(selected: SelectEntry<TData>) {
+    if (this.isAddRow(selected)) {
       this.deleteArmed = false;
       return;
     }
-
-    if (!this.canDeleteItem(selectedItem)) {
+    if (!this.canDeleteItem(selected)) {
       this.deleteArmed = false;
-      this.onDeleteBlocked?.(selectedItem);
+      this.onDeleteBlocked?.(selected);
       return;
     }
 
-    const selectedItemIndex = this.items.findIndex((item) => item === selectedItem);
+    const selectedItemIndex = this.items.findIndex((item) => item === selected);
     if (selectedItemIndex < 0) {
       this.deleteArmed = false;
       return;

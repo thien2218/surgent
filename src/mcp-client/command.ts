@@ -39,9 +39,9 @@ async function showMcpOptions(ctx: ExtensionCommandContext): Promise<"add" | "ca
     data: server,
   }));
 
-  return ctx.ui.custom<"add" | "cancel">((tui, theme, keybindings, done) => {
+  return ctx.ui.custom<"add" | "cancel">((tui, theme, _keybindings, done) => {
     let isPending = false;
-    const selectList = new ExtendedSelectList<ResolvedMcpServer>(keybindings, theme, {
+    const selectList = new ExtendedSelectList<ResolvedMcpServer>(theme, {
       title: "MCP servers",
       addLabel: "Add MCP server",
       items,

@@ -55,6 +55,84 @@ export default class PermissionRulesList extends Frame implements Focusable {
       );
       this.options.set(category, options);
     }
+
+    this.registerKeybindings([
+      {
+        key: Key.escape,
+        hint: "exit",
+        handler: () => {
+          if (this.saved) {
+            this.onDone?.("exit");
+            return;
+          }
+
+          this.escapeCount++;
+          const timeout = setTimeout(() => {
+            this.escapeCount = 0;
+          }, 1000);
+
+          if (this.escapeCount >= 2) {
+            clearTimeout(timeout);
+            this.onDone?.("exit");
+          }
+        },
+      },
+      {
+        key: Key.ctrl("s"),
+        hint: "save",
+        handler: () => {
+          if (!this.saved) {
+            this.save().catch(this.onSaveErr);
+          }
+        },
+      },
+      {
+        key: { navigation: "vertical" },
+        hint: "navigate",
+        navigate: (keyId) => {
+          if (keyId === Key.up) {
+            this.cursor = Math.max(0, this.cursor - 1);
+          } else {
+            this.cursor = Math.min(this.getTotalRules(), this.cursor + 1);
+          }
+        },
+      },
+      {
+        key: Key.ctrl("d"),
+        hint: "delete",
+        handler: () => {
+          const selectedEntry = this.getSelectedRule();
+          if (!selectedEntry) return;
+
+          selectedEntry.deleted = true;
+          this.saved = false;
+          this.cursor = Math.min(this.cursor, this.getTotalRules());
+        },
+      },
+      {
+        key: Key.enter,
+        hint: "select/edit",
+        handler: () => {
+          if (this.cursor === 0) {
+            if (this.saved) {
+              this.onDone?.("add");
+              return;
+            }
+
+            this.save()
+              .then(() => this.onDone?.("add"))
+              .catch(this.onSaveErr);
+            return;
+          }
+
+          const selectedEntry = this.getSelectedRule();
+          if (!selectedEntry) return;
+
+          selectedEntry.option.startEditing();
+          this.editing = true;
+        },
+      },
+    ]);
   }
 
   get focused(): boolean {
@@ -118,7 +196,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
     return lines.get();
   }
 
-  override getHints(): [string, string][] {
+  override get hints(): [string, string][] {
     if (this.editing) {
       return [
         ["Enter", "finish editing"],
@@ -153,60 +231,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
       return;
     }
 
-    if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) {
-      if (this.saved) {
-        this.onDone?.("exit");
-        return;
-      }
-
-      this.escapeCount++;
-      const timeout = setTimeout(() => {
-        this.escapeCount = 0;
-      }, 1000);
-
-      if (this.escapeCount >= 2) {
-        clearTimeout(timeout);
-        this.onDone?.("exit");
-      }
-      return;
-    }
-
-    if (!this.saved && matchesKey(data, Key.ctrl("s"))) {
-      this.save().catch(this.onSaveErr);
-      return;
-    }
-    if (matchesKey(data, Key.up)) {
-      this.cursor = Math.max(0, this.cursor - 1);
-      return;
-    }
-    if (matchesKey(data, Key.down)) {
-      this.cursor = Math.min(this.getTotalRules(), this.cursor + 1);
-      return;
-    }
-
-    if (matchesKey(data, Key.enter) && this.cursor === 0) {
-      if (this.saved) {
-        this.onDone?.("add");
-        return;
-      }
-      this.save()
-        .then(() => this.onDone?.("add"))
-        .catch(this.onSaveErr);
-      return;
-    }
-
-    if (!selectedEntry) return;
-    if (matchesKey(data, Key.ctrl("d"))) {
-      selectedEntry.deleted = true;
-      this.saved = false;
-      this.cursor = Math.min(this.cursor, this.getTotalRules());
-      return;
-    }
-    if (matchesKey(data, Key.enter)) {
-      selectedEntry.option.startEditing();
-      this.editing = true;
-      return;
-    }
+    this.handleKb(data);
   }
 
   private async save() {

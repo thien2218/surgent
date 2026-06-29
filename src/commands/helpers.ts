@@ -178,8 +178,8 @@ export async function pickSubsessionId(
     data: { subsessionId: preview.subsessionId },
   }));
 
-  return ctx.ui.custom<string | null>((_tui, theme, keybindings, done) => {
-    const selectList = new ExtendedSelectList<{ subsessionId: string }>(keybindings, theme, {
+  return ctx.ui.custom<string | null>((_tui, theme, _keybindings, done) => {
+    const selectList = new ExtendedSelectList<{ subsessionId: string }>(theme, {
       title: `Reopen ${label} session`,
       items,
       maxVisibleRows: 12,

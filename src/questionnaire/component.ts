@@ -11,7 +11,6 @@ import {
 import { Lines } from "../ui/components/lines.js";
 import {
   createInitialDraft,
-  ensureSingleSelection,
   getQuestionValidationMessage,
   isQuestionComplete,
   moveCursor,
@@ -28,7 +27,8 @@ export default class Questionnaire extends Frame implements Focusable {
 
   private readonly drafts: QuestionDraft[];
   private readonly editors: Editor[];
-  private currentQuestionIndex = 0;
+
+  private tab = 0;
   private statusMessage: string | undefined;
   private _focused = false;
 
@@ -49,6 +49,61 @@ export default class Questionnaire extends Frame implements Focusable {
       };
     }
 
+    this.registerKeybindings([
+      { key: Key.enter, hint: "continue", handler: () => this.submitAnswer() },
+      {
+        key: Key.space,
+        hint: "select",
+        handler: () => {
+          const draft = this.drafts[this.tab]!;
+          const question = this.questions[this.tab]!;
+          const { selectedIndexes, message } = toggleSuggestion(question, draft, draft.cursor);
+
+          this.drafts[this.tab] = { ...draft, selectedIndexes };
+          this.statusMessage = message;
+        },
+      },
+      {
+        key: Key.escape,
+        hint: "cancel",
+        handler: () => this.onDone?.({ cancelled: true, questions: [], answers: [] }),
+      },
+      {
+        key: { navigation: "horizontal", metakey: Key.alt },
+        hint: "switch questions",
+        navigate: (direction) => this.moveQuestion(direction === "left" ? -1 : 1),
+      },
+      {
+        key: Key.tab,
+        hint: "switches focus",
+        handler: () => {
+          const draft = this.drafts[this.tab]!;
+          this.setFocusMode(draft.focusMode === "editor" ? "options" : "editor");
+        },
+      },
+      {
+        key: { navigation: "vertical" },
+        hint: "navigate",
+        navigate: (data) => {
+          this.setFocusMode("options");
+          const question = this.questions[this.tab]!;
+          const draft = this.drafts[this.tab]!;
+
+          if (data === "up") {
+            this.drafts[this.tab] = moveCursor(question, draft, -1);
+          } else {
+            const moved = moveCursor(question, draft, 1);
+            if (moved.cursor === draft.cursor) {
+              this.setFocusMode("editor");
+              return true;
+            }
+            this.drafts[this.tab] = moved;
+            return true;
+          }
+        },
+      },
+    ]);
+
     this.syncEditorFocus();
   }
 
@@ -68,63 +123,23 @@ export default class Questionnaire extends Frame implements Focusable {
   }
 
   handleInput(data: string) {
-    if (matchesKey(data, Key.escape)) {
-      this.onDone?.({ cancelled: true, questions: [], answers: [] });
-      return;
+    if (this.handleKb(data)) return;
+
+    const draft = this.drafts[this.tab]!;
+    if (draft.focusMode === "options" && this.shouldRouteToEditor(data)) {
+      this.setFocusMode("editor");
     }
 
-    if (matchesKey(data, Key.alt("left"))) {
-      this.moveQuestion(-1);
-      return;
-    }
-
-    if (matchesKey(data, Key.alt("right"))) {
-      this.moveQuestion(1);
-      return;
-    }
-
-    const question = this.currentQuestion();
-    const draft = this.currentDraft();
-
-    if (
-      question.options.length > 0 &&
-      (matchesKey(data, Key.tab) || matchesKey(data, Key.shift("tab")))
-    ) {
-      this.setFocusMode(draft.focusMode === "editor" ? "options" : "editor");
-      return;
-    }
-
-    if (draft.focusMode === "options") {
-      if (this.handleOptionsInput(data)) return;
-      if (this.shouldRouteToEditor(data)) {
-        this.setFocusMode("editor");
-        this.currentEditor().handleInput(data);
-        const currentDraft = this.drafts[this.currentQuestionIndex]!;
-        currentDraft.text = this.currentEditor().getText();
-      }
-      return;
-    }
-
-    if (question.options.length > 0 && (matchesKey(data, Key.up) || matchesKey(data, Key.down))) {
-      this.setFocusMode("options");
-      return;
-    }
-
-    if (matchesKey(data, Key.enter)) {
-      this.submitCurrentQuestion();
-      return;
-    }
-
-    this.currentEditor().handleInput(data);
-    const currentDraft = this.drafts[this.currentQuestionIndex]!;
-    currentDraft.text = this.currentEditor().getText();
+    this.editors[this.tab]!.handleInput(data);
+    const currentDraft = this.drafts[this.tab]!;
+    currentDraft.text = this.editors[this.tab]!.getText();
   }
 
   protected override children(width: number) {
     const lines = new Lines(width);
-    const question = this.currentQuestion();
-    const draft = this.currentDraft();
-    const editor = this.currentEditor();
+    const question = this.questions[this.tab]!;
+    const draft = this.drafts[this.tab]!;
+    const editor = this.editors[this.tab]!;
 
     if (this.questions.length > 1) {
       lines.add(this.renderTabs());
@@ -193,25 +208,6 @@ export default class Questionnaire extends Frame implements Focusable {
     return lines.get();
   }
 
-  override getHints(): [string, string][] {
-    const question = this.currentQuestion();
-    const base: [string, string][] = [
-      ["Alt+←/→", "switch questions"],
-      ["Enter", "continue"],
-      ["Esc", "cancel"],
-    ];
-
-    if (question.options.length > 0) {
-      base.push(["Tab", "switches focus"]);
-      base.push(["↑↓", "move options"]);
-      if (question.multi) {
-        base.push(["Space", "toggles options"]);
-      }
-    }
-
-    return base;
-  }
-
   private createEditor(): Editor {
     const editorTheme: EditorTheme = {
       borderColor: (text) => this.theme.fg("dim", text),
@@ -227,79 +223,28 @@ export default class Questionnaire extends Frame implements Focusable {
     return new Editor(this.tui, editorTheme);
   }
 
-  private currentQuestion(): NormalizedQuestion {
-    return this.questions[this.currentQuestionIndex]!;
-  }
-
-  private currentDraft(): QuestionDraft {
-    return this.drafts[this.currentQuestionIndex]!;
-  }
-
-  private currentEditor(): Editor {
-    return this.editors[this.currentQuestionIndex]!;
-  }
-
   private moveQuestion(delta: number) {
     const lastIndex = this.questions.length - 1;
-    this.currentQuestionIndex = Math.max(0, Math.min(lastIndex, this.currentQuestionIndex + delta));
+    this.tab = Math.max(0, Math.min(lastIndex, this.tab + delta));
     this.statusMessage = undefined;
+    const question = this.questions[this.tab]!;
+
+    this.setKeyAccess(Key.tab, question.options.length > 0);
+    this.setArrowKeyAccess({ navigation: "vertical" }, question.options.length > 0);
     this.syncEditorFocus();
   }
 
   private setFocusMode(focusMode: FocusMode) {
-    this.currentDraft().focusMode = focusMode;
+    this.setKeyAccess(Key.space, focusMode === "options");
+    this.drafts[this.tab]!.focusMode = focusMode;
     this.statusMessage = undefined;
     this.syncEditorFocus();
   }
 
-  private handleOptionsInput(data: string): boolean {
-    const question = this.currentQuestion();
-    const draft = this.currentDraft();
-
-    if (matchesKey(data, Key.up)) {
-      this.drafts[this.currentQuestionIndex] = moveCursor(question, draft, -1);
-      return true;
-    }
-
-    if (matchesKey(data, Key.down)) {
-      const moved = moveCursor(question, draft, 1);
-      if (moved.cursor === draft.cursor) {
-        this.setFocusMode("editor");
-        return true;
-      }
-      this.drafts[this.currentQuestionIndex] = moved;
-      return true;
-    }
-
-    if (matchesKey(data, Key.space) && question.multi) {
-      const result = toggleSuggestion(question, draft, draft.cursor);
-      this.drafts[this.currentQuestionIndex] = {
-        ...draft,
-        selectedIndexes: result.selectedIndexes,
-      };
-      this.statusMessage = result.message;
-      return true;
-    }
-
-    if (matchesKey(data, Key.enter)) {
-      if (!question.multi) {
-        this.drafts[this.currentQuestionIndex] = {
-          ...draft,
-          selectedIndexes: [draft.cursor],
-        };
-      }
-      this.submitCurrentQuestion();
-      return true;
-    }
-
-    return false;
-  }
-
-  private submitCurrentQuestion() {
-    const question = this.currentQuestion();
-    const withFallbackSelection = ensureSingleSelection(question, this.currentDraft());
-    this.drafts[this.currentQuestionIndex] = withFallbackSelection;
-    const message = getQuestionValidationMessage(question, withFallbackSelection);
+  private submitAnswer() {
+    const draft = this.drafts[this.tab]!;
+    const question = this.questions[this.tab]!;
+    const message = getQuestionValidationMessage(question, draft);
 
     if (message) {
       this.statusMessage = message;
@@ -308,7 +253,7 @@ export default class Questionnaire extends Frame implements Focusable {
 
     this.statusMessage = undefined;
 
-    if (this.currentQuestionIndex === this.questions.length - 1) {
+    if (this.tab === this.questions.length - 1) {
       if (this.allQuestionsAnswered()) {
         this.onDone?.({
           cancelled: false,
@@ -320,12 +265,12 @@ export default class Questionnaire extends Frame implements Focusable {
         return;
       }
 
-      this.currentQuestionIndex = this.firstIncompleteQuestionIndex();
+      this.tab = this.firstIncompleteQuestionIndex();
       this.syncEditorFocus();
       return;
     }
 
-    this.currentQuestionIndex += 1;
+    this.tab += 1;
     this.syncEditorFocus();
   }
 
@@ -347,7 +292,7 @@ export default class Questionnaire extends Frame implements Focusable {
       const answered = isQuestionComplete(question, this.drafts[index]!);
       const label = ` Q${index + 1}${answered ? "*" : ""} `;
 
-      if (index === this.currentQuestionIndex) {
+      if (index === this.tab) {
         return this.theme.bg("selectedBg", this.theme.fg("text", label));
       }
 
@@ -358,7 +303,7 @@ export default class Questionnaire extends Frame implements Focusable {
   }
 
   private currentHelpMessage(): string {
-    const question = this.currentQuestion();
+    const question = this.questions[this.tab]!;
     if (question.options.length === 0) {
       return "Type an answer, then press Enter.";
     }
@@ -381,8 +326,7 @@ export default class Questionnaire extends Frame implements Focusable {
   private syncEditorFocus() {
     for (const [index, editor] of this.editors.entries()) {
       const draft = this.drafts[index]!;
-      editor.focused =
-        this.focused && index === this.currentQuestionIndex && draft.focusMode === "editor";
+      editor.focused = this.focused && index === this.tab && draft.focusMode === "editor";
     }
   }
 }

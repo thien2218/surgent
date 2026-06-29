@@ -2,7 +2,25 @@ import { Key, matchesKey, type KeyId } from "@earendil-works/pi-tui";
 
 type NavigationKey = {
   navigation: "vertical" | "horizontal" | "page";
-  metakey?: (keyId: KeyId) => KeyId;
+  metakey?:
+    | typeof Key.ctrl
+    | typeof Key.shift
+    | typeof Key.alt
+    | typeof Key.super
+    | typeof Key.ctrlShift
+    | typeof Key.shiftCtrl
+    | typeof Key.ctrlAlt
+    | typeof Key.altCtrl
+    | typeof Key.shiftAlt
+    | typeof Key.altShift
+    | typeof Key.ctrlSuper
+    | typeof Key.superCtrl
+    | typeof Key.shiftSuper
+    | typeof Key.superShift
+    | typeof Key.altSuper
+    | typeof Key.superAlt
+    | typeof Key.ctrlShiftAlt
+    | typeof Key.ctrlShiftSuper;
 };
 
 export type Keybindings = Array<
@@ -18,6 +36,44 @@ export class Keybound {
   >();
   private keyHints: [string, string][] = [];
 
+  private getArrowKeyIds(key: NavigationKey) {
+    const isVertical = key.navigation === "vertical";
+    const isHorizontal = key.navigation === "horizontal";
+    const firstNav = isVertical ? "up" : isHorizontal ? "left" : "pageUp";
+    const secondNav = isVertical ? "down" : isHorizontal ? "right" : "pageDown";
+    return [firstNav, secondNav] as [typeof firstNav, typeof secondNav];
+  }
+
+  private registerNormalKb(key: KeyId, handler: (data: string) => void, hint?: string) {
+    if (this.bindings.has(key)) {
+      throw new Error(`key already registered: ${key}`);
+    }
+    this.bindings.set(key, { handler, hintIdx: this.keyHints.length, accessible: true });
+    this.keyHints.push([key, hint ?? ""]);
+  }
+
+  private registerArrowKb(key: NavigationKey, navigate: (data: string) => void, hint?: string) {
+    if (this.locked) throw new Error("key registry locked");
+
+    const [firstNav, secondNav] = this.getArrowKeyIds(key);
+    const first = key.metakey ? key.metakey(Key[firstNav]) : Key[firstNav];
+    const second = key.metakey ? key.metakey(Key[secondNav]) : Key[secondNav];
+    const firstArrow = firstNav === "up" ? "↑" : firstNav === "left" ? "←" : "pgUp";
+    const secondArrow = secondNav === "down" ? "↓" : secondNav === "right" ? "→" : "pgDown";
+
+    const keyParts = first.split("+");
+    const metakey = keyParts.slice(0, -1).join("+");
+    const hintKey = metakey
+      ? `${metakey}+${firstArrow}/${secondArrow}`
+      : `${firstArrow}/${secondArrow}`;
+
+    const hintIdx = this.keyHints.length;
+    this.keyHints.push([hintKey, hint ?? ""]);
+
+    this.bindings.set(first, { handler: () => navigate(firstNav), hintIdx, accessible: true });
+    this.bindings.set(second, { handler: () => navigate(secondNav), hintIdx, accessible: true });
+  }
+
   protected registerKeybindings(keybindings: Keybindings) {
     if (this.locked) throw new Error("key registry locked");
 
@@ -32,55 +88,6 @@ export class Keybound {
     this.locked = true;
   }
 
-  private registerNormalKb(key: KeyId, handler: (data: string) => void, hint?: string) {
-    if (this.bindings.has(key)) {
-      throw new Error(`key already registered: ${key}`);
-    }
-
-    let hintIdx: number | null = null;
-    if (hint !== undefined) {
-      hintIdx = this.keyHints.length;
-      this.keyHints.push([key, hint]);
-    }
-
-    this.bindings.set(key, { handler, hintIdx, accessible: true });
-  }
-
-  private registerArrowKb(key: NavigationKey, navigate: (data: string) => void, hint?: string) {
-    if (this.locked) throw new Error("key registry locked");
-
-    const [first, second] = this.getArrowKeyIds(key);
-    const firstArrow = first.endsWith("up") ? "↑" : first.endsWith("left") ? "←" : "pgUp";
-    const secondArrow = second.endsWith("down") ? "↓" : second.endsWith("right") ? "→" : "pgDown";
-
-    let hintIdx: number | null = null;
-    if (hint !== undefined) {
-      const keyParts = first.split("+");
-      const metakey = keyParts.slice(0, -1).join("+");
-      const hintKey = metakey
-        ? `${metakey}+${firstArrow}/${secondArrow}`
-        : `${firstArrow}/${secondArrow}`;
-
-      hintIdx = this.keyHints.length;
-      this.keyHints.push([hintKey, hint]);
-    }
-
-    this.bindings.set(first, { handler: () => navigate(first), hintIdx, accessible: true });
-    this.bindings.set(second, { handler: () => navigate(second), hintIdx, accessible: true });
-  }
-
-  private getArrowKeyIds(key: NavigationKey) {
-    const isVertical = key.navigation === "vertical";
-    const isHorizontal = key.navigation === "horizontal";
-
-    const firstDir = isVertical ? "up" : isHorizontal ? "left" : "pageUp";
-    const secondDir = isVertical ? "down" : isHorizontal ? "right" : "pageDown";
-
-    const first = key.metakey ? key.metakey(Key[firstDir]) : Key[firstDir];
-    const second = key.metakey ? key.metakey(Key[secondDir]) : Key[secondDir];
-    return [first, second] as [KeyId, KeyId];
-  }
-
   protected setKeyAccess(key: KeyId, accessible: boolean) {
     const binding = this.bindings.get(key);
     if (!binding) {
@@ -90,7 +97,9 @@ export class Keybound {
   }
 
   protected setArrowKeyAccess(key: NavigationKey, accessible: boolean) {
-    const [first, second] = this.getArrowKeyIds(key);
+    const [firstNav, secondNav] = this.getArrowKeyIds(key);
+    const first = key.metakey ? key.metakey(Key[firstNav]) : Key[firstNav];
+    const second = key.metakey ? key.metakey(Key[secondNav]) : Key[secondNav];
     this.setKeyAccess(first, accessible);
     this.setKeyAccess(second, accessible);
   }

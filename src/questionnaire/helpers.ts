@@ -124,17 +124,6 @@ export function toggleSuggestion(
   return { selectedIndexes: [...withoutExclusive, optionIndex] };
 }
 
-export function ensureSingleSelection(
-  question: NormalizedQuestion,
-  draft: QuestionDraft,
-): QuestionDraft {
-  if (question.multi || question.options.length === 0 || draft.selectedIndexes.length > 0) {
-    return draft;
-  }
-  const nextCursorIndex = clampCursorIndex(question, draft.cursor);
-  return { ...draft, selectedIndexes: [nextCursorIndex] };
-}
-
 export function moveCursor(
   question: NormalizedQuestion,
   draft: QuestionDraft,
@@ -242,11 +231,4 @@ function getRecommendedCount(question: {
     return 1;
   }
   return question.recommendedCount ?? question.minSelections;
-}
-
-function clampCursorIndex(question: NormalizedQuestion, cursor: number): number {
-  if (question.options.length === 0) {
-    return 0;
-  }
-  return Math.max(0, Math.min(question.options.length - 1, cursor));
 }

@@ -1,5 +1,5 @@
 import type { KeybindingsManager, Theme } from "@earendil-works/pi-coding-agent";
-import { Key, matchesKey, type Focusable, type TUI } from "@earendil-works/pi-tui";
+import { Key, type Focusable, type TUI } from "@earendil-works/pi-tui";
 import { FormField, type Field } from "./form-field.js";
 import { Frame } from "./frame.js";
 import { Lines } from "./lines.js";
@@ -57,6 +57,39 @@ export class Form<TSubmit = Record<string, string>> extends Frame implements Foc
       return option;
     });
 
+    this.registerKeybindings([
+      { key: Key.escape, handler: () => this.onCancel?.() },
+      { key: Key.ctrl("s"), hint: "save", handler: () => void this.save() },
+      {
+        key: { navigation: "vertical" },
+        hint: "navigate",
+        navigate: (keyId) => {
+          if (this.editing) return;
+          if (keyId === Key.up) {
+            this.cursor = Math.max(0, this.cursor - 1);
+          } else {
+            this.cursor = Math.min(this.fields.length - 1, this.cursor + 1);
+          }
+          this.syncFocus();
+        },
+      },
+      {
+        key: Key.enter,
+        handler: () => {
+          const selectedField = this.fields[this.cursor];
+          if (!selectedField || this.editing) return;
+          if (selectedField.modeType === "toggle") {
+            selectedField.handleInput(Key.enter);
+            return;
+          }
+
+          this.editing = true;
+          selectedField.startEditing();
+          this.syncFocus();
+        },
+      },
+    ]);
+
     this.syncFocus();
   }
 
@@ -74,22 +107,6 @@ export class Form<TSubmit = Record<string, string>> extends Frame implements Foc
     for (const field of this.fields) {
       field.invalidate();
     }
-  }
-
-  override getHints(): [string, string][] {
-    if (this.editing) {
-      return [
-        ["Enter", "finish editing"],
-        ["Esc", "cancel editing"],
-      ];
-    }
-
-    return [
-      ["↑↓", "navigate"],
-      ["Enter", "edit/toggle"],
-      ["Ctrl+S", "save"],
-      ["Esc", "cancel"],
-    ];
   }
 
   protected override children(width: number): string[] {
@@ -117,44 +134,17 @@ export class Form<TSubmit = Record<string, string>> extends Frame implements Foc
 
   handleInput(data: string) {
     const selectedField = this.fields[this.cursor];
-
     if (this.editing && selectedField && selectedField.modeType === "input") {
       selectedField.handleInput(data);
       return;
     }
-    if (matchesKey(data, Key.escape)) {
-      this.onCancel?.();
-      return;
-    }
-    if (matchesKey(data, Key.ctrl("s"))) {
-      void this.save();
-      return;
-    }
-    if (!selectedField) {
-      return;
-    }
-    if (matchesKey(data, Key.up)) {
-      this.cursor = Math.max(0, this.cursor - 1);
-      this.syncFocus();
-      return;
-    }
-    if (matchesKey(data, Key.down)) {
-      this.cursor = Math.min(this.fields.length - 1, this.cursor + 1);
-      this.syncFocus();
-      return;
-    }
-    if (matchesKey(data, Key.enter)) {
-      if (selectedField.modeType === "toggle") {
-        selectedField.handleInput(data);
-        return;
-      }
-      this.editing = true;
-      selectedField.startEditing();
-      this.syncFocus();
-    }
+    this.handleKb(data);
   }
 
   private syncFocus() {
+    this.updateHint("enter", this.editing ? "finish editing" : "edit/toggle");
+    this.updateHint("esc", this.editing ? "cancel editing" : "cancel");
+
     for (let index = 0; index < this.fields.length; index++) {
       const field = this.fields[index]!;
       field.focused = this._focused && this.editing && index === this.cursor;

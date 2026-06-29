@@ -50,6 +50,61 @@ export default class PermissionPrompt extends Frame implements Focusable {
   ) {
     super(theme);
     this.setOptions();
+    this.registerKeybindings([
+      {
+        key: Key.escape,
+        hint: "dismiss",
+        handler: () => {
+          this.onDone?.({ allowed: false });
+          this.cachedLines = undefined;
+        },
+      },
+      {
+        key: Key.shift("tab"),
+        hint: "cycle scope",
+        handler: () => {
+          this.scopeIdx = (this.scopeIdx + 1) % SCOPES.length;
+          this.setOptions();
+          this.cachedLines = undefined;
+        },
+      },
+      {
+        key: { navigation: "vertical" },
+        hint: "navigate",
+        navigate: (keyId) => {
+          if (keyId === Key.up) {
+            this.cursor = Math.max(0, this.cursor - 1);
+          } else {
+            this.cursor = Math.min(this.options.length - 1, this.cursor + 1);
+          }
+          this.setAmending(false);
+          this.cachedLines = undefined;
+        },
+      },
+      {
+        key: Key.tab,
+        hint: "amend",
+        handler: () => {
+          if (this.amending) return;
+
+          const option = this.options[this.cursor];
+          if (option) {
+            this.input.setValue(option.defaultText ?? "");
+            this.setAmending(true);
+          }
+
+          this.cachedLines = undefined;
+        },
+      },
+      {
+        key: Key.enter,
+        hint: "select",
+        handler: () => {
+          this.commitSelection();
+          this.cachedLines = undefined;
+        },
+      },
+    ]);
   }
 
   get focused(): boolean {
@@ -99,68 +154,15 @@ export default class PermissionPrompt extends Frame implements Focusable {
     return this.cachedLines;
   }
 
-  override getHints(): [string, string][] {
-    return [
-      ["↑↓", "navigate"],
-      ["Enter", "select"],
-      ["Tab", "amend"],
-      ["Shift+Tab", "cycle scope"],
-      ["Esc", "dismiss"],
-    ];
-  }
-
   handleInput(data: string) {
-    if (matchesKey(data, Key.escape)) {
-      this.onDone?.({ allowed: false });
-      this.cachedLines = undefined;
-      return;
-    }
-
-    if (matchesKey(data, Key.shift("tab"))) {
-      this.scopeIdx = (this.scopeIdx + 1) % SCOPES.length;
-      this.setOptions();
-      this.cachedLines = undefined;
-      return;
-    }
-
-    if (matchesKey(data, Key.up)) {
-      this.cursor = Math.max(0, this.cursor - 1);
-      this.setAmending(false);
-      this.cachedLines = undefined;
-      return;
-    }
-    if (matchesKey(data, Key.down)) {
-      this.cursor = Math.min(this.options.length - 1, this.cursor + 1);
-      this.setAmending(false);
-      this.cachedLines = undefined;
-      return;
-    }
-
+    if (this.handleKb(data)) return;
     if (this.amending) {
       this.cachedLines = undefined;
-      if (matchesKey(data, Key.enter)) {
-        this.commitSelection();
-        return;
-      }
       if (matchesKey(data, Key.backspace) && this.input.getValue() === "") {
         this.setAmending(false);
         return;
       }
       this.input.handleInput(data);
-      return;
-    }
-
-    if (matchesKey(data, Key.tab)) {
-      const option = this.options[this.cursor];
-      if (option) {
-        this.input.setValue(option.defaultText ?? "");
-        this.setAmending(true);
-      }
-      this.cachedLines = undefined;
-      return;
-    }
-    if (matchesKey(data, Key.enter)) {
-      this.commitSelection();
     }
   }
 

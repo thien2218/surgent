@@ -1,5 +1,5 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { type Focusable, Input, Key, matchesKey, visibleWidth } from "@earendil-works/pi-tui";
+import { type Focusable, Input, Key, visibleWidth } from "@earendil-works/pi-tui";
 import { Lines } from "./lines.js";
 import { Frame } from "./frame.js";
 
@@ -36,11 +36,24 @@ export class ScopedInput extends Frame implements Focusable {
     this.scopes = scopes;
     this.input.focused = true;
 
-    this.getHints = () => [
-      ["shift+tab", "toggle scope"],
-      ["enter", "create"],
-      ["esc", "cancel"],
-    ];
+    this.registerKeybindings([
+      {
+        key: Key.shift("tab"),
+        hint: "toggle scope",
+        handler: () => (this.scopeIndex = (this.scopeIndex + 1) % this.scopes.length),
+      },
+      {
+        key: Key.enter,
+        hint: "create",
+        handler: () => {
+          const value = this.input.getValue().trim();
+          if (value) {
+            this.onSubmit?.({ scope: this.scopes[this.scopeIndex]!.value, value });
+          }
+        },
+      },
+      { key: Key.escape, hint: "cancel", handler: () => this.onCancel?.() },
+    ]);
   }
 
   protected override children(width: number): string[] {
@@ -59,19 +72,7 @@ export class ScopedInput extends Frame implements Focusable {
   }
 
   handleInput(data: string) {
-    if (matchesKey(data, Key.shift("tab"))) {
-      this.scopeIndex = (this.scopeIndex + 1) % this.scopes.length;
-      return;
-    }
-    if (matchesKey(data, Key.escape)) {
-      this.onCancel?.();
-      return;
-    }
-    if (matchesKey(data, Key.enter)) {
-      const value = this.input.getValue().trim();
-      if (value) this.onSubmit?.({ scope: this.scopes[this.scopeIndex]!.value, value });
-      return;
-    }
+    if (this.handleKb(data)) return;
     this.input.handleInput(data);
   }
 }

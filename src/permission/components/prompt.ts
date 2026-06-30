@@ -55,6 +55,10 @@ export default class PermissionPrompt extends Frame implements Focusable {
         key: Key.escape,
         hint: "dismiss",
         handler: () => {
+          if (this.amending) {
+            this.setAmending(false);
+            return;
+          }
           this.onDone?.({ allowed: false });
           this.cachedLines = undefined;
         },
@@ -86,22 +90,26 @@ export default class PermissionPrompt extends Frame implements Focusable {
         hint: "amend",
         handler: () => {
           if (this.amending) return;
-
           const option = this.options[this.cursor];
           if (option) {
             this.input.setValue(option.defaultText ?? "");
             this.setAmending(true);
           }
-
           this.cachedLines = undefined;
         },
       },
       {
         key: Key.enter,
-        hint: "select",
         handler: () => {
           this.commitSelection();
           this.cachedLines = undefined;
+        },
+      },
+      {
+        key: Key.backspace,
+        handler: () => {
+          if (this.input.getValue() !== "" || !this.amending) return;
+          this.setAmending(false);
         },
       },
     ]);
@@ -155,15 +163,9 @@ export default class PermissionPrompt extends Frame implements Focusable {
   }
 
   handleInput(data: string) {
-    if (this.handleKb(data)) return;
-    if (this.amending) {
-      this.cachedLines = undefined;
-      if (matchesKey(data, Key.backspace) && this.input.getValue() === "") {
-        this.setAmending(false);
-        return;
-      }
-      this.input.handleInput(data);
-    }
+    if (this.handleKb(data) || !this.amending) return;
+    this.cachedLines = undefined;
+    this.input.handleInput(data);
   }
 
   private addRawLines(lines: Lines, raw: string, width: number) {

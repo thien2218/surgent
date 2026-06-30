@@ -23,18 +23,27 @@ type NavigationKey = {
     | typeof Key.ctrlShiftSuper;
 };
 
+type KeyboundBinding = {
+  handler: (data: string) => void;
+  hintIdx: number;
+  consumable: boolean;
+  hinted: boolean;
+};
+
 export type Keybindings = Array<
   | { key: KeyId; handler: (data: string) => void; hint?: string }
   | { key: NavigationKey; navigate: (data: string) => void; hint?: string }
 >;
 
 export class Keybound {
-  private locked = false;
-  private bindings = new Map<
-    KeyId,
-    { handler: (data: string) => void; hintIdx: number | null; accessible: boolean }
-  >();
+  private bindings = new Map<KeyId, KeyboundBinding>();
   private keyHints: [string, string][] = [];
+
+  private getKbConfig(key: string, hint?: string) {
+    const config = { hintIdx: this.keyHints.length, consumable: true, hinted: !!hint };
+    this.keyHints.push([key, hint ?? ""]);
+    return config;
+  }
 
   private getArrowKeyIds(key: NavigationKey) {
     const isVertical = key.navigation === "vertical";
@@ -48,13 +57,11 @@ export class Keybound {
     if (this.bindings.has(key)) {
       throw new Error(`key already registered: ${key}`);
     }
-    this.bindings.set(key, { handler, hintIdx: this.keyHints.length, accessible: true });
+    this.bindings.set(key, { handler, ...this.getKbConfig(key, hint) });
     this.keyHints.push([key, hint ?? ""]);
   }
 
   private registerArrowKb(key: NavigationKey, navigate: (data: string) => void, hint?: string) {
-    if (this.locked) throw new Error("key registry locked");
-
     const [firstNav, secondNav] = this.getArrowKeyIds(key);
     const first = key.metakey ? key.metakey(Key[firstNav]) : Key[firstNav];
     const second = key.metakey ? key.metakey(Key[secondNav]) : Key[secondNav];
@@ -66,17 +73,13 @@ export class Keybound {
     const hintKey = metakey
       ? `${metakey}+${firstArrow}/${secondArrow}`
       : `${firstArrow}/${secondArrow}`;
+    const config = this.getKbConfig(hintKey, hint);
 
-    const hintIdx = this.keyHints.length;
-    this.keyHints.push([hintKey, hint ?? ""]);
-
-    this.bindings.set(first, { handler: () => navigate(firstNav), hintIdx, accessible: true });
-    this.bindings.set(second, { handler: () => navigate(secondNav), hintIdx, accessible: true });
+    this.bindings.set(first, { handler: () => navigate(firstNav), ...config });
+    this.bindings.set(second, { handler: () => navigate(secondNav), ...config });
   }
 
   protected registerKeybindings(keybindings: Keybindings) {
-    if (this.locked) throw new Error("key registry locked");
-
     for (const keybinding of keybindings) {
       if ("handler" in keybinding) {
         this.registerNormalKb(keybinding.key, keybinding.handler, keybinding.hint);
@@ -84,33 +87,33 @@ export class Keybound {
       }
       this.registerArrowKb(keybinding.key, keybinding.navigate, keybinding.hint);
     }
-
-    this.locked = true;
   }
 
-  protected setKeyAccess(key: KeyId, accessible: boolean) {
+  protected setKeyAccess(key: KeyId, access: boolean | { consumable?: boolean; hinted?: boolean }) {
     const binding = this.bindings.get(key);
     if (!binding) {
       throw new Error(`key not registered: ${key}`);
     }
-    binding.accessible = accessible;
+    binding.consumable =
+      typeof access === "boolean" ? access : (access.consumable ?? binding.consumable);
+    binding.hinted = typeof access === "boolean" ? access : (access.hinted ?? binding.hinted);
   }
 
-  protected setArrowKeyAccess(key: NavigationKey, accessible: boolean) {
+  protected setArrowKeyAccess(
+    key: NavigationKey,
+    access: boolean | { consumable?: boolean; hinted?: boolean },
+  ) {
     const [firstNav, secondNav] = this.getArrowKeyIds(key);
     const first = key.metakey ? key.metakey(Key[firstNav]) : Key[firstNav];
     const second = key.metakey ? key.metakey(Key[secondNav]) : Key[secondNav];
-    this.setKeyAccess(first, accessible);
-    this.setKeyAccess(second, accessible);
+    this.setKeyAccess(first, access);
+    this.setKeyAccess(second, access);
   }
 
-  protected updateHint(key: KeyId, hint: string) {
+  protected setHint(key: KeyId, hint: string) {
     const binding = this.bindings.get(key);
     if (!binding) {
       throw new Error(`key not registered: ${key}`);
-    }
-    if (binding.hintIdx === null) {
-      throw new Error(`key has no hint slot: ${key}`);
     }
 
     const hintEntry = this.keyHints[binding.hintIdx];
@@ -123,7 +126,7 @@ export class Keybound {
 
   protected handleKb(data: string): boolean {
     for (const [keyId, binding] of this.bindings) {
-      if (!binding.accessible) continue;
+      if (!binding.consumable) continue;
       if (matchesKey(data, keyId)) {
         binding.handler(data);
         return true;
@@ -134,19 +137,12 @@ export class Keybound {
 
   protected get hints(): [string, string][] {
     const visible: [string, string][] = [];
-    const visibleIndexes = new Set<number>();
-
     for (const binding of this.bindings.values()) {
-      if (!binding.accessible || binding.hintIdx === null) continue;
-      if (visibleIndexes.has(binding.hintIdx)) continue;
-
+      if (!binding.hinted) continue;
       const hintEntry = this.keyHints[binding.hintIdx];
       if (!hintEntry) continue;
-
-      visibleIndexes.add(binding.hintIdx);
       visible.push(hintEntry);
     }
-
     return visible;
   }
 }

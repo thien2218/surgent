@@ -39,7 +39,7 @@ export class ScopedInput extends Frame implements Focusable {
     this.registerKeybindings([
       {
         key: Key.shift("tab"),
-        hint: "toggle scope",
+        hint: "switch scope",
         handler: () => (this.scopeIndex = (this.scopeIndex + 1) % this.scopes.length),
       },
       {

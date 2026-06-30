@@ -31,8 +31,6 @@ export interface QuestionnaireResult {
 
 // ==================== INTERNAL UI STATE ====================
 
-export type FocusMode = "editor" | "options";
-
 export interface NormalizedQuestion {
   prompt: string;
   reason?: string;
@@ -48,7 +46,7 @@ export interface QuestionDraft {
   text: string;
   selectedIndexes: number[];
   cursor: number;
-  focusMode: FocusMode;
+  editing: boolean;
 }
 
 export interface ToggleSelectionResult {

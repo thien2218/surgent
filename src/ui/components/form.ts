@@ -76,15 +76,15 @@ export class Form<TSubmit = Record<string, string>> extends Frame implements Foc
       {
         key: Key.enter,
         handler: () => {
-          const selectedField = this.fields[this.cursor];
-          if (!selectedField || this.editing) return;
-          if (selectedField.modeType === "toggle") {
-            selectedField.handleInput(Key.enter);
+          const selected = this.fields[this.cursor];
+          if (!selected || this.editing) return;
+          if (selected.modeType === "toggle") {
+            selected.handleInput(Key.enter);
             return;
           }
 
           this.editing = true;
-          selectedField.startEditing();
+          selected.startEditing();
           this.syncFocus();
         },
       },
@@ -133,17 +133,17 @@ export class Form<TSubmit = Record<string, string>> extends Frame implements Foc
   }
 
   handleInput(data: string) {
-    const selectedField = this.fields[this.cursor];
-    if (this.editing && selectedField && selectedField.modeType === "input") {
-      selectedField.handleInput(data);
+    const selected = this.fields[this.cursor];
+    if (this.editing && selected?.modeType === "input") {
+      selected.handleInput(data);
       return;
     }
     this.handleKb(data);
   }
 
   private syncFocus() {
-    this.updateHint("enter", this.editing ? "finish editing" : "edit/toggle");
-    this.updateHint("esc", this.editing ? "cancel editing" : "cancel");
+    this.setHint(Key.enter, this.editing ? "finish editing" : "edit/toggle");
+    this.setHint(Key.escape, this.editing ? "cancel editing" : "cancel");
 
     for (let index = 0; index < this.fields.length; index++) {
       const field = this.fields[index]!;
@@ -167,11 +167,8 @@ export class Form<TSubmit = Record<string, string>> extends Frame implements Foc
     if (this.saving) return;
     this.saving = true;
     try {
-      const serializedValues = this.serializeValues();
-      const submitValues = this.parseOnSave
-        ? this.parseOnSave(serializedValues)
-        : (serializedValues as unknown as TSubmit);
-
+      const serialized = this.serializeValues();
+      const submitValues = this.parseOnSave?.(serialized) ?? (serialized as TSubmit);
       await this.onSave?.(submitValues);
     } catch (error) {
       this.onSaveError?.(error);

@@ -1,5 +1,5 @@
 import type { KeybindingsManager, Theme } from "@earendil-works/pi-coding-agent";
-import { Key, matchesKey, type Focusable, type TUI } from "@earendil-works/pi-tui";
+import { Key, type Focusable, type TUI } from "@earendil-works/pi-tui";
 import type {
   Category,
   DisplayRule,
@@ -28,7 +28,6 @@ export default class PermissionRulesList extends Frame implements Focusable {
   private cursor = 0;
   private escapeCount = 0;
   private _focused = false;
-  private editing = false;
   private saved = true;
   private readonly options = new Map<Category, RuleOptionEntry[]>();
 
@@ -81,9 +80,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
         key: Key.ctrl("s"),
         hint: "save",
         handler: () => {
-          if (!this.saved) {
-            this.save().catch(this.onSaveErr);
-          }
+          if (!this.saved) this.save().catch(this.onSaveErr);
         },
       },
       {
@@ -95,6 +92,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
           } else {
             this.cursor = Math.min(this.getTotalRules(), this.cursor + 1);
           }
+          this.setHint(Key.enter, this.cursor === 0 ? "select" : "edit");
         },
       },
       {
@@ -111,25 +109,39 @@ export default class PermissionRulesList extends Frame implements Focusable {
       },
       {
         key: Key.enter,
-        hint: "select/edit",
+        hint: "select",
         handler: () => {
           if (this.cursor === 0) {
             if (this.saved) {
               this.onDone?.("add");
-              return;
+            } else {
+              this.save()
+                .then(() => this.onDone?.("add"))
+                .catch(this.onSaveErr);
             }
-
-            this.save()
-              .then(() => this.onDone?.("add"))
-              .catch(this.onSaveErr);
             return;
           }
 
           const selectedEntry = this.getSelectedRule();
           if (!selectedEntry) return;
-
           selectedEntry.option.startEditing();
-          this.editing = true;
+          this.setEditing(true);
+        },
+      },
+      {
+        key: Key.tab,
+        hint: "cycle permission",
+        handler: () => {
+          const selectedEntry = this.getSelectedRule();
+          selectedEntry && this.cycleScope(selectedEntry);
+        },
+      },
+      {
+        key: Key.shift("tab"),
+        hint: "cycle scope",
+        handler: () => {
+          const selectedEntry = this.getSelectedRule();
+          selectedEntry && this.cyclePermission(selectedEntry);
         },
       },
     ]);
@@ -145,6 +157,17 @@ export default class PermissionRulesList extends Frame implements Focusable {
     if (selectedEntry) {
       selectedEntry.option.focused = value;
     }
+  }
+
+  private setEditing(value: boolean) {
+    this.setHint(Key.enter, value ? "finish editing" : "edit");
+    this.setHint(Key.escape, value ? "cancel editing" : "cancel");
+
+    this.setArrowKeyAccess({ navigation: "vertical" }, !value);
+    this.setKeyAccess(Key.enter, { consumable: !value });
+    this.setKeyAccess(Key.escape, { consumable: !value });
+    this.setKeyAccess(Key.ctrl("d"), !value);
+    this.setKeyAccess(Key.ctrl("s"), !value);
   }
 
   override invalidate() {
@@ -196,42 +219,10 @@ export default class PermissionRulesList extends Frame implements Focusable {
     return lines.get();
   }
 
-  override get hints(): [string, string][] {
-    if (this.editing) {
-      return [
-        ["Enter", "finish editing"],
-        ["Esc", "cancel editing"],
-        ["Tab", "cycle permission"],
-        ["Shift+Tab", "cycle scope"],
-      ];
-    }
-    return [
-      ["↑↓", "navigate"],
-      ["Enter", "select/edit"],
-      ["Ctrl+D", "delete"],
-      ["Ctrl+S", "save"],
-      ["Esc", "exit"],
-    ];
-  }
-
   handleInput(data: string) {
-    const selectedEntry = this.getSelectedRule();
-    if (this.editing && selectedEntry) {
-      if (matchesKey(data, Key.shift("tab"))) {
-        this.cycleScope(selectedEntry);
-        return;
-      }
-
-      if (matchesKey(data, Key.tab)) {
-        this.cyclePermission(selectedEntry);
-        return;
-      }
-
-      selectedEntry.option.handleInput(data);
-      return;
-    }
-
-    this.handleKb(data);
+    if (this.handleKb(data)) return;
+    const entry = this.getSelectedRule();
+    entry?.option.handleInput(data);
   }
 
   private async save() {
@@ -317,13 +308,13 @@ export default class PermissionRulesList extends Frame implements Focusable {
         this.saved = false;
       }
 
-      this.editing = false;
+      this.setEditing(false);
       return true;
     };
 
     option.onInputCancel = () => {
       option.setText(optionEntry.rule.expr);
-      this.editing = false;
+      this.setEditing(false);
     };
 
     return optionEntry;

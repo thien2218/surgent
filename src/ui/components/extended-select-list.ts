@@ -1,5 +1,5 @@
 import { getSelectListTheme, type Theme } from "@earendil-works/pi-coding-agent";
-import { Key, SelectList, type SelectItem } from "@earendil-works/pi-tui";
+import { Key, SelectList, type KeyId, type SelectItem } from "@earendil-works/pi-tui";
 import { Frame } from "./frame.js";
 import { Lines } from "./lines.js";
 
@@ -66,7 +66,7 @@ export class ExtendedSelectList<TData = unknown> extends Frame {
   }
 
   override get hints(): [string, string][] {
-    return [["↑↓", "move"], ...super.hints];
+    return [["↑↓", "navigate"], ...super.hints];
   }
 
   protected override children(width: number): string[] {
@@ -107,15 +107,11 @@ export class ExtendedSelectList<TData = unknown> extends Frame {
   }
 
   private armDeletion() {
-    this.updateHint("enter", "confirm delete");
     const selected = this.selectList.getSelectedItem() as SelectEntry<TData>;
-    if (!selected || this.isAddRow(selected)) {
-      this.deleteArmed = false;
-      return;
-    }
+    if (!selected || this.isAddRow(selected)) return;
+    this.setHint(Key.enter, "confirm delete");
 
     if (!this.canDeleteItem(selected)) {
-      this.deleteArmed = false;
       this.onDeleteBlocked?.(selected);
       return;
     }
@@ -153,5 +149,18 @@ export class ExtendedSelectList<TData = unknown> extends Frame {
 
   private isAddRow(item: SelectEntry<TData>): boolean {
     return item.value === "__add__";
+  }
+
+  extendKb(key: KeyId, customHandler: (selected: SelectEntry<TData>) => void, hint?: string) {
+    this.registerKeybindings([
+      {
+        key,
+        handler: () => {
+          const selected = this.selectList.getSelectedItem() as SelectEntry<TData>;
+          customHandler(selected);
+        },
+        hint,
+      },
+    ]);
   }
 }

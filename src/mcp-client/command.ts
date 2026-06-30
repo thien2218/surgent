@@ -1,5 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Spacer } from "@earendil-works/pi-tui";
+import { Key, Spacer } from "@earendil-works/pi-tui";
 import {
   loadMcpConfigSet,
   normalizeServerConfig,
@@ -22,15 +22,14 @@ export async function mcpConfigCommandHandler(args: string, ctx: ExtensionComman
     ctx.ui.notify("/mcp requires an interactive UI.", "error");
     return;
   }
-
   while (true) {
-    const action = await showMcpOptions(ctx);
-    if (action === "cancel") return;
-    await handleSaveFlow(ctx);
+    const addMcp = await showMcpOptions(ctx);
+    if (addMcp) await handleSaveFlow(ctx);
+    else return;
   }
 }
 
-async function showMcpOptions(ctx: ExtensionCommandContext): Promise<"add" | "cancel"> {
+async function showMcpOptions(ctx: ExtensionCommandContext): Promise<boolean> {
   const configuredServers = await loadMcpConfigSet(ctx.cwd);
   const items = configuredServers.map((server) => ({
     value: server.name,
@@ -39,7 +38,7 @@ async function showMcpOptions(ctx: ExtensionCommandContext): Promise<"add" | "ca
     data: server,
   }));
 
-  return ctx.ui.custom<"add" | "cancel">((tui, theme, _keybindings, done) => {
+  return ctx.ui.custom<boolean>((tui, theme, _keybindings, done) => {
     let isPending = false;
     const selectList = new ExtendedSelectList<ResolvedMcpServer>(theme, {
       title: "MCP servers",
@@ -50,21 +49,21 @@ async function showMcpOptions(ctx: ExtensionCommandContext): Promise<"add" | "ca
 
     const handleServer = (
       item: SelectEntry<ResolvedMcpServer>,
-      handler: typeof toggleMcpServer,
+      serverHandler: typeof toggleMcpServer & typeof deleteMcpServer,
     ) => {
       if (!item.data || isPending) return;
       isPending = true;
-      handler(ctx, item).finally(() => {
+      serverHandler(ctx, item).finally(() => {
         isPending = false;
         selectList.invalidate();
         tui.requestRender();
       });
     };
 
-    selectList.onAdd = () => done("add");
-    selectList.onSelect = (item) => handleServer(item, toggleMcpServer);
+    selectList.onAdd = () => done(true);
+    selectList.onCancel = () => done(false);
     selectList.onDelete = (item) => handleServer(item, deleteMcpServer);
-    selectList.onCancel = () => done("cancel");
+    selectList.extendKb(Key.tab, (item) => handleServer(item, toggleMcpServer), "enable/disable");
 
     return selectList;
   });

@@ -131,15 +131,10 @@ export async function showActionUi(
       options,
       placeholder: config.placeholder,
     });
-
     actionSelectList.onSubmit = (result) => done(mapActionResult(result));
     actionSelectList.onCancel = () => done({ kind: "discard" });
 
-    const scrollableView = new ScrollableView(tui, theme, {
-      markdown,
-      inputComponent: actionSelectList,
-    });
-
+    const scrollableView = new ScrollableView(tui, theme, { markdown, input: actionSelectList });
     scrollableView.focused = true;
     scrollableView.onCancel = () => done({ kind: "discard" });
 

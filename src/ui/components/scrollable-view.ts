@@ -3,7 +3,6 @@ import {
   Key,
   Markdown,
   isFocusable,
-  matchesKey,
   type Component,
   type Focusable,
   type TUI,
@@ -14,18 +13,18 @@ import type { Keybindings } from "./keybound.js";
 
 export type ScrollableViewOptions = {
   markdown: string;
-  inputComponent?: Component & Partial<Focusable>;
+  input?: Component & Partial<Focusable>;
 };
 
 export class ScrollableView extends Frame implements Focusable {
   onCancel?: () => void;
 
-  private readonly markdownRenderer: Markdown;
-  private inputComponent: (Component & Partial<Focusable>) | undefined;
+  private readonly markdownView: Markdown;
+  private input: (Component & Partial<Focusable>) | undefined;
   private contentScrollOffset = 0;
   private lastViewportHeight = 1;
   private lastMarkdownLineCount = 0;
-  private activePane: "content" | "input" = "content";
+  private editing: boolean = false;
   private _focused = false;
 
   constructor(
@@ -35,14 +34,14 @@ export class ScrollableView extends Frame implements Focusable {
   ) {
     super(theme);
 
-    this.inputComponent = options.inputComponent;
-    this.markdownRenderer = new Markdown(options.markdown, 0, 0, getMarkdownTheme());
+    this.input = options.input;
+    this.markdownView = new Markdown(options.markdown, 0, 0, getMarkdownTheme());
 
     const keybindings: Keybindings = [
       { key: Key.escape, hint: "close", handler: () => this.onCancel?.() },
       {
         key: { navigation: "vertical" },
-        hint: "scroll",
+        hint: "navigate",
         navigate: (data) => this.scrollBy(data as "up" | "down"),
       },
       {
@@ -52,12 +51,14 @@ export class ScrollableView extends Frame implements Focusable {
       },
     ];
 
-    if (this.inputComponent) {
+    if (this.input) {
       keybindings.push({
         key: Key.tab,
-        hint: "focus input",
+        hint: "switch focus",
         handler: () => {
-          this.activePane = this.activePane === "content" ? "input" : "content";
+          this.editing = !this.editing;
+          this.setArrowKeyAccess({ navigation: "page" }, !this.editing);
+          this.setArrowKeyAccess({ navigation: "vertical" }, { consumable: !this.editing });
           this.syncInputFocus();
         },
       });
@@ -82,19 +83,13 @@ export class ScrollableView extends Frame implements Focusable {
 
   override invalidate() {
     super.invalidate();
-    this.markdownRenderer.invalidate();
-    this.inputComponent?.invalidate();
+    this.markdownView.invalidate();
+    this.input?.invalidate();
   }
 
   handleInput(data: string) {
-    if (this.handleKb(data)) return;
-    if (this.inputComponent && matchesKey(data, Key.enter) && data !== "\n") {
-      this.inputComponent.handleInput?.(data);
-      return;
-    }
-    if (this.activePane === "input") {
-      this.inputComponent?.handleInput?.(data);
-    }
+    if (data === "\n" || this.handleKb(data) || !this.editing) return;
+    this.input?.handleInput?.(data);
   }
 
   protected override children(width: number): string[] {
@@ -102,18 +97,16 @@ export class ScrollableView extends Frame implements Focusable {
     const childHeightBudget = Math.max(1, this.tui.terminal.rows - 10);
 
     const lines = new Lines(contentWidth);
-    const border = new DynamicBorder((s) =>
-      this.theme.fg(this.activePane === "input" ? "accent" : "dim", s),
-    );
+    const border = new DynamicBorder((s) => this.theme.fg(this.editing ? "accent" : "dim", s));
 
-    const inputCandidates = this.inputComponent ? this.inputComponent.render(contentWidth) : [];
+    const inputCandidates = this.input ? this.input.render(contentWidth) : [];
     const maxInputLineCount = inputCandidates.length > 0 ? Math.max(0, childHeightBudget - 1) : 0;
     const inputLines = inputCandidates.slice(-maxInputLineCount);
     const inputSectionRows = inputLines.length > 0 ? inputLines.length + 1 : 0;
 
     this.lastViewportHeight = Math.max(0, childHeightBudget - inputSectionRows);
 
-    const markdownLines = this.markdownRenderer.render(contentWidth);
+    const markdownLines = this.markdownView.render(contentWidth);
     this.lastMarkdownLineCount = markdownLines.length;
     this.clampScrollOffset(markdownLines.length);
 
@@ -139,18 +132,14 @@ export class ScrollableView extends Frame implements Focusable {
   }
 
   private scrollBy(data: "up" | "down" | "pageUp" | "pageDown") {
-    if (this.activePane === "input") {
-      this.inputComponent?.handleInput?.(data);
-    } else {
-      let amount: number;
-      if (data === "up") amount = -1;
-      else if (data === "down") amount = 1;
-      else if (data === "pageUp") amount = -Math.max(1, this.lastViewportHeight - 1);
-      else amount = Math.max(1, this.lastViewportHeight - 1);
+    let amount: number;
+    if (data === "up") amount = -1;
+    else if (data === "down") amount = 1;
+    else if (data === "pageUp") amount = -Math.max(1, this.lastViewportHeight - 1);
+    else amount = Math.max(1, this.lastViewportHeight - 1);
 
-      this.contentScrollOffset += amount;
-      this.clampScrollOffset();
-    }
+    this.contentScrollOffset += amount;
+    this.clampScrollOffset();
   }
 
   private clampScrollOffset(totalMarkdownLines?: number) {
@@ -160,16 +149,7 @@ export class ScrollableView extends Frame implements Focusable {
   }
 
   private syncInputFocus() {
-    if (this.inputComponent && this.activePane === "input") {
-      this.setArrowKeyAccess({ navigation: "page" }, false);
-      this.updateHint(Key.tab, "focus content");
-    } else {
-      this.setArrowKeyAccess({ navigation: "page" }, true);
-      if (this.inputComponent) {
-        this.updateHint(Key.tab, "focus input");
-      }
-    }
-    if (!this.inputComponent || !isFocusable(this.inputComponent)) return;
-    this.inputComponent.focused = this._focused && this.activePane === "input";
+    if (!this.input || !isFocusable(this.input)) return;
+    this.input.focused = this._focused && this.editing;
   }
 }

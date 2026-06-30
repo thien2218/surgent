@@ -1,8 +1,14 @@
 import type { KeybindingsManager, Theme } from "@earendil-works/pi-coding-agent";
-import { Key, type Component, type Focusable, type TUI } from "@earendil-works/pi-tui";
+import {
+  Key,
+  matchesKey,
+  parseKey,
+  type Component,
+  type Focusable,
+  type TUI,
+} from "@earendil-works/pi-tui";
 import { Lines } from "./lines.js";
 import { PlaceholderInput } from "./placeholder-input.js";
-import { Keybound } from "./keybound.js";
 
 export type ActionSelectOption = {
   value: string;
@@ -13,20 +19,19 @@ export type ActionSelectResult =
   | { type: "option"; value: string; index: number }
   | { type: "input"; value: string };
 
-type ActionSelectListConfig = {
+export type ActionSelectListOptions = {
   title: string;
   options: ActionSelectOption[];
   placeholder: string;
 };
 
-export class ActionSelectList extends Keybound implements Component, Focusable {
+export class ActionSelectList implements Component, Focusable {
   onSubmit?: (result: ActionSelectResult) => void;
   onCancel?: () => void;
 
   private readonly input: PlaceholderInput;
   private readonly options: ActionSelectOption[];
   private readonly title: string;
-  private readonly theme: Theme;
 
   private cursor = 0;
   private _focused = false;
@@ -34,37 +39,12 @@ export class ActionSelectList extends Keybound implements Component, Focusable {
   constructor(
     tui: TUI,
     keybindings: KeybindingsManager,
-    theme: Theme,
-    config: ActionSelectListConfig,
+    private readonly theme: Theme,
+    options: ActionSelectListOptions,
   ) {
-    super();
-
-    this.title = config.title;
-    this.options = config.options;
-    this.theme = theme;
-    this.input = new PlaceholderInput(tui, keybindings, theme, config.placeholder);
-
-    this.registerKeybindings([
-      { key: Key.escape, handler: () => this.onCancel?.() },
-      {
-        key: { navigation: "vertical" },
-        navigate: (keyId) => this.moveCursor(keyId === "up" ? -1 : 1),
-      },
-      {
-        key: Key.enter,
-        handler: (data) => {
-          if (this.isEditing()) {
-            if (data === "\n") {
-              this.input.handleInput(data);
-              return;
-            }
-            this.submitInputSelection();
-          } else if (data !== "\n") {
-            this.commitCurrentSelection();
-          }
-        },
-      },
-    ]);
+    this.title = options.title;
+    this.options = options.options;
+    this.input = new PlaceholderInput(tui, keybindings, theme, options.placeholder);
   }
 
   get focused(): boolean {
@@ -80,7 +60,6 @@ export class ActionSelectList extends Keybound implements Component, Focusable {
     const lines = new Lines(width);
 
     lines.add(this.theme.bold(this.title));
-
     for (const [optionIndex, option] of this.options.entries()) {
       lines.add(this.renderOptionLine(optionIndex, option.label));
     }
@@ -98,14 +77,42 @@ export class ActionSelectList extends Keybound implements Component, Focusable {
   }
 
   handleInput(data: string) {
-    if (this.handleKb(data)) return;
-    if (this.isEditing()) {
-      this.input.handleInput(data);
+    if (matchesKey(data, Key.escape)) {
+      this.onCancel?.();
+      return;
+    }
+    if (this.isInputSelected()) {
+      this.handleInputEditingMode(data);
+      return;
+    }
+    if (matchesKey(data, Key.up)) {
+      this.moveCursor(-1);
+      return;
+    }
+    if (matchesKey(data, Key.down)) {
+      this.moveCursor(1);
+      return;
+    }
+    if (matchesKey(data, Key.enter) && data !== "\n") {
+      this.commitSelection();
       return;
     }
   }
 
-  private commitCurrentSelection() {
+  private handleInputEditingMode(data: string) {
+    if (matchesKey(data, Key.up)) {
+      this.moveCursor(-1);
+      this.syncInputFocus();
+      return;
+    }
+    if (matchesKey(data, Key.enter) && data !== "\n") {
+      this.submitInputSelection();
+      return;
+    }
+    this.input.handleInput(data);
+  }
+
+  private commitSelection() {
     const selected = this.options[this.cursor];
     if (!selected) return;
     this.onSubmit?.({ type: "option", value: selected.value, index: this.cursor });
@@ -155,11 +162,11 @@ export class ActionSelectList extends Keybound implements Component, Focusable {
     this.syncInputFocus();
   }
 
-  private syncInputFocus() {
-    this.input.focused = this.isEditing();
+  private isInputSelected(): boolean {
+    return this.cursor === this.options.length;
   }
 
-  private isEditing() {
-    return this._focused && this.cursor === this.options.length;
+  private syncInputFocus() {
+    this.input.focused = this._focused && this.isInputSelected();
   }
 }

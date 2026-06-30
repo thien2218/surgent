@@ -1,41 +1,41 @@
-import { readFile, writeFile } from "node:fs/promises";
-import { getPiPath, isMissingFileError } from "../utils.js";
+import { writeFile } from "node:fs/promises";
+import { getPiPath, readJson } from "../utils.js";
 import type { HttpMcpServer, McpServer, ResolvedMcpServer, StdioMcpServer } from "./types.js";
 
 type Action = { kind: "delete" } | { kind: "upsert"; config: McpServer };
 
 export async function updateServerConfig(
-  path: string,
+  scope: "project" | "global",
+  cwd: string,
   name: string,
   action: Action,
 ): Promise<{ path: string; updated: boolean }> {
-  const mcpServers = await readConfigFile(path);
+  const path = getPiPath("mcp", scope === "project" ? cwd : scope);
+  const mcpServers = await readConfigFile(scope, cwd);
   const updated = Object.hasOwn(mcpServers, name);
 
   if (action.kind === "upsert") {
-    mcpServers[name] = normalizeServerConfig(name, action.config);
+    mcpServers[name] = action.config;
   } else {
     delete mcpServers[name];
   }
-  await writeFile(path, `${JSON.stringify({ mcpServers }, null, 2)}\n`, "utf8");
+  await writeFile(path, `${JSON.stringify(mcpServers, null, 2)}\n`, "utf8");
 
   return { path, updated };
 }
 
 export async function loadMcpConfigSet(cwd: string): Promise<ResolvedMcpServer[]> {
-  const globalPath = getPiPath("mcp");
-  const localPath = getPiPath("mcp", cwd);
   const merged = new Map<string, ResolvedMcpServer>();
   const [localServers, globalServers] = await Promise.all([
-    readConfigFile(localPath),
-    readConfigFile(globalPath),
+    readConfigFile("project", cwd),
+    readConfigFile("global", cwd),
   ]);
 
   for (const [name, serverConfig] of Object.entries(localServers)) {
-    merged.set(name, { ...serverConfig, name, scope: "project", sourcePath: localPath });
+    merged.set(name, { ...serverConfig, name, scope: "project" });
   }
   for (const [name, serverConfig] of Object.entries(globalServers)) {
-    merged.set(name, { ...serverConfig, name, scope: "global", sourcePath: globalPath });
+    merged.set(name, { ...serverConfig, name, scope: "global" });
   }
 
   return Array.from(merged.values());
@@ -49,37 +49,12 @@ export async function resolveServerConfig(
   return mcpServers.find((server) => server.name === serverName);
 }
 
-export async function readConfigFile(path: string): Promise<Record<string, McpServer>> {
-  const mcpServers: Record<string, McpServer> = {};
-  let raw: string;
-  let parsed: unknown;
-
-  try {
-    raw = await readFile(path, "utf8");
-  } catch (error) {
-    if (isMissingFileError(error)) {
-      return {};
-    }
-    throw error;
-  }
-
-  try {
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    throw new Error(
-      `Invalid JSON in MCP config: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-
-  if (!isPlainObject(parsed) || !isPlainObject(parsed.mcpServers)) {
-    throw new Error("Invalid MCP config: top-level JSON value must be an object.");
-  }
-
-  for (const [name, serverConfig] of Object.entries(parsed.mcpServers)) {
-    mcpServers[name] = normalizeServerConfig(name, serverConfig);
-  }
-
-  return mcpServers;
+export async function readConfigFile(
+  scope: "project" | "global",
+  cwd: string,
+): Promise<Record<string, McpServer>> {
+  const path = getPiPath("mcp", scope === "project" ? cwd : scope);
+  return readJson<Record<string, McpServer>>(path, {});
 }
 
 export function normalizeServerConfig(name: string, raw: unknown): McpServer {

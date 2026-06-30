@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { mcpConfigCommandHandler } from "./command.js";
+import { mcpCommandHandler } from "./command.js";
 import { McpClientManager } from "./client.js";
-import { createMcpCallTool } from "./tool.js";
+import { createMcpCallTool } from "./call-tool.js";
 import { createMcpListToolsTool } from "./list-tools.js";
 
 export default function mcpClientExtension(pi: ExtensionAPI) {
@@ -9,7 +9,7 @@ export default function mcpClientExtension(pi: ExtensionAPI) {
 
   pi.registerCommand("mcp", {
     description: "Manage MCP servers: add new server and toggle enabled state",
-    handler: mcpConfigCommandHandler,
+    handler: mcpCommandHandler,
   });
 
   pi.registerTool(createMcpCallTool(clientManager));

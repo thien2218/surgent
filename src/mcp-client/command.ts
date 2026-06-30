@@ -7,90 +7,125 @@ import {
   updateServerConfig,
 } from "./storage.js";
 import type { McpServer, McpTransport, ResolvedMcpServer } from "./types.js";
-import { customText, getPiPath } from "../utils.js";
+import { customText } from "../utils.js";
 import { ExtendedSelectList, type SelectEntry } from "../ui/components/extended-select-list.js";
 import { Frame } from "../ui/components/frame.js";
 import { PlaceholderInput } from "../ui/components/placeholder-input.js";
 import { ScopedInput } from "../ui/components/scoped-input.js";
+import { Form } from "../ui/components/form.js";
+import { McpClientManager } from "./client.js";
+import { parseEditConfigValues } from "./validation.js";
+import { buildConfigTemplate, getEditFields, saveEditedServer } from "./helpers.js";
 
-export async function mcpConfigCommandHandler(args: string, ctx: ExtensionCommandContext) {
-  if (args.trim().length > 0) {
-    ctx.ui.notify("Usage: /mcp (no arguments)", "error");
-    return;
-  }
+export async function mcpCommandHandler(_args: string, ctx: ExtensionCommandContext) {
   if (!ctx.hasUI) {
     ctx.ui.notify("/mcp requires an interactive UI.", "error");
     return;
   }
+
   while (true) {
-    const addMcp = await showMcpOptions(ctx);
-    if (addMcp) await handleSaveFlow(ctx);
-    else return;
+    const action = await showMcpOptions(ctx);
+    if (!action) return;
+
+    if (action.addMcp) {
+      await handleSaveFlow(ctx);
+      continue;
+    }
+
+    if (action.selectedServer) {
+      await handleEditFlow(ctx, action.selectedServer);
+    }
   }
 }
 
-async function showMcpOptions(ctx: ExtensionCommandContext): Promise<boolean> {
+async function showMcpOptions(
+  ctx: ExtensionCommandContext,
+): Promise<{ addMcp: boolean; selectedServer?: ResolvedMcpServer } | null> {
   const configuredServers = await loadMcpConfigSet(ctx.cwd);
   const items = configuredServers.map((server) => ({
     value: server.name,
     label: `${server.name} [${server.scope}]`,
-    description: describeEnabledState(server),
+    description: server.enabled ? "enabled" : "disabled",
     data: server,
   }));
 
-  return ctx.ui.custom<boolean>((tui, theme, _keybindings, done) => {
-    let isPending = false;
-    const selectList = new ExtendedSelectList<ResolvedMcpServer>(theme, {
-      title: "MCP servers",
-      addLabel: "Add MCP server",
-      items,
-      maxVisibleRows: 12,
-    });
+  return ctx.ui.custom<{ addMcp: boolean; selectedServer?: ResolvedMcpServer } | null>(
+    (tui, theme, _keybindings, done) => {
+      let isPending = false;
+      const selectList = new ExtendedSelectList<ResolvedMcpServer>(theme, {
+        title: "MCP servers",
+        addLabel: "Add MCP server",
+        items,
+        maxVisibleRows: 12,
+      });
 
-    const handleServer = (
-      item: SelectEntry<ResolvedMcpServer>,
-      serverHandler: typeof toggleMcpServer & typeof deleteMcpServer,
-    ) => {
-      if (!item.data || isPending) return;
-      isPending = true;
-      serverHandler(ctx, item).finally(() => {
-        isPending = false;
+      const refresh = (pending = false) => {
+        isPending = pending;
         selectList.invalidate();
         tui.requestRender();
-      });
-    };
+      };
 
-    selectList.onAdd = () => done(true);
-    selectList.onCancel = () => done(false);
-    selectList.onDelete = (item) => handleServer(item, deleteMcpServer);
-    selectList.extendKb(Key.tab, (item) => handleServer(item, toggleMcpServer), "enable/disable");
+      const handleServer = (item: SelectEntry<ResolvedMcpServer>, isDelete: boolean) => {
+        if (!item.data || isPending) return;
+        isPending = true;
 
-    return selectList;
-  });
+        if (isDelete) {
+          deleteMcpServer(ctx, item).finally(refresh);
+        } else {
+          toggleMcpServer(ctx, item, refresh).finally(refresh);
+        }
+      };
+
+      selectList.onAdd = () => done({ addMcp: true });
+      selectList.onCancel = () => done(null);
+      selectList.onSelect = (item) => done({ addMcp: false, selectedServer: item.data });
+      selectList.onDelete = (item) => handleServer(item, true);
+      selectList.extendKb(Key.tab, (item) => handleServer(item, false), "enable/disable");
+
+      return selectList;
+    },
+  );
 }
 
-function describeEnabledState(server: ResolvedMcpServer): string {
-  const statusLabel = server.enabled ? "Enabled" : "Disabled";
-  if (!server.description) {
-    return statusLabel;
-  }
-  return `${statusLabel} • ${server.description}`;
-}
-
-async function toggleMcpServer(ctx: ExtensionCommandContext, item: SelectEntry<ResolvedMcpServer>) {
+async function toggleMcpServer(
+  ctx: ExtensionCommandContext,
+  item: SelectEntry<ResolvedMcpServer>,
+  refresh: (pending: boolean) => void,
+) {
   const server = item.data;
   if (!server) return;
 
-  const { name, scope, sourcePath, ...config } = server;
   const nextEnabledState = !server.enabled;
+  if (nextEnabledState) {
+    item.description = "checking";
+    const client = new McpClientManager();
+    refresh(true);
+
+    try {
+      await client.listTools({ ...server, enabled: true });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to check MCP server";
+      ctx.ui.notify(errorMessage, "error");
+      item.description = "disabled";
+      return;
+    } finally {
+      await client.disposeAll();
+    }
+  }
+
+  const { name, ...config } = server;
   const updatedConfig: McpServer = { ...config, enabled: nextEnabledState };
 
   try {
-    await updateServerConfig(sourcePath, name, { config: updatedConfig, kind: "upsert" });
-    const updatedServer = { ...server, enabled: nextEnabledState };
-    item.data = updatedServer;
-    item.description = describeEnabledState(updatedServer);
+    await updateServerConfig(server.scope, ctx.cwd, name, {
+      config: updatedConfig,
+      kind: "upsert",
+    });
+    const updated = { ...server, enabled: nextEnabledState };
+    item.data = updated;
+    item.description = updated.enabled ? "enabled" : "disabled";
   } catch (error) {
+    item.description = server.enabled ? "enabled" : "disabled";
     const errorMessage = error instanceof Error ? error.message : "Failed to update MCP server";
     ctx.ui.notify(errorMessage, "error");
   }
@@ -101,7 +136,9 @@ async function deleteMcpServer(ctx: ExtensionCommandContext, item: SelectEntry<R
   if (!server) return;
 
   try {
-    const result = await updateServerConfig(server.sourcePath, server.name, { kind: "delete" });
+    const result = await updateServerConfig(server.scope, ctx.cwd, server.name, {
+      kind: "delete",
+    });
     if (!result.updated) {
       ctx.ui.notify(`MCP server ${server.name} no longer exists in ${result.path}.`, "warning");
       return;
@@ -110,6 +147,34 @@ async function deleteMcpServer(ctx: ExtensionCommandContext, item: SelectEntry<R
     const errorMessage = error instanceof Error ? error.message : "Failed to delete MCP server";
     ctx.ui.notify(errorMessage, "error");
   }
+}
+
+async function handleEditFlow(ctx: ExtensionCommandContext, server: ResolvedMcpServer) {
+  if (!ctx.hasUI) {
+    ctx.ui.notify("mcp edit requires an interactive UI.", "error");
+    return;
+  }
+
+  await ctx.ui.custom<void>((tui, theme, keybindings, done) => {
+    const editor = new Form<ResolvedMcpServer>(tui, keybindings, theme, {
+      title: `Edit MCP server: ${server.name}`,
+      fields: getEditFields(server),
+      emptyMessage: "No fields available for editing.",
+      parseOnSave: parseEditConfigValues,
+    });
+
+    editor.onCancel = () => done();
+    editor.onSave = async (updatedServer) => {
+      await saveEditedServer(ctx, server, updatedServer);
+      done();
+    };
+    editor.onSaveError = (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      ctx.ui.notify(`Failed to update MCP server: ${message}`, "error");
+    };
+
+    return editor;
+  });
 }
 
 async function handleSaveFlow(ctx: ExtensionCommandContext) {
@@ -129,10 +194,12 @@ async function handleSaveFlow(ctx: ExtensionCommandContext) {
 
   if (!result) return;
   const { name, scope } = result;
+  if (scope !== "project" && scope !== "global") {
+    ctx.ui.notify(`Invalid scope: ${scope}`, "error");
+    return;
+  }
 
-  const configuredServers = await readConfigFile(
-    getPiPath("mcp", scope === "project" ? ctx.cwd : scope),
-  );
+  const configuredServers = await readConfigFile(scope, ctx.cwd);
   const hasExisting = Object.hasOwn(configuredServers, name);
 
   if (hasExisting) {
@@ -149,8 +216,10 @@ async function handleSaveFlow(ctx: ExtensionCommandContext) {
   const config = await promptServerConfig(ctx, transport, name, configuredServers[name]);
   if (!config) return;
 
-  const path = getPiPath("mcp", scope === "project" ? ctx.cwd : scope);
-  const upsertResult = await updateServerConfig(path, name, { config, kind: "upsert" });
+  const upsertResult = await updateServerConfig(scope, ctx.cwd, name, {
+    config,
+    kind: "upsert",
+  });
   ctx.ui.notify(
     `${upsertResult.updated ? "Updated" : "Saved"} MCP server ${name} ${scope}ly (${upsertResult.path}).`,
     "info",
@@ -201,21 +270,4 @@ async function promptServerConfig(
       ctx.ui.notify("Invalid MCP JSON config", "error");
     }
   }
-}
-
-function buildConfigTemplate(transport: McpTransport): string {
-  const httpExample = {
-    url: "https://mcp.example.com/",
-    description: "This field is useful for telling agent when it should use an MCP",
-    headers: {},
-  };
-  const stdioExample = {
-    command: "npx",
-    description: "This field is useful for telling agent when it should use an MCP",
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "."],
-    env: {},
-  };
-  const template = transport === "http" ? httpExample : stdioExample;
-
-  return JSON.stringify(template, null, 2);
 }

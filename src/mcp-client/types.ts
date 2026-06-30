@@ -25,7 +25,6 @@ export type McpServer = StdioMcpServer | HttpMcpServer;
 export type ResolvedMcpServer = McpServer & {
   name: string;
   scope: "project" | "global";
-  sourcePath: string;
 };
 
 export interface McpToolCallDetails {

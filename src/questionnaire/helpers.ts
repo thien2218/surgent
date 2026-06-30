@@ -10,19 +10,19 @@ import type {
 } from "./types.js";
 
 export function createInitialDraft(question: NormalizedQuestion): QuestionDraft {
-  const selectedIndexes = question.options
-    .slice(0, question.recommendedCount)
-    .map((_option, index) => index);
+  const selectedIndexes = question.multi
+    ? question.options.slice(0, question.recommendedCount).map((_option, index) => index)
+    : [];
 
   return {
     text: "",
     selectedIndexes,
     cursor: selectedIndexes[0] ?? 0,
-    focusMode: question.options.length > 0 ? "options" : "editor",
+    editing: question.options.length === 0,
   };
 }
 
-export function getQuestionValidationMessage(
+export function getValidationMessage(
   question: NormalizedQuestion,
   draft: QuestionDraft,
 ): string | undefined {
@@ -48,10 +48,6 @@ export function getQuestionValidationMessage(
     return `Select at least ${question.minSelections} option${question.minSelections === 1 ? "" : "s"}, or type an answer.`;
   }
   return undefined;
-}
-
-export function isQuestionComplete(question: NormalizedQuestion, draft: QuestionDraft): boolean {
-  return getQuestionValidationMessage(question, draft) === undefined;
 }
 
 export function serializeQuestionAnswer(
@@ -124,20 +120,14 @@ export function toggleSuggestion(
   return { selectedIndexes: [...withoutExclusive, optionIndex] };
 }
 
-export function moveCursor(
-  question: NormalizedQuestion,
-  draft: QuestionDraft,
-  delta: number,
-): QuestionDraft {
-  if (question.options.length === 0) {
-    return draft;
-  }
+export function ensureSingleSelection(question: NormalizedQuestion, draft: QuestionDraft) {
+  if (question.multi || question.options.length === 0) return draft;
+  draft.selectedIndexes = [draft.cursor];
+}
 
-  const lastIndex = question.options.length - 1;
-  return {
-    ...draft,
-    cursor: Math.max(0, Math.min(lastIndex, draft.cursor + delta)),
-  };
+export function moveCursor(question: NormalizedQuestion, draft: QuestionDraft, delta: number) {
+  if (question.options.length === 0) return draft;
+  draft.cursor = Math.max(0, Math.min(question.options.length - 1, draft.cursor + delta));
 }
 
 export async function askQuestions(questions: Question[], ui: ExtensionUIContext) {

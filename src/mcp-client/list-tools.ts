@@ -60,10 +60,13 @@ export function createMcpListToolsTool(clientManager: McpClientManager) {
           continue;
         }
 
-        const lines = matched.map((tool) =>
-          tool.description ? `- **${tool.name}**: ${tool.description}` : `- **${tool.name}**`,
-        );
-        sections.push(`### ${serverName}\n${lines.join("\n")}`);
+        const lines = matched.map((tool) => {
+          const description = tool.description ? `: ${tool.description}` : "";
+          const inputSchema = JSON.stringify(tool.inputSchema, null, 2);
+          return `- **${tool.name}**${description}\nInput schema:\n\`\`\`json\n${inputSchema}\n\`\`\``;
+        });
+
+        sections.push(`### ${serverName}\n${lines.join("\n\n")}`);
       }
 
       return {

@@ -1,5 +1,4 @@
-import { StringEnum } from "@earendil-works/pi-ai";
-import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { WEB_SEARCH_PROVIDERS } from "../settings.js";
@@ -16,22 +15,19 @@ const webSearchTool = defineTool({
   promptSnippet: "Search web or news. Returns ranked results.",
   promptGuidelines: [
     "Use web_search for external/unavailable info.",
-    "Use web_search with mode=news for recent reporting; use mode=web otherwise.",
+    "Use web_search with news=true for recent reporting; default is web search.",
     "Use web_search with small max first; results are re-ranked best-first.",
   ],
   parameters: Type.Object({
     query: Type.String({ description: "Search query" }),
-    max: Type.Number({
-      description: "Max results (default: 5)",
-      minimum: 1,
-      maximum: 10,
-      default: 5,
-    }),
-    mode: StringEnum(["web", "news"] as const),
+    max: Type.Optional(
+      Type.Number({ description: "Max results (default: 5)", minimum: 1, maximum: 10 }),
+    ),
+    news: Type.Optional(Type.Boolean({ description: "Search news when true; web when false" })),
   }),
-  async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-    const query = params.query.trim();
-    if (!query) {
+  async execute(_toolCallId, { query, max = 5, news = false }, signal, _onUpdate, ctx) {
+    const trimmed = query.trim();
+    if (!trimmed) {
       throw new Error("Query must not be empty.");
     }
 
@@ -56,7 +52,7 @@ const webSearchTool = defineTool({
       try {
         const results = await webToolsFactory
           .createWebSearcher(provider.name, apiKey)
-          .search(query, params.mode, params.max);
+          .search(trimmed, news, max);
 
         if (results.length === 0) {
           attempts.push(`${provider.label}: returned no results`);

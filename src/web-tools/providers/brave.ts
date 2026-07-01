@@ -1,5 +1,5 @@
 import { getHttpError, joinSnippets, normalizeSearchResult } from "../web-search/helpers.js";
-import type { WebSearchMode, WebSearchResult } from "../web-search/types.js";
+import type { WebSearchResult } from "../web-search/types.js";
 import { isDefined } from "../../utils.js";
 import type { WebSearchProvider } from "./index.js";
 
@@ -20,8 +20,8 @@ interface BraveSearchResponse {
 export class BraveWebSearchProvider implements WebSearchProvider {
   constructor(private readonly apiKey: string) {}
 
-  async search(query: string, mode: WebSearchMode, max: number): Promise<WebSearchResult[]> {
-    const endpoint = mode === "news" ? "news/search" : "web/search";
+  async search(query: string, news: boolean, max: number): Promise<WebSearchResult[]> {
+    const endpoint = news ? "news/search" : "web/search";
     const searchParams = new URLSearchParams({
       count: String(max),
       extra_snippets: "true",
@@ -40,7 +40,7 @@ export class BraveWebSearchProvider implements WebSearchProvider {
     }
 
     const payload = (await response.json()) as BraveSearchResponse;
-    const items = payload[mode]?.results ?? [];
+    const items = (news ? payload.news : payload.web)?.results ?? [];
 
     return items
       .map((item) =>

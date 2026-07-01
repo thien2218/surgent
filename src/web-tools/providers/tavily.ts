@@ -1,7 +1,7 @@
 import { formatErrorMessage, normalizeFetchedContent } from "../web-fetch/helpers.js";
 import type { WebFetchResponse } from "../web-fetch/types.js";
 import { normalizeSearchResult } from "../web-search/helpers.js";
-import type { WebSearchMode, WebSearchResult } from "../web-search/types.js";
+import type { WebSearchResult } from "../web-search/types.js";
 import { isDefined } from "../../utils.js";
 import { tavily } from "@tavily/core";
 import type { WebFetchProvider, WebSearchProvider } from "./index.js";
@@ -18,14 +18,14 @@ interface TavilyExtractResponse {
 export class TavilyProvider implements WebSearchProvider, WebFetchProvider {
   constructor(private readonly apiKey: string) {}
 
-  async search(query: string, mode: WebSearchMode, max: number): Promise<WebSearchResult[]> {
+  async search(query: string, news: boolean, max: number): Promise<WebSearchResult[]> {
     const client = tavily({ apiKey: this.apiKey });
     const response = (await client.search(query, {
       includeAnswer: false,
       includeRawContent: false,
       maxResults: max,
       searchDepth: "basic",
-      topic: mode === "news" ? "news" : "general",
+      topic: news ? "news" : "general",
     })) as TavilySearchResponse;
 
     return (response.results ?? [])

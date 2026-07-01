@@ -1,7 +1,7 @@
 import { formatErrorMessage, normalizeFetchedContent } from "../web-fetch/helpers.js";
 import type { WebFetchResponse } from "../web-fetch/types.js";
 import { normalizeSearchResult } from "../web-search/helpers.js";
-import type { WebSearchMode, WebSearchResult } from "../web-search/types.js";
+import type { WebSearchResult } from "../web-search/types.js";
 import { isDefined } from "../../utils.js";
 import Firecrawl from "@mendable/firecrawl-js";
 import type { WebFetchProvider, WebSearchProvider } from "./index.js";
@@ -26,13 +26,14 @@ interface FirecrawlDocument {
 export class FirecrawlProvider implements WebSearchProvider, WebFetchProvider {
   constructor(private readonly apiKey: string) {}
 
-  async search(query: string, mode: WebSearchMode, max: number): Promise<WebSearchResult[]> {
+  async search(query: string, news: boolean, max: number): Promise<WebSearchResult[]> {
     const client = new Firecrawl({ apiKey: this.apiKey });
+    const source = news ? "news" : "web";
     const response = (await client.search(query, {
       limit: max,
-      sources: [mode],
+      sources: [source],
     })) as FirecrawlSearchResponse;
-    const items = response[mode] ?? [];
+    const items = news ? (response.news ?? []) : (response.web ?? []);
 
     return items
       .map((item) =>

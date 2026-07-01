@@ -1,6 +1,6 @@
 import type { WebFetchProviderId, WebFetchResponse } from "../web-fetch/types.js";
 import type { WebToolsProviderId } from "../web-login/types.js";
-import type { WebSearchMode, WebSearchProviderId, WebSearchResult } from "../web-search/types.js";
+import type { WebSearchProviderId, WebSearchResult } from "../web-search/types.js";
 import { BraveWebSearchProvider } from "./brave.js";
 import { FirecrawlProvider } from "./firecrawl.js";
 import { JinaWebFetchProvider } from "./jina.js";
@@ -8,7 +8,7 @@ import { NativeWebFetchProvider } from "./native.js";
 import { TavilyProvider } from "./tavily.js";
 
 export interface WebSearchProvider {
-  search(query: string, mode: WebSearchMode, max: number): Promise<WebSearchResult[]>;
+  search(query: string, news: boolean, max: number): Promise<WebSearchResult[]>;
 }
 
 export interface WebFetchProvider {

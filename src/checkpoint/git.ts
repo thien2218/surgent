@@ -24,7 +24,7 @@ export async function createCheckpoint(
   const checkpointLabel = `${CHECKPOINT_LABEL_PREFIX}${sessionId}:${leafEntryId}`;
   const stashStoreResult = await pi.exec(
     "git",
-    ["stash", "store", "-m", checkpointLabel, stashRef],
+    ["stash", "store", "-a", "-m", checkpointLabel, stashRef],
     { cwd },
   );
 

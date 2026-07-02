@@ -186,6 +186,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
   private setAmending(value: boolean) {
     this.amending = value;
     this.input.focused = this._focused && value;
+    this.setKeyAccess(Key.backspace, !value);
     if (!value) this.input.setValue("");
   }
 

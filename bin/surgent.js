@@ -105,6 +105,12 @@ function isJsonModeActive(args) {
   return false;
 }
 
+async function ensureAgentDirectories() {
+  const agentDir = resolve(homedir(), ".pi", "agent");
+  const cacheDirectory = resolve(agentDir, "web-results", new Date().toISOString().split("T")[0]);
+  await mkdir(cacheDirectory, { recursive: true });
+}
+
 async function setupGlobalConfig() {
   const srcDir = resolve(PACKAGE_DIR, "src");
   const agentDir = resolve(homedir(), ".pi", "agent");
@@ -180,11 +186,11 @@ async function runRewrittenHelp(args) {
 if (args.includes("--help") || args.includes("-h")) {
   await runRewrittenHelp(args);
 } else {
+  await ensureAgentDirectories();
   if (!isJsonModeActive(args)) {
     const cwd = process.cwd();
     await ensurePiExcluded(cwd);
     await syncPiIgnore(cwd);
-    await mkdir(resolve(cwd, ".pi", "agents"), { recursive: true });
     await setupGlobalConfig();
 
     process.stdout.write(CLEAR_SCREEN);

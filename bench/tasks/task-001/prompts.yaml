@@ -1,0 +1,12 @@
+session_goal: Resolve task
+turns:
+  - id: t1
+    prompt: "Understand codebase and propose plan in 5 bullets. No edits yet."
+  - id: t2
+    prompt: "Implement part A only. Add or adjust tests."
+  - id: t3
+    prompt: "Requirement change: adapt implementation to updated rule."
+  - id: t4
+    prompt: "Failing test log: isolate failure and fix root cause."
+  - id: t5
+    prompt: "Polish: remove dead code and update docs."

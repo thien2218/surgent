@@ -1,0 +1,3 @@
+quality_checks:
+  - id: no-dead-code
+    description: Remove dead code paths where possible

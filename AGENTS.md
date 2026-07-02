@@ -1,10 +1,8 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## What is `surgent`
 
-## What is Surgent
-
-Surgent is a CLI coding agent that extends the `@earendil-works/pi-coding-agent` framework with custom tools, commands, and UI. It runs as a TUI via the `surgent` command.
+`surgent` is a CLI coding agent that extends the `@earendil-works/pi-coding-agent` framework with custom tools, commands, and UI. It runs as a TUI via the `surgent` command.
 
 ## Reference documentation
 
@@ -37,7 +35,8 @@ Run type checking to validate the change:
 pnpm tsc --noEmit
 ```
 
-Then tell the user what to manually test, why and how. This should only run as-is exactly once every time you finalize an edit/write.
+Then tell the user what to manually test, why and how.
+Run this command exactly once, as-is, with no chaining, flags, or extra shell modifiers, and only after all write/edit operations are finalized.
 
 ## Rules
 

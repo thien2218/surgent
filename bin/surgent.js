@@ -12,6 +12,7 @@ process.title = "surgent";
 const args = process.argv.slice(2);
 
 const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const AGENT_ENTRY_URL = import.meta.resolve("@earendil-works/pi-coding-agent");
 const CLEAR_SCREEN = "\x1b[H\x1b[2J\x1b[3J";
 const NON_EXTENSION_DIRS = new Set(["subsession"]);
 
@@ -154,7 +155,7 @@ function rewriteHelpText(text) {
 }
 
 async function runRewrittenHelp(args) {
-  const cliPath = fileURLToPath(new URL("./cli.js", agentEntryUrl));
+  const cliPath = fileURLToPath(new URL("./cli.js", AGENT_ENTRY_URL));
 
   await new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cliPath, ...args], {

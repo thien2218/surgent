@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
-import { containSecrets } from "./secrets.js";
+import { containSecrets, replaceSecrets } from "./secrets.js";
 
 export default function (pi: ExtensionAPI) {
   pi.on("tool_call", async (event, _ctx) => {
@@ -23,16 +23,12 @@ export default function (pi: ExtensionAPI) {
   pi.on("tool_result", async (event, _ctx) => {
     if (event.toolName !== "read" && event.toolName !== "bash" && event.toolName !== "grep") return;
 
-    const text = event.content
-      .filter((c) => c.type === "text")
-      .map((c) => c.text)
-      .join("");
+    const content = event.content.map((block) => {
+      if (block.type !== "text") return block;
+      const redactedText = replaceSecrets(block.text);
+      return { ...block, text: redactedText };
+    });
 
-    if (containSecrets(text)) {
-      return {
-        content: [{ type: "text", text: "[Secrets detected: content redacted]" }],
-        isError: true,
-      };
-    }
+    return { details: event.details, isError: event.isError, content };
   });
 }

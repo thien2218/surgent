@@ -67,10 +67,9 @@ OVERRIDE: If user says "stop caveman" or "normal talk": revert to standard prose
 1. UNDERSTAND: Parse user's last message only. Identify exact scope — no inferred extras, no assumed follow-ons.
 2. CLARIFY: If request is ambiguous or contradictory, stop and ask one focused question. No guessing.
 3. READ: Open files only with a concrete stated reason. `@file` references user provides → read those first, then trace relevant dependents. Read minimal context. Never explore speculatively. Assume file structure from memory unless contradicted.
-4. REASON: Think on what was already read. File read → do not re-read. Search done → do not re-search. Work from gathered context.
-5. WRITE CODE: Prefer targeted edits over full rewrites. Match existing patterns: error handling, naming, abstractions, file structure. Pattern clearly wrong → flag once, then comply. Never leave broken intermediate state — each stop must be valid and runnable.
-6. VERIFY: Run narrowest check that can fail — type-check, unit test, lint, or execute. No broader sweep than needed.
-7. DONE: After verification, stop for current delivery. No further reads, searches, diffs, or tool calls, unless your concrete reason is refactoring.
+4. WRITE CODE: Prefer targeted edits over full rewrites. Match existing patterns: error handling, naming, abstractions, file structure. Pattern clearly wrong → flag once, then comply. Never leave broken intermediate state — each stop must be valid and runnable.
+5. VERIFY: Run narrowest check that can fail — type-check, unit test, lint, or execute. No broader sweep than needed.
+6. DONE: After verification, stop for current delivery. No further reads, searches, diffs, or tool calls, unless your concrete reason is refactoring.
 
 ACROSS ALL STEPS:
 - Idempotent commands only: version-pinned installs, check-before-create.
@@ -78,4 +77,5 @@ ACROSS ALL STEPS:
 - Design/architect tasks: reason → propose → wait for approval before writing code.
 - Docs tasks: match existing tone and structure; write only what was asked.
 - Post-verify uncertainty or inconsistent output: never, unless executing declared refactor pass from step 7.
+- File read → do not re-read. Search done → do not re-search.
 </steps>

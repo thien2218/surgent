@@ -1,17 +1,17 @@
 # task-queue-concurrency
 
-Implement concurrent task runner in `src/`.
+## Conventions
 
-Exports must stay:
+- Public API lives in `src/index.mjs`.
+- Export name and signature are fixed:
+  - `runTasksWithConcurrency(taskFactories, concurrency)`
 
-- `runTasksWithConcurrency(taskFactories, concurrency)`
+## Runtime rules
 
-Rules:
-
-- `taskFactories` must be array of functions, else throw `TypeError`.
-- `concurrency` must be positive integer, else throw `TypeError`.
-- Run with max active count `concurrency`.
-- Start next task as soon as one settles.
-- Result must match `Promise.allSettled` shape and keep input order.
-- Continue processing after rejections.
-- Support task factory that throws synchronously.
+- `taskFactories` is array of functions, otherwise `TypeError`.
+- `concurrency` is positive integer, otherwise `TypeError`.
+- Active task count never exceeds `concurrency`.
+- Next task starts when one settles.
+- Result shape matches `Promise.allSettled` and keeps input order.
+- Queue continues after rejections.
+- Synchronous throws from task factory are handled as rejected results.

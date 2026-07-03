@@ -1,22 +1,25 @@
 # markdown-toc-generator
 
-Implement markdown TOC builder in `src/`.
+## Conventions
 
-Exports must stay:
+- Public API lives in `src/index.mjs`.
+- Export name and signature are fixed:
+  - `buildTableOfContents(markdownText, options)`
 
-- `buildTableOfContents(markdownText, options)`
-
-Rules:
+## Parsing rules
 
 - Parse ATX headings only (`#` to `######` followed by at least one space).
 - Ignore headings inside fenced code blocks delimited by triple backticks.
-- `options.minLevel` default is `1`.
-- `options.maxLevel` default is `6`.
-- Return array of `{ level, text, slug }`.
-- Slug rules:
-  - lowercase
-  - remove non alphanumeric characters except spaces and hyphens
-  - collapse spaces to single hyphen
-  - collapse repeated hyphens
-  - trim hyphens at both ends
-  - duplicate slugs get suffix `-2`, `-3`, ...
+- Defaults:
+  - `options.minLevel = 1`
+  - `options.maxLevel = 6`
+- Output shape: array of `{ level, text, slug }`.
+
+## Slug rules
+
+- Lowercase.
+- Remove non-alphanumeric characters except spaces and hyphens.
+- Collapse spaces into single hyphen.
+- Collapse repeated hyphens.
+- Trim hyphens from both ends.
+- Duplicate base slug gets numeric suffix (`-2`, `-3`, ...).

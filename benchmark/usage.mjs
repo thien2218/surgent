@@ -71,7 +71,7 @@ async function parseSurgentUsage(sessionRootDirectoryPath) {
 
   const newestSessionFilePath = await pickNewestFilePath(jsonlFilePaths);
   const sessionText = await readFile(newestSessionFilePath, 'utf8');
-  let inputTokens = 0;
+  let uncachedInputTokens = 0;
   let outputTokens = 0;
   let cachedReadTokens = 0;
   let totalTokens = 0;
@@ -108,7 +108,7 @@ async function parseSurgentUsage(sessionRootDirectoryPath) {
     const messageTotalTokens = parseNumericValue(messageUsage?.totalTokens);
 
     assistantMessageCount += 1;
-    inputTokens += messageInputTokens;
+    uncachedInputTokens += messageInputTokens;
     outputTokens += messageOutputTokens;
     cachedReadTokens += Number.isFinite(messageCachedReadTokens) ? messageCachedReadTokens : 0;
 
@@ -134,10 +134,11 @@ async function parseSurgentUsage(sessionRootDirectoryPath) {
     fail(`No assistant usage found in ${newestSessionFilePath}`);
   }
 
-  const cacheHitDenominator = cachedReadTokens + inputTokens;
+  const totalInputTokens = uncachedInputTokens + cachedReadTokens;
+  const cacheHitDenominator = cachedReadTokens + uncachedInputTokens;
 
   return {
-    inputTokens: Math.round(inputTokens),
+    inputTokens: Math.round(totalInputTokens),
     outputTokens: Math.round(outputTokens),
     totalTokens: Math.round(totalTokens),
     cacheHit: cacheHitDenominator > 0 ? cachedReadTokens / cacheHitDenominator : 0,
@@ -158,6 +159,9 @@ async function parseCopilotUsage(sessionRootDirectoryPath) {
   let highestCachedReadTokens = 0;
   let highestTotalTokens = -1;
   let highestCostUsd = -1;
+  let summedInputTokens = 0;
+  let summedCachedReadTokens = 0;
+  let hasSummedInputTokens = false;
 
   for (const lineText of otelText.split(/\r?\n/)) {
     if (lineText.trim() === '') {
@@ -179,14 +183,21 @@ async function parseCopilotUsage(sessionRootDirectoryPath) {
       const spanTotalTokens = parseNumericValue(spanAttributes?.['gen_ai.usage.total_tokens']);
       const spanCostUsd = parseNumericValue(spanAttributes?.['github.copilot.cost']);
 
-      if (Number.isFinite(spanInputTokens) && spanInputTokens > highestInputTokens) {
-        highestInputTokens = spanInputTokens;
+      if (Number.isFinite(spanInputTokens)) {
+        hasSummedInputTokens = true;
+        summedInputTokens += spanInputTokens;
+        if (spanInputTokens > highestInputTokens) {
+          highestInputTokens = spanInputTokens;
+        }
       }
       if (Number.isFinite(spanOutputTokens) && spanOutputTokens > highestOutputTokens) {
         highestOutputTokens = spanOutputTokens;
       }
-      if (Number.isFinite(spanCachedReadTokens) && spanCachedReadTokens > highestCachedReadTokens) {
-        highestCachedReadTokens = spanCachedReadTokens;
+      if (Number.isFinite(spanCachedReadTokens)) {
+        summedCachedReadTokens += spanCachedReadTokens;
+        if (spanCachedReadTokens > highestCachedReadTokens) {
+          highestCachedReadTokens = spanCachedReadTokens;
+        }
       }
       if (Number.isFinite(spanTotalTokens) && spanTotalTokens > highestTotalTokens) {
         highestTotalTokens = spanTotalTokens;
@@ -228,18 +239,21 @@ async function parseCopilotUsage(sessionRootDirectoryPath) {
     }
   }
 
-  if (highestInputTokens < 0 || highestOutputTokens < 0) {
+  const resolvedInputTokens = hasSummedInputTokens ? summedInputTokens : highestInputTokens;
+
+  if (resolvedInputTokens < 0 || highestOutputTokens < 0) {
     fail(`Invalid copilot usage in ${newestOtelFilePath}`);
   }
 
-  const totalTokens = highestTotalTokens >= 0 ? highestTotalTokens : highestInputTokens + highestOutputTokens;
-  const cacheHitDenominator = highestCachedReadTokens + highestInputTokens;
+  const totalTokens = highestTotalTokens >= 0 ? highestTotalTokens : resolvedInputTokens + highestOutputTokens;
+  const cacheHitDenominator = resolvedInputTokens;
+  const cacheHitNumerator = hasSummedInputTokens ? summedCachedReadTokens : highestCachedReadTokens;
 
   return {
-    inputTokens: Math.round(highestInputTokens),
+    inputTokens: Math.round(resolvedInputTokens),
     outputTokens: Math.round(highestOutputTokens),
     totalTokens: Math.round(totalTokens),
-    cacheHit: cacheHitDenominator > 0 ? highestCachedReadTokens / cacheHitDenominator : 0,
+    cacheHit: cacheHitDenominator > 0 ? cacheHitNumerator / cacheHitDenominator : 0,
     totalCostUsd: highestCostUsd < 0 ? null : highestCostUsd
   };
 }

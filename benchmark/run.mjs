@@ -14,7 +14,7 @@ const defaultManifestPath = path.join(benchmarkDirectoryPath, 'tasks.json');
 const defaultOutputPath = path.join(benchmarkDirectoryPath, 'results.csv');
 const allowedRunnerNames = ['surgent', 'copilot'];
 const allowedRunnerNameSet = new Set(allowedRunnerNames);
-const csvHeaderColumns = ['agent', 'completionTimeMs', 'testsPassedPercent', 'inputTokens', 'outputTokens', 'totalCostUsd'];
+const csvHeaderColumns = ['agent', 'task', 'completionTimeMs', 'testsPassedPercent', 'inputTokens', 'outputTokens', 'totalCostUsd'];
 const sessionsRootDirectoryPath = path.join(benchmarkDirectoryPath, 'sessions');
 const setupPromptText = [
   'Benchmark mode.',
@@ -792,6 +792,7 @@ async function main() {
 
       const csvRowValues = [
         plannedRun.runnerName,
+        plannedRun.task.id,
         runMetrics.completionTimeMs,
         runMetrics.testsPassedPercent,
         runMetrics.inputTokens,

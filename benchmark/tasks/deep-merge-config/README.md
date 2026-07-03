@@ -1,17 +1,17 @@
 # deep-merge-config
 
-Implement deep config merge in `src/`.
+## Conventions
 
-Exports must stay:
+- Public API lives in `src/index.mjs`.
+- Export name and signature are fixed:
+  - `deepMergeConfig(baseConfig, overrideConfig)`
 
-- `deepMergeConfig(baseConfig, overrideConfig)`
+## Merge rules
 
-Rules:
-
-- Both arguments must be plain objects, else throw `TypeError`.
-- Return new object. Never mutate input objects or arrays.
-- Merge plain object values recursively.
-- `override` value `undefined` means keep base value.
-- `override` value `null` overrides base with `null`.
-- Arrays from override replace base arrays using shallow copy.
+- Both top-level arguments are plain objects, otherwise `TypeError`.
+- Return value is new object; inputs remain unchanged.
+- Plain object values merge recursively.
+- Override value `undefined` keeps base value.
+- Override value `null` overrides base with `null`.
+- Override arrays replace base arrays using shallow copy.
 - Ignore unsafe keys: `__proto__`, `prototype`, `constructor`.

@@ -1,9 +1,1 @@
 node_modules
-
-bench/harness/dist/
-
-bench/runs/*
-!bench/runs/.gitkeep
-
-bench/reports/*
-!bench/reports/.gitkeep

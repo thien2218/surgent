@@ -1,0 +1,61 @@
+{
+  "runnerOrder": ["surgent", "copilot"],
+  "csvRowOrder": "runnerOrder x tasks order",
+  "tasks": [
+    {
+      "id": "snake-game-engine",
+      "workspaceDir": "benchmark/tasks/snake-game-engine",
+      "hiddenDir": "benchmark/hidden/snake-game-engine",
+      "visibleTestCommand": ["node", "tests/visible.test.mjs"],
+      "hiddenTestCommand": ["node", "hidden.test.mjs"],
+      "prompts": [
+        "Read README.md. Implement all TODOs across src/*.mjs. Keep exports same. Do not change tests.",
+        "Run visible tests. Fix remaining issues in src/*.mjs only. Stop when tests pass."
+      ]
+    },
+    {
+      "id": "markdown-toc-generator",
+      "workspaceDir": "benchmark/tasks/markdown-toc-generator",
+      "hiddenDir": "benchmark/hidden/markdown-toc-generator",
+      "visibleTestCommand": ["node", "tests/visible.test.mjs"],
+      "hiddenTestCommand": ["node", "hidden.test.mjs"],
+      "prompts": [
+        "Read README.md. Implement all TODOs across src/*.mjs. Keep exports same. Do not change tests.",
+        "Run visible tests. Fix remaining issues in src/*.mjs only. Stop when tests pass."
+      ]
+    },
+    {
+      "id": "deep-merge-config",
+      "workspaceDir": "benchmark/tasks/deep-merge-config",
+      "hiddenDir": "benchmark/hidden/deep-merge-config",
+      "visibleTestCommand": ["node", "tests/visible.test.mjs"],
+      "hiddenTestCommand": ["node", "hidden.test.mjs"],
+      "prompts": [
+        "Read README.md. Implement all TODOs across src/*.mjs. Keep exports same. Do not change tests.",
+        "Run visible tests. Fix remaining issues in src/*.mjs only. Stop when tests pass."
+      ]
+    },
+    {
+      "id": "mini-router-match",
+      "workspaceDir": "benchmark/tasks/mini-router-match",
+      "hiddenDir": "benchmark/hidden/mini-router-match",
+      "visibleTestCommand": ["node", "tests/visible.test.mjs"],
+      "hiddenTestCommand": ["node", "hidden.test.mjs"],
+      "prompts": [
+        "Read README.md. Implement all TODOs across src/*.mjs. Keep exports same. Do not change tests.",
+        "Run visible tests. Fix remaining issues in src/*.mjs only. Stop when tests pass."
+      ]
+    },
+    {
+      "id": "task-queue-concurrency",
+      "workspaceDir": "benchmark/tasks/task-queue-concurrency",
+      "hiddenDir": "benchmark/hidden/task-queue-concurrency",
+      "visibleTestCommand": ["node", "tests/visible.test.mjs"],
+      "hiddenTestCommand": ["node", "hidden.test.mjs"],
+      "prompts": [
+        "Read README.md. Implement all TODOs across src/*.mjs. Keep exports same. Do not change tests.",
+        "Run visible tests. Fix remaining issues in src/*.mjs only. Stop when tests pass."
+      ]
+    }
+  ]
+}

@@ -9,20 +9,22 @@ import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
+import { readUsageMetricsForRunnerSession } from './usage.mjs';
+
 const benchmarkDirectoryPath = path.dirname(fileURLToPath(import.meta.url));
 const defaultManifestPath = path.join(benchmarkDirectoryPath, 'tasks.json');
 const defaultOutputPath = path.join(benchmarkDirectoryPath, 'results.csv');
 const allowedRunnerNames = ['surgent', 'copilot'];
 const allowedRunnerNameSet = new Set(allowedRunnerNames);
-const csvHeaderColumns = ['agent', 'task', 'completionTimeMs', 'testsPassedPercent', 'inputTokens', 'outputTokens', 'totalCostUsd'];
+const csvHeaderColumns = ['agent', 'task', 'completionTimeMs', 'testsPassedPercent', 'inputTokens', 'outputTokens', 'totalTokens', 'cacheHit', 'totalCostUsd'];
 const sessionsRootDirectoryPath = path.join(benchmarkDirectoryPath, 'sessions');
 const setupPromptText = [
-  'Benchmark mode.',
   'Environment restrictive.',
   'Execute instructions exactly in given order.',
   'Work only in current workspace.',
   'Use bash only for running tests when prompt explicitly asks for tests.',
-  'Do not ask clarifying questions.'
+  'Do not ask clarifying questions.',
+  'Reply `Ready`. Wait for further instructions.'
 ].join(' ');
 const helpText = `Usage: node benchmark/run.mjs --runner <surgent|copilot|both> --model <model> [options]
 
@@ -304,86 +306,6 @@ function parseSurgentSessionId(parsedEvents) {
   fail('surgent JSON stream missing session id.');
 }
 
-function parseSurgentPromptUsage(parsedEvents) {
-  let assistantMessage;
-  for (let eventIndex = parsedEvents.length - 1; eventIndex >= 0; eventIndex -= 1) {
-    const eventObject = parsedEvents[eventIndex];
-    if (eventObject?.type === 'message_end' && eventObject.message?.role === 'assistant') {
-      assistantMessage = eventObject.message;
-      break;
-    }
-  }
-
-  let inputTokens;
-  let outputTokens;
-  let totalCostUsd = null;
-
-  if (assistantMessage?.usage && typeof assistantMessage.usage.input === 'number' && typeof assistantMessage.usage.output === 'number') {
-    inputTokens = assistantMessage.usage.input;
-    outputTokens = assistantMessage.usage.output;
-  }
-
-  if (
-    assistantMessage?.usage?.cost &&
-    typeof assistantMessage.usage.cost.total === 'number' &&
-    Number.isFinite(assistantMessage.usage.cost.total)
-  ) {
-    totalCostUsd = assistantMessage.usage.cost.total;
-  }
-
-  if ((inputTokens === undefined || outputTokens === undefined) && assistantMessage?.snapshot?.usage && typeof assistantMessage.snapshot.usage.inputTokens === 'number' && typeof assistantMessage.snapshot.usage.outputTokens === 'number') {
-    inputTokens = assistantMessage.snapshot.usage.inputTokens;
-    outputTokens = assistantMessage.snapshot.usage.outputTokens;
-  }
-
-  if (totalCostUsd === null && assistantMessage?.snapshot?.usage) {
-    const snapshotUsage = assistantMessage.snapshot.usage;
-    if (snapshotUsage?.cost && typeof snapshotUsage.cost.total === 'number' && Number.isFinite(snapshotUsage.cost.total)) {
-      totalCostUsd = snapshotUsage.cost.total;
-    } else if (typeof snapshotUsage.totalCostUsd === 'number' && Number.isFinite(snapshotUsage.totalCostUsd)) {
-      totalCostUsd = snapshotUsage.totalCostUsd;
-    }
-  }
-
-  if (inputTokens === undefined || outputTokens === undefined) {
-    for (let eventIndex = parsedEvents.length - 1; eventIndex >= 0; eventIndex -= 1) {
-      const eventObject = parsedEvents[eventIndex];
-      const partialUsage = eventObject?.assistantMessageEvent?.partial?.usage;
-
-      if (partialUsage && typeof partialUsage.input === 'number' && typeof partialUsage.output === 'number') {
-        inputTokens = partialUsage.input;
-        outputTokens = partialUsage.output;
-      }
-
-      if (totalCostUsd === null && partialUsage?.cost && typeof partialUsage.cost.total === 'number' && Number.isFinite(partialUsage.cost.total)) {
-        totalCostUsd = partialUsage.cost.total;
-      }
-
-      if (inputTokens !== undefined && outputTokens !== undefined) {
-        break;
-      }
-    }
-  }
-
-  if (inputTokens === undefined || outputTokens === undefined) {
-    fail('surgent JSON stream missing assistant token usage.');
-  }
-
-  if (!Number.isFinite(inputTokens) || !Number.isFinite(outputTokens)) {
-    fail('surgent token usage is not finite number.');
-  }
-
-  if (totalCostUsd !== null && !Number.isFinite(totalCostUsd)) {
-    fail('surgent cost usage is not finite number.');
-  }
-
-  return {
-    inputTokens: Math.round(inputTokens),
-    outputTokens: Math.round(outputTokens),
-    totalCostUsd
-  };
-}
-
 function parseCopilotSessionId(parsedEvents) {
   for (let eventIndex = parsedEvents.length - 1; eventIndex >= 0; eventIndex -= 1) {
     const eventObject = parsedEvents[eventIndex];
@@ -397,87 +319,12 @@ function parseCopilotSessionId(parsedEvents) {
   fail('copilot JSON stream missing session id.');
 }
 
-async function parseCopilotPromptUsageFromOtel(otelFilePath) {
-  let otelText;
-  try {
-    otelText = await readFile(otelFilePath, 'utf8');
-  } catch (error) {
-    fail(`Cannot read copilot OTel file at ${otelFilePath}: ${error instanceof Error ? error.message : String(error)}`);
-  }
-
-  let highestInputTokens = -1;
-  let highestOutputTokens = -1;
-  let highestCostUsd = -1;
-
-  for (const lineText of otelText.split(/\r?\n/)) {
-    if (lineText.trim() === '') {
-      continue;
-    }
-
-    let parsedLine;
-    try {
-      parsedLine = JSON.parse(lineText);
-    } catch {
-      continue;
-    }
-
-    if (parsedLine?.type === 'span') {
-      const spanCostValue = parsedLine?.attributes?.['github.copilot.cost'];
-      const spanCostUsd = typeof spanCostValue === 'number' ? spanCostValue : typeof spanCostValue === 'string' ? Number(spanCostValue) : Number.NaN;
-      if (Number.isFinite(spanCostUsd) && spanCostUsd > highestCostUsd) {
-        highestCostUsd = spanCostUsd;
-      }
-      continue;
-    }
-
-    if (parsedLine?.type !== 'metric' || !Array.isArray(parsedLine?.dataPoints)) {
-      continue;
-    }
-
-    if (parsedLine.name === 'gen_ai.client.token.usage') {
-      for (const dataPoint of parsedLine.dataPoints) {
-        const tokenType = dataPoint?.attributes?.['gen_ai.token.type'];
-        const tokenSum = typeof dataPoint?.value?.sum === 'number' ? dataPoint.value.sum : dataPoint?.value;
-        if (tokenType === 'input' && typeof tokenSum === 'number' && tokenSum > highestInputTokens) {
-          highestInputTokens = tokenSum;
-        }
-        if (tokenType === 'output' && typeof tokenSum === 'number' && tokenSum > highestOutputTokens) {
-          highestOutputTokens = tokenSum;
-        }
-      }
-      continue;
-    }
-
-    if (parsedLine.name === 'gen_ai.client.operation.cost' || parsedLine.name === 'gen_ai.client.request.cost' || parsedLine.name === 'gen_ai.client.cost') {
-      for (const dataPoint of parsedLine.dataPoints) {
-        const costSum = typeof dataPoint?.value?.sum === 'number' ? dataPoint.value.sum : dataPoint?.value;
-        if (typeof costSum === 'number' && Number.isFinite(costSum) && costSum > highestCostUsd) {
-          highestCostUsd = costSum;
-        }
-      }
-    }
-  }
-
-  if (highestInputTokens < 0 || highestOutputTokens < 0) {
-    fail(`copilot OTel file missing token usage metric at ${otelFilePath}`);
-  }
-
-  return {
-    inputTokens: Math.round(highestInputTokens),
-    outputTokens: Math.round(highestOutputTokens),
-    totalCostUsd: highestCostUsd < 0 ? null : highestCostUsd
-  };
-}
-
 async function runSurgentSession(plannedRun, preparedWorkspace) {
   const promptSequence = [setupPromptText, ...plannedRun.task.prompts];
-  const sessionDirectoryPath = path.join(preparedWorkspace.runRootPath, 'surgent-session');
+  const sessionDirectoryPath = preparedWorkspace.runRootPath;
+
   const sessionStartTimeMs = Date.now();
   let sessionId;
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let totalCostUsd = 0;
-  let hasTotalCostUsd = true;
 
   for (const promptText of promptSequence) {
     const commandArguments = [
@@ -485,8 +332,6 @@ async function runSurgentSession(plannedRun, preparedWorkspace) {
       'json',
       '-p',
       promptText,
-      '--approve',
-      'auto',
       '--model',
       `github-copilot/${plannedRun.modelName}`,
       '--session-dir',
@@ -515,22 +360,10 @@ async function runSurgentSession(plannedRun, preparedWorkspace) {
       fail(`surgent changed session id across prompts: ${sessionId} -> ${parsedSessionId}`);
     }
 
-    const promptUsage = parseSurgentPromptUsage(commandResult.parsedEvents);
-    inputTokens += promptUsage.inputTokens;
-    outputTokens += promptUsage.outputTokens;
-
-    if (promptUsage.totalCostUsd === null) {
-      hasTotalCostUsd = false;
-    } else if (hasTotalCostUsd) {
-      totalCostUsd += promptUsage.totalCostUsd;
-    }
   }
 
   return {
-    completionTimeMs: Date.now() - sessionStartTimeMs,
-    inputTokens,
-    outputTokens,
-    totalCostUsd: hasTotalCostUsd ? totalCostUsd : null
+    completionTimeMs: Date.now() - sessionStartTimeMs
   };
 }
 
@@ -539,10 +372,6 @@ async function runCopilotSession(plannedRun, preparedWorkspace) {
   const otelFilePath = path.join(preparedWorkspace.runRootPath, 'copilot-otel.jsonl');
   const sessionStartTimeMs = Date.now();
   let sessionId;
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let totalCostUsd = 0;
-  let hasTotalCostUsd = true;
 
   for (const promptText of promptSequence) {
     await writeFile(otelFilePath, '', 'utf8');
@@ -589,22 +418,10 @@ async function runCopilotSession(plannedRun, preparedWorkspace) {
       fail(`copilot changed session id across prompts: ${sessionId} -> ${parsedSessionId}`);
     }
 
-    const promptUsage = await parseCopilotPromptUsageFromOtel(otelFilePath);
-    inputTokens += promptUsage.inputTokens;
-    outputTokens += promptUsage.outputTokens;
-
-    if (promptUsage.totalCostUsd === null) {
-      hasTotalCostUsd = false;
-    } else if (hasTotalCostUsd) {
-      totalCostUsd += promptUsage.totalCostUsd;
-    }
   }
 
   return {
-    completionTimeMs: Date.now() - sessionStartTimeMs,
-    inputTokens,
-    outputTokens,
-    totalCostUsd: hasTotalCostUsd ? totalCostUsd : null
+    completionTimeMs: Date.now() - sessionStartTimeMs
   };
 }
 
@@ -786,24 +603,33 @@ async function main() {
 
   for (const plannedRun of plannedRuns) {
     const preparedWorkspace = await prepareWorkspaceCopy(plannedRun.task);
-    try {
-      const runMetrics = await runPlannedRun(plannedRun, preparedWorkspace);
-      process.stdout.write(`${plannedRun.runnerName} -> ${plannedRun.task.id}: completionTimeMs=${runMetrics.completionTimeMs}, testsPassedPercent=${runMetrics.testsPassedPercent}, inputTokens=${runMetrics.inputTokens}, outputTokens=${runMetrics.outputTokens}, totalCostUsd=${runMetrics.totalCostUsd === null ? 'n/a' : runMetrics.totalCostUsd}\n`);
+    let runMetrics;
 
-      const csvRowValues = [
-        plannedRun.runnerName,
-        plannedRun.task.id,
-        runMetrics.completionTimeMs,
-        runMetrics.testsPassedPercent,
-        runMetrics.inputTokens,
-        runMetrics.outputTokens,
-        runMetrics.totalCostUsd === null ? '' : runMetrics.totalCostUsd
-      ];
-      await appendFile(outputPath, `${csvRowValues.join(',')}\n`, 'utf8');
+    try {
+      runMetrics = await runPlannedRun(plannedRun, preparedWorkspace);
     } finally {
       await persistRunSessionLogs(plannedRun, preparedWorkspace);
       await rm(preparedWorkspace.runRootPath, { recursive: true, force: true });
     }
+
+    const sessionDirectoryPath = path.join(sessionsRootDirectoryPath, plannedRun.task.id, plannedRun.runnerName);
+    const usageMetrics = await readUsageMetricsForRunnerSession(plannedRun.runnerName, sessionDirectoryPath);
+    const formattedTotalCostUsd = usageMetrics.totalCostUsd === null ? null : usageMetrics.totalCostUsd.toFixed(3);
+
+    process.stdout.write(`${plannedRun.runnerName} -> ${plannedRun.task.id}: completionTimeMs=${runMetrics.completionTimeMs}, testsPassedPercent=${runMetrics.testsPassedPercent}, inputTokens=${usageMetrics.inputTokens}, outputTokens=${usageMetrics.outputTokens}, totalTokens=${usageMetrics.totalTokens}, cacheHit=${usageMetrics.cacheHit}, totalCostUsd=${formattedTotalCostUsd === null ? 'n/a' : formattedTotalCostUsd}\n`);
+
+    const csvRowValues = [
+      plannedRun.runnerName,
+      plannedRun.task.id,
+      runMetrics.completionTimeMs,
+      runMetrics.testsPassedPercent,
+      usageMetrics.inputTokens,
+      usageMetrics.outputTokens,
+      usageMetrics.totalTokens,
+      usageMetrics.cacheHit,
+      formattedTotalCostUsd === null ? '' : formattedTotalCostUsd
+    ];
+    await appendFile(outputPath, `${csvRowValues.join(',')}\n`, 'utf8');
   }
 }
 

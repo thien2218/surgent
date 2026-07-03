@@ -16,7 +16,7 @@ const defaultManifestPath = path.join(benchmarkDirectoryPath, 'tasks.json');
 const defaultOutputPath = path.join(benchmarkDirectoryPath, 'results.csv');
 const allowedRunnerNames = ['surgent', 'copilot'];
 const allowedRunnerNameSet = new Set(allowedRunnerNames);
-const csvHeaderColumns = ['agent', 'task', 'completionTimeMs', 'testsPassedPercent', 'inputTokens', 'outputTokens', 'totalTokens', 'cacheHit', 'totalCostUsd'];
+const csvHeaderColumns = ['agent', 'task', 'completionTime', 'testsPassedPercent', 'inputTokens', 'outputTokens', 'totalTokens', 'cacheHit', 'totalCost'];
 const sessionsRootDirectoryPath = path.join(benchmarkDirectoryPath, 'sessions');
 const setupPromptText = [
   'Environment restrictive.',
@@ -614,20 +614,22 @@ async function main() {
 
     const sessionDirectoryPath = path.join(sessionsRootDirectoryPath, plannedRun.task.id, plannedRun.runnerName);
     const usageMetrics = await readUsageMetricsForRunnerSession(plannedRun.runnerName, sessionDirectoryPath);
-    const formattedTotalCostUsd = usageMetrics.totalCostUsd === null ? null : usageMetrics.totalCostUsd.toFixed(3);
+    const formattedCompletionTime = (runMetrics.completionTimeMs / 1000).toFixed(1);
+    const formattedCacheHit = usageMetrics.cacheHit.toFixed(3);
+    const formattedTotalCost = usageMetrics.totalCostUsd === null ? null : usageMetrics.totalCostUsd.toFixed(3);
 
-    process.stdout.write(`${plannedRun.runnerName} -> ${plannedRun.task.id}: completionTimeMs=${runMetrics.completionTimeMs}, testsPassedPercent=${runMetrics.testsPassedPercent}, inputTokens=${usageMetrics.inputTokens}, outputTokens=${usageMetrics.outputTokens}, totalTokens=${usageMetrics.totalTokens}, cacheHit=${usageMetrics.cacheHit}, totalCostUsd=${formattedTotalCostUsd === null ? 'n/a' : formattedTotalCostUsd}\n`);
+    process.stdout.write(`${plannedRun.runnerName} -> ${plannedRun.task.id}: completionTime=${formattedCompletionTime}, testsPassedPercent=${runMetrics.testsPassedPercent}, inputTokens=${usageMetrics.inputTokens}, outputTokens=${usageMetrics.outputTokens}, totalTokens=${usageMetrics.totalTokens}, cacheHit=${formattedCacheHit}, totalCost=${formattedTotalCost === null ? 'n/a' : formattedTotalCost}\n`);
 
     const csvRowValues = [
       plannedRun.runnerName,
       plannedRun.task.id,
-      runMetrics.completionTimeMs,
+      formattedCompletionTime,
       runMetrics.testsPassedPercent,
       usageMetrics.inputTokens,
       usageMetrics.outputTokens,
       usageMetrics.totalTokens,
-      usageMetrics.cacheHit,
-      formattedTotalCostUsd === null ? '' : formattedTotalCostUsd
+      formattedCacheHit,
+      formattedTotalCost === null ? '' : formattedTotalCost
     ];
     await appendFile(outputPath, `${csvRowValues.join(',')}\n`, 'utf8');
   }

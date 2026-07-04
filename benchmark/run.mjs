@@ -8,7 +8,6 @@ import process from 'node:process';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-
 import { readUsageMetricsForRunnerSession } from './usage.mjs';
 
 const benchmarkDirectoryPath = path.dirname(fileURLToPath(import.meta.url));
@@ -91,10 +90,6 @@ async function validateManifest(manifest, manifestPath) {
       fail(`Manifest runnerOrder repeats runner: ${runnerName}`);
     }
     seenRunnerNames.add(runnerName);
-  }
-
-  if (manifest.csvRowOrder !== 'runnerOrder x tasks order') {
-    fail(`Manifest at ${manifestPath} must set csvRowOrder to "runnerOrder x tasks order".`);
   }
 
   if (!Array.isArray(manifest.tasks) || manifest.tasks.length === 0) {
@@ -187,8 +182,8 @@ function resolveSelectedTasks(manifest, selectedTaskIds) {
 
 function planRuns(selectedRunners, selectedTasks, modelName, outputPath) {
   const plannedRuns = [];
-  for (const runnerName of selectedRunners) {
-    for (const task of selectedTasks) {
+  for (const task of selectedTasks) {
+    for (const runnerName of selectedRunners) {
       plannedRuns.push({
         runnerName,
         task,
@@ -374,8 +369,6 @@ async function runCopilotSession(plannedRun, preparedWorkspace) {
   let sessionId;
 
   for (const promptText of promptSequence) {
-    await writeFile(otelFilePath, '', 'utf8');
-
     const commandArguments = [
       '-p',
       promptText,
@@ -615,16 +608,17 @@ async function main() {
     const sessionDirectoryPath = path.join(sessionsRootDirectoryPath, plannedRun.task.id, plannedRun.runnerName);
     const usageMetrics = await readUsageMetricsForRunnerSession(plannedRun.runnerName, sessionDirectoryPath);
     const formattedCompletionTime = (runMetrics.completionTimeMs / 1000).toFixed(1);
-    const formattedCacheHit = usageMetrics.cacheHit.toFixed(3);
+    const formattedTestsPassedPercent = runMetrics.testsPassedPercent.toFixed(2);
+    const formattedCacheHit = (usageMetrics.cacheHit * 100).toFixed(2);
     const formattedTotalCost = usageMetrics.totalCostUsd === null ? null : usageMetrics.totalCostUsd.toFixed(3);
 
-    process.stdout.write(`${plannedRun.runnerName} -> ${plannedRun.task.id}: completionTime=${formattedCompletionTime}, testsPassedPercent=${runMetrics.testsPassedPercent}, inputTokens=${usageMetrics.inputTokens}, outputTokens=${usageMetrics.outputTokens}, totalTokens=${usageMetrics.totalTokens}, cacheHit=${formattedCacheHit}, totalCost=${formattedTotalCost === null ? 'n/a' : formattedTotalCost}\n`);
+    process.stdout.write(`${plannedRun.runnerName} -> ${plannedRun.task.id}: completionTime=${formattedCompletionTime}, testsPassedPercent=${formattedTestsPassedPercent}, inputTokens=${usageMetrics.inputTokens}, outputTokens=${usageMetrics.outputTokens}, totalTokens=${usageMetrics.totalTokens}, cacheHit=${formattedCacheHit}, totalCost=${formattedTotalCost === null ? 'n/a' : formattedTotalCost}\n`);
 
     const csvRowValues = [
       plannedRun.runnerName,
       plannedRun.task.id,
       formattedCompletionTime,
-      runMetrics.testsPassedPercent,
+      formattedTestsPassedPercent,
       usageMetrics.inputTokens,
       usageMetrics.outputTokens,
       usageMetrics.totalTokens,

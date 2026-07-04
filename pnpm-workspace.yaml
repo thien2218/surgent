@@ -2,6 +2,9 @@ allowBuilds:
   '@google/genai': false
   koffi: false
   protobufjs: false
+  tree-sitter: true
+  tree-sitter-javascript: true
+  tree-sitter-typescript: true
 minimumReleaseAgeExclude:
   - '@earendil-works/pi-agent-core@0.80.3'
   - '@earendil-works/pi-ai@0.80.3'

@@ -134,14 +134,15 @@ async function parseSurgentUsage(sessionRootDirectoryPath) {
     fail(`No assistant usage found in ${newestSessionFilePath}`);
   }
 
-  const totalInputTokens = uncachedInputTokens + cachedReadTokens;
-  const cacheHitDenominator = cachedReadTokens + uncachedInputTokens;
+  const inputTokensWithCache = uncachedInputTokens + cachedReadTokens;
+  const cacheHit = inputTokensWithCache > 0 ? cachedReadTokens / inputTokensWithCache : 0;
+  const inputTokens = Math.max(0, inputTokensWithCache * (1 - cacheHit));
 
   return {
-    inputTokens: Math.round(totalInputTokens),
+    inputTokens: Math.round(inputTokens),
     outputTokens: Math.round(outputTokens),
     totalTokens: Math.round(totalTokens),
-    cacheHit: cacheHitDenominator > 0 ? cachedReadTokens / cacheHitDenominator : 0,
+    cacheHit,
     totalCostUsd: hasTotalCostUsd ? totalCostUsd : null
   };
 }
@@ -154,14 +155,14 @@ async function parseCopilotUsage(sessionRootDirectoryPath) {
 
   const newestOtelFilePath = await pickNewestFilePath(jsonlFilePaths);
   const otelText = await readFile(newestOtelFilePath, 'utf8');
-  let highestInputTokens = -1;
-  let highestOutputTokens = -1;
-  let highestCachedReadTokens = 0;
-  let highestTotalTokens = -1;
-  let highestCostUsd = -1;
+  let invokeAgentSpanCount = 0;
   let summedInputTokens = 0;
+  let summedOutputTokens = 0;
   let summedCachedReadTokens = 0;
-  let hasSummedInputTokens = false;
+  let summedTotalTokens = 0;
+  let summedCopilotCostCredits = 0;
+  let hasSummedTotalTokens = false;
+  let hasSummedCopilotCostCredits = false;
 
   for (const lineText of otelText.split(/\r?\n/)) {
     if (lineText.trim() === '') {
@@ -175,86 +176,55 @@ async function parseCopilotUsage(sessionRootDirectoryPath) {
       continue;
     }
 
-    if (parsedLine?.type === 'span') {
-      const spanAttributes = parsedLine?.attributes;
-      const spanInputTokens = parseNumericValue(spanAttributes?.['gen_ai.usage.input_tokens']);
-      const spanOutputTokens = parseNumericValue(spanAttributes?.['gen_ai.usage.output_tokens']);
-      const spanCachedReadTokens = parseNumericValue(spanAttributes?.['gen_ai.usage.cache_read.input_tokens']);
-      const spanTotalTokens = parseNumericValue(spanAttributes?.['gen_ai.usage.total_tokens']);
-      const spanCostUsd = parseNumericValue(spanAttributes?.['github.copilot.cost']);
-
-      if (Number.isFinite(spanInputTokens)) {
-        hasSummedInputTokens = true;
-        summedInputTokens += spanInputTokens;
-        if (spanInputTokens > highestInputTokens) {
-          highestInputTokens = spanInputTokens;
-        }
-      }
-      if (Number.isFinite(spanOutputTokens) && spanOutputTokens > highestOutputTokens) {
-        highestOutputTokens = spanOutputTokens;
-      }
-      if (Number.isFinite(spanCachedReadTokens)) {
-        summedCachedReadTokens += spanCachedReadTokens;
-        if (spanCachedReadTokens > highestCachedReadTokens) {
-          highestCachedReadTokens = spanCachedReadTokens;
-        }
-      }
-      if (Number.isFinite(spanTotalTokens) && spanTotalTokens > highestTotalTokens) {
-        highestTotalTokens = spanTotalTokens;
-      }
-      if (Number.isFinite(spanCostUsd) && spanCostUsd > highestCostUsd) {
-        highestCostUsd = spanCostUsd;
-      }
+    if (parsedLine?.type !== 'span' || parsedLine?.name !== 'invoke_agent') {
       continue;
     }
 
-    if (parsedLine?.type !== 'metric' || !Array.isArray(parsedLine?.dataPoints)) {
-      continue;
+    const spanAttributes = parsedLine.attributes;
+    const spanInputTokens = parseNumericValue(spanAttributes?.['gen_ai.usage.input_tokens']);
+    const spanOutputTokens = parseNumericValue(spanAttributes?.['gen_ai.usage.output_tokens']);
+
+    if (!Number.isFinite(spanInputTokens) || !Number.isFinite(spanOutputTokens)) {
+      fail(`Invalid invoke_agent usage in ${newestOtelFilePath}`);
     }
 
-    if (parsedLine.name === 'gen_ai.client.token.usage') {
-      for (const dataPoint of parsedLine.dataPoints) {
-        const tokenType = dataPoint?.attributes?.['gen_ai.token.type'];
-        const tokenSum = parseNumericValue(typeof dataPoint?.value?.sum === 'number' ? dataPoint.value.sum : dataPoint?.value);
-        if (tokenType === 'input' && Number.isFinite(tokenSum) && tokenSum > highestInputTokens) {
-          highestInputTokens = tokenSum;
-        }
-        if (tokenType === 'output' && Number.isFinite(tokenSum) && tokenSum > highestOutputTokens) {
-          highestOutputTokens = tokenSum;
-        }
-        if (typeof tokenType === 'string' && tokenType.includes('cache') && Number.isFinite(tokenSum) && tokenSum > highestCachedReadTokens) {
-          highestCachedReadTokens = tokenSum;
-        }
-      }
-      continue;
+    invokeAgentSpanCount += 1;
+    summedInputTokens += spanInputTokens;
+    summedOutputTokens += spanOutputTokens;
+
+    const spanCachedReadTokens = parseNumericValue(spanAttributes?.['gen_ai.usage.cache_read.input_tokens']);
+    if (Number.isFinite(spanCachedReadTokens)) {
+      summedCachedReadTokens += spanCachedReadTokens;
     }
 
-    if (parsedLine.name === 'gen_ai.client.operation.cost' || parsedLine.name === 'gen_ai.client.request.cost' || parsedLine.name === 'gen_ai.client.cost') {
-      for (const dataPoint of parsedLine.dataPoints) {
-        const costSum = parseNumericValue(typeof dataPoint?.value?.sum === 'number' ? dataPoint.value.sum : dataPoint?.value);
-        if (Number.isFinite(costSum) && costSum > highestCostUsd) {
-          highestCostUsd = costSum;
-        }
-      }
+    const spanTotalTokens = parseNumericValue(spanAttributes?.['gen_ai.usage.total_tokens']);
+    if (Number.isFinite(spanTotalTokens)) {
+      hasSummedTotalTokens = true;
+      summedTotalTokens += spanTotalTokens;
+    }
+
+    const spanCopilotCostCredits = parseNumericValue(spanAttributes?.['github.copilot.cost']);
+    if (Number.isFinite(spanCopilotCostCredits)) {
+      hasSummedCopilotCostCredits = true;
+      summedCopilotCostCredits += spanCopilotCostCredits;
     }
   }
 
-  const resolvedInputTokens = hasSummedInputTokens ? summedInputTokens : highestInputTokens;
-
-  if (resolvedInputTokens < 0 || highestOutputTokens < 0) {
-    fail(`Invalid copilot usage in ${newestOtelFilePath}`);
+  if (invokeAgentSpanCount === 0) {
+    fail(`No invoke_agent spans found in ${newestOtelFilePath}`);
   }
 
-  const totalTokens = highestTotalTokens >= 0 ? highestTotalTokens : resolvedInputTokens + highestOutputTokens;
-  const cacheHitDenominator = resolvedInputTokens;
-  const cacheHitNumerator = hasSummedInputTokens ? summedCachedReadTokens : highestCachedReadTokens;
+  const totalTokens = hasSummedTotalTokens ? summedTotalTokens : summedInputTokens + summedOutputTokens;
+  const inputTokensWithCache = summedInputTokens;
+  const cacheHit = inputTokensWithCache > 0 ? summedCachedReadTokens / inputTokensWithCache : 0;
+  const inputTokens = Math.max(0, inputTokensWithCache * (1 - cacheHit));
 
   return {
-    inputTokens: Math.round(resolvedInputTokens),
-    outputTokens: Math.round(highestOutputTokens),
+    inputTokens: Math.round(inputTokens),
+    outputTokens: Math.round(summedOutputTokens),
     totalTokens: Math.round(totalTokens),
-    cacheHit: cacheHitDenominator > 0 ? cacheHitNumerator / cacheHitDenominator : 0,
-    totalCostUsd: highestCostUsd < 0 ? null : highestCostUsd
+    cacheHit,
+    totalCostUsd: hasSummedCopilotCostCredits ? summedCopilotCostCredits * 0.01 : null
   };
 }
 

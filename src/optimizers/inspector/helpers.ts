@@ -6,28 +6,28 @@ export function parseInspectToolDetails(inspected: unknown) {
   const path = (inspected as { path?: unknown }).path;
   const symbol = (inspected as { symbol?: unknown }).symbol;
   const depth = (inspected as { depth?: unknown }).depth;
-  const lines = (inspected as { lines?: unknown }).lines;
+  const range = (inspected as { range?: unknown }).range;
 
   if (typeof path !== "string" || path.length === 0) return;
   if (typeof symbol !== "string" || symbol.length === 0) return;
   if (depth !== "full" && (typeof depth !== "number" || !Number.isInteger(depth) || depth < 0)) {
     return;
   }
-  if (!Array.isArray(lines) || lines.length !== 2) return;
+  if (!Array.isArray(range) || range.length !== 2) return;
 
-  const startLine = lines[0];
-  const endLine = lines[1];
+  const start = range[0];
+  const end = range[1];
 
   if (
-    typeof startLine !== "number" ||
-    typeof endLine !== "number" ||
-    !Number.isInteger(startLine) ||
-    !Number.isInteger(endLine)
+    typeof start !== "number" ||
+    typeof end !== "number" ||
+    !Number.isInteger(start) ||
+    !Number.isInteger(end)
   ) {
     return;
   }
 
-  return { path, symbol, depth, lines: [startLine, endLine] } satisfies InspectToolDetails;
+  return { path, symbol, depth, range: [start, end] } satisfies InspectToolDetails;
 }
 
 export function pruneInspectResults(messages: Array<{ role?: string }>) {

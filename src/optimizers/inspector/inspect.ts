@@ -15,7 +15,7 @@ export async function inspectSymbol(
   symbolName: string,
   depth: number,
   signal?: AbortSignal,
-): Promise<{ path: string; symbol: string; lines: [number, number]; text: string } | undefined> {
+): Promise<{ path: string; symbol: string; range: [number, number]; text: string } | undefined> {
   if (signal?.aborted) {
     throw new Error("inspector aborted");
   }
@@ -25,7 +25,7 @@ export async function inspectSymbol(
     return {
       path: symbol.path,
       symbol: symbol.name,
-      lines: [symbol.node.startPosition.row + 1, symbol.node.endPosition.row + 1],
+      range: [symbol.node.startPosition.row + 1, symbol.node.endPosition.row + 1],
       text: renderNodeWithDepth(symbol.node, depth),
     };
   }

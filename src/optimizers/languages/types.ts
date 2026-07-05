@@ -22,6 +22,6 @@ export interface LanguageSymbol {
   path: string;
   kind: SymbolKind;
   node: SyntaxNode;
-  lines?: [number, number];
+  range?: [number, number];
   container?: string;
 }

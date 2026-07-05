@@ -9,7 +9,7 @@ const inspect = defineTool({
   name: "inspect",
   label: "Inspect",
   description:
-    "Fetch one symbol body from one file. Good for targeted edits without full read; omit depth for exact body text. For duplicates, use ~n suffix (example: name~2).",
+    "Fetch one symbol body from one file. Sole purpose is to help avoid `read` tool. Output is safe for targeted edits; omit depth for exact body text. For duplicates, use ~n suffix (example: name~2).",
   parameters: Type.Object({
     path: Type.String({
       description: "Exact file path containing target symbol (relative to cwd or absolute)",
@@ -63,7 +63,7 @@ const inspect = defineTool({
         path: inspected.path,
         symbol: inspected.symbol,
         depth: depthLabel,
-        lines: [inspected.lines[0], inspected.lines[1]],
+        range: [inspected.range[0], inspected.range[1]],
       } satisfies InspectToolDetails;
 
       return { isError: false, details, content: [{ type: "text", text: inspected.text }] };
@@ -90,7 +90,7 @@ const inspect = defineTool({
     }
     const details = parseInspectToolDetails(result.details);
     const output = details
-      ? `Inspected ${details.path} ${details.symbol} depth=${details.depth} lines=${details.lines[0]}-${details.lines[1]}`
+      ? `Inspected ${details.path} ${details.symbol} depth=${details.depth} range=${details.range[0]}-${details.range[1]}`
       : "";
     return new Text(output, 0, 0);
   },

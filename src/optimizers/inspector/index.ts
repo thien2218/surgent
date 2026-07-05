@@ -30,8 +30,9 @@ function parseInspectorIds(ids: string[]) {
       if (name.length === 0) continue;
     }
 
-    const orginal = `${path}#${name}~${suffixMatch ? "~" + Number(suffixMatch[1]) : ""}`;
-    parsedIds.push({ orginal, path, name, suffix: suffixMatch && Number(suffixMatch[1]) });
+    const suffix = suffixMatch ? Number(suffixMatch[1]) : null;
+    const orginal = suffix ? `${path}#${name}~${suffix}` : `${path}#${name}`;
+    parsedIds.push({ orginal, path, name, suffix });
   }
 
   return parsedIds;
@@ -45,32 +46,25 @@ const inspect = defineTool({
     ids: Type.Array(Type.String({ description: "Readable symbol id: <path>#<name>" }), {
       description: "Symbol ids to inspect",
     }),
-    need: Type.Optional(
-      Type.Array(
-        Type.Union([Type.Literal("signature"), Type.Literal("body"), Type.Literal("location")]),
-        { description: "Fields to return" },
-      ),
-    ),
     depth: Type.Optional(
       Type.Integer({
         minimum: 0,
-        description: "Body expansion depth. Used only when need includes body. 0 = top-level only.",
+        description:
+          "Collapse depth. Omit for full text, 0 collapses bodies to …, 1+ expands nested levels.",
       }),
     ),
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-    const needs = new Set(
-      params.need && params.need.length > 0 ? params.need : ["signature", "location"],
-    );
-    const depth = needs.has("body") ? Math.max(0, params.depth ?? 0) : 0;
+    const depth = typeof params.depth === "number" ? params.depth : Number.POSITIVE_INFINITY;
     const parsedIds = parseInspectorIds(params.ids);
 
     if (parsedIds.length === 0) {
       return { isError: false, details: "", content: [{ type: "text", text: "" }] };
     }
 
+    let inspectedSymbols: Array<{ id: string; location: [number, number]; text: string }> = [];
     try {
-      await inspectParsedIds(ctx.cwd, parsedIds, needs, depth, signal);
+      inspectedSymbols = await inspectParsedIds(ctx.cwd, parsedIds, depth, signal);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return {
@@ -80,23 +74,26 @@ const inspect = defineTool({
       };
     }
 
-    const output = parsedIds
-      .map((parsedId) => `Inspected ${parsedId.orginal} [${[...needs].join(", ")}]`)
+    const detailsOutput = inspectedSymbols
+      .map(
+        (inspectedSymbol) =>
+          `Inspected ${inspectedSymbol.id} depth=${typeof params.depth === "number" ? depth : "full"} lines=${inspectedSymbol.location[0]}-${inspectedSymbol.location[1]}`,
+      )
       .join("\n");
+    const contentOutput = inspectedSymbols
+      .map((inspectedSymbol) => inspectedSymbol.text)
+      .join("\n\n");
 
-    return { isError: false, details: output, content: [{ type: "text", text: output }] };
+    return {
+      isError: false,
+      details: detailsOutput,
+      content: [{ type: "text", text: contentOutput }],
+    };
   },
   renderCall(args, theme) {
     const ids = Array.isArray(args.ids) ? args.ids.length : 0;
-    const need =
-      Array.isArray(args.need) && args.need.length > 0 ? args.need.join(", ") : "default";
-    const depth = typeof args.depth === "number" ? String(args.depth) : "0";
-
-    return new Text(
-      `${theme.fg("toolTitle", "inspector")} ids=${ids} need=[${need}] depth=${depth}`,
-      0,
-      0,
-    );
+    const depth = typeof args.depth === "number" ? String(args.depth) : "full";
+    return new Text(`${theme.fg("toolTitle", "inspector")} ids=${ids} depth=${depth}`, 0, 0);
   },
   renderResult(result, { isPartial, expanded }, theme) {
     if (isPartial) {

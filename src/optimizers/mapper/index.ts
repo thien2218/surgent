@@ -40,7 +40,7 @@ const codeMapper = defineTool({
       ),
     ),
     need: Type.Optional(
-      Type.Array(Type.Union([Type.Literal("location"), Type.Literal("container")]), {
+      Type.Array(Type.Union([Type.Literal("lines"), Type.Literal("container")]), {
         description: "Optional fields to include in output",
       }),
     ),
@@ -129,8 +129,8 @@ const codeMapper = defineTool({
     const output = result.symbols
       .map((symbol) => {
         let line = `${symbol.kind} ${symbol.id}`;
-        if (symbol.location) {
-          line += ` location:${symbol.location[0]}-${symbol.location[1]}`;
+        if (symbol.lines) {
+          line += ` lines:${symbol.lines[0]}-${symbol.lines[1]}`;
         }
         if (symbol.container) {
           line += ` container:${symbol.container}`;

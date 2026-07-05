@@ -14,15 +14,15 @@ const codeMapper = defineTool({
   name: "code_map",
   label: "Code map",
   description:
-    "Code discovery for reading. Use to understand structure and locate symbols. Run on scoped targets with extensions/kinds/need filters to keep output small.",
+    "Fast symbol index for code discovery. Returns symbol rows (with optional lines/container), not code bodies. Best flow: run on narrow targets, then inspect exact symbol.",
   parameters: Type.Object({
     targets: Type.Array(
-      Type.String({ description: "Paths or globs to scan. Keep scope narrow." }),
+      Type.String({ description: "Paths or globs to scan (relative to cwd). Keep scope narrow." }),
       { description: "Targets to map" },
     ),
     extensions: Type.Array(Type.String({ description: "File extension, e.g. .ts" }), {
       minItems: 1,
-      description: "File extensions to include. Smallest useful set reduces output.",
+      description: "File extensions to include (e.g. .ts). Unsupported extensions return validation error.",
     }),
     kinds: Type.Optional(
       Type.Array(
@@ -33,12 +33,12 @@ const codeMapper = defineTool({
           Type.Literal("object_method"),
           Type.Literal("top_level_var"),
         ]),
-        { description: "Abstraction kinds to include; filter to reduce output" },
+        { description: "Abstraction kinds to include. Omit to include all supported kinds." },
       ),
     ),
     need: Type.Optional(
       Type.Array(Type.Union([Type.Literal("lines"), Type.Literal("container")]), {
-        description: "Optional fields to include in output; omit unless needed",
+        description: "Optional fields added to each symbol row: lines and/or container",
       }),
     ),
   }),
@@ -80,8 +80,13 @@ const codeMapper = defineTool({
     if (paths.length === 0) {
       return {
         isError: false,
-        details: "(no symbols found)",
-        content: [{ type: "text", text: "(no symbols found)" }],
+        details: "(no symbols found) targets matched no supported files or symbols",
+        content: [
+          {
+            type: "text",
+            text: "(no symbols found) targets matched no supported files or symbols",
+          },
+        ],
       };
     }
 
@@ -117,7 +122,7 @@ const codeMapper = defineTool({
       outputLines.push(...result.failed.map((path) => `failed ${path}`));
     }
     if (outputLines.length === 0) {
-      outputLines.push("(no symbols found)");
+      outputLines.push("(no symbols found) targets matched no supported files or symbols");
     }
 
     const output = outputLines.join("\n");

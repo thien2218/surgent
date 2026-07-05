@@ -6,21 +6,23 @@ import { getSupportedExtensions, collectSymbols, type SymbolKind } from "../lang
 import type { MapperResult } from "./types.js";
 
 function normalizeExtension(extension: string) {
-  const normalizedExtension = extension.trim().toLowerCase();
-  return normalizedExtension.startsWith(".") ? normalizedExtension : `.${normalizedExtension}`;
+  const normalized = extension.trim().toLowerCase();
+  return normalized.startsWith(".") ? normalized : `.${normalized}`;
 }
 
 const codeMapper = defineTool({
   name: "code_map",
   label: "Code map",
-  description: "Snapshot of abstractions map in files.",
+  description:
+    "Code discovery for reading. Use to understand structure and locate symbols. Run on scoped targets with extensions/kinds/need filters to keep output small.",
   parameters: Type.Object({
-    targets: Type.Array(Type.String({ description: "Paths or globs to scan" }), {
-      description: "Targets to map",
-    }),
+    targets: Type.Array(
+      Type.String({ description: "Paths or globs to scan. Keep scope narrow." }),
+      { description: "Targets to map" },
+    ),
     extensions: Type.Array(Type.String({ description: "File extension, e.g. .ts" }), {
       minItems: 1,
-      description: "File extensions to include",
+      description: "File extensions to include. Smallest useful set reduces output.",
     }),
     kinds: Type.Optional(
       Type.Array(
@@ -31,12 +33,12 @@ const codeMapper = defineTool({
           Type.Literal("object_method"),
           Type.Literal("top_level_var"),
         ]),
-        { description: "Abstraction kinds to include" },
+        { description: "Abstraction kinds to include; filter to reduce output" },
       ),
     ),
     need: Type.Optional(
       Type.Array(Type.Union([Type.Literal("lines"), Type.Literal("container")]), {
-        description: "Optional fields to include in output",
+        description: "Optional fields to include in output; omit unless needed",
       }),
     ),
   }),
@@ -76,7 +78,11 @@ const codeMapper = defineTool({
     }
 
     if (paths.length === 0) {
-      return { isError: false, details: "", content: [{ type: "text", text: "" }] };
+      return {
+        isError: false,
+        details: "(no symbols found)",
+        content: [{ type: "text", text: "(no symbols found)" }],
+      };
     }
 
     for (const path of paths) {
@@ -96,18 +102,25 @@ const codeMapper = defineTool({
       }
     }
 
-    const output = result.symbols
-      .map((symbol) => {
-        let line = `${symbol.kind} ${symbol.id}`;
-        if (symbol.lines) {
-          line += ` lines:${symbol.lines[0]}-${symbol.lines[1]}`;
-        }
-        if (symbol.container) {
-          line += ` container:${symbol.container}`;
-        }
-        return line;
-      })
-      .join("\n");
+    const outputLines = result.symbols.map((symbol) => {
+      let line = ` ${symbol.path} ${symbol.kind} symbol=${symbol.name}`;
+      if (symbol.lines) {
+        line += ` lines:${symbol.lines[0]}-${symbol.lines[1]}`;
+      }
+      if (symbol.container) {
+        line += ` container:${symbol.container}`;
+      }
+      return line;
+    });
+
+    if (result.failed.length > 0) {
+      outputLines.push(...result.failed.map((path) => `failed ${path}`));
+    }
+    if (outputLines.length === 0) {
+      outputLines.push("(no symbols found)");
+    }
+
+    const output = outputLines.join("\n");
 
     return { isError: false, details: output, content: [{ type: "text", text: output }] };
   },

@@ -1,7 +1,7 @@
 import type { Language } from "tree-sitter";
 import type { LanguageProfile, SymbolKindRule } from "./types.js";
 
-const TYPE_SCRIPT_PROFILE_BASE: Omit<LanguageProfile, "loadLanguage"> = {
+const TYPESCRIPT_PROFILE_BASE: Omit<LanguageProfile, "loadLanguage"> = {
   nameField: "name",
   nameFieldByType: {},
   topLevelRoots: new Set(["program"]),
@@ -20,11 +20,11 @@ const TYPE_SCRIPT_PROFILE_BASE: Omit<LanguageProfile, "loadLanguage"> = {
   ]),
 };
 
-export const TYPE_SCRIPT_LANGUAGE_PROFILES = new Map<string, LanguageProfile>([
+export const TYPESCRIPT_LANGUAGE_PROFILES = new Map<string, LanguageProfile>([
   [
     ".ts",
     {
-      ...TYPE_SCRIPT_PROFILE_BASE,
+      ...TYPESCRIPT_PROFILE_BASE,
       loadLanguage: async () => {
         const languagePack = await import("tree-sitter-typescript");
         return languagePack.typescript as Language;
@@ -34,7 +34,7 @@ export const TYPE_SCRIPT_LANGUAGE_PROFILES = new Map<string, LanguageProfile>([
   [
     ".tsx",
     {
-      ...TYPE_SCRIPT_PROFILE_BASE,
+      ...TYPESCRIPT_PROFILE_BASE,
       loadLanguage: async () => {
         const languagePack = await import("tree-sitter-typescript");
         return (languagePack.tsx ?? languagePack.typescript) as Language;

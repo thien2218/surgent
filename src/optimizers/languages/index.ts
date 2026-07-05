@@ -1,8 +1,8 @@
 import type Parser from "tree-sitter";
-import { TYPE_SCRIPT_LANGUAGE_PROFILES } from "./typescript.js";
+import { TYPESCRIPT_LANGUAGE_PROFILES } from "./typescript.js";
 import type { LanguageProfile } from "./types.js";
 
-const PROFILE_BY_EXTENSION = new Map<string, LanguageProfile>([...TYPE_SCRIPT_LANGUAGE_PROFILES]);
+const PROFILE_BY_EXTENSION = new Map<string, LanguageProfile>([...TYPESCRIPT_LANGUAGE_PROFILES]);
 
 function matchesTopLevelRule(node: Parser.SyntaxNode, profile: LanguageProfile) {
   let current: Parser.SyntaxNode | null = node.parent;

@@ -19,6 +19,7 @@ async function getParserForPath(path: string, parsers: Map<string, Parser>) {
   const extension = extname(path).toLowerCase();
   const parser = parsers.get(extension);
   if (parser) return parser;
+
   const createdParser = await createCodeParser(extension);
   parsers.set(extension, createdParser);
   return createdParser;
@@ -86,11 +87,11 @@ export async function collectSymbols(
           : baseName
         : baseName;
 
-    const symbolIdBase = `${path}#${symbolName}`;
-    const symbolIdCount = (symbolIdCounts.get(symbolIdBase) ?? 0) + 1;
-    symbolIdCounts.set(symbolIdBase, symbolIdCount);
+    const symbolIdCount = (symbolIdCounts.get(symbolName) ?? 0) + 1;
+    symbolIdCounts.set(symbolName, symbolIdCount);
     const symbol: LanguageSymbol = {
-      id: symbolIdCount === 1 ? symbolIdBase : `${symbolIdBase}~${symbolIdCount}`,
+      name: symbolIdCount === 1 ? symbolName : `${symbolName}~${symbolIdCount}`,
+      path,
       kind: symbolKind,
       node: currentNode,
     };

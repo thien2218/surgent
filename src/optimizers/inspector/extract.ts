@@ -1,63 +1,59 @@
 import type { SyntaxNode } from "tree-sitter";
-import type { InspectorSymbol } from "./types.js";
 
-function readSignatureText(node: SyntaxNode) {
-  const full = node.text.replaceAll(/\s+/g, " ").trim();
-  const bodyNode = node.childForFieldName("body");
-  if (!bodyNode) return full;
-
-  const signatureText = node.text.slice(0, bodyNode.startIndex - node.startIndex).trimEnd();
-  if (signatureText.length === 0) return full;
-  return signatureText;
+function isCollapsibleNode(currentNode: SyntaxNode) {
+  return currentNode.namedChildCount > 0 && /block|body/.test(currentNode.type);
 }
 
-function appendBodyLines(bodyNode: SyntaxNode, depth: number, tab: number, output: string[]) {
-  if (bodyNode.namedChildCount === 0) return;
-  // naive body expansion - handles nodes exposing nested "body" field only.
-  for (const childNode of bodyNode.namedChildren) {
-    const nestedBodyNode = childNode.childForFieldName("body");
-    const indentation = "  ".repeat(tab);
+function collapseNodeText(currentNode: SyntaxNode) {
+  const currentText = currentNode.text;
+  if (currentNode.namedChildCount === 0) {
+    return "…";
+  }
 
-    if (nestedBodyNode && depth > 0) {
-      const nestedHeader = childNode.text
-        .slice(0, nestedBodyNode.startIndex - childNode.startIndex)
-        .trim();
-      output.push(`${indentation}${nestedHeader.length > 0 ? nestedHeader : childNode.type}`);
-      output.push(`${indentation}{`);
-      appendBodyLines(nestedBodyNode, depth - 1, tab + 1, output);
-      output.push(`${indentation}}`);
-      continue;
+  const firstNamedChild = currentNode.namedChildren[0];
+  if (!firstNamedChild) {
+    return "…";
+  }
+  const lastNamedChild = currentNode.namedChildren[currentNode.namedChildCount - 1];
+  if (!lastNamedChild) {
+    return "…";
+  }
+  const prefix = currentText.slice(0, firstNamedChild.startIndex - currentNode.startIndex);
+  const suffix = currentText.slice(lastNamedChild.endIndex - currentNode.startIndex);
+
+  if (prefix.length === 0 && suffix.length === 0) {
+    return "…";
+  }
+
+  return `${prefix}…${suffix}`;
+}
+
+export function renderNodeWithDepth(currentNode: SyntaxNode, depth: number) {
+  const currentText = currentNode.text;
+  if (currentNode.namedChildCount === 0) {
+    return currentText;
+  }
+
+  let output = "";
+  let cursor = 0;
+
+  for (const childNode of currentNode.namedChildren) {
+    const childStart = childNode.startIndex - currentNode.startIndex;
+    const childEnd = childNode.endIndex - currentNode.startIndex;
+
+    output += currentText.slice(cursor, childStart);
+
+    if (isCollapsibleNode(childNode) && depth <= 0) {
+      output += collapseNodeText(childNode);
+    } else if (isCollapsibleNode(childNode)) {
+      output += renderNodeWithDepth(childNode, depth - 1);
+    } else {
+      output += renderNodeWithDepth(childNode, depth);
     }
 
-    const childText = childNode.text;
-    output.push(`${indentation}${childText.replaceAll(/\s+/g, " ").trim()}`);
+    cursor = childEnd;
   }
-}
 
-function readBodyText(node: SyntaxNode, depth: number) {
-  const bodyNode = node.childForFieldName("body");
-  if (!bodyNode) return undefined;
-
-  const lines: string[] = ["{"];
-  appendBodyLines(bodyNode, depth, 1, lines);
-  lines.push("}");
-  return lines.join("\n");
-}
-
-export function extractInspectorSymbol(
-  node: SyntaxNode,
-  needs: Set<string>,
-  depth: number,
-): InspectorSymbol {
-  const symbolDetails: InspectorSymbol = {};
-  if (needs.has("location")) {
-    symbolDetails.location = [node.startPosition.row + 1, node.endPosition.row + 1];
-  }
-  if (needs.has("signature")) {
-    symbolDetails.signature = readSignatureText(node);
-  }
-  if (needs.has("body")) {
-    symbolDetails.body = readBodyText(node, depth);
-  }
-  return symbolDetails;
+  output += currentText.slice(cursor);
+  return output;
 }

@@ -12,7 +12,7 @@ async function runCommand(
   projectPath: string,
   command: string,
   argumentsList: string[],
-  signal: AbortSignal | undefined,
+  signal?: AbortSignal,
 ) {
   if (signal?.aborted) {
     throw new Error("mapper aborted");
@@ -67,37 +67,42 @@ async function runCommand(
 async function rgFiles(
   projectPath: string,
   globTargets: string[],
-  extensionsSet: Set<string>,
-  signal: AbortSignal | undefined,
+  extensions: Set<string>,
+  signal?: AbortSignal,
 ) {
   const args = ["--files", "--hidden"];
 
   for (const skipped of SKIPPED_DIRECTORIES) {
     args.push("--glob", `!**/${skipped}/**`);
   }
-  for (const extension of extensionsSet) {
-    args.push("--glob", `*${extension}`);
-  }
   for (const globTarget of globTargets) {
     args.push("--glob", globTarget);
   }
 
   args.push(".");
-  return runCommand(projectPath, "rg", args, signal);
+  const paths = await runCommand(projectPath, "rg", args, signal);
+  if (extensions.size === 0) return paths;
+
+  return paths.filter((pathValue) => {
+    for (const extension of extensions) {
+      if (pathValue.endsWith(extension)) return true;
+    }
+    return false;
+  });
 }
 
 async function grepFiles(
   projectPath: string,
   globTargets: string[],
-  extensionsSet: Set<string>,
-  signal: AbortSignal | undefined,
+  extensions: Set<string>,
+  signal?: AbortSignal,
 ) {
   const args = ["-r", "-I", "-l"];
 
   for (const skipped of SKIPPED_DIRECTORIES) {
     args.push("--exclude-dir", skipped);
   }
-  for (const extension of extensionsSet) {
+  for (const extension of extensions) {
     args.push("--include", `*${extension}`);
   }
 

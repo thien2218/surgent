@@ -5,7 +5,7 @@ export type MapperKind = "function" | "class" | "class_method" | "object_method"
 export interface MapperSymbol {
   id: string;
   kind: MapperKind;
-  location?: [number, number];
+  lines?: [number, number];
   node: Parser.SyntaxNode;
   container?: string;
 }

@@ -4,9 +4,3 @@ export interface ParsedInspectorId {
   name: string;
   suffix: number | null;
 }
-
-export interface InspectorSymbol {
-  signature?: string;
-  body?: string;
-  location?: [number, number];
-}

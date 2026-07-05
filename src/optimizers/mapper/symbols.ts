@@ -119,8 +119,8 @@ export function collectSymbols(
     if (fields?.has("container")) {
       symbol.container = containerName;
     }
-    if (fields?.has("location")) {
-      symbol.location = [currentNode.startPosition.row + 1, currentNode.endPosition.row + 1];
+    if (fields?.has("lines")) {
+      symbol.lines = [currentNode.startPosition.row + 1, currentNode.endPosition.row + 1];
     }
 
     symbols.push(symbol);

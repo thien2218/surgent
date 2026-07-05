@@ -53,14 +53,11 @@ const codeMapper = defineTool({
       const unsupportedText = [...unsupported].join(", ");
       return {
         isError: true,
-        details: {
-          error: "mapper target validation failed",
-          message: `unsupported extensions: ${unsupportedText}`,
-        },
+        details: "code_map target validation failed",
         content: [
           {
             type: "text",
-            text: `mapper target validation failed: unsupported extensions: ${unsupportedText}`,
+            text: `code_map target validation failed: unsupported extensions: ${unsupportedText}`,
           },
         ],
       };
@@ -73,8 +70,8 @@ const codeMapper = defineTool({
       const message = error instanceof Error ? error.message : String(error);
       return {
         isError: true,
-        details: `mapper target scan failed: ${message}`,
-        content: [{ type: "text", text: `mapper target scan failed: ${message}` }],
+        details: `code_map target scan failed: ${message}`,
+        content: [{ type: "text", text: `code_map target scan failed: ${message}` }],
       };
     }
 
@@ -86,8 +83,8 @@ const codeMapper = defineTool({
       if (signal?.aborted) {
         return {
           isError: true,
-          details: "mapper aborted",
-          content: [{ type: "text", text: "mapper aborted" }],
+          details: "code_map aborted",
+          content: [{ type: "text", text: "code_map aborted" }],
         };
       }
 
@@ -121,7 +118,7 @@ const codeMapper = defineTool({
     const need = Array.isArray(args.need) && args.need.length > 0 ? args.need.join(", ") : "none";
 
     return new Text(
-      `${theme.fg("toolTitle", "mapper")} targets=[${targets}] extensions=[${extensions}] kinds=[${kinds}] need=[${need}]`,
+      `${theme.fg("toolTitle", "code_map")} targets=[${targets}] extensions=[${extensions}] kinds=[${kinds}] need=[${need}]`,
       0,
       0,
     );

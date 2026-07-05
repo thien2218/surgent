@@ -100,21 +100,15 @@ export default function (pi: ExtensionAPI) {
 
     let changed = false;
     for (const message of event.messages) {
-      if (message.role !== "toolResult") {
-        continue;
-      }
-
+      if (message.role !== "toolResult") continue;
       const summaryText = store.active.get(message.toolCallId);
-      if (!summaryText) {
-        continue;
-      }
+      if (!summaryText) continue;
 
       message.content = [{ type: "text", text: summaryText }];
       changed = true;
     }
 
     if (!changed) return;
-
     return { messages: event.messages };
   });
 }

@@ -4,6 +4,36 @@
 
 `surgent` is a CLI coding agent that extends the `@earendil-works/pi-coding-agent` framework with custom tools, commands, and UI. It runs as a TUI via the `surgent` command.
 
+## Project structure
+
+```text
+.
+├── bin
+│   └── surgent.js
+├── package.json
+├── pnpm-lock.yaml
+├── pnpm-workspace.yaml
+├── scripts
+│   └── build.mjs
+├── src
+│   ├── agent
+│   ├── checkpoint
+│   ├── cleanup
+│   ├── code-diff
+│   ├── commands
+│   ├── mcp-client
+│   ├── optimizers
+│   ├── permission
+│   ├── questionnaire
+│   ├── redact-secrets
+│   ├── subsession
+│   ├── test
+│   ├── ui
+│   ├── utils.ts
+│   └── web-tools
+└── tsconfig.json
+```
+
 ## Reference documentation
 
 Before implementing or modifying any feature, read the relevant pi docs:
@@ -41,3 +71,4 @@ Run this command exactly once, as-is, with no chaining, flags, or extra shell mo
 ## Rules
 
 - Single char variable names are strictly forbidden
+- When fixing a tool, don't call it to validate. Tools need to be manually reloaded by user first for a fix to work.

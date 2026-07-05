@@ -1,16 +1,6 @@
-import type Parser from "tree-sitter";
-
-export type MapperKind = "function" | "class" | "class_method" | "object_method";
-
-export interface MapperSymbol {
-  id: string;
-  kind: MapperKind;
-  lines?: [number, number];
-  node: Parser.SyntaxNode;
-  container?: string;
-}
+import type { LanguageSymbol } from "../languages/types.js";
 
 export interface MapperResult {
-  symbols: MapperSymbol[];
+  symbols: LanguageSymbol[];
   failed: string[];
 }

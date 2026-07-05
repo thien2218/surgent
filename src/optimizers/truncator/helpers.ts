@@ -38,7 +38,7 @@ export function rebuildActiveSummaries(
   }
 }
 
-export function rewriteSessionTailWithSummaries(
+export function rewriteTailWithSummaries(
   sessionFile: string,
   runStartOffset: number,
   completedRunSummaries: Map<string, string>,

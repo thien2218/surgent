@@ -138,7 +138,7 @@ async function parseSurgentUsage(sessionRootDirectoryPath) {
   const cacheHit = inputTokensWithCache > 0 ? cachedReadTokens / inputTokensWithCache : 0;
 
   return {
-    inputTokens,
+    inputTokens: inputTokensWithCache,
     outputTokens,
     totalTokens,
     cacheHit,
@@ -216,7 +216,7 @@ async function parseCopilotUsage(sessionRootDirectoryPath) {
   }
 
   const totalTokens = hasTotalTokens ? summedTotalTokens : inputTokens + outputTokens;
-  const cacheHit = inputTokens > 0 ? cachedReadTokens / inputTokensWithCache : 0;
+  const cacheHit = inputTokens > 0 ? cachedReadTokens / inputTokens : 0;
 
   return {
     inputTokens,

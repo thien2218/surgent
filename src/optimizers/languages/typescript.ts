@@ -41,4 +41,44 @@ export const TYPESCRIPT_LANGUAGE_PROFILES = new Map<string, LanguageProfile>([
       },
     },
   ],
+  [
+    ".js",
+    {
+      ...TYPESCRIPT_PROFILE_BASE,
+      loadLanguage: async () => {
+        const languagePack = await import("tree-sitter-typescript");
+        return languagePack.typescript as Language;
+      },
+    },
+  ],
+  [
+    ".mjs",
+    {
+      ...TYPESCRIPT_PROFILE_BASE,
+      loadLanguage: async () => {
+        const languagePack = await import("tree-sitter-typescript");
+        return languagePack.typescript as Language;
+      },
+    },
+  ],
+  [
+    ".cjs",
+    {
+      ...TYPESCRIPT_PROFILE_BASE,
+      loadLanguage: async () => {
+        const languagePack = await import("tree-sitter-typescript");
+        return languagePack.typescript as Language;
+      },
+    },
+  ],
+  [
+    ".jsx",
+    {
+      ...TYPESCRIPT_PROFILE_BASE,
+      loadLanguage: async () => {
+        const languagePack = await import("tree-sitter-typescript");
+        return (languagePack.tsx ?? languagePack.typescript) as Language;
+      },
+    },
+  ],
 ]);

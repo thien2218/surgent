@@ -14,7 +14,7 @@ const codeMapper = defineTool({
   name: "code_map",
   label: "Code map",
   description:
-    "Fast symbol index for code discovery. Returns symbol rows (with optional lines/container), not code bodies. Best flow: run on narrow targets, then inspect exact symbol.",
+    "Fast symbol index for code discovery. Returns symbol rows (with optional range/container), not code bodies. Best flow: run on narrow targets, then inspect exact symbol.",
   parameters: Type.Object({
     targets: Type.Array(
       Type.String({ description: "Paths or globs to scan (relative to cwd). Keep scope narrow." }),
@@ -22,7 +22,8 @@ const codeMapper = defineTool({
     ),
     extensions: Type.Array(Type.String({ description: "File extension, e.g. .ts" }), {
       minItems: 1,
-      description: "File extensions to include (e.g. .ts). Unsupported extensions return validation error.",
+      description:
+        "File extensions to include (e.g. .ts). Unsupported extensions return validation error.",
     }),
     kinds: Type.Optional(
       Type.Array(
@@ -37,8 +38,8 @@ const codeMapper = defineTool({
       ),
     ),
     need: Type.Optional(
-      Type.Array(Type.Union([Type.Literal("lines"), Type.Literal("container")]), {
-        description: "Optional fields added to each symbol row: lines and/or container",
+      Type.Array(Type.Union([Type.Literal("range"), Type.Literal("container")]), {
+        description: "Optional fields added to each symbol row",
       }),
     ),
   }),
@@ -109,8 +110,8 @@ const codeMapper = defineTool({
 
     const outputLines = result.symbols.map((symbol) => {
       let line = ` ${symbol.path} ${symbol.kind} symbol=${symbol.name}`;
-      if (symbol.lines) {
-        line += ` lines:${symbol.lines[0]}-${symbol.lines[1]}`;
+      if (symbol.range) {
+        line += ` range:${symbol.range[0]}-${symbol.range[1]}`;
       }
       if (symbol.container) {
         line += ` container:${symbol.container}`;

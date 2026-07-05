@@ -8,15 +8,6 @@ function normalizePath(pathValue: string) {
   return normalizedPath.startsWith("./") ? normalizedPath.slice(2) : normalizedPath;
 }
 
-function applyGlobTargets(paths: string[], globTargets: string[]) {
-  if (globTargets.length === 0) {
-    return paths;
-  }
-
-  const matchers = globTargets.map((globTarget) => picomatch(globTarget, { dot: true }));
-  return paths.filter((pathValue) => matchers.some((matcher) => matcher(pathValue)));
-}
-
 async function runCommand(
   projectPath: string,
   command: string,
@@ -81,17 +72,18 @@ async function rgFiles(
 ) {
   const args = ["--files", "--hidden"];
 
-  for (const skippedDirectory of SKIPPED_DIRECTORIES) {
-    args.push("--glob", `!**/${skippedDirectory}/**`);
+  for (const skipped of SKIPPED_DIRECTORIES) {
+    args.push("--glob", `!**/${skipped}/**`);
   }
-
-  for (const requestedExtension of extensionsSet) {
-    args.push("--glob", `*${requestedExtension}`);
+  for (const extension of extensionsSet) {
+    args.push("--glob", `*${extension}`);
+  }
+  for (const globTarget of globTargets) {
+    args.push("--glob", globTarget);
   }
 
   args.push(".");
-  const paths = await runCommand(projectPath, "rg", args, signal);
-  return applyGlobTargets(paths, globTargets);
+  return runCommand(projectPath, "rg", args, signal);
 }
 
 async function grepFiles(
@@ -102,49 +94,37 @@ async function grepFiles(
 ) {
   const args = ["-r", "-I", "-l"];
 
-  for (const skippedDirectory of SKIPPED_DIRECTORIES) {
-    args.push("--exclude-dir", skippedDirectory);
+  for (const skipped of SKIPPED_DIRECTORIES) {
+    args.push("--exclude-dir", skipped);
   }
-
   for (const extension of extensionsSet) {
     args.push("--include", `*${extension}`);
   }
 
   args.push("-e", "", ".");
   const paths = await runCommand(projectPath, "grep", args, signal);
-  return applyGlobTargets(paths, globTargets);
+  const matchers = globTargets.map((globTarget) => picomatch(globTarget, { dot: true }));
+  return paths.filter((pathValue) => matchers.some((matcher) => matcher(pathValue)));
 }
 
 export async function resolveTargetPaths(
   projectPath: string,
   targets: string[],
-  extensions: string[],
+  extensions: Set<string>,
   signal?: AbortSignal,
 ) {
-  const extensionsSet = new Set(extensions.map((extension) => extension.toLowerCase()));
   const globTargets = targets.flatMap((target) => {
-    const normalizedTarget = normalizePath(target);
-    if (normalizedTarget.length === 0) {
-      return [];
-    }
-
-    if (normalizedTarget === ".") {
-      return ["**"];
-    }
-
-    if (/[*?[\]{}]/.test(normalizedTarget)) {
-      return [normalizedTarget];
-    }
-
-    return [normalizedTarget, `${normalizedTarget}/**`];
+    const normalized = normalizePath(target);
+    if (normalized.length === 0) return [];
+    if (normalized === ".") return ["**"];
+    if (/[*?[\]{}]/.test(normalized)) return [normalized];
+    return [normalized, `${normalized}/**`];
   });
 
-  if (globTargets.length === 0) {
-    return [];
-  }
+  if (globTargets.length === 0) return [];
 
   try {
-    const paths = await rgFiles(projectPath, globTargets, extensionsSet, signal);
+    const paths = await rgFiles(projectPath, globTargets, extensions, signal);
     return [...new Set(paths)].sort();
   } catch (rgError) {
     const rgMessage = rgError instanceof Error ? rgError.message : String(rgError);
@@ -153,7 +133,7 @@ export async function resolveTargetPaths(
     }
 
     try {
-      const paths = await grepFiles(projectPath, globTargets, extensionsSet, signal);
+      const paths = await grepFiles(projectPath, globTargets, extensions, signal);
       return [...new Set(paths)].sort();
     } catch (grepError) {
       const grepMessage = grepError instanceof Error ? grepError.message : String(grepError);

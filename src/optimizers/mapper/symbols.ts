@@ -1,5 +1,6 @@
 import type Parser from "tree-sitter";
-import type { MapperKind, MapperNeed, MapperSymbol } from "./types.js";
+import type { MapperKind, MapperSymbol } from "./types.js";
+import type { SyntaxNode } from "tree-sitter";
 
 function readNodeName(node: Parser.SyntaxNode) {
   const nameNode = node.childForFieldName("name");
@@ -72,13 +73,13 @@ function resolveSymbolKind(node: Parser.SyntaxNode): MapperKind | undefined {
 }
 
 export function collectSymbols(
-  root: Parser.SyntaxNode,
+  root: SyntaxNode,
   path: string,
   kinds: Set<MapperKind>,
-  fields: Set<MapperNeed>,
+  fields?: Set<string>,
 ) {
   const symbols: MapperSymbol[] = [];
-  const pendingNodes: Parser.SyntaxNode[] = [root];
+  const pendingNodes: SyntaxNode[] = [root];
   const symbolIdCounts = new Map<string, number>();
 
   while (pendingNodes.length > 0) {
@@ -109,17 +110,17 @@ export function collectSymbols(
     const symbolIdBase = `${path}#${symbolName}`;
     const symbolIdCount = (symbolIdCounts.get(symbolIdBase) ?? 0) + 1;
     symbolIdCounts.set(symbolIdBase, symbolIdCount);
-
     const symbol: MapperSymbol = {
       id: symbolIdCount === 1 ? symbolIdBase : `${symbolIdBase}~${symbolIdCount}`,
       kind: symbolKind,
+      node: currentNode,
     };
 
-    if (fields.has("location")) {
-      symbol.location = [currentNode.startPosition.row + 1, currentNode.endPosition.row + 1];
-    }
-    if (fields.has("container") && containerName) {
+    if (fields?.has("container")) {
       symbol.container = containerName;
+    }
+    if (fields?.has("location")) {
+      symbol.location = [currentNode.startPosition.row + 1, currentNode.endPosition.row + 1];
     }
 
     symbols.push(symbol);

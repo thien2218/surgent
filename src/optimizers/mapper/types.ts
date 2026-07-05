@@ -1,11 +1,12 @@
-export type MapperKind = "function" | "class" | "class_method" | "object_method";
+import type Parser from "tree-sitter";
 
-export type MapperNeed = "location" | "container" | "signature";
+export type MapperKind = "function" | "class" | "class_method" | "object_method";
 
 export interface MapperSymbol {
   id: string;
   kind: MapperKind;
   location?: [number, number];
+  node: Parser.SyntaxNode;
   container?: string;
 }
 

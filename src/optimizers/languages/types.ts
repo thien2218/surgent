@@ -18,7 +18,8 @@ export interface LanguageProfile {
 }
 
 export interface LanguageSymbol {
-  id: string;
+  name: string;
+  path: string;
   kind: SymbolKind;
   node: SyntaxNode;
   lines?: [number, number];

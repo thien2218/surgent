@@ -6,16 +6,14 @@ const PROFILE_BY_EXTENSION = new Map<string, LanguageProfile>([...TYPE_SCRIPT_LA
 
 function matchesTopLevelRule(node: Parser.SyntaxNode, profile: LanguageProfile) {
   let current: Parser.SyntaxNode | null = node.parent;
-  let child: Parser.SyntaxNode = node;
 
   while (current) {
     if (profile.topLevelRoots.has(current.type)) {
-      if (profile.topLevelParents.size === 0) {
-        return true;
-      }
-      return profile.topLevelParents.has(child.type);
+      return true;
     }
-    child = current;
+    if (profile.topLevelParents.size > 0 && !profile.topLevelParents.has(current.type)) {
+      return false;
+    }
     current = current.parent;
   }
 

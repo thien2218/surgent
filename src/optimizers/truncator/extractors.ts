@@ -1,10 +1,7 @@
 import type { ToolResultEvent } from "@earendil-works/pi-coding-agent";
 
 type BashToolResultEvent = Extract<ToolResultEvent, { toolName: "bash" }>;
-type ReadToolResultEvent = Extract<ToolResultEvent, { toolName: "read" }>;
 type GrepToolResultEvent = Extract<ToolResultEvent, { toolName: "grep" }>;
-
-const READ_CONTINUATION_NOTICE = /\n\n\[\d+ more lines in file\. Use offset=\d+ to continue\.\]$/;
 
 function getTextContent(event: ToolResultEvent): string {
   const block = event.content.find((contentBlock) => contentBlock.type === "text");
@@ -32,44 +29,8 @@ export function extractBashSummary(event: BashToolResultEvent): string | null {
   return `Bash command="${commandInput}" | status=${status} | output=${outputState}`;
 }
 
-export function extractReadSummary(event: ReadToolResultEvent): string | null {
-  const path = event.input.path;
-  if (typeof path !== "string" || !path || event.isError) {
-    return null;
-  }
-
-  if (event.content.some((contentBlock) => contentBlock.type === "image")) {
-    return null;
-  }
-
-  const startLine = typeof event.input.offset === "number" ? event.input.offset : 1;
-  const truncation = event.details?.truncation;
-  if (truncation?.firstLineExceedsLimit) {
-    return `${path} ${startLine}-${startLine}`;
-  }
-  if (truncation?.truncated) {
-    const endLine = startLine + truncation.outputLines - 1;
-    return `${path} ${startLine}-${endLine}`;
-  }
-
-  const contentText = getTextContent(event);
-  if (!contentText || contentText.startsWith("Read image file [")) {
-    return null;
-  }
-
-  const contentWithoutNotice = contentText.replace(READ_CONTINUATION_NOTICE, "");
-  if (!contentWithoutNotice) {
-    return null;
-  }
-
-  const lineCount = contentWithoutNotice.split("\n").length;
-  const endLine = startLine + lineCount - 1;
-  return `Read ${path} L${startLine}-L${endLine}`;
-}
-
 export function extractGrepSummary(event: GrepToolResultEvent): string | null {
   const contentText = getTextContent(event);
-
   if (contentText === "No matches found") return null;
 
   // Default no-context grep output: "<relPath>:<lineNum>: <text>"

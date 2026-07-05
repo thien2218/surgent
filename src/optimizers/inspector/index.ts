@@ -9,19 +9,19 @@ const inspect = defineTool({
   name: "inspect",
   label: "Inspect",
   description:
-    "Scoped code inspection for one symbol body with depth control. Use when path and symbol are known to read focused code and avoid extra context.",
+    "Fetch one symbol body from one file. Good for targeted edits without full read; omit depth for exact body text. For duplicates, use ~n suffix (example: name~2).",
   parameters: Type.Object({
     path: Type.String({
-      description: "Exact file path containing target symbol",
+      description: "Exact file path containing target symbol (relative to cwd or absolute)",
     }),
     symbol: Type.String({
-      description: "Symbol name in file: <symbol> or <symbol>~n for occurrence",
+      description: "Symbol name in file: <symbol> or duplicate form <symbol>~n",
     }),
     depth: Type.Optional(
       Type.Integer({
         minimum: 0,
         description:
-          "Collapse depth. Use <=3 first, then increase only if more nested detail is needed.",
+          "Nested expansion depth. Lower depth may collapse blocks with '…'; omit for exact symbol body text.",
       }),
     ),
   }),
@@ -38,7 +38,7 @@ const inspect = defineTool({
         content: [
           {
             type: "text",
-            text: "inspect symbol format invalid. use path=<path> and symbol=<symbol> or <symbol>~n",
+            text: "inspect symbol format invalid. path/symbol must be non-empty; symbol cannot include '#'. use symbol name, e.g. name or name~2",
           },
         ],
       };
@@ -53,7 +53,7 @@ const inspect = defineTool({
           content: [
             {
               type: "text",
-              text: "inspect symbol not found. verify path/symbol and occurrence (~n), then retry",
+              text: "inspect symbol not found. verify path and symbol name; for duplicates use ~n suffix (example: name~2)",
             },
           ],
         };
@@ -90,7 +90,7 @@ const inspect = defineTool({
     }
     const details = parseInspectToolDetails(result.details);
     const output = details
-      ? `Inspected ${details.path}#${details.symbol} depth=${details.depth} lines=${details.lines[0]}-${details.lines[1]}`
+      ? `Inspected ${details.path} ${details.symbol} depth=${details.depth} lines=${details.lines[0]}-${details.lines[1]}`
       : "";
     return new Text(output, 0, 0);
   },

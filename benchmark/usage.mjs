@@ -1,15 +1,15 @@
-import { readFile, readdir, stat } from 'node:fs/promises';
-import path from 'node:path';
+import { readFile, readdir, stat } from "node:fs/promises";
+import path from "node:path";
 
 function fail(message) {
   throw new Error(message);
 }
 
 function parseNumericValue(value) {
-  if (typeof value === 'number') {
+  if (typeof value === "number") {
     return Number.isFinite(value) ? value : Number.NaN;
   }
-  if (typeof value === 'string' && value.trim() !== '') {
+  if (typeof value === "string" && value.trim() !== "") {
     const parsedValue = Number(value);
     return Number.isFinite(parsedValue) ? parsedValue : Number.NaN;
   }
@@ -27,7 +27,7 @@ async function listJsonlFilePaths(rootDirectoryPath) {
     try {
       directoryEntries = await readdir(currentDirectoryPath, { withFileTypes: true });
     } catch (error) {
-      if (error?.code === 'ENOENT') {
+      if (error?.code === "ENOENT") {
         continue;
       }
       throw error;
@@ -39,7 +39,7 @@ async function listJsonlFilePaths(rootDirectoryPath) {
         pendingDirectoryPaths.push(entryPath);
         continue;
       }
-      if (directoryEntry.isFile() && directoryEntry.name.endsWith('.jsonl')) {
+      if (directoryEntry.isFile() && directoryEntry.name.endsWith(".jsonl")) {
         discoveredJsonlFilePaths.push(entryPath);
       }
     }
@@ -70,8 +70,8 @@ async function parseSurgentUsage(sessionRootDirectoryPath) {
   }
 
   const newestSessionFilePath = await pickNewestFilePath(jsonlFilePaths);
-  const sessionText = await readFile(newestSessionFilePath, 'utf8');
-  let uncachedInputTokens = 0;
+  const sessionText = await readFile(newestSessionFilePath, "utf8");
+  let inputTokens = 0;
   let outputTokens = 0;
   let cachedReadTokens = 0;
   let totalTokens = 0;
@@ -80,7 +80,7 @@ async function parseSurgentUsage(sessionRootDirectoryPath) {
   let assistantMessageCount = 0;
 
   for (const lineText of sessionText.split(/\r?\n/)) {
-    if (lineText.trim() === '') {
+    if (lineText.trim() === "") {
       continue;
     }
 
@@ -91,7 +91,7 @@ async function parseSurgentUsage(sessionRootDirectoryPath) {
       continue;
     }
 
-    if (parsedLine?.type !== 'message' || parsedLine?.message?.role !== 'assistant') {
+    if (parsedLine?.type !== "message" || parsedLine?.message?.role !== "assistant") {
       continue;
     }
 
@@ -108,7 +108,7 @@ async function parseSurgentUsage(sessionRootDirectoryPath) {
     const messageTotalTokens = parseNumericValue(messageUsage?.totalTokens);
 
     assistantMessageCount += 1;
-    uncachedInputTokens += messageInputTokens;
+    inputTokens += messageInputTokens;
     outputTokens += messageOutputTokens;
     cachedReadTokens += Number.isFinite(messageCachedReadTokens) ? messageCachedReadTokens : 0;
 
@@ -134,16 +134,15 @@ async function parseSurgentUsage(sessionRootDirectoryPath) {
     fail(`No assistant usage found in ${newestSessionFilePath}`);
   }
 
-  const inputTokensWithCache = uncachedInputTokens + cachedReadTokens;
+  const inputTokensWithCache = inputTokens + cachedReadTokens;
   const cacheHit = inputTokensWithCache > 0 ? cachedReadTokens / inputTokensWithCache : 0;
-  const inputTokens = Math.max(0, inputTokensWithCache * (1 - cacheHit));
 
   return {
-    inputTokens: Math.round(inputTokens),
-    outputTokens: Math.round(outputTokens),
-    totalTokens: Math.round(totalTokens),
+    inputTokens,
+    outputTokens,
+    totalTokens,
     cacheHit,
-    totalCostUsd: hasTotalCostUsd ? totalCostUsd : null
+    totalCostUsd: hasTotalCostUsd ? totalCostUsd : null,
   };
 }
 
@@ -154,18 +153,18 @@ async function parseCopilotUsage(sessionRootDirectoryPath) {
   }
 
   const newestOtelFilePath = await pickNewestFilePath(jsonlFilePaths);
-  const otelText = await readFile(newestOtelFilePath, 'utf8');
+  const otelText = await readFile(newestOtelFilePath, "utf8");
   let invokeAgentSpanCount = 0;
-  let summedInputTokens = 0;
-  let summedOutputTokens = 0;
-  let summedCachedReadTokens = 0;
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let cachedReadTokens = 0;
   let summedTotalTokens = 0;
-  let summedCopilotCostCredits = 0;
-  let hasSummedTotalTokens = false;
-  let hasSummedCopilotCostCredits = false;
+  let costCredits = 0;
+  let hasTotalTokens = false;
+  let hasCopilotCostCredits = false;
 
   for (const lineText of otelText.split(/\r?\n/)) {
-    if (lineText.trim() === '') {
+    if (lineText.trim() === "") {
       continue;
     }
 
@@ -176,37 +175,39 @@ async function parseCopilotUsage(sessionRootDirectoryPath) {
       continue;
     }
 
-    if (parsedLine?.type !== 'span' || parsedLine?.name !== 'invoke_agent') {
+    if (parsedLine?.type !== "span" || parsedLine?.name !== "invoke_agent") {
       continue;
     }
 
     const spanAttributes = parsedLine.attributes;
-    const spanInputTokens = parseNumericValue(spanAttributes?.['gen_ai.usage.input_tokens']);
-    const spanOutputTokens = parseNumericValue(spanAttributes?.['gen_ai.usage.output_tokens']);
+    const spanInputTokens = parseNumericValue(spanAttributes?.["gen_ai.usage.input_tokens"]);
+    const spanOutputTokens = parseNumericValue(spanAttributes?.["gen_ai.usage.output_tokens"]);
 
     if (!Number.isFinite(spanInputTokens) || !Number.isFinite(spanOutputTokens)) {
       fail(`Invalid invoke_agent usage in ${newestOtelFilePath}`);
     }
 
     invokeAgentSpanCount += 1;
-    summedInputTokens += spanInputTokens;
-    summedOutputTokens += spanOutputTokens;
+    inputTokens += spanInputTokens;
+    outputTokens += spanOutputTokens;
 
-    const spanCachedReadTokens = parseNumericValue(spanAttributes?.['gen_ai.usage.cache_read.input_tokens']);
+    const spanCachedReadTokens = parseNumericValue(
+      spanAttributes?.["gen_ai.usage.cache_read.input_tokens"],
+    );
     if (Number.isFinite(spanCachedReadTokens)) {
-      summedCachedReadTokens += spanCachedReadTokens;
+      cachedReadTokens += spanCachedReadTokens;
     }
 
-    const spanTotalTokens = parseNumericValue(spanAttributes?.['gen_ai.usage.total_tokens']);
+    const spanTotalTokens = parseNumericValue(spanAttributes?.["gen_ai.usage.total_tokens"]);
     if (Number.isFinite(spanTotalTokens)) {
-      hasSummedTotalTokens = true;
+      hasTotalTokens = true;
       summedTotalTokens += spanTotalTokens;
     }
 
-    const spanCopilotCostCredits = parseNumericValue(spanAttributes?.['github.copilot.cost']);
+    const spanCopilotCostCredits = parseNumericValue(spanAttributes?.["github.copilot.cost"]);
     if (Number.isFinite(spanCopilotCostCredits)) {
-      hasSummedCopilotCostCredits = true;
-      summedCopilotCostCredits += spanCopilotCostCredits;
+      hasCopilotCostCredits = true;
+      costCredits += spanCopilotCostCredits;
     }
   }
 
@@ -214,27 +215,24 @@ async function parseCopilotUsage(sessionRootDirectoryPath) {
     fail(`No invoke_agent spans found in ${newestOtelFilePath}`);
   }
 
-  const totalTokens = hasSummedTotalTokens ? summedTotalTokens : summedInputTokens + summedOutputTokens;
-  const inputTokensWithCache = summedInputTokens;
-  const cacheHit = inputTokensWithCache > 0 ? summedCachedReadTokens / inputTokensWithCache : 0;
-  const inputTokens = Math.max(0, inputTokensWithCache * (1 - cacheHit));
+  const totalTokens = hasTotalTokens ? summedTotalTokens : inputTokens + outputTokens;
+  const cacheHit = inputTokens > 0 ? cachedReadTokens / inputTokensWithCache : 0;
 
   return {
-    inputTokens: Math.round(inputTokens),
-    outputTokens: Math.round(summedOutputTokens),
-    totalTokens: Math.round(totalTokens),
+    inputTokens,
+    outputTokens,
+    totalTokens,
     cacheHit,
-    totalCostUsd: hasSummedCopilotCostCredits ? summedCopilotCostCredits * 0.01 : null
+    totalCostUsd: hasCopilotCostCredits ? costCredits * 0.01 : null,
   };
 }
 
 export async function readUsageMetricsForRunnerSession(runnerName, sessionRootDirectoryPath) {
-  if (runnerName === 'surgent') {
+  if (runnerName === "surgent") {
     return parseSurgentUsage(sessionRootDirectoryPath);
   }
-  if (runnerName === 'copilot') {
+  if (runnerName === "copilot") {
     return parseCopilotUsage(sessionRootDirectoryPath);
   }
-
   fail(`Unsupported runner for usage parsing: ${runnerName}`);
 }

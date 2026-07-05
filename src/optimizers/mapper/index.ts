@@ -7,20 +7,19 @@ import { Type } from "typebox";
 import { resolveTargetPaths } from "./files.js";
 import { createCodeParser } from "./parser.js";
 import { collectSymbols } from "./symbols.js";
-import type { MapperKind, MapperNeed, MapperResult } from "./types.js";
+import type { MapperKind, MapperResult } from "./types.js";
 
 const SUPPORTED_EXTENSIONS = new Set([".ts", ".tsx"]);
-const MAX_OUTPUT_LINES = 10;
 
 function normalizeExtension(extension: string) {
   const normalizedExtension = extension.trim().toLowerCase();
   return normalizedExtension.startsWith(".") ? normalizedExtension : `.${normalizedExtension}`;
 }
 
-const mapper = defineTool({
-  name: "mapper",
-  label: "Mapper",
-  description: "Map abstractions in files.",
+const codeMapper = defineTool({
+  name: "code_map",
+  label: "Code map",
+  description: "Snapshot of abstractions map in files.",
   parameters: Type.Object({
     targets: Type.Array(Type.String({ description: "Paths or globs to scan" }), {
       description: "Targets to map",
@@ -50,13 +49,13 @@ const mapper = defineTool({
     const kinds = new Set<MapperKind>(
       params.kinds ?? ["function", "class", "class_method", "object_method"],
     );
-    const fields = new Set<MapperNeed>(params.need ?? []);
+    const fields = new Set(params.need ?? []);
     const result: MapperResult = { symbols: [], failed: [] };
-    const extensions = [...new Set(params.extensions.map(normalizeExtension))];
-    const unsupported = extensions.filter((extension) => !SUPPORTED_EXTENSIONS.has(extension));
+    const extensions = new Set(params.extensions.map(normalizeExtension));
+    const unsupported = extensions.difference(SUPPORTED_EXTENSIONS);
 
-    if (unsupported.length > 0) {
-      const unsupportedText = unsupported.join(", ");
+    if (unsupported.size > 0) {
+      const unsupportedText = [...unsupported].join(", ");
       return {
         isError: true,
         details: {
@@ -161,7 +160,7 @@ const mapper = defineTool({
 
     const text = result.details as string;
     const lines = text.split("\n");
-    const maxLines = expanded ? lines.length : MAX_OUTPUT_LINES;
+    const maxLines = expanded ? lines.length : 10;
 
     if (lines.length === 0) {
       return new Text(theme.fg("dim", "No symbols found"), 0, 0);
@@ -178,4 +177,4 @@ const mapper = defineTool({
   },
 });
 
-export default mapper;
+export default codeMapper;

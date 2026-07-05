@@ -1,15 +1,9 @@
-import { readFile } from "node:fs/promises";
-import { extname, resolve } from "node:path";
-import type Parser from "tree-sitter";
 import { defineTool, keyHint } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { resolveTargetPaths } from "./files.js";
-import { createCodeParser } from "./parser.js";
-import { collectSymbols } from "./symbols.js";
-import type { MapperKind, MapperResult } from "./types.js";
-
-const SUPPORTED_EXTENSIONS = new Set([".ts", ".tsx"]);
+import { getSupportedExtensions, collectSymbols, type SymbolKind } from "../languages/index.js";
+import type { MapperResult } from "./types.js";
 
 function normalizeExtension(extension: string) {
   const normalizedExtension = extension.trim().toLowerCase();
@@ -35,6 +29,7 @@ const codeMapper = defineTool({
           Type.Literal("class"),
           Type.Literal("class_method"),
           Type.Literal("object_method"),
+          Type.Literal("top_level_var"),
         ]),
         { description: "Abstraction kinds to include" },
       ),
@@ -46,13 +41,13 @@ const codeMapper = defineTool({
     ),
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-    const kinds = new Set<MapperKind>(
-      params.kinds ?? ["function", "class", "class_method", "object_method"],
+    const kinds = new Set<SymbolKind>(
+      params.kinds ?? ["function", "class", "class_method", "object_method", "top_level_var"],
     );
     const fields = new Set(params.need ?? []);
     const result: MapperResult = { symbols: [], failed: [] };
     const extensions = new Set(params.extensions.map(normalizeExtension));
-    const unsupported = extensions.difference(SUPPORTED_EXTENSIONS);
+    const unsupported = extensions.difference(getSupportedExtensions());
 
     if (unsupported.size > 0) {
       const unsupportedText = [...unsupported].join(", ");
@@ -87,20 +82,6 @@ const codeMapper = defineTool({
       return { isError: false, details: "", content: [{ type: "text", text: "" }] };
     }
 
-    const parsers = new Map<string, Parser>();
-    for (const extension of extensions) {
-      try {
-        parsers.set(extension, await createCodeParser(extension));
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return {
-          isError: true,
-          details: `mapper init failed: ${message}`,
-          content: [{ type: "text", text: `mapper init failed: ${message}` }],
-        };
-      }
-    }
-
     for (const path of paths) {
       if (signal?.aborted) {
         return {
@@ -110,17 +91,9 @@ const codeMapper = defineTool({
         };
       }
 
-      const absolutePath = resolve(ctx.cwd, path);
       try {
-        const code = await readFile(absolutePath, "utf8");
-        const parser = parsers.get(extname(path).toLowerCase());
-        if (!parser) {
-          result.failed.push(path);
-          continue;
-        }
-
-        const tree = parser.parse(code);
-        result.symbols.push(...collectSymbols(tree.rootNode, path, kinds, fields));
+        const symbols = await collectSymbols(ctx.cwd, path, kinds, fields);
+        result.symbols.push(...symbols);
       } catch {
         result.failed.push(path);
       }

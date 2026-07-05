@@ -1,31 +1,14 @@
-import { readFile } from "node:fs/promises";
-import { extname, resolve } from "node:path";
-import type Parser from "tree-sitter";
-import { createCodeParser } from "../mapper/parser.js";
-import { collectSymbols } from "../mapper/symbols.js";
-import type { MapperKind, MapperSymbol } from "../mapper/types.js";
+import { collectSymbols, type SymbolKind, type LanguageSymbol } from "../languages/index.js";
 import { renderNodeWithDepth } from "./extract.js";
 import type { ParsedInspectorId } from "./types.js";
 
-const INSPECTABLE_KINDS = new Set<MapperKind>([
+const INSPECTABLE_KINDS = new Set<SymbolKind>([
   "function",
   "class",
   "class_method",
   "object_method",
+  "top_level_var",
 ]);
-
-async function getParserForPath(path: string, parsers: Map<string, Parser>, signal?: AbortSignal) {
-  if (signal?.aborted) {
-    throw new Error("inspector aborted");
-  }
-
-  const extension = extname(path).toLowerCase();
-  const parser = parsers.get(extension);
-  if (parser) return parser;
-  const createdParser = await createCodeParser(extension);
-  parsers.set(extension, createdParser);
-  return createdParser;
-}
 
 export async function inspectParsedIds(
   cwd: string,
@@ -35,37 +18,20 @@ export async function inspectParsedIds(
 ): Promise<Array<{ id: string; location: [number, number]; text: string }>> {
   const symbols: Array<{ id: string; location: [number, number]; text: string }> = [];
   const paths = new Set(parsedIds.map((id) => id.path));
-  const parsers = new Map<string, Parser>();
-  const entryById = new Map<string, MapperSymbol>();
+  const symbolById = new Map<string, LanguageSymbol>();
 
   for (const path of paths) {
     if (signal?.aborted) {
       throw new Error("inspector aborted");
     }
-
-    const absolutePath = resolve(cwd, path);
-    let code = "";
-    try {
-      code = await readFile(absolutePath, "utf8");
-    } catch {
-      continue;
-    }
-
-    let parser: Parser;
-    try {
-      parser = await getParserForPath(path, parsers, signal);
-    } catch {
-      continue;
-    }
-
-    const tree = parser.parse(code);
-    for (const entry of collectSymbols(tree.rootNode, path, INSPECTABLE_KINDS)) {
-      entryById.set(entry.id, entry);
+    const symbols = await collectSymbols(cwd, path, INSPECTABLE_KINDS);
+    for (const symbol of symbols) {
+      symbolById.set(symbol.id, symbol);
     }
   }
 
   for (const id of parsedIds) {
-    const entry = entryById.get(id.orginal);
+    const entry = symbolById.get(id.orginal);
     if (!entry) continue;
     symbols.push({
       id: id.orginal,

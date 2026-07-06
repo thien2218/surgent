@@ -14,7 +14,7 @@ const codeMap = defineTool({
   name: "code_map",
   label: "Code map",
   description:
-    "Fast symbol indexing. Best for: narrowing targets to inspect/read, or overall code understanding/discovery.",
+    "Fast symbol and code blocks lines range indexing. Best for: narrowing targets to inspect/read, or code discovery.",
   parameters: Type.Object({
     targets: Type.Array(Type.String(), {
       description: "Paths or globs to scan (relative to cwd). Keep scope narrow.",
@@ -28,15 +28,14 @@ const codeMap = defineTool({
         description: "Abstraction kinds to include. Omit to include all supported.",
       }),
     ),
-    need: Type.Optional(
-      Type.Array(Type.Union([Type.Literal("range"), Type.Literal("container")]), {
-        description: "Optional fields added to each output row",
+    container: Type.Optional(
+      Type.Literal(true, {
+        description: "Include container name in each output row.",
       }),
     ),
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
     const kinds = new Set(params.kinds ?? SYMBOL_KINDS);
-    const fields = new Set(params.need ?? []);
     const result: MapperResult = { symbols: [], failed: [] };
     const extensions = new Set(params.extensions.map(normalizeExtension));
     const unsupported = extensions.difference(getSupportedExtensions());
@@ -90,7 +89,7 @@ const codeMap = defineTool({
       }
 
       try {
-        const symbols = await collectSymbols(ctx.cwd, path, kinds, fields);
+        const symbols = await collectSymbols(ctx.cwd, path, kinds, params.container);
         result.symbols.push(...symbols);
       } catch {
         result.failed.push(path);
@@ -122,10 +121,10 @@ const codeMap = defineTool({
     const targets = Array.isArray(args.targets) ? args.targets.join(", ") : "";
     const extensions = Array.isArray(args.extensions) ? args.extensions.join(", ") : "";
     const kinds = Array.isArray(args.kinds) ? args.kinds.join(", ") : "default";
-    const need = Array.isArray(args.need) && args.need.length > 0 ? args.need.join(", ") : "none";
+    const container = args.container === true ? "true" : "false";
 
     return new Text(
-      `${theme.fg("toolTitle", "code_map")} targets=[${targets}] extensions=[${extensions}] kinds=[${kinds}] need=[${need}]`,
+      `${theme.fg("toolTitle", "code_map")} targets=[${targets}] extensions=[${extensions}] kinds=[${kinds}] container=${container}`,
       0,
       0,
     );

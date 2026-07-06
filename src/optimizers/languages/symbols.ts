@@ -52,7 +52,7 @@ export async function collectSymbols(
   cwd: string,
   path: string,
   kinds: Set<SymbolKind>,
-  fields?: Set<string>,
+  container?: true,
 ) {
   const root = await getRootNode(cwd, path);
   const extension = extname(path).toLowerCase();
@@ -100,12 +100,10 @@ export async function collectSymbols(
       node: currentNode,
     };
 
-    if (fields?.has("container")) {
+    if (container) {
       symbol.container = containerName;
     }
-    if (fields?.has("range")) {
-      symbol.range = [currentNode.startPosition.row + 1, currentNode.endPosition.row + 1];
-    }
+    symbol.range = [currentNode.startPosition.row + 1, currentNode.endPosition.row + 1];
 
     symbols.push(symbol);
   }

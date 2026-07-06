@@ -13,7 +13,7 @@
         "Now implement only createGameState in src/game-state.mjs. Keep exports unchanged.",
         "Now implement only setDirection in src/game-state.mjs.",
         "Now implement only tickGame in src/game-state.mjs. Keep immutable updates.",
-        "Run visible tests. Fix remaining failures in src/*.mjs only. Do not edit tests. Stop when visible tests pass."
+        "Run tests. Fix remaining failures in src/*.mjs only. Do not edit tests. Stop when visible tests pass."
       ]
     },
     {
@@ -26,7 +26,7 @@
         "Implement only extractHeadings in src/extract-headings.mjs.",
         "Now implement only slugifyHeading in src/slugify-heading.mjs.",
         "Now implement only buildTableOfContents in src/build-toc.mjs.",
-        "Run visible tests. Fix only functional bugs in src/*.mjs. Do not edit tests. Stop when they pass."
+        "Run tests. Fix only functional bugs in src/*.mjs. Do not edit tests. Stop when they pass."
       ]
     },
     {
@@ -39,7 +39,7 @@
         "Implement only cloneSafeValue in src/clone-safe-value.mjs.",
         "Now implement only mergeObjects in src/merge-objects.mjs.",
         "Now implement only deepMergeConfig in src/index.mjs.",
-        "Run visible tests. Fix remaining failures in src/*.mjs only. Do not edit tests. Stop when they pass."
+        "Run tests. Fix remaining failures in src/*.mjs only. Do not edit tests. Stop when they pass."
       ]
     },
     {
@@ -53,7 +53,7 @@
         "Now implement only compilePattern in src/compile-pattern.mjs.",
         "Now implement only matchCompiledPattern in src/match-pattern.mjs.",
         "Now implement only matchBestRoute in src/index.mjs.",
-        "Run visible tests. Fix remaining failures in src/*.mjs only. Do not edit tests. Stop when visible tests pass."
+        "Run tests. Fix remaining failures in src/*.mjs only. Do not edit tests. Stop when visible tests pass."
       ]
     },
     {
@@ -66,7 +66,7 @@
         "Implement only validateInput in src/validate-input.mjs.",
         "Now implement only executeQueue in src/execute-queue.mjs.",
         "Now implement only runTasksWithConcurrency in src/index.mjs.",
-        "Run visible tests. Fix remaining failures in src/*.mjs only. Do not edit tests. Stop when they pass."
+        "Run tests. Fix remaining failures in src/*.mjs only. Do not edit tests. Stop when they pass."
       ]
     }
   ]

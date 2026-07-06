@@ -329,6 +329,8 @@ async function runSurgentSession(plannedRun, preparedWorkspace) {
       promptText,
       '--model',
       `github-copilot/${plannedRun.modelName}`,
+      '--thinking',
+      'medium',
       '--session-dir',
       sessionDirectoryPath
     ];
@@ -379,7 +381,9 @@ async function runCopilotSession(plannedRun, preparedWorkspace) {
       '--stream',
       'off',
       '--model',
-      plannedRun.modelName
+      plannedRun.modelName,
+      '--reasoning-effort',
+      'medium'
     ];
 
     if (sessionId) {

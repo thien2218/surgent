@@ -1,13 +1,5 @@
-import { collectSymbols, type SymbolKind } from "../languages/index.js";
+import { collectSymbols, SYMBOL_KINDS } from "../languages/index.js";
 import { renderNodeWithDepth } from "./extract.js";
-
-const INSPECTABLE_KINDS = new Set<SymbolKind>([
-  "function",
-  "class",
-  "class_method",
-  "object_method",
-  "top_level_var",
-]);
 
 export async function inspectSymbol(
   cwd: string,
@@ -19,7 +11,9 @@ export async function inspectSymbol(
   if (signal?.aborted) {
     throw new Error("inspector aborted");
   }
-  const symbols = await collectSymbols(cwd, path, INSPECTABLE_KINDS);
+  const kinds = new Set(SYMBOL_KINDS);
+  const symbols = await collectSymbols(cwd, path, kinds);
+
   for (const symbol of symbols) {
     if (symbol.name !== symbolName) continue;
     return {

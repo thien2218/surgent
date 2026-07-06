@@ -9,19 +9,27 @@ const inspect = defineTool({
   name: "inspect",
   label: "Inspect",
   description:
-    "Fetch one symbol body from one file. Sole purpose is to help avoid `read` tool. Output is safe for targeted edits; omit depth for exact body text. For duplicates, use ~n suffix (example: name~2).",
+    "Fetch one symbol body from one file. Output is safe for targeted edits; omit depth for exact body text.",
+  promptSnippet:
+    "Use inspect for exact top-level code reads. Use with code_map for full-file read. Keep read tool last resort.",
+  promptGuidelines: [
+    "Start from known symbols that closely aligns with user's request.",
+    "If symbol missing/not found, use code_map to view top-level code structure.",
+    "If issue persists, use code_map with broader kinds/need/targets.",
+  ],
   parameters: Type.Object({
     path: Type.String({
       description: "Exact file path containing target symbol (relative to cwd or absolute)",
     }),
     symbol: Type.String({
-      description: "Symbol name in file: <symbol> or duplicate form <symbol>~n",
+      description:
+        "Exact symbol string for one declaration in file: function name, class name, method name (MyClass.method), synthetic anonymous name (anonymous@L12), or duplicate form name~2",
     }),
     depth: Type.Optional(
       Type.Integer({
         minimum: 0,
         description:
-          "Nested expansion depth. Lower depth may collapse blocks with '…'; omit for exact symbol body text.",
+          "Nested expansion depth. Lower depth collapse blocks to save resource; increase to expand or omit for exact symbol body text. Prefer lower value on first round.",
       }),
     ),
   }),
@@ -53,7 +61,7 @@ const inspect = defineTool({
           content: [
             {
               type: "text",
-              text: "inspect symbol not found. verify path and symbol name; for duplicates use ~n suffix (example: name~2)",
+              text: "inspect symbol not found. verify path/symbol; for duplicates use ~n suffix (name~2). then try container symbol. if still missing, rerun symbol index with broader kinds. use read only for unresolved gaps",
             },
           ],
         };

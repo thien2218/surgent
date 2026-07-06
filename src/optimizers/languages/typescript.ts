@@ -2,12 +2,18 @@ import type { Language } from "tree-sitter";
 import type { LanguageProfile, SymbolKindRule } from "./types.js";
 
 const TYPESCRIPT_PROFILE_BASE: Omit<LanguageProfile, "loadLanguage"> = {
-  nameField: "name",
-  nameFieldByType: {},
+  nameFieldByType: { __default__: "name" },
   topLevelRoots: new Set(["program"]),
-  topLevelParents: new Set(["lexical_declaration", "variable_declaration", "export_statement"]),
+  topLevelParents: new Set([
+    "lexical_declaration",
+    "variable_declaration",
+    "variable_declarator",
+    "export_statement",
+  ]),
   typeRule: new Map<string, SymbolKindRule[]>([
-    ["function_declaration", [{ kind: "function" }]],
+    ["function_declaration", [{ kind: "function", topLevelOnly: true }]],
+    ["arrow_function", [{ kind: "function", topLevelOnly: true }]],
+    ["function_expression", [{ kind: "function", topLevelOnly: true }]],
     ["class_declaration", [{ kind: "class" }]],
     [
       "method_definition",
@@ -17,6 +23,17 @@ const TYPESCRIPT_PROFILE_BASE: Omit<LanguageProfile, "loadLanguage"> = {
       ],
     ],
     ["variable_declarator", [{ kind: "top_level_var", topLevelOnly: true }]],
+    ["import_specifier", [{ kind: "import" }]],
+    ["namespace_import", [{ kind: "import" }]],
+    [
+      "identifier",
+      [
+        { kind: "import", parent: "import_clause" },
+        { kind: "export", parent: "export_statement" },
+      ],
+    ],
+    ["export_specifier", [{ kind: "export" }]],
+    ["namespace_export", [{ kind: "export" }]],
   ]),
 };
 

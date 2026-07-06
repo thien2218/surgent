@@ -10,13 +10,6 @@ const inspect = defineTool({
   label: "Inspect",
   description:
     "Fetch one symbol body from one file. Output is safe for targeted edits; omit depth for exact body text.",
-  promptSnippet:
-    "Use inspect for exact top-level code reads. Use with code_map for full-file read. Keep read tool last resort.",
-  promptGuidelines: [
-    "Start from known symbols that closely aligns with user's request.",
-    "If symbol missing/not found, use code_map to view top-level code structure.",
-    "If issue persists, use code_map with broader kinds/need/targets.",
-  ],
   parameters: Type.Object({
     path: Type.String({
       description: "Exact file path containing target symbol (relative to cwd or absolute)",
@@ -61,7 +54,7 @@ const inspect = defineTool({
           content: [
             {
               type: "text",
-              text: "inspect symbol not found. verify path/symbol; for duplicates use ~n suffix (name~2). then try container symbol. if still missing, rerun symbol index with broader kinds. use read only for unresolved gaps",
+              text: "inspect symbol not found. verify path/symbol; for duplicates use ~n suffix (name~2). then try container symbol. if still missing, rerun symbol index with broader kinds",
             },
           ],
         };

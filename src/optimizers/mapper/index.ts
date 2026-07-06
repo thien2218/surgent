@@ -10,11 +10,11 @@ function normalizeExtension(extension: string) {
   return normalized.startsWith(".") ? normalized : `.${normalized}`;
 }
 
-const codeMapper = defineTool({
+const codeMap = defineTool({
   name: "code_map",
   label: "Code map",
   description:
-    "Fast symbol indexing. Best for: narrowing targets to inspect, or overall code structure understanding/discovery.",
+    "Fast symbol indexing. Best for: narrowing targets to inspect/read, or overall code understanding/discovery.",
   parameters: Type.Object({
     targets: Type.Array(Type.String(), {
       description: "Paths or globs to scan (relative to cwd). Keep scope narrow.",
@@ -154,4 +154,4 @@ const codeMapper = defineTool({
   },
 });
 
-export default codeMapper;
+export default codeMap;

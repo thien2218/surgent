@@ -21,12 +21,52 @@ function matchesTopLevelRule(node: Parser.SyntaxNode, profile: LanguageProfile) 
 }
 
 export function readNodeName(node: Parser.SyntaxNode, profile: LanguageProfile) {
-  const nodeNameField = profile.nameFieldByType[node.type] ?? profile.nameField;
-  const nodeName = node.childForFieldName(nodeNameField);
-  if (!nodeName) return;
+  if (node.type === "import_specifier" || node.type === "export_specifier") {
+    const aliasNode = node.childForFieldName("alias");
+    if (aliasNode) {
+      const aliasText = aliasNode.text.trim().replaceAll("\n", " ");
+      if (aliasText.length > 0) {
+        return aliasText;
+      }
+    }
+  }
 
-  const nodeNameText = nodeName.text.trim().replaceAll("\n", " ");
-  return nodeNameText.length > 0 ? nodeNameText : undefined;
+  const nodeNameField = profile.nameFieldByType[node.type] ?? profile.nameFieldByType.__default__;
+  const nodeName = node.childForFieldName(nodeNameField);
+  if (nodeName) {
+    const nodeNameText = nodeName.text.trim().replaceAll("\n", " ");
+    if (nodeNameText.length > 0) {
+      return nodeNameText;
+    }
+  }
+
+  if (node.type === "namespace_import" || node.type === "namespace_export") {
+    const namespaceNameNode = node.namedChild(0);
+    if (namespaceNameNode) {
+      const namespaceNameText = namespaceNameNode.text.trim().replaceAll("\n", " ");
+      if (namespaceNameText.length > 0) {
+        return namespaceNameText;
+      }
+    }
+  }
+
+  if (node.type === "identifier") {
+    const identifierText = node.text.trim().replaceAll("\n", " ");
+    return identifierText.length > 0 ? identifierText : undefined;
+  }
+
+  if (node.type === "arrow_function" || node.type === "function_expression") {
+    const declaratorNode = node.parent?.type === "variable_declarator" ? node.parent : undefined;
+    const declaratorNameNode = declaratorNode?.childForFieldName("name");
+    if (declaratorNameNode) {
+      const declaratorNameText = declaratorNameNode.text.trim().replaceAll("\n", " ");
+      if (declaratorNameText.length > 0) {
+        return declaratorNameText;
+      }
+    }
+
+    return `anonymous@L${node.startPosition.row + 1}`;
+  }
 }
 
 export function readContainerName(node: Parser.SyntaxNode, profile: LanguageProfile) {
@@ -66,4 +106,13 @@ export function getSupportedExtensions() {
 }
 
 export { collectSymbols } from "./symbols.js";
-export type { LanguageProfile, SymbolKind, LanguageSymbol } from "./types.js";
+export type { LanguageProfile, LanguageSymbol } from "./types.js";
+export const SYMBOL_KINDS = [
+  "function",
+  "class",
+  "class_method",
+  "object_method",
+  "top_level_var",
+  "import",
+  "export",
+] as const;

@@ -1,9 +1,10 @@
 import { readFile } from "node:fs/promises";
 import type { SyntaxNode } from "tree-sitter";
 import { getLanguageProfile, readContainerName, readNodeName, resolveSymbolKind } from "./index.js";
-import type { SymbolKind, LanguageSymbol } from "./index.js";
+import type { LanguageSymbol } from "./index.js";
 import { extname, resolve } from "node:path";
 import Parser from "tree-sitter";
+import type { SymbolKind } from "./types.js";
 
 async function createCodeParser(extension: string) {
   const languageProfile = getLanguageProfile(extension);
@@ -75,6 +76,9 @@ export async function collectSymbols(
 
     const symbolKind = resolveSymbolKind(currentNode, profile);
     if (!symbolKind || !kinds.has(symbolKind)) continue;
+    if (currentNode.type === "function_expression" && currentNode.childForFieldName("name")) {
+      continue;
+    }
 
     const baseName = readNodeName(currentNode, profile);
     if (!baseName) continue;

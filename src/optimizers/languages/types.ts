@@ -1,6 +1,13 @@
 import type { Language, SyntaxNode } from "tree-sitter";
 
-export type SymbolKind = "function" | "class" | "class_method" | "object_method" | "top_level_var";
+export type SymbolKind =
+  | "function"
+  | "class"
+  | "class_method"
+  | "object_method"
+  | "top_level_var"
+  | "import"
+  | "export";
 
 export interface SymbolKindRule {
   kind: SymbolKind;
@@ -10,8 +17,7 @@ export interface SymbolKindRule {
 
 export interface LanguageProfile {
   loadLanguage: () => Promise<Language>;
-  nameField: string;
-  nameFieldByType: Record<string, string>;
+  nameFieldByType: { __default__: string } & Record<string, string>;
   topLevelRoots: Set<string>;
   topLevelParents: Set<string>;
   typeRule: Map<string, SymbolKindRule[]>;

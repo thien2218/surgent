@@ -2,7 +2,7 @@ import { defineTool, keyHint } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { resolveTargetPaths } from "./files.js";
-import { getSupportedExtensions, collectSymbols, type SymbolKind } from "../languages/index.js";
+import { getSupportedExtensions, collectSymbols, SYMBOL_KINDS } from "../languages/index.js";
 import type { MapperResult } from "./types.js";
 
 function normalizeExtension(extension: string) {
@@ -14,39 +14,28 @@ const codeMapper = defineTool({
   name: "code_map",
   label: "Code map",
   description:
-    "Fast symbol index for code discovery. Returns symbol rows (with optional range/container), not code bodies. Best flow: run on narrow targets, then inspect exact symbol.",
+    "Fast symbol indexing. Best for: narrowing targets to inspect, or overall code structure understanding/discovery.",
   parameters: Type.Object({
-    targets: Type.Array(
-      Type.String({ description: "Paths or globs to scan (relative to cwd). Keep scope narrow." }),
-      { description: "Targets to map" },
-    ),
+    targets: Type.Array(Type.String(), {
+      description: "Paths or globs to scan (relative to cwd). Keep scope narrow.",
+    }),
     extensions: Type.Array(Type.String({ description: "File extension, e.g. .ts" }), {
       minItems: 1,
-      description:
-        "File extensions to include (e.g. .ts). Unsupported extensions return validation error.",
+      description: "File extensions to include (e.g. `.ts`).",
     }),
     kinds: Type.Optional(
-      Type.Array(
-        Type.Union([
-          Type.Literal("function"),
-          Type.Literal("class"),
-          Type.Literal("class_method"),
-          Type.Literal("object_method"),
-          Type.Literal("top_level_var"),
-        ]),
-        { description: "Abstraction kinds to include. Omit to include all supported kinds." },
-      ),
+      Type.Array(Type.Union(SYMBOL_KINDS.map((kind) => Type.Literal(kind))), {
+        description: "Abstraction kinds to include. Omit to include all supported.",
+      }),
     ),
     need: Type.Optional(
       Type.Array(Type.Union([Type.Literal("range"), Type.Literal("container")]), {
-        description: "Optional fields added to each symbol row",
+        description: "Optional fields added to each output row",
       }),
     ),
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-    const kinds = new Set<SymbolKind>(
-      params.kinds ?? ["function", "class", "class_method", "object_method", "top_level_var"],
-    );
+    const kinds = new Set(params.kinds ?? SYMBOL_KINDS);
     const fields = new Set(params.need ?? []);
     const result: MapperResult = { symbols: [], failed: [] };
     const extensions = new Set(params.extensions.map(normalizeExtension));
@@ -127,7 +116,6 @@ const codeMapper = defineTool({
     }
 
     const output = outputLines.join("\n");
-
     return { isError: false, details: output, content: [{ type: "text", text: output }] };
   },
   renderCall(args, theme) {

@@ -27,7 +27,6 @@
 │   ├── questionnaire
 │   ├── redact-secrets
 │   ├── subsession
-│   ├── test
 │   ├── ui
 │   ├── utils.ts
 │   └── web-tools

@@ -27,6 +27,25 @@ for (const testCase of [
         { level: 2, text: 'API', slug: 'api-3' }
       ]);
     }
+  },
+  {
+    name: 'ignores invalid heading syntax',
+    run() {
+      const markdownText = '# Intro\n#NoSpace\nHeading\n===\n## Valid';
+      assert.deepEqual(buildTableOfContents(markdownText), [
+        { level: 1, text: 'Intro', slug: 'intro' },
+        { level: 2, text: 'Valid', slug: 'valid' }
+      ]);
+    }
+  },
+  {
+    name: 'collapses repeated hyphens in slug',
+    run() {
+      const markdownText = '## Hello -- World';
+      assert.deepEqual(buildTableOfContents(markdownText), [
+        { level: 2, text: 'Hello -- World', slug: 'hello-world' }
+      ]);
+    }
   }
 ]) {
   totalCount += 1;

@@ -43,6 +43,33 @@ for (const testCase of [
         { retries: 3 }
       );
     }
+  },
+  {
+    name: 'keeps nested base value when nested override is undefined',
+    run() {
+      assert.deepEqual(
+        deepMergeConfig(
+          { feature: { retries: 3, mode: 'safe' } },
+          { feature: { retries: undefined, mode: 'fast' } }
+        ),
+        { feature: { retries: 3, mode: 'fast' } }
+      );
+    }
+  },
+  {
+    name: 'adds override-only keys while keeping base siblings',
+    run() {
+      const mergedConfig = deepMergeConfig(
+        { feature: { enabled: true }, retries: 2 },
+        { feature: { mode: 'dark' }, timeout: 30 }
+      );
+
+      assert.deepEqual(mergedConfig, {
+        feature: { enabled: true, mode: 'dark' },
+        retries: 2,
+        timeout: 30
+      });
+    }
   }
 ]) {
   totalCount += 1;

@@ -62,6 +62,27 @@ for (const testCase of [
       assert.equal(settledResults[1].status, 'rejected');
       assert.equal(settledResults[2].status, 'fulfilled');
     }
+  },
+  {
+    name: 'returns empty results for empty task list',
+    async run() {
+      assert.deepEqual(await runTasksWithConcurrency([], 3), []);
+    }
+  },
+  {
+    name: 'supports synchronous task results',
+    async run() {
+      const settledResults = await runTasksWithConcurrency([
+        () => 'alpha',
+        async () => 'beta',
+        () => 3
+      ], 2);
+      assert.deepEqual(settledResults, [
+        { status: 'fulfilled', value: 'alpha' },
+        { status: 'fulfilled', value: 'beta' },
+        { status: 'fulfilled', value: 3 }
+      ]);
+    }
   }
 ]) {
   totalCount += 1;

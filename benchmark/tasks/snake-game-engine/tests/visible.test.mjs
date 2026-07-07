@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { createGameState, tickGame } from '../src/index.mjs';
+import { createGameState, setDirection, tickGame } from '../src/index.mjs';
 
 let passedCount = 0;
 let totalCount = 0;
@@ -49,6 +49,45 @@ for (const testCase of [
       assert.equal(nextGameState.snake.length, 3);
       assert.deepEqual(nextGameState.snake[0], { x: 2, y: 1 });
       assert.equal(nextGameState.isGameOver, false);
+    }
+  },
+  {
+    name: 'applies direction change before next tick',
+    run() {
+      const gameState = createGameState({
+        boardWidth: 5,
+        boardHeight: 5,
+        snake: [{ x: 1, y: 1 }],
+        direction: 'right',
+        food: { x: 4, y: 4 }
+      });
+
+      const changedGameState = setDirection(gameState, 'down');
+      const nextGameState = tickGame(changedGameState);
+      assert.equal(gameState.direction, 'right');
+      assert.deepEqual(nextGameState.snake, [{ x: 1, y: 2 }]);
+      assert.equal(nextGameState.isGameOver, false);
+    }
+  },
+  {
+    name: 'marks game over on self collision',
+    run() {
+      const gameState = createGameState({
+        boardWidth: 5,
+        boardHeight: 5,
+        snake: [
+          { x: 1, y: 1 },
+          { x: 1, y: 2 },
+          { x: 2, y: 2 },
+          { x: 2, y: 1 },
+          { x: 3, y: 1 }
+        ],
+        direction: 'right',
+        food: { x: 4, y: 4 }
+      });
+
+      const nextGameState = tickGame(gameState);
+      assert.equal(nextGameState.isGameOver, true);
     }
   }
 ]) {

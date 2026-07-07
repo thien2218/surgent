@@ -79,6 +79,48 @@ for (const testCase of [
       assert.equal(nextGameState.food, null);
       assert.equal(nextGameState.isGameOver, false);
     }
+  },
+  {
+    name: 'allows opposite direction when snake has single segment',
+    run() {
+      const gameState = createGameState({
+        boardWidth: 4,
+        boardHeight: 4,
+        snake: [{ x: 1, y: 1 }],
+        direction: 'right',
+        food: { x: 3, y: 3 }
+      });
+
+      const changedGameState = setDirection(gameState, 'left');
+      const nextGameState = tickGame(changedGameState);
+      assert.deepEqual(nextGameState.snake[0], { x: 0, y: 1 });
+    }
+  },
+  {
+    name: 'returns immutable state updates',
+    run() {
+      const gameState = createGameState({
+        boardWidth: 5,
+        boardHeight: 5,
+        snake: [
+          { x: 1, y: 1 },
+          { x: 0, y: 1 }
+        ],
+        direction: 'right',
+        food: { x: 4, y: 4 }
+      });
+
+      const changedGameState = setDirection(gameState, 'down');
+      const nextGameState = tickGame(changedGameState);
+      assert.notEqual(changedGameState, gameState);
+      assert.notEqual(nextGameState, changedGameState);
+      assert.notEqual(nextGameState.snake, changedGameState.snake);
+      assert.deepEqual(gameState.snake, [
+        { x: 1, y: 1 },
+        { x: 0, y: 1 }
+      ]);
+      assert.equal(gameState.direction, 'right');
+    }
   }
 ]) {
   totalCount += 1;

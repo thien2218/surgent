@@ -22,6 +22,19 @@ for (const testCase of [
         params: { teamId: 'core', memberId: '42' }
       });
     }
+  },
+  {
+    name: 'captures wildcard remainder',
+    run() {
+      const matchedRoute = matchBestRoute(['/files/*'], '/files/docs/readme');
+      assert.deepEqual(matchedRoute, { pattern: '/files/*', params: { splat: 'docs/readme' } });
+    }
+  },
+  {
+    name: 'returns null when no route matches',
+    run() {
+      assert.equal(matchBestRoute(['/users/:id'], '/teams/core'), null);
+    }
   }
 ]) {
   totalCount += 1;

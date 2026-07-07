@@ -41,6 +41,38 @@ for (const testCase of [
         { level: 1, text: 'Hello,   World!', slug: 'hello-world' }
       ]);
     }
+  },
+  {
+    name: 'resumes parsing after multiple fenced code blocks',
+    run() {
+      const markdownText = '```js\n# Fake\n```\n## Real\n```txt\n### Also Fake\n```\n### After';
+      assert.deepEqual(buildTableOfContents(markdownText), [
+        { level: 2, text: 'Real', slug: 'real' },
+        { level: 3, text: 'After', slug: 'after' }
+      ]);
+    }
+  },
+  {
+    name: 'applies duplicate suffixes after slug normalization',
+    run() {
+      const markdownText = '# Hello, World!\n# Hello World\n# hello-world';
+      assert.deepEqual(buildTableOfContents(markdownText), [
+        { level: 1, text: 'Hello, World!', slug: 'hello-world' },
+        { level: 1, text: 'Hello World', slug: 'hello-world-2' },
+        { level: 1, text: 'hello-world', slug: 'hello-world-3' }
+      ]);
+    }
+  },
+  {
+    name: 'parses heading levels one through six only',
+    run() {
+      const markdownText = '# One\n###### Six\n####### Seven\n## Two';
+      assert.deepEqual(buildTableOfContents(markdownText), [
+        { level: 1, text: 'One', slug: 'one' },
+        { level: 6, text: 'Six', slug: 'six' },
+        { level: 2, text: 'Two', slug: 'two' }
+      ]);
+    }
   }
 ]) {
   totalCount += 1;

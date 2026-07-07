@@ -49,6 +49,61 @@ for (const testCase of [
       assert.throws(() => deepMergeConfig([], {}), TypeError);
       assert.throws(() => deepMergeConfig({}, null), TypeError);
     }
+  },
+  {
+    name: 'returns fresh nested containers',
+    run() {
+      const baseConfig = {
+        nested: {
+          left: { enabled: true }
+        }
+      };
+      const overrideConfig = {
+        nested: {
+          right: { enabled: false }
+        },
+        list: [1, 2]
+      };
+
+      const mergedConfig = deepMergeConfig(baseConfig, overrideConfig);
+      assert.deepEqual(mergedConfig, {
+        nested: {
+          left: { enabled: true },
+          right: { enabled: false }
+        },
+        list: [1, 2]
+      });
+      assert.notEqual(mergedConfig.nested, baseConfig.nested);
+      assert.notEqual(mergedConfig.nested.left, baseConfig.nested.left);
+      assert.notEqual(mergedConfig.nested.right, overrideConfig.nested.right);
+      assert.notEqual(mergedConfig.list, overrideConfig.list);
+    }
+  },
+  {
+    name: 'clones base containers when override key is missing',
+    run() {
+      const baseConfig = {
+        nested: { enabled: true },
+        list: [1, 2]
+      };
+
+      const mergedConfig = deepMergeConfig(baseConfig, {});
+      assert.deepEqual(mergedConfig, baseConfig);
+      assert.notEqual(mergedConfig.nested, baseConfig.nested);
+      assert.notEqual(mergedConfig.list, baseConfig.list);
+    }
+  },
+  {
+    name: 'replaces object with scalar override',
+    run() {
+      assert.deepEqual(
+        deepMergeConfig(
+          { feature: { enabled: true, retries: 2 } },
+          { feature: false }
+        ),
+        { feature: false }
+      );
+    }
   }
 ]) {
   totalCount += 1;

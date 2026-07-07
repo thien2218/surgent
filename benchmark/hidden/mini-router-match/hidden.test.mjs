@@ -35,6 +35,36 @@ for (const testCase of [
       assert.deepEqual(matchedRoute, { pattern: '/search/:query', params: { query: 'hello world' } });
       assert.equal(matchBestRoute(['/users/:id'], '/teams/core'), null);
     }
+  },
+  {
+    name: 'keeps first pattern when scores tie',
+    run() {
+      const matchedRoute = matchBestRoute(['/teams/:id', '/teams/:teamId'], '/teams/core');
+      assert.deepEqual(matchedRoute, {
+        pattern: '/teams/:id',
+        params: { id: 'core' }
+      });
+    }
+  },
+  {
+    name: 'prefers param route over wildcard route',
+    run() {
+      const matchedRoute = matchBestRoute(['/docs/*', '/docs/:slug'], '/docs/getting-started');
+      assert.deepEqual(matchedRoute, {
+        pattern: '/docs/:slug',
+        params: { slug: 'getting-started' }
+      });
+    }
+  },
+  {
+    name: 'prefers static route over wildcard route',
+    run() {
+      const matchedRoute = matchBestRoute(['/docs/*', '/docs/readme'], '/docs/readme');
+      assert.deepEqual(matchedRoute, {
+        pattern: '/docs/readme',
+        params: {}
+      });
+    }
   }
 ]) {
   totalCount += 1;

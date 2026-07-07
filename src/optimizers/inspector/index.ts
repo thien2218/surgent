@@ -1,7 +1,6 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { parseInspectToolDetails } from "./helpers.js";
 import { inspectSymbol } from "./inspect.js";
 import type { InspectToolDetails } from "./types.js";
 
@@ -85,15 +84,8 @@ const inspect = defineTool({
       0,
     );
   },
-  renderResult(result, { isPartial }, theme) {
-    if (isPartial) {
-      return new Text(theme.fg("warning", "Inspecting..."), 0, 0);
-    }
-    const details = parseInspectToolDetails(result.details);
-    const output = details
-      ? `Inspected ${details.path} ${details.symbol} depth=${details.depth} range=${details.range[0]}-${details.range[1]}`
-      : "";
-    return new Text(output, 0, 0);
+  renderResult() {
+    return new Text("", 0, 0);
   },
 });
 

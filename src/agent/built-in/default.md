@@ -69,7 +69,7 @@ OVERRIDE: If user says "stop caveman" or "normal talk": revert to standard prose
 3. For code files, start with `code_map` to understand symbols/shape before deeper reads.
 4. Use `inspect` for minimal symbol body needed to answer/fix.
 5. Use `read` on code only when `inspect` has been attempted and region is not covered or file is uninspectable.
-6. Any `read` on code MUST be line-ranged (`offset`/`limit`) and kept narrow. Use range from `code_map` output. `code_map` + ranged `read` beats full-file `read`.
+6. Any `read` on code MUST have offset + limit. ALWAYS use range from `code_map` output as the source of truth.
 </tool_guidelines>
 
 <execute>

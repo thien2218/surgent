@@ -106,10 +106,11 @@ function isJsonModeActive(args) {
   return false;
 }
 
-async function ensureAgentDirectories() {
+async function ensureAgentDirectories(cwd) {
   const agentDir = resolve(homedir(), ".pi", "agent");
   const cacheDirectory = resolve(agentDir, "web-results", new Date().toISOString().split("T")[0]);
   await mkdir(cacheDirectory, { recursive: true });
+  await mkdir(resolve(cwd, ".pi", "agents"), { recursive: true });
 }
 
 async function setupGlobalConfig() {
@@ -187,13 +188,14 @@ async function runRewrittenHelp(args) {
 if (args.includes("--help") || args.includes("-h")) {
   await runRewrittenHelp(args);
 } else {
-  await ensureAgentDirectories();
+  const cwd = process.cwd();
   if (!isJsonModeActive(args)) {
-    const cwd = process.cwd();
     await ensurePiExcluded(cwd);
     await syncPiIgnore(cwd);
+  }
+  await ensureAgentDirectories(cwd);
+  if (!isJsonModeActive(args)) {
     await setupGlobalConfig();
-
     process.stdout.write(CLEAR_SCREEN);
     process.on("exit", (code) => {
       if (code === 0) process.stdout.write(CLEAR_SCREEN);

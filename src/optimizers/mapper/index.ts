@@ -14,7 +14,7 @@ const codeMap = defineTool({
   name: "code_map",
   label: "Code map",
   description:
-    "Fast symbol and code blocks lines range indexing. Best for: narrowing targets to inspect/read, or code discovery.",
+    "Fast symbol and code blocks offset/limit indexing. Best for: narrowing targets to inspect/read or code discovery.",
   parameters: Type.Object({
     targets: Type.Array(Type.String(), {
       description: "Paths or globs to scan (relative to cwd). Keep scope narrow.",
@@ -99,10 +99,10 @@ const codeMap = defineTool({
     const outputLines = result.symbols.map((symbol) => {
       let line = ` ${symbol.path} ${symbol.kind} symbol=${symbol.name}`;
       if (symbol.range) {
-        line += ` range:${symbol.range[0]}-${symbol.range[1]}`;
+        line += ` range=${symbol.range[0]}-${symbol.range[1]}`;
       }
       if (symbol.container) {
-        line += ` container:${symbol.container}`;
+        line += ` container=${symbol.container}`;
       }
       return line;
     });

@@ -90,7 +90,35 @@ const codeMap = defineTool({
 
       try {
         const symbols = await collectSymbols(ctx.cwd, path, kinds, params.container);
-        result.symbols.push(...symbols);
+        const importSymbols = symbols.filter((symbol) => symbol.kind === "import" && symbol.range);
+
+        if (importSymbols.length === 0) {
+          result.symbols.push(...symbols);
+          continue;
+        }
+
+        const firstImportSymbol = importSymbols[0];
+        if (!firstImportSymbol) {
+          result.symbols.push(...symbols);
+          continue;
+        }
+
+        const importRange: [number, number] = [firstImportSymbol.range![0], firstImportSymbol.range![1]];
+        for (const importSymbol of importSymbols) {
+          importRange[0] = Math.min(importRange[0], importSymbol.range![0]);
+          importRange[1] = Math.max(importRange[1], importSymbol.range![1]);
+        }
+
+        let hasClampedImports = false;
+        result.symbols.push(
+          ...symbols.flatMap((symbol) => {
+            if (symbol.kind !== "import") return [symbol];
+            if (hasClampedImports) return [];
+
+            hasClampedImports = true;
+            return [{ ...symbol, name: "<special_import_symbol>", range: importRange }];
+          }),
+        );
       } catch {
         result.failed.push(path);
       }

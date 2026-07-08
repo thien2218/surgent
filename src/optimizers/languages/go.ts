@@ -1,4 +1,5 @@
 import type { Language, SyntaxNode } from "tree-sitter";
+import { loadGrammarModule } from "./grammar.js";
 import { RuleBasedLanguageProfile, type SymbolKindRule } from "./types.js";
 
 export class GoLanguageProfile extends RuleBasedLanguageProfile {
@@ -18,7 +19,10 @@ export class GoLanguageProfile extends RuleBasedLanguageProfile {
       new Map<string, SymbolKindRule[]>([
         ["function_declaration", [{ kind: "function", topLevelOnly: true }]],
         ["method_declaration", [{ kind: "class_method" }]],
-        ["method_elem", [{ kind: "class_method", parent: "interface_type", container: "type_spec" }]],
+        [
+          "method_elem",
+          [{ kind: "class_method", parent: "interface_type", container: "type_spec" }],
+        ],
         ["const_spec", [{ kind: "top_level_var", topLevelOnly: true }]],
         ["import_spec", [{ kind: "import", topLevelOnly: true }]],
         ["type_alias", [{ kind: "class", topLevelOnly: true }]],
@@ -29,8 +33,9 @@ export class GoLanguageProfile extends RuleBasedLanguageProfile {
   }
 
   async loadLanguage(_extension: string) {
-    const languagePack = await import("tree-sitter-go");
-    return (languagePack.default ?? languagePack) as Language;
+    const languagePack = await loadGrammarModule("tree-sitter-go");
+    const languageExport = (languagePack.default ?? languagePack) as Language;
+    return languageExport;
   }
 
   readNodeName(node: SyntaxNode) {

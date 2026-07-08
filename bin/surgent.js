@@ -106,16 +106,12 @@ function isJsonModeActive(args) {
   return false;
 }
 
-async function ensureAgentDirectories(cwd) {
-  const agentDir = resolve(homedir(), ".pi", "agent");
-  const cacheDirectory = resolve(agentDir, "web-results", new Date().toISOString().split("T")[0]);
-  await mkdir(cacheDirectory, { recursive: true });
-  await mkdir(resolve(cwd, ".pi", "agents"), { recursive: true });
-}
-
 async function setupGlobalConfig() {
   const srcDir = resolve(PACKAGE_DIR, "src");
   const agentDir = resolve(homedir(), ".pi", "agent");
+  if (!existsSync(agentDir)) {
+    throw new Error("Missing ~/.pi/agent. Run scripts/build.mjs first.");
+  }
 
   const entries = await readdir(srcDir, { withFileTypes: true });
   const extensions = entries
@@ -193,7 +189,7 @@ if (args.includes("--help") || args.includes("-h")) {
     await ensurePiExcluded(cwd);
     await syncPiIgnore(cwd);
   }
-  await ensureAgentDirectories(cwd);
+  await mkdir(resolve(cwd, ".pi", "agents"), { recursive: true });
   if (!isJsonModeActive(args)) {
     await setupGlobalConfig();
     process.stdout.write(CLEAR_SCREEN);

@@ -116,11 +116,12 @@ const codeMap = defineTool({
             if (hasClampedImports) return [];
 
             hasClampedImports = true;
-            return [{ ...symbol, name: "<special_import_symbol>", range: importRange }];
+            return [{ ...symbol, name: `imports@L${importRange[0]}-L${importRange[1]}`, range: importRange }];
           }),
         );
-      } catch {
-        result.failed.push(path);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        result.failed.push(`${path}: ${message}`);
       }
     }
 
@@ -136,7 +137,7 @@ const codeMap = defineTool({
     });
 
     if (result.failed.length > 0) {
-      outputLines.push(...result.failed.map((path) => `failed ${path}`));
+      outputLines.push(...result.failed.map((failure) => `failed ${failure}`));
     }
     if (outputLines.length === 0) {
       outputLines.push("(no symbols found) targets matched no supported files or symbols");

@@ -1,29 +1,66 @@
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { ensureGrammarCache } from "./grammar.js";
+import type { LanguageProfile } from "./types.js";
+import { TypeScriptLanguageProfile } from "./typescript.js";
+import { PythonLanguageProfile } from "./python.js";
 import { GoLanguageProfile } from "./go.js";
 import { JavaLanguageProfile } from "./java.js";
-import { PythonLanguageProfile } from "./python.js";
-import { TypeScriptLanguageProfile } from "./typescript.js";
-import type { LanguageProfile } from "./types.js";
 
-const LANGUAGE_PROFILES: LanguageProfile[] = [
-  new GoLanguageProfile(),
-  new JavaLanguageProfile(),
-  new PythonLanguageProfile(),
-  new TypeScriptLanguageProfile(),
+export const LANGUAGE_REGISTRY: Array<{
+  bucketName: string;
+  packageName: string;
+  version: string;
+  profile: LanguageProfile;
+}> = [
+  {
+    bucketName: "typescript",
+    packageName: "tree-sitter-typescript",
+    version: "0.23.2",
+    profile: new TypeScriptLanguageProfile(),
+  },
+  {
+    bucketName: "python",
+    packageName: "tree-sitter-python",
+    version: "0.25.0",
+    profile: new PythonLanguageProfile(),
+  },
+  {
+    bucketName: "go",
+    packageName: "tree-sitter-go",
+    version: "0.25.0",
+    profile: new GoLanguageProfile(),
+  },
+  {
+    bucketName: "java",
+    packageName: "tree-sitter-java",
+    version: "0.23.5",
+    profile: new JavaLanguageProfile(),
+  },
 ];
 
-const PROFILE_BY_EXTENSION = new Map<string, LanguageProfile>();
-for (const languageProfile of LANGUAGE_PROFILES) {
-  for (const extension of languageProfile.extensions) {
-    PROFILE_BY_EXTENSION.set(extension, languageProfile);
-  }
-}
-
 export function getLanguageProfile(extension: string) {
-  return PROFILE_BY_EXTENSION.get(extension);
+  return LANGUAGE_REGISTRY.find(({ profile }) => profile.extensions.has(extension))?.profile;
 }
 
 export function getSupportedExtensions() {
-  return new Set(PROFILE_BY_EXTENSION.keys());
+  const supported = new Set<string>();
+  LANGUAGE_REGISTRY.forEach(({ profile }) => {
+    profile.extensions.forEach((extension) => supported.add(extension));
+  });
+  return supported;
+}
+
+export default function (pi: ExtensionAPI) {
+  pi.on("session_start", async (_event, ctx) => {
+    try {
+      await ensureGrammarCache(ctx);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (ctx.hasUI) {
+        ctx.ui.notify(`tree-sitter grammar install failed: ${message}`, "error");
+      }
+    }
+  });
 }
 
 export { collectSymbols } from "./symbols.js";

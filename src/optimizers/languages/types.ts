@@ -34,6 +34,18 @@ export interface LanguageProfile {
   shouldSkipSymbol(node: SyntaxNode): boolean;
 }
 
+export interface SupportedLanguageBucket {
+  bucketName: string;
+  packageName: string;
+  version: string;
+  extensions: Set<string>;
+}
+
+export interface GrammarInstallSettings {
+  allowedRepos?: string[];
+  deniedRepos?: string[];
+}
+
 export abstract class RuleBasedLanguageProfile implements LanguageProfile {
   constructor(
     readonly extensions: Set<string>,

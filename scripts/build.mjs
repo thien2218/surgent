@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, "..");
+const globalPiDir = resolve(homedir(), ".pi", "agent");
+const globalPiSubdirs = ["agents", "subsessions", "grammars", "web-results"];
 
 async function main() {
   process.chdir(projectRoot);
@@ -18,8 +20,11 @@ async function main() {
   console.log("Linking package with npm link...");
   await runCommand("npm", ["link"]);
 
-  console.log("Ensuring existence of global ~/.pi/agent/ dir");
-  await mkdir(resolve(homedir(), ".pi", "agent"), { recursive: true });
+  console.log("Ensuring global ~/.pi/agent/ directories...");
+  await mkdir(globalPiDir, { recursive: true });
+  for (const globalPiAgentSubdirectory of globalPiSubdirs) {
+    await mkdir(resolve(globalPiDir, globalPiAgentSubdirectory), { recursive: true });
+  }
 }
 
 async function installDependencies() {

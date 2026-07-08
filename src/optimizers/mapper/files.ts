@@ -1,67 +1,11 @@
-import { spawn } from "node:child_process";
 import picomatch from "picomatch";
+import { runCommand } from "../../utils.js";
 
 const SKIPPED_DIRECTORIES = new Set([".git", ".pi", "build", "coverage", "dist", "node_modules"]);
 
 function normalizePath(pathValue: string) {
   const normalizedPath = pathValue.replaceAll("\\", "/");
   return normalizedPath.startsWith("./") ? normalizedPath.slice(2) : normalizedPath;
-}
-
-async function runCommand(
-  projectPath: string,
-  command: string,
-  argumentsList: string[],
-  signal?: AbortSignal,
-) {
-  if (signal?.aborted) {
-    throw new Error("mapper aborted");
-  }
-
-  const stdout = await new Promise<string>((resolve, reject) => {
-    const childProcess = spawn(command, argumentsList, {
-      cwd: projectPath,
-      signal,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdoutBuffer = "";
-    let stderrBuffer = "";
-
-    childProcess.stdout.on("data", (chunk) => {
-      stdoutBuffer += String(chunk);
-    });
-
-    childProcess.stderr.on("data", (chunk) => {
-      stderrBuffer += String(chunk);
-    });
-
-    childProcess.on("error", reject);
-
-    childProcess.on("close", (code) => {
-      if (signal?.aborted) {
-        reject(new Error("mapper aborted"));
-        return;
-      }
-
-      if (code !== 0 && code !== 1) {
-        const failureMessage = stderrBuffer.trim();
-        reject(
-          new Error(
-            failureMessage.length > 0 ? failureMessage : `${command} exited with code ${code}`,
-          ),
-        );
-        return;
-      }
-
-      resolve(stdoutBuffer);
-    });
-  });
-
-  return stdout
-    .split("\n")
-    .map((line) => normalizePath(line.trim()))
-    .filter((line) => line.length > 0);
 }
 
 async function rgFiles(
@@ -80,7 +24,15 @@ async function rgFiles(
   }
 
   args.push(".");
-  const paths = await runCommand(projectPath, "rg", args, signal);
+  const commandResult = await runCommand(projectPath, "rg", args, {
+    signal,
+    successExitCodes: [0, 1],
+    abortMessage: "mapper aborted",
+  });
+  const paths = commandResult.stdout
+    .split("\n")
+    .map((line) => normalizePath(line.trim()))
+    .filter((line) => line.length > 0);
   if (extensions.size === 0) return paths;
 
   return paths.filter((pathValue) => {
@@ -107,7 +59,15 @@ async function grepFiles(
   }
 
   args.push("-e", "", ".");
-  const paths = await runCommand(projectPath, "grep", args, signal);
+  const commandResult = await runCommand(projectPath, "grep", args, {
+    signal,
+    successExitCodes: [0, 1],
+    abortMessage: "mapper aborted",
+  });
+  const paths = commandResult.stdout
+    .split("\n")
+    .map((line) => normalizePath(line.trim()))
+    .filter((line) => line.length > 0);
   const matchers = globTargets.map((globTarget) => picomatch(globTarget, { dot: true }));
   return paths.filter((pathValue) => matchers.some((matcher) => matcher(pathValue)));
 }

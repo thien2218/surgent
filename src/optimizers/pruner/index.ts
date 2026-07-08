@@ -10,7 +10,7 @@ type CustomAgentMessage = {
 
 export function pruneContextToolResults(messages: Array<{ role?: string }>) {
   const seenSymbols = new Set<string>();
-  const keptPaths = new Set<string>();
+  // const keptPaths = new Set<string>();
   let changed = false;
 
   for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex--) {
@@ -32,19 +32,19 @@ export function pruneContextToolResults(messages: Array<{ role?: string }>) {
       continue;
     }
 
-    if (message.toolName !== "read") continue;
-    if (!message.input || typeof message.input !== "object") continue;
+    // if (message.toolName !== "read") continue;
+    // if (!message.input || typeof message.input !== "object") continue;
 
-    const path = (message.input as { path?: unknown }).path;
-    if (typeof path !== "string" || path.length === 0) continue;
+    // const path = (message.input as { path?: unknown }).path;
+    // if (typeof path !== "string" || path.length === 0) continue;
 
-    if (keptPaths.has(path) || keptPaths.size >= 10) {
-      changed = true;
-      messages.splice(messageIndex, 1);
-      continue;
-    }
+    // if (keptPaths.has(path) || keptPaths.size >= 10) {
+    //   changed = true;
+    //   messages.splice(messageIndex, 1);
+    //   continue;
+    // }
 
-    keptPaths.add(path);
+    // keptPaths.add(path);
   }
 
   return changed;

@@ -1,4 +1,5 @@
 import type { Language, SyntaxNode } from "tree-sitter";
+import { loadGrammarModule } from "./grammar.js";
 import { RuleBasedLanguageProfile, type SymbolKindRule } from "./types.js";
 
 export class PythonLanguageProfile extends RuleBasedLanguageProfile {
@@ -32,8 +33,9 @@ export class PythonLanguageProfile extends RuleBasedLanguageProfile {
   }
 
   async loadLanguage(_extension: string) {
-    const languagePack = await import("tree-sitter-python");
-    return (languagePack.default ?? languagePack) as Language;
+    const languagePack = await loadGrammarModule("tree-sitter-python");
+    const languageExport = (languagePack.default ?? languagePack) as Language;
+    return languageExport;
   }
 
   readNodeName(node: SyntaxNode) {

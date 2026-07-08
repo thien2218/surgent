@@ -53,7 +53,7 @@ const inspect = defineTool({
           content: [
             {
               type: "text",
-              text: "inspect symbol not found. verify path/symbol; for duplicates use ~n suffix (name~2). then try container symbol. if still missing, rerun symbol index with broader kinds",
+              text: "inspect symbol not found. verify path/symbol; for duplicates use ~n suffix (name~2). then try container symbol. if still missing, run code_map with broader kinds",
             },
           ],
         };

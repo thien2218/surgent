@@ -1,4 +1,5 @@
 import type { Language, SyntaxNode } from "tree-sitter";
+import { loadGrammarModule } from "./grammar.js";
 import { RuleBasedLanguageProfile, type SymbolKindRule } from "./types.js";
 
 export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
@@ -7,7 +8,12 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
       new Set([".ts", ".tsx", ".js", ".mjs", ".cjs", ".jsx"]),
       { __default__: "name" },
       new Set(["program"]),
-      new Set(["lexical_declaration", "variable_declaration", "variable_declarator", "export_statement"]),
+      new Set([
+        "lexical_declaration",
+        "variable_declaration",
+        "variable_declarator",
+        "export_statement",
+      ]),
       new Map<string, SymbolKindRule[]>([
         ["function_declaration", [{ kind: "function", topLevelOnly: true }]],
         ["arrow_function", [{ kind: "function", topLevelOnly: true }]],
@@ -37,11 +43,21 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
   }
 
   async loadLanguage(extension: string) {
-    const languagePack = await import("tree-sitter-typescript");
-    if (extension === ".tsx" || extension === ".jsx") {
-      return (languagePack.tsx ?? languagePack.typescript) as Language;
+    const languagePack = await loadGrammarModule("tree-sitter-typescript");
+    const languageExports =
+      typeof languagePack.default === "object" && languagePack.default !== null
+        ? languagePack.default
+        : languagePack;
+
+    const typeScriptLanguage = languageExports.typescript as Language | undefined;
+    if (!typeScriptLanguage) {
+      throw new Error("tree-sitter-typescript missing typescript export");
     }
-    return languagePack.typescript as Language;
+
+    if (extension === ".tsx" || extension === ".jsx") {
+      return (languageExports.tsx as Language | undefined) ?? typeScriptLanguage;
+    }
+    return typeScriptLanguage;
   }
 
   readNodeName(node: SyntaxNode) {

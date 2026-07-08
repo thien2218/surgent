@@ -37,12 +37,12 @@
 
 Before implementing or modifying any feature, read the relevant pi docs:
 
-- **Extensions** (tools, commands, events, lifecycle): `node_modules/.ignored/@earendil-works/pi-coding-agent/docs/extensions.md`
-- **TUI/Custom UI**: `node_modules/.ignored/@earendil-works/pi-coding-agent/docs/tui.md`
-- **SDK usage**: `node_modules/.ignored/@earendil-works/pi-coding-agent/docs/sdk.md`
-- **Models/providers**: `node_modules/.ignored/@earendil-works/pi-coding-agent/docs/models.md`
-- **Skills and prompts**: `node_modules/.ignored/@earendil-works/pi-coding-agent/docs/skills.md`
-- **Examples**: `node_modules/.ignored/@earendil-works/pi-coding-agent/examples/extensions/`
+- **Extensions** (tools, commands, events, lifecycle): `node_modules/@earendil-works/pi-coding-agent/docs/extensions.md`
+- **TUI/Custom UI**: `node_modules/@earendil-works/pi-coding-agent/docs/tui.md`
+- **SDK usage**: `node_modules/@earendil-works/pi-coding-agent/docs/sdk.md`
+- **Models/providers**: `node_modules/@earendil-works/pi-coding-agent/docs/models.md`
+- **Skills and prompts**: `node_modules/@earendil-works/pi-coding-agent/docs/skills.md`
+- **Examples**: `node_modules/@earendil-works/pi-coding-agent/examples/extensions/`
 
 ## How to implement features
 

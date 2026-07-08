@@ -1,4 +1,5 @@
 import type { Language, SyntaxNode } from "tree-sitter";
+import { loadGrammarModule } from "./grammar.js";
 import { RuleBasedLanguageProfile, type SymbolKindRule } from "./types.js";
 
 export class JavaLanguageProfile extends RuleBasedLanguageProfile {
@@ -35,8 +36,9 @@ export class JavaLanguageProfile extends RuleBasedLanguageProfile {
   }
 
   async loadLanguage(_extension: string) {
-    const languagePack = await import("tree-sitter-java");
-    return (languagePack.default ?? languagePack) as Language;
+    const languagePack = await loadGrammarModule("tree-sitter-java");
+    const languageExport = (languagePack.default ?? languagePack) as Language;
+    return languageExport;
   }
 
   readNodeName(node: SyntaxNode) {

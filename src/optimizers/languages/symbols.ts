@@ -36,13 +36,7 @@ async function getRootNode(cwd: string, path: string) {
     return;
   }
 
-  let parser: Parser;
-  try {
-    parser = await getParserForPath(path, parsers);
-  } catch {
-    return;
-  }
-
+  const parser = await getParserForPath(path, parsers);
   const tree = parser.parse(code);
   return tree.rootNode;
 }

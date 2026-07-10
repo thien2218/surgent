@@ -1,9 +1,0 @@
-agent,task,completionTime,testsPassedPercent,inputTokens,outputTokens,totalTokens,cacheHit,totalCost
-surgent,snake-game-engine,110.0,100.00,150702,2919,153621,72.09,0.106
-copilot,snake-game-engine,172.6,100.00,460342,1973,462315,83.99,3.640
-surgent,markdown-toc-generator,70.2,100.00,70063,1189,71252,73.59,0.046
-copilot,markdown-toc-generator,140.5,100.00,291248,1858,293106,83.25,2.240
-surgent,mini-router-match,136.4,100.00,132539,3337,135876,65.27,0.112
-copilot,mini-router-match,219.5,100.00,376643,2634,379277,79.02,2.800
-surgent,task-queue-concurrency,75.9,100.00,109426,1736,111162,72.24,0.073
-copilot,task-queue-concurrency,96.3,100.00,249019,1331,250350,83.98,2.100

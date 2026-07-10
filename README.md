@@ -9,41 +9,57 @@ The primary entrypoint is the `surgent` command, which launches an interactive t
 
 ## Why exist?
 
-The pi framework provides a capable agent runtime. `surgent` adds an opinionated workflow layer for day-to-day repository work.
+The pi framework provides a capable agent runtime. `surgent` adds an opinionated workflow layer for day-to-day repository work, with a strong emphasis on reducing token waste and keeping model context focused.
 
 In particular, it is designed to support:
 
+- lower-token code inspection workflows
+- context-aware tool usage patterns
 - reusable planning and review loops
 - stricter access control for file, shell, and web operations
-- lower-token code inspection workflows
 - integrated MCP server management
 - built-in web search and web fetch capabilities
 - git-backed code checkpoints across session tree navigation
 
-The overall goal is to make repository work faster, safer, and more consistent.
+The overall goal is to make repository work faster, safer, and more context-efficient.
+
+## Core philosophy
+
+`surgent` is built around a simple idea: token budget is one of the main constraints in practical coding-agent work.
+
+That philosophy shows up throughout the tool:
+
+- prefer narrow, structured inspection over large file dumps
+- keep context focused on code that matters for the current step
+- summarize noisy tool output before it reaches future turns
+- encourage discovery-first workflows before requesting large patches or documents
+- preserve safety and operator control without bloating context unnecessarily
+
+Features such as `code_map`, `inspect`, grep and bash result compaction, cached web fetch output, and summary-first diff inspection all exist to reduce context size while preserving useful signal.
 
 ## Key features
 
 - custom commands: `/agents`, `/mcp`, `/permissions`, `/plan`, `/review`, `/web-login`
 - custom tools: `code_diff`, `code_map`, `inspect`, `list_mcp_tools`, `call_mcp_tool`, `questionnaire`, `web_search`, `web_fetch`
+- token-saving code inspection built around `code_map` and `inspect`
+- context compaction for noisy `grep` and `bash` output
 - agent profiles with per-agent tool, model, and MCP allowlists
 - reusable planner and reviewer subsessions
 - permission rules for file, shell, and web access
 - a YOLO mode toggle for bypassing permission prompts when appropriate
 - secret write blocking and secret redaction in tool output
 - checkpoint restore prompts during session tree navigation
-- tree-sitter-backed code mapping and symbol inspection
 - provider-backed web search and cached web page fetch
 
 ## Architecture overview
 
 The project is organized around pi extensions plus a small number of support modules.
 
-At a high level:
+At a high level, the architecture centers on context discipline first, then capability layers around it:
 
-1. `agent` loads the active agent profile and writes the session prompt files.
-2. `permission` governs sensitive tool calls.
-3. `optimizers` provides code-aware tools and token-saving context compaction.
+1. `optimizers` provides code-aware tools and token-saving context compaction.
+2. `agent` loads the active agent profile and writes the session prompt files.
+3. `permission` governs sensitive tool calls.
 4. feature extensions such as `mcp-client`, `web-tools`, `code-diff`, and `questionnaire` add domain-specific capabilities.
 5. `commands` relies on the `subsession` support module to run planner and reviewer child sessions.
 6. `checkpoint`, `cleanup`, and `redact-secrets` protect code state and session output.

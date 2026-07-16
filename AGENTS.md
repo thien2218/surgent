@@ -25,7 +25,7 @@
 │   ├── optimizers
 │   ├── permission
 │   ├── questionnaire
-│   ├── redact-secrets
+│   ├── redactor
 │   ├── subsession
 │   ├── ui
 │   ├── utils.ts

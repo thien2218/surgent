@@ -62,7 +62,7 @@ At a high level, the architecture centers on context discipline first, then capa
 3. `permission` governs sensitive tool calls.
 4. feature extensions such as `mcp-client`, `web-tools`, `code-diff`, and `questionnaire` add domain-specific capabilities.
 5. `commands` relies on the `subsession` support module to run planner and reviewer child sessions.
-6. `checkpoint`, `cleanup`, and `redact-secrets` protect code state and session output.
+6. `checkpoint`, `cleanup`, and `redactor` protect code state and session output.
 7. `ui` customizes the TUI header and editor mode indicator.
 
 Not every directory under `src/` is a standalone extension. `subsession/` is a shared support module, and `utils.ts` is a shared helper module.
@@ -80,7 +80,7 @@ Primary documented extension directories:
 - [`src/optimizers/README.md`](./src/optimizers/README.md) — `code_map`, `inspect`, grammar bootstrap, and context pruning
 - [`src/permission/README.md`](./src/permission/README.md) — file, shell, and web access control plus permission management UI
 - [`src/questionnaire/README.md`](./src/questionnaire/README.md) — structured clarifying-question workflow
-- [`src/redact-secrets/README.md`](./src/redact-secrets/README.md) — secret detection and redaction
+- [`src/redactor/README.md`](./src/redactor/README.md) — arbitrary text redaction
 - [`src/web-tools/README.md`](./src/web-tools/README.md) — web search, web fetch, authentication, and cache handling
 
 Supporting modules documented separately:
@@ -103,7 +103,7 @@ A typical interactive session proceeds as follows:
    - `ui` installs the custom header and editor component.
 5. The agent turn runs.
    - `permission` intercepts guarded tools.
-   - `redact-secrets` blocks unsafe writes and redacts sensitive output.
+   - `redactor` blocks generated opaque text and redacts it from tool output.
    - custom tools execute as needed.
    - `optimizers` compacts bulky results for future context.
 6. The user may branch the session tree, resume an older node, or run a planner or reviewer subsession.
@@ -128,7 +128,7 @@ A typical interactive session proceeds as follows:
 │   ├── optimizers/
 │   ├── permission/
 │   ├── questionnaire/
-│   ├── redact-secrets/
+│   ├── redactor/
 │   ├── subsession/
 │   ├── test/
 │   ├── ui/

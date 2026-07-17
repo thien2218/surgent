@@ -38,6 +38,18 @@ export class PythonLanguageProfile extends RuleBasedLanguageProfile {
     return languageExport;
   }
 
+  resolveSymbolKind(node: SyntaxNode) {
+    if (
+      node.type === "assignment" &&
+      this.matchesTopLevelRule(node) &&
+      this.readFieldText(node, "left") === "__all__"
+    ) {
+      return "export";
+    }
+
+    return super.resolveSymbolKind(node);
+  }
+
   readNodeName(node: SyntaxNode) {
     const nodeName = this.readNameField(node);
     if (nodeName) {

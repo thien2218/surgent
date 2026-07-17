@@ -6,7 +6,7 @@ export class JavaLanguageProfile extends RuleBasedLanguageProfile {
   constructor() {
     super(
       new Set([".java"]),
-      { __default__: "name" },
+      { __default__: "name", exports_module_directive: "package" },
       new Set(["program"]),
       new Set<string>(),
       new Map<string, SymbolKindRule[]>([
@@ -31,6 +31,7 @@ export class JavaLanguageProfile extends RuleBasedLanguageProfile {
           ],
         ],
         ["import_declaration", [{ kind: "import" }]],
+        ["exports_module_directive", [{ kind: "export", parent: "module_body" }]],
       ]),
     );
   }

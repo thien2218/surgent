@@ -3,11 +3,35 @@ import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { resolveTargetPaths } from "./files.js";
 import { getSupportedExtensions, collectSymbols, SYMBOL_KINDS } from "../languages/index.js";
+import type { LanguageSymbol } from "../languages/index.js";
 import type { MapperResult } from "./types.js";
 
 function normalizeExtension(extension: string) {
   const normalized = extension.trim().toLowerCase();
   return normalized.startsWith(".") ? normalized : `.${normalized}`;
+}
+
+function collapseGroupedSymbols(symbols: LanguageSymbol[]) {
+  let groupedSymbolKind: "import" | "export" | undefined;
+  let importsGroupIndex = 0;
+  let exportsGroupIndex = 0;
+
+  return symbols.flatMap((symbol) => {
+    if (symbol.kind !== "import" && symbol.kind !== "export") {
+      groupedSymbolKind = undefined;
+      return [symbol];
+    }
+    if (symbol.kind === groupedSymbolKind) return [];
+
+    groupedSymbolKind = symbol.kind;
+    if (symbol.kind === "import") {
+      importsGroupIndex += 1;
+      return [{ ...symbol, name: `imports~${importsGroupIndex}`, range: undefined }];
+    }
+
+    exportsGroupIndex += 1;
+    return [{ ...symbol, name: `exports~${exportsGroupIndex}`, range: undefined }];
+  });
 }
 
 const codeMap = defineTool({
@@ -90,51 +114,31 @@ const codeMap = defineTool({
 
       try {
         const symbols = await collectSymbols(ctx.cwd, path, kinds, params.container);
-        const importSymbols = symbols.filter((symbol) => symbol.kind === "import" && symbol.range);
-
-        if (importSymbols.length === 0) {
-          result.symbols.push(...symbols);
-          continue;
-        }
-
-        const firstImportSymbol = importSymbols[0];
-        if (!firstImportSymbol) {
-          result.symbols.push(...symbols);
-          continue;
-        }
-
-        const importRange: [number, number] = [firstImportSymbol.range![0], firstImportSymbol.range![1]];
-        for (const importSymbol of importSymbols) {
-          importRange[0] = Math.min(importRange[0], importSymbol.range![0]);
-          importRange[1] = Math.max(importRange[1], importSymbol.range![1]);
-        }
-
-        let hasClampedImports = false;
-        result.symbols.push(
-          ...symbols.flatMap((symbol) => {
-            if (symbol.kind !== "import") return [symbol];
-            if (hasClampedImports) return [];
-
-            hasClampedImports = true;
-            return [{ ...symbol, name: `imports@L${importRange[0]}-L${importRange[1]}`, range: importRange }];
-          }),
-        );
+        result.symbols.push(...collapseGroupedSymbols(symbols));
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         result.failed.push(`${path}: ${message}`);
       }
     }
 
-    const outputLines = result.symbols.map((symbol) => {
-      let line = ` ${symbol.path} ${symbol.kind} symbol=${symbol.name}`;
+    const outputLines: string[] = [];
+    let outputPath = "";
+
+    for (const symbol of result.symbols) {
+      if (symbol.path !== outputPath) {
+        outputPath = symbol.path;
+        outputLines.push(symbol.path);
+      }
+
+      let line = `  ${symbol.kind} symbol=${symbol.name}`;
       if (symbol.range) {
         line += ` range=${symbol.range[0]}-${symbol.range[1]}`;
       }
       if (symbol.container) {
         line += ` container=${symbol.container}`;
       }
-      return line;
-    });
+      outputLines.push(line);
+    }
 
     if (result.failed.length > 0) {
       outputLines.push(...result.failed.map((failure) => `failed ${failure}`));

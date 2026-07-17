@@ -29,15 +29,8 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
         ["variable_declarator", [{ kind: "top_level_var", topLevelOnly: true }]],
         ["import_specifier", [{ kind: "import" }]],
         ["namespace_import", [{ kind: "import" }]],
-        [
-          "identifier",
-          [
-            { kind: "import", parent: "import_clause" },
-            { kind: "export", parent: "export_statement" },
-          ],
-        ],
-        ["export_specifier", [{ kind: "export" }]],
-        ["namespace_export", [{ kind: "export" }]],
+        ["identifier", [{ kind: "import", parent: "import_clause" }]],
+        ["export_statement", [{ kind: "export", topLevelOnly: true }]],
       ]),
     );
   }
@@ -61,7 +54,11 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
   }
 
   readNodeName(node: SyntaxNode) {
-    if (node.type === "import_specifier" || node.type === "export_specifier") {
+    if (node.type === "export_statement") {
+      return "exports";
+    }
+
+    if (node.type === "import_specifier") {
       const aliasText = this.readFieldText(node, "alias");
       if (aliasText) {
         return aliasText;
@@ -73,7 +70,7 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
       return nodeName;
     }
 
-    if (node.type === "namespace_import" || node.type === "namespace_export") {
+    if (node.type === "namespace_import") {
       return this.readNodeText(node.namedChild(0));
     }
 
@@ -95,6 +92,12 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
   }
 
   shouldSkipSymbol(node: SyntaxNode) {
+    if (node.type === "export_statement") {
+      return node.childForFieldName("declaration") !== null;
+    }
+    if (node.type === "variable_declarator") {
+      return node.childForFieldName("value")?.type === "arrow_function";
+    }
     return node.type === "function_expression" && node.childForFieldName("name") !== null;
   }
 }

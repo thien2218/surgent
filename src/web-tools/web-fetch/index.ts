@@ -54,9 +54,7 @@ const webFetchTool = defineTool({
         throw new Error("web_fetch was cancelled.");
       }
 
-      const apiKey = await ctx.modelRegistry.authStorage.getApiKey(provider.name, {
-        includeFallback: false,
-      });
+      const apiKey = await ctx.modelRegistry.getApiKeyForProvider(provider.name);
 
       if ((provider.name === "firecrawl" || provider.name === "tavily") && !apiKey) {
         attempts.push(`${provider.label}: not configured`);

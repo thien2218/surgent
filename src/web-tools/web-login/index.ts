@@ -27,8 +27,7 @@ async function chooseAction(
   ctx: ExtensionCommandContext,
   provider: WebToolsProvider,
 ): Promise<"save" | "clear" | undefined> {
-  const authStorage = ctx.modelRegistry.authStorage;
-  const configured = authStorage.getAuthStatus(provider.name).configured;
+  const configured = ctx.modelRegistry.getProviderAuthStatus(provider.name).configured;
 
   if (configured) {
     const selected = await ctx.ui.select(`${provider.label} credentials`, [
@@ -47,10 +46,9 @@ async function chooseAction(
 }
 
 async function saveProviderKey(ctx: ExtensionCommandContext, provider: WebToolsProvider) {
-  const authStorage = ctx.modelRegistry.authStorage;
   const note = provider.name === "jina" ? ` (${provider.note})` : "";
 
-  if (authStorage.getAuthStatus(provider.name).configured) {
+  if (ctx.modelRegistry.getProviderAuthStatus(provider.name).configured) {
     const replace = await ctx.ui.confirm(
       `${provider.label} API key`,
       `${provider.label} already has a saved API key. Replace it?`,
@@ -68,7 +66,7 @@ async function saveProviderKey(ctx: ExtensionCommandContext, provider: WebToolsP
     return;
   }
 
-  setApiKey(authStorage, provider.name, apiKey.trim());
+  await setApiKey(ctx.modelRegistry, provider.name, apiKey.trim());
   ctx.ui.notify(`Saved ${provider.label} API key`, "info");
 }
 
@@ -79,7 +77,7 @@ async function clearProviderKey(ctx: ExtensionCommandContext, provider: WebTools
   );
   if (!confirmed) return;
 
-  clearApiKey(ctx.modelRegistry.authStorage, provider.name);
+  await clearApiKey(ctx.modelRegistry, provider.name);
   ctx.ui.notify(`Cleared ${provider.label} API key`, "info");
 }
 
@@ -97,7 +95,7 @@ export default async function webLoginCommand(args: string, ctx: ExtensionComman
     return;
   }
 
-  ctx.ui.notify(formatProviderStatus(ctx.modelRegistry.authStorage, provider), "info");
+  ctx.ui.notify(await formatProviderStatus(ctx.modelRegistry, provider), "info");
 
   const action = await chooseAction(ctx, provider);
 

@@ -2,7 +2,7 @@
 
 ## What is `surgent`
 
-`surgent` is a CLI coding agent that extends the `@earendil-works/pi-coding-agent` framework with custom tools, commands, and UI. It runs as a TUI via the `surgent` command.
+`surgent` is a CLI coding agent that extends the `@earendil-works/pi-coding-agent` framework with custom tools, commands, and UI. It runs as a TUI via the `surgent` command. If you have `inpsect` and `code_map` tools, you are operating using this harness with its provided capabilities.
 
 ## Project structure
 

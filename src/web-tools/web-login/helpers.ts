@@ -1,4 +1,5 @@
-import type { AuthStorage } from "@earendil-works/pi-coding-agent";
+import type { CredentialStore } from "@earendil-works/pi-ai";
+import { readStoredCredential, type ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { WEB_TOOLS_PROVIDERS } from "../settings.js";
 import type { WebToolsProvider, WebToolsProviderId } from "./types.js";
 
@@ -23,28 +24,35 @@ function maskApiKey(key: string): string {
   return key.slice(0, 4) + "*".repeat(key.length - 4);
 }
 
-export function formatProviderStatus(authStorage: AuthStorage, provider: WebToolsProvider): string {
-  const status = authStorage.getAuthStatus(provider.name);
+export function formatProviderStatus(modelRegistry: ModelRegistry, provider: WebToolsProvider): string {
+  const status = modelRegistry.getProviderAuthStatus(provider.name);
   if (!status.configured) {
     return `${provider.label} (not configured)`;
   }
 
   const source = status.source ? ` via ${status.source}` : "";
-  const cred = authStorage.get(provider.name);
-  const keyDisplay = cred?.type === "api_key" ? ` — ${maskApiKey(cred.key)}` : "";
+  const credential = readStoredCredential(provider.name);
+  const keyDisplay =
+    credential?.type === "api_key" && credential.key
+      ? ` — ${maskApiKey(credential.key)}`
+      : "";
   return `${provider.label} (configured${source}${keyDisplay})`;
 }
 
-export function setApiKey(
-  authStorage: AuthStorage,
+export async function setApiKey(
+  modelRegistry: ModelRegistry,
   providerId: WebToolsProviderId,
   apiKey: string,
 ) {
-  authStorage.set(providerId, { type: "api_key", key: apiKey });
+  await (((modelRegistry as unknown as { runtime: unknown }).runtime as {
+    credentials: CredentialStore;
+  }).credentials.modify(providerId, async () => ({ type: "api_key", key: apiKey })));
 }
 
-export function clearApiKey(authStorage: AuthStorage, providerId: WebToolsProviderId) {
-  authStorage.remove(providerId);
+export async function clearApiKey(modelRegistry: ModelRegistry, providerId: WebToolsProviderId) {
+  await (((modelRegistry as unknown as { runtime: unknown }).runtime as {
+    credentials: CredentialStore;
+  }).credentials.delete(providerId));
 }
 
 export function getArgumentCompletions(prefix: string) {

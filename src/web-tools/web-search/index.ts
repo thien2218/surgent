@@ -39,15 +39,14 @@ const webSearchTool = defineTool({
         throw new Error("web_search was cancelled.");
       }
 
-      anyConfiguredProvider = true;
-      const apiKey = await ctx.modelRegistry.authStorage.getApiKey(provider.name, {
-        includeFallback: false,
-      });
+      const apiKey = await ctx.modelRegistry.getApiKeyForProvider(provider.name);
 
       if (!apiKey) {
         attempts.push(`${provider.label}: not configured`);
         continue;
       }
+
+      anyConfiguredProvider = true;
 
       try {
         const results = await webToolsFactory

@@ -1,16 +1,20 @@
-import { isToolCallEventType, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { containsGeneratedText, redactGeneratedText } from "./redact.js";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
+import { containSecrets, replaceSecrets } from "./secrets.js";
 
 export default function (pi: ExtensionAPI) {
   pi.on("tool_call", async (event, _ctx) => {
-    if (isToolCallEventType("write", event) && containsGeneratedText(event.input.content ?? "")) {
-      return { block: true, reason: "Generated text cannot be written" };
-    }
+    if (isToolCallEventType("write", event)) {
+      if (containSecrets(event.input.content ?? "")) {
+        return { block: true, reason: "Secrets detected in content to be written" };
+      }
+    } else if (isToolCallEventType("edit", event)) {
+      const edits: Array<{ oldText?: string; newText?: string }> =
+        (event.input as { edits?: Array<{ oldText?: string; newText?: string }> }).edits ?? [];
 
-    if (isToolCallEventType("edit", event)) {
-      for (const edit of (event.input as { edits?: Array<{ newText?: string }> }).edits ?? []) {
-        if (containsGeneratedText(edit.newText ?? "")) {
-          return { block: true, reason: "Generated text cannot be written" };
+      for (const edit of edits) {
+        if (containSecrets(edit.newText ?? "")) {
+          return { block: true, reason: "Secrets detected in edit content" };
         }
       }
     }
@@ -19,9 +23,11 @@ export default function (pi: ExtensionAPI) {
   pi.on("tool_result", async (event, _ctx) => {
     if (event.toolName !== "read" && event.toolName !== "bash" && event.toolName !== "grep") return;
 
-    const content = event.content.map((block) =>
-      block.type === "text" ? { ...block, text: redactGeneratedText(block.text) } : block,
-    );
+    const content = event.content.map((block) => {
+      if (block.type !== "text") return block;
+      const redactedText = replaceSecrets(block.text);
+      return { ...block, text: redactedText };
+    });
 
     return { details: event.details, isError: event.isError, content };
   });

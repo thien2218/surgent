@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `redactor` extension blocks generated opaque text from file writes and replaces it in model-visible tool output with `<redacted_arbitrary_text>`.
+The `redactor` extension prevents secret-like data from being written into files and reduces the chance that sensitive values leak into model-visible tool output.
 
 ## Public surface
 
@@ -19,30 +19,25 @@ This extension does not register commands or tools.
 
 On `tool_call`:
 
-- `write` content is scanned for generated opaque text
-- each `edit` `newText` is scanned for generated opaque text
-- matching content blocks request
+- if the tool is `write`, the extension scans `content`
+- if the tool is `edit`, it scans each edit `newText`
+- it blocks the request when secret-like content is detected
 
 ### Read path
 
 On `tool_result`:
 
 - only `read`, `bash`, and `grep` are inspected
-- matching text becomes `<redacted_arbitrary_text>`
-- non-text blocks are preserved
+- text blocks are rewritten with redacted replacements
+- non-text blocks are preserved unchanged
 
-## Detected formats
-
-- Base64 text with numeric or Base64 punctuation
-- hex hashes
-- JWTs
-- bcrypt and Argon2 hashes
-- PEM blocks
+Detection combines known patterns and entropy-based heuristics, with false-positive filtering layered into the helper code.
 
 ## Key files
 
 - `index.ts` — hook registration and block/redact flow
-- `redact.ts` — generated-text detection and redaction
+- `patterns.ts` — secret pattern catalog
+- `secrets.ts` — entropy scoring, false-positive filtering, detection, and replacement
 
 ## Data and persistence
 
@@ -50,12 +45,20 @@ This extension has no dedicated persistence.
 
 ## Dependencies and integration
 
-- runs before file-changing tools complete when generated opaque text is present
-- runs after `read`, `bash`, and `grep` so later context sees redacted output
+- runs before file-changing tools complete when secret-like content is present
+- runs after `read`, `bash`, and `grep` so that later context sees redacted text
 - complements `permission` by protecting content rather than access
+
+## Edge cases and guardrails
+
+- only `newText` is checked for edits, not `oldText`
+- redaction touches only text content blocks
+- detection attempts to reduce false positives before blocking writes
+- secret-like tool output is redacted even if the source file or command already contains a real token
 
 ## Manual test checklist
 
-- attempt a `write` containing Base64, a hash, JWT, password hash, or PEM block and verify it is blocked
-- run `read`, `grep`, or `bash` that prints one of those formats and verify `<redacted_arbitrary_text>`
-- run `node src/redactor/redact.test.mjs`
+- attempt a `write` containing a token-like string and verify that it is blocked
+- attempt an `edit` adding a token-like string and verify that it is blocked
+- run `read` on a file containing a fake key and verify redaction
+- run `grep` or `bash` that prints a fake key and verify redaction

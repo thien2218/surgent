@@ -13,11 +13,12 @@ Tools:
 
 Hooks:
 
-- `session_start` grammar bootstrap
+- `session_start` grammar bootstrap and deduplicator reset
 - `context` pruning
 - `tool_result` summarization for `grep` and `bash`
+- `tool_result` read/inspect deduplication
 - `agent_end` summary persistence and session-tail rewrite
-- `session_tree` active summary rebuild
+- `session_tree` active summary rebuild and deduplicator reset
 
 ## How it works
 
@@ -57,7 +58,14 @@ Current registry:
 - stores summaries in a custom session entry
 - later `context` hooks replace historical full output with the summary
 
-### 5. Context pruning
+### 5. Read/inspect deduplication
+
+- tracks source line ranges already returned by `read` and `inspect`
+- remaps tracked ranges after line insertions and deletions
+- returns only unseen or changed ranges with two surrounding context lines
+- preserves collapsed `inspect` ranges so deeper inspection can reveal hidden source
+
+### 6. Context pruning
 
 - prunes bulky tool-result content before messages reach the model when that is safe to do so
 
@@ -69,7 +77,8 @@ Current registry:
 - `mapper/files.ts` — target resolution and repository file discovery
 - `inspector/index.ts` — `inspect` tool
 - `inspector/inspect.ts` — symbol lookup
-- `inspector/extract.ts` — depth-based collapse logic
+- `inspector/extract.ts` — depth-based collapse logic and visible source ranges
+- `deduplicator/` — in-memory read/inspect range tracking and result filtering
 - `truncator/index.ts` — grep and bash summary capture plus rewrite flow
 - `truncator/extractors.ts` — summary extraction from tool results
 - `truncator/helpers.ts` — session-file rewrite helpers
@@ -78,6 +87,7 @@ Current registry:
 ## Data and persistence
 
 - `.pi/grammars/` — cached tree-sitter language packages
+- in-memory file content and touched ranges for read/inspect deduplication
 - custom persisted session entries for summary state
 - session file tail rewrites for compact historical tool output
 

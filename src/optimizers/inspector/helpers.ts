@@ -1,4 +1,4 @@
-import type { InspectToolDetails } from "./types.js";
+import type { InspectToolDetails, Range } from "./types.js";
 
 export function parseInspectToolDetails(inspected: unknown) {
   if (!inspected || typeof inspected !== "object") return;
@@ -6,28 +6,36 @@ export function parseInspectToolDetails(inspected: unknown) {
   const path = (inspected as { path?: unknown }).path;
   const symbol = (inspected as { symbol?: unknown }).symbol;
   const depth = (inspected as { depth?: unknown }).depth;
-  const range = (inspected as { range?: unknown }).range;
+  const ranges = (inspected as { ranges?: unknown }).ranges;
 
   if (typeof path !== "string" || path.length === 0) return;
   if (typeof symbol !== "string" || symbol.length === 0) return;
   if (depth !== "full" && (typeof depth !== "number" || !Number.isInteger(depth) || depth < 0)) {
     return;
   }
-  if (!Array.isArray(range) || range.length !== 2) return;
+  if (!Array.isArray(ranges)) return;
 
-  const start = range[0];
-  const end = range[1];
+  const parsedRanges: Range[] = [];
+  for (const range of ranges) {
+    if (!Array.isArray(range) || range.length !== 2) return;
+    const start = range[0];
+    const end = range[1];
 
-  if (
-    typeof start !== "number" ||
-    typeof end !== "number" ||
-    !Number.isInteger(start) ||
-    !Number.isInteger(end)
-  ) {
-    return;
+    if (
+      typeof start !== "number" ||
+      typeof end !== "number" ||
+      !Number.isInteger(start) ||
+      !Number.isInteger(end) ||
+      start < 1 ||
+      end < start
+    ) {
+      return;
+    }
+
+    parsedRanges.push([start, end]);
   }
 
-  return { path, symbol, depth, range: [start, end] } satisfies InspectToolDetails;
+  return { path, symbol, depth, ranges: parsedRanges } satisfies InspectToolDetails;
 }
 
 export function pruneInspectResults(messages: Array<{ role?: string }>) {

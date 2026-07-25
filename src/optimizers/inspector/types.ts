@@ -1,6 +1,8 @@
+export type Range = [number, number];
+
 export interface InspectToolDetails {
   path: string;
   symbol: string;
   depth: number | "full";
-  range: [number, number];
+  ranges: Range[];
 }

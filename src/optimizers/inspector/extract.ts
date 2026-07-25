@@ -1,59 +1,96 @@
 import type { SyntaxNode } from "tree-sitter";
+import type { Range } from "./types.js";
 
 function isCollapsibleNode(currentNode: SyntaxNode) {
   return currentNode.namedChildCount > 0 && /block|body/.test(currentNode.type);
 }
 
-function collapseNodeText(currentNode: SyntaxNode) {
+function collapseNodeText(currentNode: SyntaxNode): { text: string; ranges: Range[] } {
   const currentText = currentNode.text;
   if (currentNode.namedChildCount === 0) {
-    return "…";
+    return { text: "…", ranges: [] };
   }
 
   const firstNamedChild = currentNode.namedChildren[0];
-  if (!firstNamedChild) {
-    return "…";
-  }
   const lastNamedChild = currentNode.namedChildren[currentNode.namedChildCount - 1];
-  if (!lastNamedChild) {
-    return "…";
+  if (!firstNamedChild || !lastNamedChild) {
+    return { text: "…", ranges: [] };
   }
+
   const prefix = currentText.slice(0, firstNamedChild.startIndex - currentNode.startIndex);
   const suffix = currentText.slice(lastNamedChild.endIndex - currentNode.startIndex);
+  const ranges: Range[] = [];
 
-  if (prefix.length === 0 && suffix.length === 0) {
-    return "…";
+  if (prefix.length > 0) {
+    ranges.push([
+      currentNode.startPosition.row + 1,
+      firstNamedChild.startPosition.row + (firstNamedChild.startPosition.column > 0 ? 1 : 0),
+    ]);
+  }
+  if (suffix.length > 0) {
+    ranges.push([
+      lastNamedChild.endPosition.row + 1,
+      currentNode.endPosition.row + (currentNode.endPosition.column > 0 ? 1 : 0),
+    ]);
   }
 
-  return `${prefix}…${suffix}`;
+  return { text: prefix.length === 0 && suffix.length === 0 ? "…" : `${prefix}…${suffix}`, ranges };
 }
 
-export function renderNodeWithDepth(currentNode: SyntaxNode, depth: number) {
+export function renderNodeWithDepth(
+  currentNode: SyntaxNode,
+  depth: number,
+): { text: string; ranges: Range[] } {
   const currentText = currentNode.text;
   if (currentNode.namedChildCount === 0) {
-    return currentText;
+    return {
+      text: currentText,
+      ranges: [
+        [
+          currentNode.startPosition.row + 1,
+          currentNode.endPosition.row + (currentNode.endPosition.column > 0 ? 1 : 0),
+        ],
+      ],
+    };
   }
 
-  let output = "";
+  let text = "";
   let cursor = 0;
+  let cursorRow = currentNode.startPosition.row;
+  const ranges: Range[] = [];
 
   for (const childNode of currentNode.namedChildren) {
     const childStart = childNode.startIndex - currentNode.startIndex;
     const childEnd = childNode.endIndex - currentNode.startIndex;
+    const prefix = currentText.slice(cursor, childStart);
 
-    output += currentText.slice(cursor, childStart);
-
-    if (isCollapsibleNode(childNode) && depth <= 0) {
-      output += collapseNodeText(childNode);
-    } else if (isCollapsibleNode(childNode)) {
-      output += renderNodeWithDepth(childNode, depth - 1);
-    } else {
-      output += renderNodeWithDepth(childNode, depth);
+    text += prefix;
+    if (prefix.length > 0) {
+      ranges.push([
+        cursorRow + 1,
+        childNode.startPosition.row + (childNode.startPosition.column > 0 ? 1 : 0),
+      ]);
     }
 
+    const rendered =
+      isCollapsibleNode(childNode) && depth <= 0
+        ? collapseNodeText(childNode)
+        : renderNodeWithDepth(childNode, isCollapsibleNode(childNode) ? depth - 1 : depth);
+
+    text += rendered.text;
+    ranges.push(...rendered.ranges);
     cursor = childEnd;
+    cursorRow = childNode.endPosition.row;
   }
 
-  output += currentText.slice(cursor);
-  return output;
+  const suffix = currentText.slice(cursor);
+  text += suffix;
+  if (suffix.length > 0) {
+    ranges.push([
+      cursorRow + 1,
+      currentNode.endPosition.row + (currentNode.endPosition.column > 0 ? 1 : 0),
+    ]);
+  }
+
+  return { text, ranges };
 }

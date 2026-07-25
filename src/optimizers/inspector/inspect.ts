@@ -2,12 +2,13 @@ import type { SyntaxNode } from "tree-sitter";
 import type { LanguageSymbol } from "../languages/index.js";
 import { collectSymbols, SYMBOL_KINDS } from "../languages/index.js";
 import { renderNodeWithDepth } from "./extract.js";
+import type { Range } from "./types.js";
 
 function inspectGroupedSymbols(
   path: string,
   symbolName: string,
   symbols: LanguageSymbol[],
-): { path: string; symbol: string; range: [number, number]; text: string } | undefined {
+): { path: string; symbol: string; ranges: Range[]; text: string } | undefined {
   const groupedSymbolsMatch = /^(imports|exports)~([1-9]\d*)$/.exec(symbolName);
   if (!groupedSymbolsMatch) return;
 
@@ -44,14 +45,14 @@ function inspectGroupedSymbols(
   }
 
   if (groupedNodes.length === 0) return;
-  const firstGroupedNode = groupedNodes[0]!;
-  const lastGroupedNode = groupedNodes.at(-1)!;
-
   return {
     path,
     symbol: symbolName,
-    range: [firstGroupedNode.startPosition.row + 1, lastGroupedNode.endPosition.row + 1],
     text: groupedNodes.map((groupedNode) => groupedNode.text).join("\n"),
+    ranges: groupedNodes.map<Range>((groupedNode) => [
+      groupedNode.startPosition.row + 1,
+      groupedNode.endPosition.row + (groupedNode.endPosition.column > 0 ? 1 : 0),
+    ]),
   };
 }
 
@@ -61,7 +62,7 @@ export async function inspectSymbol(
   symbolName: string,
   depth: number,
   signal?: AbortSignal,
-): Promise<{ path: string; symbol: string; range: [number, number]; text: string } | undefined> {
+): Promise<{ path: string; symbol: string; ranges: Range[]; text: string } | undefined> {
   if (signal?.aborted) {
     throw new Error("inspector aborted");
   }
@@ -73,11 +74,13 @@ export async function inspectSymbol(
 
   for (const symbol of symbols) {
     if (symbol.name !== symbolName) continue;
+    const rendered = renderNodeWithDepth(symbol.node, depth);
+
     return {
       path: symbol.path,
       symbol: symbol.name,
-      range: [symbol.node.startPosition.row + 1, symbol.node.endPosition.row + 1],
-      text: renderNodeWithDepth(symbol.node, depth),
+      ranges: rendered.ranges,
+      text: rendered.text,
     };
   }
 }

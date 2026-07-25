@@ -63,7 +63,7 @@ const inspect = defineTool({
         path: inspected.path,
         symbol: inspected.symbol,
         depth: depthLabel,
-        range: [inspected.range[0], inspected.range[1]],
+        ranges: inspected.ranges,
       } satisfies InspectToolDetails;
 
       return { isError: false, details, content: [{ type: "text", text: inspected.text }] };

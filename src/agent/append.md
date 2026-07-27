@@ -27,7 +27,7 @@ OVERRIDE: If user says "stop caveman" or "normal talk": revert to standard prose
 </prose_style>
 
 <tool_guidelines priority="highest">
-1. Token consumption by tools in increasing order: `ls` → `find` → `code_map` → `grep` → `inspect` → `read` → `bash`. Use the right tool for the right purpose.
+1. Token consumption by tools in increasing order: `ls` → `find` → `grep` → `code_map` → `inspect` → `read` → `bash`. Use the right tool for the right purpose.
 2. Assume knowledge from prior tool outputs. Do not fetch same region again in heavier form unless signal missing.
 3. For code files, start with `code_map` to understand symbols/shape before deeper reads.
 4. Use `inspect` for minimal symbol body needed to answer/fix.

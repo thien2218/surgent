@@ -1,4 +1,4 @@
-import type { AgentAllowList } from "../agent/types.js";
+import type { AgentAllowList, AgentMeta } from "../agent/types.js";
 
 export type SubsessionUsage = {
   input: number;
@@ -41,6 +41,7 @@ export interface RuntimeConfig {
   systemPrompt: string;
   tools?: AgentAllowList;
   modelId?: string;
+  thinkingLevel?: AgentMeta["thinking_level"];
 }
 
 export interface SubsessionRequest {

@@ -1,3 +1,5 @@
+export type AgentMode = "assistant" | "yolo";
+
 export type AgentAllowList = "none" | string[];
 
 export interface AgentMeta {
@@ -8,6 +10,7 @@ export interface AgentMeta {
   bash?: AgentAllowList;
   files?: AgentAllowList;
   model?: string;
+  thinking_level?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 }
 
 export interface Agent {
@@ -15,4 +18,12 @@ export interface Agent {
   meta: AgentMeta;
   body: string;
   filePath: string;
+}
+
+export interface SettingsSchema {
+  agent?: {
+    mode?: AgentMode;
+    meta?: Record<string, Partial<AgentMeta>>;
+  };
+  [key: string]: unknown;
 }

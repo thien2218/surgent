@@ -1,9 +1,10 @@
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
-import type { AgentMode, PermissionCheck, PermissiveToolName } from "./types.js";
+import type { PermissionCheck, PermissiveToolName } from "./types.js";
 import { PERMISSIVE_TOOLS, SUSPICIOUS_BASH_PATTERNS } from "./constants.js";
 import { MODE_ENTRY } from "../commands/index.js";
 import { SCOPES } from "./constants.js";
 import type { Category, DisplayRule, FileAccess, Scope } from "./types.js";
+import type { AgentMode } from "../agent/types.js";
 
 function getRuleValueLabel(value: FileAccess | boolean): string {
   if (typeof value === "boolean") {

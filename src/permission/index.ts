@@ -5,12 +5,12 @@ import { checkAgentRules, resolvePermission } from "./resolution.js";
 import { getPiIgnoreInputs, resolvePiIgnorePathBlock } from "./piignore.js";
 import { addRule, readAgentMode, writeAgentMode } from "./storage.js";
 import { loadMainAgent } from "../agent/storage.js";
-import type { AgentMode, PermissionCheck, PromptDecision } from "./types.js";
+import type { PermissionCheck, PromptDecision } from "./types.js";
 import PermissionPrompt from "./components/prompt.js";
 import { toPermExpr } from "./expression.js";
 import { emitInteractionHandoff, IS_SUBSESSION } from "../subsession/index.js";
 import { findRecentModeOverride, getPermissionCheck } from "./helpers.js";
-import type { AgentMeta } from "../agent/types.js";
+import type { AgentMeta, AgentMode } from "../agent/types.js";
 
 const SWITCH_MODE_KEY = Key.ctrlAlt("y");
 

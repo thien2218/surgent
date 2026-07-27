@@ -81,7 +81,7 @@ async function openAgentConfigEditor(ctx: ExtensionCommandContext, agent: Agent)
 
     editor.onCancel = () => done();
     editor.onSave = async (updatedMeta) => {
-      await writeAgentMeta(agent.filePath, updatedMeta);
+      await writeAgentMeta(ctx.cwd, agent, updatedMeta);
       agent.meta = updatedMeta;
       ctx.ui.notify(`Agent "${agent.name}" config updated`, "info");
       done();
@@ -97,9 +97,9 @@ async function openAgentConfigEditor(ctx: ExtensionCommandContext, agent: Agent)
 
 async function handleExistingAgent(ctx: ExtensionCommandContext, agent: Agent) {
   while (true) {
-    const options = ["Start in new session"];
+    const options = ["Start in new session", "Edit agent config"];
     if (!isBuiltIn(agent.filePath)) {
-      options.push("Edit agent config", "Open in VS Code");
+      options.push("Open in VS Code");
     }
 
     const action = await ctx.ui.select(`Agent: ${agent.name}`, options);

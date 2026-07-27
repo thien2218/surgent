@@ -8,8 +8,8 @@ import { type DeduplicatedFile, mergeRanges, reconcileTouched, subtractRanges } 
 export default function (pi: ExtensionAPI) {
   const files = new Map<string, DeduplicatedFile>();
 
-  pi.on("session_start", files.clear);
-  pi.on("session_tree", files.clear);
+  pi.on("session_start", () => files.clear());
+  pi.on("session_tree", () => files.clear());
 
   pi.on("tool_result", async (event, ctx) => {
     if (event.isError || (event.toolName !== "read" && event.toolName !== "inspect")) return;

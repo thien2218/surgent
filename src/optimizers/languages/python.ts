@@ -20,14 +20,14 @@ export class PythonLanguageProfile extends RuleBasedLanguageProfile {
         [
           "function_definition",
           [
-            { kind: "class_method", container: "class_definition" },
+            { kind: "method", container: "class_definition" },
             { kind: "function", topLevelOnly: true },
           ],
         ],
-        ["assignment", [{ kind: "top_level_var", topLevelOnly: true }]],
-        ["future_import_statement", [{ kind: "import", topLevelOnly: true }]],
-        ["import_from_statement", [{ kind: "import", topLevelOnly: true }]],
-        ["import_statement", [{ kind: "import", topLevelOnly: true }]],
+        ["assignment", [{ kind: "declaration", topLevelOnly: true }]],
+        ["future_import_statement", [{ kind: "deps", topLevelOnly: true }]],
+        ["import_from_statement", [{ kind: "deps", topLevelOnly: true }]],
+        ["import_statement", [{ kind: "deps", topLevelOnly: true }]],
       ]),
     );
   }

@@ -12,7 +12,7 @@ function inspectGroupedSymbols(
   const groupedSymbolsMatch = /^(imports|exports)~([1-9]\d*)$/.exec(symbolName);
   if (!groupedSymbolsMatch) return;
 
-  const groupedSymbolKind = groupedSymbolsMatch[1] === "imports" ? "import" : "export";
+  const groupedSymbolKind = groupedSymbolsMatch[1] === "imports" ? "deps" : "export";
   const requestedGroup = Number(groupedSymbolsMatch[2]);
   const groupedNodes: SyntaxNode[] = [];
   const groupedRanges = new Set<string>();
@@ -31,7 +31,7 @@ function inspectGroupedSymbols(
     if (symbolsGroupIndex !== requestedGroup) continue;
 
     let groupedNode = symbol.node;
-    if (groupedSymbolKind === "import") {
+    if (groupedSymbolKind === "deps") {
       while (groupedNode.parent?.parent) {
         groupedNode = groupedNode.parent;
       }

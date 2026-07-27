@@ -68,9 +68,8 @@ export type { LanguageProfile, LanguageSymbol } from "./types.js";
 export const SYMBOL_KINDS = [
   "function",
   "class",
-  "class_method",
-  "object_method",
-  "top_level_var",
-  "import",
+  "method",
+  "declaration",
+  "deps",
   "export",
 ] as const;

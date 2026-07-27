@@ -76,5 +76,10 @@ export async function terminateSubsession(cwd: string, id: string) {
 
 export async function resolveRuntime(name: string, model?: string): Promise<RuntimeConfig> {
   const [agent] = await loadAgents(process.cwd(), name);
-  return { systemPrompt: agent.body, tools: agent.meta.tools, modelId: agent.meta.model ?? model };
+  return {
+    systemPrompt: agent.body,
+    tools: agent.meta.tools,
+    modelId: agent.meta.model ?? model,
+    thinkingLevel: agent.meta.thinking_level,
+  };
 }

@@ -57,6 +57,9 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
   if (request.runtime.modelId) {
     args.push("--model", request.runtime.modelId);
   }
+  if (request.runtime.thinkingLevel) {
+    args.push("--thinking", request.runtime.thinkingLevel);
+  }
 
   const snapshot: SubsessionSnapshot = {
     id: request.sessionId ?? "",

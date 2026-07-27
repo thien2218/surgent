@@ -1,6 +1,5 @@
 import { readJson, writeJson } from "../utils.js";
 import type {
-  AgentMode,
   Category,
   GroupedDisplayRules,
   FileAccess,
@@ -10,15 +9,11 @@ import type {
 } from "./types.js";
 import { getPiPath } from "../utils.js";
 import { CATEGORIES } from "./constants.js";
+import type { AgentMode, SettingsSchema } from "../agent/types.js";
 
 interface LocalSchema {
   project?: PermissionRule;
   [sessionId: string]: PermissionRule | undefined;
-}
-
-interface SettingsSchema {
-  agentMode?: AgentMode;
-  [key: string]: unknown;
 }
 
 export async function writeRules(data: PermissionRule | LocalSchema, cwd: string = "") {
@@ -33,12 +28,12 @@ export function readRules(cwd: string = ""): Promise<LocalSchema | PermissionRul
 
 export async function readAgentMode(cwd: string): Promise<AgentMode> {
   const settings = await readJson<SettingsSchema>(getPiPath("settings", cwd), {});
-  return settings.agentMode === "yolo" ? "yolo" : "assistant";
+  return settings.agent?.mode === "yolo" ? "yolo" : "assistant";
 }
 
 export async function writeAgentMode(cwd: string, agentMode: AgentMode) {
   const settings = await readJson<SettingsSchema>(getPiPath("settings", cwd), {});
-  settings.agentMode = agentMode;
+  settings.agent = { mode: agentMode, meta: settings.agent?.meta ?? {} };
   await writeJson(getPiPath("settings", cwd), settings);
 }
 

@@ -30,10 +30,10 @@ This extension does not register any tools.
 1. `/agents` lists the available built-in and user-defined agent files.
 2. The user can create, edit, or switch the active agent profile.
 3. On session start, the extension resolves the active agent name from the session mapping, the subsession environment, or the built-in default.
-4. The agent file frontmatter is parsed into `AgentMeta`.
+4. The agent file frontmatter is parsed into `AgentMeta`; project-local `agent.meta.<name>` settings override built-in metadata.
 5. The extension applies agent constraints:
    - it narrows the active tools with `pi.setActiveTools`
-   - it selects a model when the metadata requests one
+   - it selects a model and thinking level when metadata requests them
    - it lists enabled MCP servers in the prompt appendix
 6. The agent body is written to `.pi/SYSTEM.md`.
 7. The enabled MCP server section is written to `.pi/APPEND_SYSTEM.md`.
@@ -55,10 +55,11 @@ This extension does not register any tools.
 ## Data and persistence
 
 - `.pi/agents.json` — session ID to active agent name mapping
+- `.pi/settings.json` — `agent.mode` and built-in overrides under `agent.meta.<name>`
 - `.pi/SYSTEM.md` — active agent body for the current session
 - `.pi/APPEND_SYSTEM.md` — enabled MCP server appendix for the current session
-- built-in agent markdown under `built-in/`
-- user and project agent files loaded through the storage layer
+- built-in agent markdown under `built-in/`, with description as its only metadata
+- user and project agent files loaded through the storage layer, with metadata in frontmatter
 
 ## Dependencies and integration
 
@@ -80,5 +81,6 @@ This extension does not register any tools.
 - open `/agents` and switch to another built-in profile
 - create a new custom agent and verify that it appears in the picker
 - set a tool allowlist and verify that hidden tools disappear from the active set
-- set a model in agent metadata and verify that the selected model changes
-- run a subsession and confirm that pathless `grep`, `find`, or `ls` is blocked
+- edit built-in metadata and verify `.pi/settings.json` changes while its markdown stays unchanged
+- set a model and thinking level in agent metadata and verify both selections change
+- run a subsession and confirm that its configured thinking level applies and pathless `grep`, `find`, or `ls` is blocked

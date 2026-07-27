@@ -1,6 +1,5 @@
 ---
 description: Produces implementation-ready plans
-tools: [read, grep, find, ls, questionnaire]
 ---
 
 <role>

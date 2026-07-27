@@ -3,7 +3,7 @@ import path, { dirname, join, resolve } from "node:path";
 import { readJson, writeJson } from "../utils.js";
 import { fileURLToPath } from "node:url";
 import { getPiPath } from "../utils.js";
-import type { AgentMeta, Agent, AgentAllowList } from "./types.js";
+import type { AgentMeta, Agent, AgentAllowList, SettingsSchema } from "./types.js";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { SUBAGENT } from "../subsession/index.js";
 import { loadMcpConfigSet } from "../mcp-client/storage.js";
@@ -15,7 +15,7 @@ const INLINE_ARRAY = /^\[(.*)\]$/;
 const QUOTED_STRING = /^["']|["']$/g;
 
 const ARRAY_KEYS = new Set<keyof AgentMeta>(["tools", "mcp_servers", "skills", "bash", "files"]);
-const STRING_KEYS = new Set<keyof AgentMeta>(["description", "model"]);
+const STRING_KEYS = new Set<keyof AgentMeta>(["description", "model", "thinking_level"]);
 const META_KEYS: (keyof AgentMeta)[] = [
   "description",
   "tools",
@@ -24,6 +24,7 @@ const META_KEYS: (keyof AgentMeta)[] = [
   "bash",
   "files",
   "model",
+  "thinking_level",
 ];
 const META_KEY_SET = new Set<string>(META_KEYS);
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
@@ -104,12 +105,16 @@ async function getAgentFiles(cwd: string, name?: string, skipBuiltIn?: boolean):
 export async function loadAgents(cwd: string, name?: string): Promise<[Agent, ...Agent[]]> {
   const agents: Agent[] = [];
   const files = await getAgentFiles(cwd, name);
+  const settings = await readJson<SettingsSchema>(getPiPath("settings", cwd), {});
 
   for (const file of files) {
     try {
       const content = await readFile(file, "utf8");
       const parsed = parseAgentConfig(content, file);
       if (!parsed || (!isBuiltIn(file) && parsed.name === "default")) continue;
+      if (isBuiltIn(file)) {
+        parsed.meta = { ...parsed.meta, ...settings.agent?.meta?.[parsed.name] };
+      }
       agents.push(parsed);
     } catch {} // skip unreadable files
   }
@@ -153,11 +158,21 @@ export async function createAgentFile(base: string, name: string): Promise<strin
   return filePath;
 }
 
-export async function writeAgentMeta(filePath: string, meta: AgentMeta) {
-  const content = await readFile(filePath, "utf8");
+export async function writeAgentMeta(cwd: string, agent: Agent, meta: AgentMeta) {
+  if (isBuiltIn(agent.filePath)) {
+    const settings = await readJson<SettingsSchema>(getPiPath("settings", cwd), {});
+    settings.agent = {
+      ...settings.agent,
+      meta: { ...settings.agent?.meta, [agent.name]: meta },
+    };
+    await writeJson(getPiPath("settings", cwd), settings);
+    return;
+  }
+
+  const content = await readFile(agent.filePath, "utf8");
   const match = content.match(FRONTMATTER_BLOCK);
   if (!match) {
-    throw new Error(`Invalid agent file frontmatter: ${filePath}`);
+    throw new Error(`Invalid agent file frontmatter: ${agent.filePath}`);
   }
 
   const existingFrontmatter = match[1] ?? "";
@@ -177,7 +192,7 @@ export async function writeAgentMeta(filePath: string, meta: AgentMeta) {
   const nextFrontmatterLines = [...preservedFrontmatterLines, ...metaLines];
 
   const nextContent = `---\n${nextFrontmatterLines.join("\n")}\n---\n${body}`;
-  await writeFile(filePath, nextContent, "utf8");
+  await writeFile(agent.filePath, nextContent, "utf8");
 }
 
 export async function deleteAgentFiles(name: string, cwd: string) {
@@ -229,6 +244,9 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
     } else {
       ctx.ui.notify(`Unknown model "${meta.model}" in agent config`, "warning");
     }
+  }
+  if (meta.thinking_level) {
+    pi.setThinkingLevel(meta.thinking_level);
   }
 
   const lines = available.mcp

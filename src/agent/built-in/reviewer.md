@@ -1,7 +1,5 @@
 ---
 description: Performs concise, evidence-based code review from provided diff context
-tools: [read, grep, find, ls, bash, code_diff]
-bash: ["git rev-parse *", "git merge-base *"]
 ---
 
 <role>

@@ -76,13 +76,16 @@ export async function collectSymbols(cwd: string, path: string, kinds: Set<Symbo
 
     const symbolIdCount = (symbolIdCounts.get(symbolName) ?? 0) + 1;
     symbolIdCounts.set(symbolName, symbolIdCount);
+    const isAnonymous = symbolName === "anonymous" && !currentNode.childForFieldName("name");
 
     symbols.push({
-      name: symbolIdCount === 1 ? symbolName : `${symbolName}~${symbolIdCount}`,
+      name:
+        isAnonymous || symbolIdCount > 1 ? `${symbolName}~${symbolIdCount}` : symbolName,
       path,
       kind: symbolKind,
       node: currentNode,
       range: [currentNode.startPosition.row + 1, currentNode.endPosition.row + 1],
+      public: profile.isPublicSymbol(currentNode),
     });
   }
 

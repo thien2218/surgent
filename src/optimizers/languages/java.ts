@@ -31,7 +31,7 @@ export class JavaLanguageProfile extends RuleBasedLanguageProfile {
           ],
         ],
         ["import_declaration", [{ kind: "deps" }]],
-        ["exports_module_directive", [{ kind: "export", parent: "module_body" }]],
+        ["exports_module_directive", [{ kind: "public", parent: "module_body" }]],
       ]),
     );
   }

@@ -71,5 +71,5 @@ export const SYMBOL_KINDS = [
   "method",
   "declaration",
   "deps",
-  "export",
+  "public",
 ] as const;

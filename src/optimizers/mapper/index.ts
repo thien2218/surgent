@@ -13,12 +13,12 @@ function normalizeExtension(extension: string) {
 }
 
 function collapseGroupedSymbols(symbols: LanguageSymbol[]) {
-  let groupedSymbolKind: "deps" | "export" | undefined;
+  let groupedSymbolKind: "deps" | "public" | undefined;
   let importsGroupIndex = 0;
   let exportsGroupIndex = 0;
 
   return symbols.flatMap((symbol) => {
-    if (symbol.kind !== "deps" && symbol.kind !== "export") {
+    if (symbol.kind !== "deps" && symbol.kind !== "public") {
       groupedSymbolKind = undefined;
       return [symbol];
     }
@@ -55,7 +55,8 @@ const codeMap = defineTool({
     ),
     glob: Type.Optional(
       Type.String({
-        description: "Glob pattern matched against symbol names, e.g. `*.execute`.",
+        description:
+          "Glob pattern matched against symbol names, e.g. `*.execute`. Omit to search all symbols.",
       }),
     ),
   }),
@@ -133,7 +134,7 @@ const codeMap = defineTool({
         outputLines.push(symbol.path);
       }
 
-      let line = `   [${symbol.kind}] ${symbol.name}`;
+      let line = `   [${symbol.public ? "public " : ""}${symbol.kind}] ${symbol.name}`;
       if (symbol.range) {
         line += ` L${symbol.range[0]}-L${symbol.range[1]}`;
       }

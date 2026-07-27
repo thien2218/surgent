@@ -44,7 +44,7 @@ export class PythonLanguageProfile extends RuleBasedLanguageProfile {
       this.matchesTopLevelRule(node) &&
       this.readFieldText(node, "left") === "__all__"
     ) {
-      return "export";
+      return "public";
     }
 
     return super.resolveSymbolKind(node);

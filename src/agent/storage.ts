@@ -27,6 +27,7 @@ const META_KEYS: (keyof AgentMeta)[] = [
 ];
 const META_KEY_SET = new Set<string>(META_KEYS);
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
+const APPEND_PROMPT = resolve(BUILT_IN_DIR, "..", "append.md");
 const DEFAULT_AGENT = "default";
 
 function parseAllowList(value: string): AgentAllowList | undefined {
@@ -235,11 +236,15 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
       (cfg) => meta.mcp_servers !== "none" && (meta.mcp_servers ?? [cfg.name]).includes(cfg.name),
     )
     .map((cfg) => (cfg.description ? `- ${cfg.name} - ${cfg.description}` : `- ${cfg.name}`));
-  const appendContent = lines.length > 0 ? `## Enabled MCP Servers\n${lines.join("\n")}\n` : "";
+  const sharedInstructions = await readFile(APPEND_PROMPT, "utf8");
+  const appendContent = [
+    sharedInstructions,
+    lines.length > 0 ? `## Enabled MCP Servers\n${lines.join("\n")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
-  if (appendContent) {
-    await writeFile(getPiPath("appendSystem", ctx.cwd), appendContent, "utf8");
-  }
+  await writeFile(getPiPath("appendSystem", ctx.cwd), appendContent, "utf8");
   await writeFile(getPiPath("system"), body, "utf8");
   return meta;
 }

@@ -1,5 +1,6 @@
 import { defineTool, keyHint } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
+import pm from "picomatch";
 import { Type } from "typebox";
 import { resolveTargetPaths } from "./files.js";
 import { getSupportedExtensions, collectSymbols, SYMBOL_KINDS } from "../languages/index.js";
@@ -12,19 +13,19 @@ function normalizeExtension(extension: string) {
 }
 
 function collapseGroupedSymbols(symbols: LanguageSymbol[]) {
-  let groupedSymbolKind: "import" | "export" | undefined;
+  let groupedSymbolKind: "deps" | "export" | undefined;
   let importsGroupIndex = 0;
   let exportsGroupIndex = 0;
 
   return symbols.flatMap((symbol) => {
-    if (symbol.kind !== "import" && symbol.kind !== "export") {
+    if (symbol.kind !== "deps" && symbol.kind !== "export") {
       groupedSymbolKind = undefined;
       return [symbol];
     }
     if (symbol.kind === groupedSymbolKind) return [];
 
     groupedSymbolKind = symbol.kind;
-    if (symbol.kind === "import") {
+    if (symbol.kind === "deps") {
       importsGroupIndex += 1;
       return [{ ...symbol, name: `imports~${importsGroupIndex}`, range: undefined }];
     }
@@ -52,9 +53,9 @@ const codeMap = defineTool({
         description: "Abstraction kinds to include. Omit to include all supported.",
       }),
     ),
-    container: Type.Optional(
-      Type.Literal(true, {
-        description: "Include container name in each output row.",
+    glob: Type.Optional(
+      Type.String({
+        description: "Glob pattern matched against symbol names, e.g. `*.execute`.",
       }),
     ),
   }),
@@ -113,8 +114,10 @@ const codeMap = defineTool({
       }
 
       try {
-        const symbols = await collectSymbols(ctx.cwd, path, kinds, params.container);
-        result.symbols.push(...collapseGroupedSymbols(symbols));
+        const symbols = collapseGroupedSymbols(await collectSymbols(ctx.cwd, path, kinds));
+        result.symbols.push(
+          ...(params.glob ? symbols.filter((symbol) => pm(symbol.name)) : symbols),
+        );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         result.failed.push(`${path}: ${message}`);
@@ -130,12 +133,9 @@ const codeMap = defineTool({
         outputLines.push(symbol.path);
       }
 
-      let line = `  ${symbol.kind} symbol=${symbol.name}`;
+      let line = `   [${symbol.kind}] ${symbol.name}`;
       if (symbol.range) {
-        line += ` range=${symbol.range[0]}-${symbol.range[1]}`;
-      }
-      if (symbol.container) {
-        line += ` container=${symbol.container}`;
+        line += ` L${symbol.range[0]}-L${symbol.range[1]}`;
       }
       outputLines.push(line);
     }
@@ -154,10 +154,10 @@ const codeMap = defineTool({
     const targets = Array.isArray(args.targets) ? args.targets.join(", ") : "";
     const extensions = Array.isArray(args.extensions) ? args.extensions.join(", ") : "";
     const kinds = Array.isArray(args.kinds) ? args.kinds.join(", ") : "default";
-    const container = args.container === true ? "true" : "false";
+    const glob = typeof args.glob === "string" ? args.glob : "*";
 
     return new Text(
-      `${theme.fg("toolTitle", "code_map")} targets=[${targets}] extensions=[${extensions}] kinds=[${kinds}] container=${container}`,
+      `${theme.fg("toolTitle", "code_map")} targets=[${targets}] extensions=[${extensions}] kinds=[${kinds}] glob=${glob}`,
       0,
       0,
     );

@@ -18,19 +18,19 @@ export class JavaLanguageProfile extends RuleBasedLanguageProfile {
         [
           "constructor_declaration",
           [
-            { kind: "class_method", parent: "class_body" },
-            { kind: "class_method", parent: "enum_body_declarations" },
+            { kind: "method", parent: "class_body" },
+            { kind: "method", parent: "enum_body_declarations" },
           ],
         ],
         [
           "method_declaration",
           [
-            { kind: "class_method", parent: "class_body" },
-            { kind: "class_method", parent: "enum_body_declarations" },
-            { kind: "class_method", parent: "interface_body" },
+            { kind: "method", parent: "class_body" },
+            { kind: "method", parent: "enum_body_declarations" },
+            { kind: "method", parent: "interface_body" },
           ],
         ],
-        ["import_declaration", [{ kind: "import" }]],
+        ["import_declaration", [{ kind: "deps" }]],
         ["exports_module_directive", [{ kind: "export", parent: "module_body" }]],
       ]),
     );

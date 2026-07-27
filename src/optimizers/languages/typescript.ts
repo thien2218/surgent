@@ -22,14 +22,14 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
         [
           "method_definition",
           [
-            { kind: "class_method", parent: "class_body" },
-            { kind: "object_method", parent: "object" },
+            { kind: "method", parent: "class_body" },
+            { kind: "method", parent: "object" },
           ],
         ],
-        ["variable_declarator", [{ kind: "top_level_var", topLevelOnly: true }]],
-        ["import_specifier", [{ kind: "import" }]],
-        ["namespace_import", [{ kind: "import" }]],
-        ["identifier", [{ kind: "import", parent: "import_clause" }]],
+        ["variable_declarator", [{ kind: "declaration", topLevelOnly: true }]],
+        ["import_specifier", [{ kind: "deps" }]],
+        ["namespace_import", [{ kind: "deps" }]],
+        ["identifier", [{ kind: "deps", parent: "import_clause" }]],
         ["export_statement", [{ kind: "export", topLevelOnly: true }]],
       ]),
     );

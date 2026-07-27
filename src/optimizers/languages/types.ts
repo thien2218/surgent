@@ -3,10 +3,9 @@ import type { Language, SyntaxNode } from "tree-sitter";
 export type SymbolKind =
   | "function"
   | "class"
-  | "class_method"
-  | "object_method"
-  | "top_level_var"
-  | "import"
+  | "method"
+  | "declaration"
+  | "deps"
   | "export";
 
 export interface SymbolKindRule {
@@ -22,7 +21,6 @@ export interface LanguageSymbol {
   kind: SymbolKind;
   node: SyntaxNode;
   range?: [number, number];
-  container?: string;
 }
 
 export interface LanguageProfile {

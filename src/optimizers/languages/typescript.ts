@@ -30,7 +30,7 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
         ["import_specifier", [{ kind: "deps" }]],
         ["namespace_import", [{ kind: "deps" }]],
         ["identifier", [{ kind: "deps", parent: "import_clause" }]],
-        ["export_statement", [{ kind: "export", topLevelOnly: true }]],
+        ["export_statement", [{ kind: "public", topLevelOnly: true }]],
       ]),
     );
   }
@@ -78,7 +78,11 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
       return this.readNodeText(node);
     }
 
-    if (node.type === "arrow_function" || node.type === "function_expression") {
+    if (
+      node.type === "arrow_function" ||
+      node.type === "function_expression" ||
+      node.type === "function_declaration"
+    ) {
       const declaratorNode = node.parent?.type === "variable_declarator" ? node.parent : undefined;
       if (declaratorNode) {
         const declaratorName = this.readFieldText(declaratorNode, "name");
@@ -87,13 +91,21 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
         }
       }
 
-      return `anonymous@L${node.startPosition.row + 1}`;
+      return "anonymous";
     }
   }
 
   shouldSkipSymbol(node: SyntaxNode) {
     if (node.type === "export_statement") {
-      return node.childForFieldName("declaration") !== null;
+      const inlineNode = node.namedChild(0);
+      return (
+        node.childForFieldName("declaration") !== null ||
+        inlineNode?.type === "arrow_function" ||
+        inlineNode?.type === "function_expression" ||
+        inlineNode?.type === "function_declaration" ||
+        (inlineNode?.type === "class_declaration" &&
+          inlineNode.childForFieldName("name") !== null)
+      );
     }
     if (node.type === "variable_declarator") {
       return node.childForFieldName("value")?.type === "arrow_function";

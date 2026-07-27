@@ -6,7 +6,7 @@ export type SymbolKind =
   | "method"
   | "declaration"
   | "deps"
-  | "export";
+  | "public";
 
 export interface SymbolKindRule {
   kind: SymbolKind;
@@ -21,6 +21,7 @@ export interface LanguageSymbol {
   kind: SymbolKind;
   node: SyntaxNode;
   range?: [number, number];
+  public?: boolean;
 }
 
 export interface LanguageProfile {
@@ -28,6 +29,7 @@ export interface LanguageProfile {
   loadLanguage(extension: string): Promise<Language>;
   readNodeName(node: SyntaxNode): string | undefined;
   readContainerName(node: SyntaxNode): string | undefined;
+  isPublicSymbol(node: SyntaxNode): boolean;
   resolveSymbolKind(node: SyntaxNode): SymbolKind | undefined;
   shouldSkipSymbol(node: SyntaxNode): boolean;
 }
@@ -102,6 +104,10 @@ export abstract class RuleBasedLanguageProfile implements LanguageProfile {
   readContainerName(node: SyntaxNode) {
     const containerNode = this.findContainerNode(node);
     return containerNode ? this.readNodeName(containerNode) : undefined;
+  }
+
+  isPublicSymbol(node: SyntaxNode) {
+    return this.findContainerNode(node)?.type === "export_statement";
   }
 
   resolveSymbolKind(node: SyntaxNode) {

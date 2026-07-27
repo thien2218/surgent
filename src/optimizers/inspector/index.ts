@@ -15,7 +15,7 @@ const inspect = defineTool({
     }),
     symbol: Type.String({
       description:
-        "Exact symbol string for one declaration in file: function name, class name, method name (MyClass.method), synthetic anonymous name (anonymous@L12), or duplicate form name~2",
+        "Exact symbol string for one declaration in file: function name, class name, method name (MyClass.method), synthetic anonymous name (anonymous~1), or duplicate form name~2",
     }),
     depth: Type.Optional(
       Type.Integer({

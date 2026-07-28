@@ -125,7 +125,10 @@ Pruning runs at shutdown rather than during the active session to preserve cache
 - run `code_map` on a TypeScript path and verify the symbol ranges
 - run `inspect` on a mapped symbol with and without `depth`
 - run `grep` or `bash` and verify that later context shows the summary instead of the raw output
-- repeat `read` calls with full line-range coverage, shut down, resume, and verify that replaced calls are absent from model context
+  <<<<<<< HEAD
+- # repeat `read` calls with full line-range coverage, shut down, resume, and verify that replaced calls are absent from model context
+- repeat overlapping `read` calls, shut down, resume, and verify that replaced calls are absent from model context
+  > > > > > > > 79fa70a917ab3589bbff926f9a612b290a4b6dd0
 - inspect the same symbol at different depths, shut down, resume, and verify that only the latest inspection remains in model context
 - run a failed non-`bash` tool call followed by a successful replacement, shut down, resume, and verify that the failed call is absent from persisted history
 - start a fresh session and verify that grammar installation does not block startup

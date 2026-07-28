@@ -15,9 +15,9 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
         "export_statement",
       ]),
       new Map<string, SymbolKindRule[]>([
-        ["function_declaration", [{ kind: "function", topLevelOnly: true }]],
-        ["arrow_function", [{ kind: "function", topLevelOnly: true }]],
-        ["function_expression", [{ kind: "function", topLevelOnly: true }]],
+        ["function_declaration", [{ kind: "func", topLevelOnly: true }]],
+        ["arrow_function", [{ kind: "func", topLevelOnly: true }]],
+        ["function_expression", [{ kind: "func", topLevelOnly: true }]],
         ["class_declaration", [{ kind: "class" }]],
         [
           "method_definition",

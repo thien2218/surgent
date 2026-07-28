@@ -26,7 +26,7 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
             { kind: "method", parent: "object" },
           ],
         ],
-        ["variable_declarator", [{ kind: "declaration", topLevelOnly: true }]],
+        ["variable_declarator", [{ kind: "decl", topLevelOnly: true }]],
         ["import_specifier", [{ kind: "deps" }]],
         ["namespace_import", [{ kind: "deps" }]],
         ["identifier", [{ kind: "deps", parent: "import_clause" }]],
@@ -103,8 +103,7 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
         inlineNode?.type === "arrow_function" ||
         inlineNode?.type === "function_expression" ||
         inlineNode?.type === "function_declaration" ||
-        (inlineNode?.type === "class_declaration" &&
-          inlineNode.childForFieldName("name") !== null)
+        (inlineNode?.type === "class_declaration" && inlineNode.childForFieldName("name") !== null)
       );
     }
     if (node.type === "variable_declarator") {

@@ -5,6 +5,14 @@ import { parseInspectToolDetails } from "../inspector/helpers.js";
 import type { Range } from "../inspector/types.js";
 import { type DeduplicatedFile, mergeRanges, reconcileTouched, subtractRanges } from "./helpers.js";
 
+function withOriginalContent(details: unknown, originalContent: string) {
+  const preservedDetails =
+    details && typeof details === "object" && !Array.isArray(details)
+      ? (details as Record<string, unknown>)
+      : {};
+  return { ...preservedDetails, originalContent };
+}
+
 export default function (pi: ExtensionAPI) {
   const files = new Map<string, DeduplicatedFile>();
 
@@ -15,12 +23,12 @@ export default function (pi: ExtensionAPI) {
     if (event.isError || (event.toolName !== "read" && event.toolName !== "inspect")) return;
     if (event.content.length !== 1 || event.content[0]?.type !== "text") return;
 
+    const originalContent = event.content[0].text;
     let sourcePath: string;
     let ranges: Range[];
     let continuation: string | undefined;
 
     if (isReadToolResult(event)) {
-      const originalText = event.content[0].text;
       const inputPath = event.input.path;
       const inputOffset = event.input.offset;
       const inputLimit = event.input.limit;
@@ -37,8 +45,10 @@ export default function (pi: ExtensionAPI) {
       const truncation = event.details?.truncation;
       if (truncation?.firstLineExceedsLimit) return;
 
-      continuation = originalText.match(/\n\n\[[^\n]*Use offset=\d+ to continue\.\]$/)?.[0];
-      const visibleText = continuation ? originalText.slice(0, -continuation.length) : originalText;
+      continuation = originalContent.match(/\n\n\[[^\n]*Use offset=\d+ to continue\.\]$/)?.[0];
+      const visibleText = continuation
+        ? originalContent.slice(0, -continuation.length)
+        : originalContent;
       const visibleLines = truncation?.truncated
         ? truncation.outputLines
         : visibleText.split("\n").length;
@@ -88,7 +98,10 @@ export default function (pi: ExtensionAPI) {
     const unseenRanges = subtractRanges(ranges, storedFile.touched);
     storedFile.touched = mergeRanges([...storedFile.touched, ...ranges]);
     if (unseenRanges.length === 0) {
-      return { content: [{ type: "text", text: "(no changes made since last read)" }] };
+      return {
+        content: [{ type: "text", text: "(no changes made since last read)" }],
+        details: withOriginalContent(event.details, originalContent),
+      };
     }
 
     let text = unseenRanges
@@ -97,6 +110,9 @@ export default function (pi: ExtensionAPI) {
 
     if (continuation) text += continuation;
 
-    return { content: [{ type: "text", text }] };
+    return {
+      content: [{ type: "text", text }],
+      details: withOriginalContent(event.details, originalContent),
+    };
   });
 }

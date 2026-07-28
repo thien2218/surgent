@@ -65,11 +65,4 @@ export default function (pi: ExtensionAPI) {
 
 export { collectSymbols } from "./symbols.js";
 export type { LanguageProfile, LanguageSymbol } from "./types.js";
-export const SYMBOL_KINDS = [
-  "function",
-  "class",
-  "method",
-  "declaration",
-  "deps",
-  "public",
-] as const;
+export const SYMBOL_KINDS = ["function", "class", "method", "decl", "deps", "public"] as const;

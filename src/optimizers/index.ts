@@ -4,11 +4,13 @@ import truncator from "./truncator/index.js";
 import codeMap from "./mapper/index.js";
 import inspect from "./inspector/index.js";
 import languages from "./languages/index.js";
+import pruner from "./pruner/index.js";
 
 export default function (pi: ExtensionAPI) {
   truncator(pi);
   languages(pi);
   deduplicator(pi);
+  pruner(pi);
 
   pi.registerTool(codeMap);
   pi.registerTool(inspect);

@@ -56,6 +56,6 @@ export function extractGrepSummary(event: GrepToolResultEvent): string | null {
   if (!matched) return null;
 
   return Array.from(fileLines.entries())
-    .map(([filePath, lines]) => `${filePath} - Matched lines: ${Array.from(lines).join(",")}`)
+    .map(([filePath, lines]) => `${filePath} - Matched lines: ${Array.from(lines).join(", ")}`)
     .join("\n");
 }

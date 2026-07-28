@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import type { AgentMode } from "../permission/types.js";
+import type { AgentMode } from "../agent/types.js";
 import { resolveInteractionHandoff } from "../subsession/index.js";
 import type { Subsession, SubsessionRequest } from "../subsession/types.js";
 import { terminateSubsession } from "../subsession/storage.js";

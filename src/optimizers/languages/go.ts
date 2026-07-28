@@ -19,15 +19,12 @@ export class GoLanguageProfile extends RuleBasedLanguageProfile {
       new Map<string, SymbolKindRule[]>([
         ["function_declaration", [{ kind: "function", topLevelOnly: true }]],
         ["method_declaration", [{ kind: "method" }]],
-        [
-          "method_elem",
-          [{ kind: "method", parent: "interface_type", container: "type_spec" }],
-        ],
-        ["const_spec", [{ kind: "declaration", topLevelOnly: true }]],
+        ["method_elem", [{ kind: "method", parent: "interface_type", container: "type_spec" }]],
+        ["const_spec", [{ kind: "decl", topLevelOnly: true }]],
         ["import_spec", [{ kind: "deps", topLevelOnly: true }]],
         ["type_alias", [{ kind: "class", topLevelOnly: true }]],
         ["type_spec", [{ kind: "class", topLevelOnly: true }]],
-        ["var_spec", [{ kind: "declaration", topLevelOnly: true }]],
+        ["var_spec", [{ kind: "decl", topLevelOnly: true }]],
       ]),
     );
   }

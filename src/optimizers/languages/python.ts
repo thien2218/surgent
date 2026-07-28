@@ -24,7 +24,7 @@ export class PythonLanguageProfile extends RuleBasedLanguageProfile {
             { kind: "function", topLevelOnly: true },
           ],
         ],
-        ["assignment", [{ kind: "declaration", topLevelOnly: true }]],
+        ["assignment", [{ kind: "decl", topLevelOnly: true }]],
         ["future_import_statement", [{ kind: "deps", topLevelOnly: true }]],
         ["import_from_statement", [{ kind: "deps", topLevelOnly: true }]],
         ["import_statement", [{ kind: "deps", topLevelOnly: true }]],

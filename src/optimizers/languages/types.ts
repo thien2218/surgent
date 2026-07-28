@@ -1,6 +1,6 @@
 import type { Language, SyntaxNode } from "tree-sitter";
 
-export type SymbolKind = "function" | "class" | "method" | "decl" | "deps" | "public";
+export type SymbolKind = "func" | "class" | "method" | "decl" | "deps" | "public";
 
 export interface SymbolKindRule {
   kind: SymbolKind;

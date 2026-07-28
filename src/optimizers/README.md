@@ -18,7 +18,8 @@ Hooks:
 - `tool_result` summarization for `grep` and `bash`
 - `tool_result` read/inspect deduplication
 - `agent_end` summary persistence and session-tail rewrite
-- `session_tree` active summary rebuild and deduplicator reset
+- `session_shutdown` persisted context pruning and failed-call cleanup
+- `session_tree` active summary rebuild, pruner state reload, and deduplicator reset
 
 ## How it works
 
@@ -67,7 +68,16 @@ Current registry:
 
 ### 6. Context pruning
 
-- prunes bulky tool-result content before messages reach the model when that is safe to do so
+On session shutdown, the pruner rewrites persisted session history:
+
+- removes failed non-`bash` tool calls and results
+- marks an earlier `inspect` result as repeated by the latest result for the same canonical path and symbol, regardless of inspection depth
+- marks an earlier `read` result as repeated only when later reads fully cover its line range
+- restores full original content for retained replacement results that read/inspect deduplication had shortened
+
+Repeated results store replacement entry IDs in `details.repeat`. On session start or tree navigation, the pruner rebuilds state for the active branch. Before each model call, the `context` hook removes a repeated tool call and result only when every replacement entry exists on that branch.
+
+Pruning runs at shutdown rather than during the active session to preserve cache-friendly context. It is intentionally lossy: later shallow inspections can replace deeper inspections, and removed failed calls do not remain in persisted history. Later successful tool calls are expected to provide better context than failed attempts.
 
 ## Key files
 
@@ -82,14 +92,18 @@ Current registry:
 - `truncator/index.ts` — grep and bash summary capture plus rewrite flow
 - `truncator/extractors.ts` — summary extraction from tool results
 - `truncator/helpers.ts` — session-file rewrite helpers
-- `pruner/index.ts` — context message pruning
+- `pruner/index.ts` — pruning lifecycle hooks
+- `pruner/prune.ts` — repeated read/inspect detection and replacement links
+- `pruner/cleanup.ts` — failed-call removal and session-tree repair
+- `pruner/context.ts` — active-branch state and outgoing context filtering
 
 ## Data and persistence
 
 - `.pi/grammars/` — cached tree-sitter language packages
 - in-memory file content and touched ranges for read/inspect deduplication
-- custom persisted session entries for summary state
-- session file tail rewrites for compact historical tool output
+- custom persisted session entries for summary and failed-call state
+- `details.repeat` links between repeated read/inspect results and their replacements
+- session file rewrites for compact historical tool output and pruned history
 
 ## Dependencies and integration
 
@@ -104,10 +118,14 @@ Current registry:
 - grammar installation failure notifies the user but does not stop the session
 - `inspect` returns friendly not-found guidance when symbol lookup misses
 - summary rewrite runs only when tool summaries exist for the completed run
+- repeated tool calls are removed from outgoing context only when all replacement entries remain on the active branch
 
 ## Manual test checklist
 
 - run `code_map` on a TypeScript path and verify the symbol ranges
 - run `inspect` on a mapped symbol with and without `depth`
 - run `grep` or `bash` and verify that later context shows the summary instead of the raw output
+- repeat `read` calls with full line-range coverage, shut down, resume, and verify that replaced calls are absent from model context
+- inspect the same symbol at different depths, shut down, resume, and verify that only the latest inspection remains in model context
+- run a failed non-`bash` tool call followed by a successful replacement, shut down, resume, and verify that the failed call is absent from persisted history
 - start a fresh session and verify that grammar installation does not block startup

@@ -21,7 +21,7 @@ export class PythonLanguageProfile extends RuleBasedLanguageProfile {
           "function_definition",
           [
             { kind: "method", container: "class_definition" },
-            { kind: "function", topLevelOnly: true },
+            { kind: "func", topLevelOnly: true },
           ],
         ],
         ["assignment", [{ kind: "decl", topLevelOnly: true }]],

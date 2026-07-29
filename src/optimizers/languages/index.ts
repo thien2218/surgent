@@ -5,6 +5,7 @@ import { TypeScriptLanguageProfile } from "./typescript.js";
 import { PythonLanguageProfile } from "./python.js";
 import { GoLanguageProfile } from "./go.js";
 import { JavaLanguageProfile } from "./java.js";
+import { RustLanguageProfile } from "./rust.js";
 
 export const LANGUAGE_REGISTRY: Array<{
   bucketName: string;
@@ -35,6 +36,12 @@ export const LANGUAGE_REGISTRY: Array<{
     packageName: "tree-sitter-java",
     version: "0.23.5",
     profile: new JavaLanguageProfile(),
+  },
+  {
+    bucketName: "rust",
+    packageName: "tree-sitter-rust",
+    version: "0.24.0",
+    profile: new RustLanguageProfile(),
   },
 ];
 

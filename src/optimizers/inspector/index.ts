@@ -1,6 +1,7 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import { mergeRanges } from "../deduplicator/helpers.js";
 import { inspectSymbol } from "./inspect.js";
 import type { InspectToolDetails } from "./types.js";
 
@@ -63,7 +64,7 @@ const inspect = defineTool({
         path: inspected.path,
         symbol: inspected.symbol,
         depth: depthLabel,
-        ranges: inspected.ranges,
+        ranges: mergeRanges(inspected.ranges),
       } satisfies InspectToolDetails;
 
       return { isError: false, details, content: [{ type: "text", text: inspected.text }] };

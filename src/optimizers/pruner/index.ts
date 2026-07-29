@@ -15,33 +15,26 @@ function loadPrunerState(sessionFile: string | undefined, leafId: string | null)
 }
 
 export default function (pi: ExtensionAPI) {
-  let activeLeafId: string | null = null;
-  let activeSessionFile: string | undefined;
   let state = emptyPrunerState();
 
   pi.on("session_start", (_event, ctx) => {
-    activeSessionFile = ctx.sessionManager.getSessionFile();
-    activeLeafId = ctx.sessionManager.getLeafId();
-    state = loadPrunerState(activeSessionFile, activeLeafId);
+    state = loadPrunerState(
+      ctx.sessionManager.getSessionFile(),
+      ctx.sessionManager.getLeafId(),
+    );
   });
 
   pi.on("session_tree", (event, ctx) => {
-    activeSessionFile = ctx.sessionManager.getSessionFile();
-    activeLeafId = event.newLeafId;
-    state = loadPrunerState(activeSessionFile, activeLeafId);
+    state = loadPrunerState(ctx.sessionManager.getSessionFile(), event.newLeafId);
   });
 
   pi.on("session_shutdown", (event, ctx) => {
-    const sessionFiles = new Map<string, { leafId: string | null; useLastEntry: boolean }>();
-    if (activeSessionFile) {
-      sessionFiles.set(activeSessionFile, { leafId: activeLeafId, useLastEntry: false });
+    const sessionFile = ctx.sessionManager.getSessionFile();
+    if (sessionFile) {
+      rewritePrunedSessionFile(sessionFile, ctx.sessionManager.getLeafId(), ctx.cwd, false);
     }
-    if (event.targetSessionFile && !sessionFiles.has(event.targetSessionFile)) {
-      sessionFiles.set(event.targetSessionFile, { leafId: null, useLastEntry: true });
-    }
-
-    for (const [sessionFile, options] of sessionFiles) {
-      rewritePrunedSessionFile(sessionFile, options.leafId, ctx.cwd, options.useLastEntry);
+    if (event.targetSessionFile && event.targetSessionFile !== sessionFile) {
+      rewritePrunedSessionFile(event.targetSessionFile, null, ctx.cwd, true);
     }
   });
 

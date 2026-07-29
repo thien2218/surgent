@@ -4,6 +4,7 @@ import { Type } from "typebox";
 import { WEB_SEARCH_PROVIDERS } from "../settings.js";
 import { WebToolsFactory } from "../providers/index.js";
 import { formatErrorMessage } from "./helpers.js";
+import { getApiKey } from "../web-login/helpers.js";
 import type { WebSearchToolDetails } from "./types.js";
 
 const webToolsFactory = new WebToolsFactory();
@@ -39,7 +40,7 @@ const webSearchTool = defineTool({
         throw new Error("web_search was cancelled.");
       }
 
-      const apiKey = await ctx.modelRegistry.getApiKeyForProvider(provider.name);
+      const apiKey = await getApiKey(ctx.modelRegistry, provider.name);
 
       if (!apiKey) {
         attempts.push(`${provider.label}: not configured`);
@@ -69,7 +70,7 @@ const webSearchTool = defineTool({
 
     if (!anyConfiguredProvider) {
       throw new Error(
-        "No configured web search providers are available. Use /web-login to configure Tavily, Brave Search, or Firecrawl.",
+        "No configured web search providers available. Use /web-login to configure Tavily, Brave Search, or Firecrawl.",
       );
     }
 

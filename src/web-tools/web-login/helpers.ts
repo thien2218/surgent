@@ -1,5 +1,5 @@
 import type { CredentialStore } from "@earendil-works/pi-ai";
-import { readStoredCredential, type ModelRegistry } from "@earendil-works/pi-coding-agent";
+import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { WEB_TOOLS_PROVIDERS } from "../settings.js";
 import type { WebToolsProvider, WebToolsProviderId } from "./types.js";
 
@@ -24,19 +24,28 @@ function maskApiKey(key: string): string {
   return key.slice(0, 4) + "*".repeat(key.length - 4);
 }
 
-export function formatProviderStatus(modelRegistry: ModelRegistry, provider: WebToolsProvider): string {
-  const status = modelRegistry.getProviderAuthStatus(provider.name);
-  if (!status.configured) {
-    return `${provider.label} (not configured)`;
-  }
+function getCredentialStore(modelRegistry: ModelRegistry): CredentialStore {
+  return ((modelRegistry as unknown as { runtime: unknown }).runtime as {
+    credentials: CredentialStore;
+  }).credentials;
+}
 
-  const source = status.source ? ` via ${status.source}` : "";
-  const credential = readStoredCredential(provider.name);
-  const keyDisplay =
-    credential?.type === "api_key" && credential.key
-      ? ` — ${maskApiKey(credential.key)}`
-      : "";
-  return `${provider.label} (configured${source}${keyDisplay})`;
+export async function getApiKey(
+  modelRegistry: ModelRegistry,
+  providerId: WebToolsProviderId,
+): Promise<string | undefined> {
+  const credential = await getCredentialStore(modelRegistry).read(providerId);
+  return credential?.type === "api_key" ? credential.key : undefined;
+}
+
+export async function formatProviderStatus(
+  modelRegistry: ModelRegistry,
+  provider: WebToolsProvider,
+): Promise<string> {
+  const apiKey = await getApiKey(modelRegistry, provider.name);
+  return apiKey
+    ? `${provider.label} (configured — ${maskApiKey(apiKey)})`
+    : `${provider.label} (not configured)`;
 }
 
 export async function setApiKey(
@@ -44,15 +53,14 @@ export async function setApiKey(
   providerId: WebToolsProviderId,
   apiKey: string,
 ) {
-  await (((modelRegistry as unknown as { runtime: unknown }).runtime as {
-    credentials: CredentialStore;
-  }).credentials.modify(providerId, async () => ({ type: "api_key", key: apiKey })));
+  await getCredentialStore(modelRegistry).modify(providerId, async () => ({
+    type: "api_key",
+    key: apiKey,
+  }));
 }
 
 export async function clearApiKey(modelRegistry: ModelRegistry, providerId: WebToolsProviderId) {
-  await (((modelRegistry as unknown as { runtime: unknown }).runtime as {
-    credentials: CredentialStore;
-  }).credentials.delete(providerId));
+  await getCredentialStore(modelRegistry).delete(providerId);
 }
 
 export function getArgumentCompletions(prefix: string) {

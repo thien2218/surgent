@@ -1,6 +1,5 @@
 import { defineTool, keyHint } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import pm from "picomatch";
 import { Type } from "typebox";
 import { resolveTargetPaths } from "./files.js";
 import { getSupportedExtensions, collectSymbols, SYMBOL_KINDS } from "../languages/index.js";
@@ -51,12 +50,6 @@ const codeMap = defineTool({
     kinds: Type.Optional(
       Type.Array(Type.Union(SYMBOL_KINDS.map((kind) => Type.Literal(kind))), {
         description: "Abstraction kinds to include. Omit to include all supported.",
-      }),
-    ),
-    glob: Type.Optional(
-      Type.String({
-        description:
-          "Glob pattern matched against symbol names, e.g. `*.execute`. Omit to search all symbols.",
       }),
     ),
   }),
@@ -115,10 +108,7 @@ const codeMap = defineTool({
       }
 
       try {
-        const symbols = collapseGroupedSymbols(await collectSymbols(ctx.cwd, path, kinds));
-        result.symbols.push(
-          ...(params.glob ? symbols.filter((symbol) => pm(symbol.name)) : symbols),
-        );
+        result.symbols = collapseGroupedSymbols(await collectSymbols(ctx.cwd, path, kinds));
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         result.failed.push(`${path}: ${message}`);
@@ -155,10 +145,9 @@ const codeMap = defineTool({
     const targets = Array.isArray(args.targets) ? args.targets.join(", ") : "";
     const extensions = Array.isArray(args.extensions) ? args.extensions.join(", ") : "";
     const kinds = Array.isArray(args.kinds) ? args.kinds.join(", ") : "default";
-    const glob = typeof args.glob === "string" ? args.glob : "*";
 
     return new Text(
-      `${theme.fg("toolTitle", "code_map")} targets=[${targets}] extensions=[${extensions}] kinds=[${kinds}] glob=${glob}`,
+      `${theme.fg("toolTitle", "code_map")} targets=[${targets}] extensions=[${extensions}] kinds=[${kinds}]`,
       0,
       0,
     );

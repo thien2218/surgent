@@ -6,9 +6,7 @@ export interface DeduplicatedFile {
 }
 
 export function mergeRanges(ranges: Range[]) {
-  const sortedRanges = ranges
-    .filter(([start, end]) => start <= end)
-    .toSorted(([firstStart], [secondStart]) => firstStart - secondStart);
+  const sortedRanges = ranges.toSorted(([firstStart], [secondStart]) => firstStart - secondStart);
   const mergedRanges: Range[] = [];
 
   for (const range of sortedRanges) {

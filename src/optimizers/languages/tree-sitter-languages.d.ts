@@ -15,3 +15,9 @@ declare module "tree-sitter-python" {
   const language: Language;
   export default language;
 }
+
+declare module "tree-sitter-rust" {
+  import type { Language } from "tree-sitter";
+  const language: Language;
+  export default language;
+}

@@ -3,6 +3,7 @@ import {
   clearApiKey,
   findWebToolsProvider,
   formatProviderStatus,
+  getApiKey,
   getSupportedProviderNames,
   getWebToolsProviderByLabel,
   getWebToolsProviderOptions,
@@ -27,9 +28,7 @@ async function chooseAction(
   ctx: ExtensionCommandContext,
   provider: WebToolsProvider,
 ): Promise<"save" | "clear" | undefined> {
-  const configured = ctx.modelRegistry.getProviderAuthStatus(provider.name).configured;
-
-  if (configured) {
+  if (await getApiKey(ctx.modelRegistry, provider.name)) {
     const selected = await ctx.ui.select(`${provider.label} credentials`, [
       "Save new API key",
       "Clear saved API key",
@@ -48,7 +47,7 @@ async function chooseAction(
 async function saveProviderKey(ctx: ExtensionCommandContext, provider: WebToolsProvider) {
   const note = provider.name === "jina" ? ` (${provider.note})` : "";
 
-  if (ctx.modelRegistry.getProviderAuthStatus(provider.name).configured) {
+  if (await getApiKey(ctx.modelRegistry, provider.name)) {
     const replace = await ctx.ui.confirm(
       `${provider.label} API key`,
       `${provider.label} already has a saved API key. Replace it?`,

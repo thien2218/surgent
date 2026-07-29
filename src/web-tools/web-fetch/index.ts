@@ -11,6 +11,7 @@ import {
 import { WebToolsFactory } from "../providers/index.js";
 import type { WebFetchResponse } from "./types.js";
 import { WEB_FETCH_PROVIDERS } from "../settings.js";
+import { getApiKey } from "../web-login/helpers.js";
 
 const webToolsFactory = new WebToolsFactory();
 
@@ -54,7 +55,10 @@ const webFetchTool = defineTool({
         throw new Error("web_fetch was cancelled.");
       }
 
-      const apiKey = await ctx.modelRegistry.getApiKeyForProvider(provider.name);
+      const apiKey =
+        provider.name === "native"
+          ? undefined
+          : await getApiKey(ctx.modelRegistry, provider.name);
 
       if ((provider.name === "firecrawl" || provider.name === "tavily") && !apiKey) {
         attempts.push(`${provider.label}: not configured`);

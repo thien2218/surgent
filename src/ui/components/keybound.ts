@@ -137,10 +137,12 @@ export class Keybound {
 
   protected get hints(): [string, string][] {
     const visible: [string, string][] = [];
+    const visibleIndexes = new Set<number>();
     for (const binding of this.bindings.values()) {
-      if (!binding.hinted) continue;
+      if (!binding.hinted || visibleIndexes.has(binding.hintIdx)) continue;
       const hintEntry = this.keyHints[binding.hintIdx];
       if (!hintEntry) continue;
+      visibleIndexes.add(binding.hintIdx);
       visible.push(hintEntry);
     }
     return visible;

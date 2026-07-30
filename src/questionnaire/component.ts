@@ -57,7 +57,7 @@ export default class Questionnaire extends Frame implements Focusable {
       },
       {
         key: { navigation: "horizontal", metakey: Key.alt },
-        hint: "switch questions",
+        hint: "switch tabs",
         navigate: (keyId) => this.moveQuestion(keyId === Key.left ? -1 : 1),
       },
       {
@@ -87,6 +87,7 @@ export default class Questionnaire extends Frame implements Focusable {
 
   handleInput(data: string) {
     if (this.handleKb(data)) return;
+    if (this.tab === this.questions.length) return;
     if (!this.drafts[this.tab]!.editing) {
       const parsedKey = parseKey(data);
       const shouldRouteToEditor =
@@ -102,14 +103,39 @@ export default class Questionnaire extends Frame implements Focusable {
 
   protected override children(width: number) {
     const lines = new Lines(width);
+
+    lines.add(this.renderTabs());
+    lines.space();
+
+    if (this.tab === this.questions.length) {
+      lines.add(this.theme.bold("Review answers"));
+      lines.space();
+      for (const [index, question] of this.questions.entries()) {
+        const answer = serializeQuestionAnswer(question, this.drafts[index]!);
+        for (const line of wrapTextWithAnsi(`Q${index + 1}: ${question.prompt}`, width)) {
+          lines.add(line);
+        }
+        for (const line of wrapTextWithAnsi(`A${index + 1}: ${answer || "(incomplete)"}`, width)) {
+          lines.add(this.theme.fg("accent", line));
+        }
+        if (index < this.questions.length - 1) lines.space();
+      }
+      lines.space();
+      lines.add(
+        this.theme.fg(
+          this.allQuestionsAnswered() ? "success" : "warning",
+          this.allQuestionsAnswered()
+            ? "Press Enter to submit."
+            : "Complete required answers before submitting.",
+        ),
+      );
+      return lines.get();
+    }
+
     const question = this.questions[this.tab]!;
     const draft = this.drafts[this.tab]!;
     const editor = this.editors[this.tab]!;
 
-    if (this.questions.length > 1) {
-      lines.add(this.renderTabs());
-      lines.space();
-    }
     for (const wrappedPromptLine of wrapTextWithAnsi(this.theme.bold(question.prompt), width)) {
       lines.add(wrappedPromptLine);
     }
@@ -175,8 +201,7 @@ export default class Questionnaire extends Frame implements Focusable {
   }
 
   private moveQuestion(delta: number) {
-    const lastIndex = this.questions.length - 1;
-    this.tab = Math.max(0, Math.min(lastIndex, this.tab + delta));
+    this.tab = Math.max(0, Math.min(this.questions.length, this.tab + delta));
     this.statusMessage = undefined;
     this.syncInteractionState();
   }
@@ -224,6 +249,11 @@ export default class Questionnaire extends Frame implements Focusable {
   }
 
   private handleEnterKey() {
+    if (this.tab === this.questions.length) {
+      this.submitAnswer();
+      return;
+    }
+
     const question = this.questions[this.tab]!;
     const draft = this.drafts[this.tab]!;
     if (question.options.length > 0 && !draft.editing && !question.multi) {
@@ -233,6 +263,23 @@ export default class Questionnaire extends Frame implements Focusable {
   }
 
   private submitAnswer() {
+    if (this.tab === this.questions.length) {
+      if (!this.allQuestionsAnswered()) {
+        this.tab = this.firstIncompleteIndex();
+        this.syncInteractionState();
+        return;
+      }
+
+      this.onDone?.({
+        cancelled: false,
+        questions: this.questions.map((entry) => entry.prompt),
+        answers: this.questions.map((entry, index) =>
+          serializeQuestionAnswer(entry, this.drafts[index]!),
+        ),
+      });
+      return;
+    }
+
     const question = this.questions[this.tab]!;
     const draft = this.drafts[this.tab]!;
     ensureSingleSelection(question, this.drafts[this.tab]!);
@@ -243,24 +290,6 @@ export default class Questionnaire extends Frame implements Focusable {
       return;
     }
     this.statusMessage = undefined;
-
-    if (this.tab === this.questions.length - 1) {
-      if (this.allQuestionsAnswered()) {
-        this.onDone?.({
-          cancelled: false,
-          questions: this.questions.map((entry) => entry.prompt),
-          answers: this.questions.map((entry, index) =>
-            serializeQuestionAnswer(entry, this.drafts[index]!),
-          ),
-        });
-        return;
-      }
-
-      this.tab = this.firstIncompleteIndex();
-      this.syncInteractionState();
-      return;
-    }
-
     this.tab += 1;
     this.syncInteractionState();
   }
@@ -287,6 +316,12 @@ export default class Questionnaire extends Frame implements Focusable {
       }
       return this.theme.fg(answered ? "success" : "muted", label);
     });
+    const submitLabel = " Submit ";
+    tabs.push(
+      this.tab === this.questions.length
+        ? this.theme.bg("selectedBg", this.theme.fg("text", submitLabel))
+        : this.theme.fg(this.allQuestionsAnswered() ? "success" : "muted", submitLabel),
+    );
     return tabs.join(" ");
   }
 
@@ -296,15 +331,21 @@ export default class Questionnaire extends Frame implements Focusable {
   }
 
   private syncKeybindingState() {
+    this.setArrowKeyAccess({ navigation: "horizontal", metakey: Key.alt }, true);
+
+    if (this.tab === this.questions.length) {
+      this.setArrowKeyAccess({ navigation: "vertical" }, false);
+      this.setKeyAccess(Key.tab, false);
+      this.setKeyAccess(Key.space, false);
+      this.setHint(Key.enter, "submit");
+      return;
+    }
+
     const question = this.questions[this.tab]!;
     const draft = this.drafts[this.tab]!;
     const hasOptions = question.options.length > 0;
     const optionsFocused = hasOptions && !draft.editing;
 
-    this.setArrowKeyAccess(
-      { navigation: "horizontal", metakey: Key.alt },
-      this.questions.length > 1,
-    );
     this.setArrowKeyAccess({ navigation: "vertical" }, hasOptions);
     this.setKeyAccess(Key.tab, hasOptions);
     this.setKeyAccess(Key.space, optionsFocused && question.multi);

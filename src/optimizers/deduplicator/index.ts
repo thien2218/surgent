@@ -17,6 +17,7 @@ export default function (pi: ExtensionAPI) {
   const files = new Map<string, DeduplicatedFile>();
 
   pi.on("session_start", () => files.clear());
+  pi.on("session_compact", () => files.clear());
   pi.on("session_tree", () => files.clear());
 
   pi.on("tool_result", async (event, ctx) => {

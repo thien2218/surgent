@@ -1,14 +1,14 @@
+import { isRecord } from "../../utils.js";
 import {
   getBranchEntries,
   getEntryId,
   getLastEntryId,
   getRepeatIds,
   getToolResultMessage,
-  isRecord,
-} from "./entries.js";
+} from "../entries.js";
 import type { ContextPruneResult, PrunerState } from "./types.js";
 
-function collectPersistedFailedToolCallIds(entries: Record<string, unknown>[]): Set<string> {
+function collectFailedCallIds(entries: Record<string, unknown>[]): Set<string> {
   const failedToolCallIds = new Set<string>();
   for (const entry of entries) {
     if (entry.type !== "custom" || entry.customType !== "pruner") continue;
@@ -37,7 +37,7 @@ export function buildPrunerState(
     activeEntries = getBranchEntries(entries, getLastEntryId(entries));
   }
   const resultEntryIds = new Set<string>();
-  const replacementIdsByToolCallId = new Map<string, string[]>();
+  const replacementsByCallId = new Map<string, string[]>();
   for (const entry of activeEntries) {
     const entryId = getEntryId(entry);
     const message = getToolResultMessage(entry);
@@ -47,12 +47,12 @@ export function buildPrunerState(
 
     resultEntryIds.add(entryId);
     const repeatIds = getRepeatIds(message);
-    if (repeatIds) replacementIdsByToolCallId.set(message.toolCallId as string, repeatIds);
+    if (repeatIds) replacementsByCallId.set(message.toolCallId as string, repeatIds);
   }
 
   return {
-    failedToolCallIds: collectPersistedFailedToolCallIds(entries),
-    replacementIdsByToolCallId,
+    failedToolCallIds: collectFailedCallIds(entries),
+    replacementsByCallId,
     resultEntryIds,
   };
 }
@@ -60,7 +60,7 @@ export function buildPrunerState(
 export function emptyPrunerState(): PrunerState {
   return {
     failedToolCallIds: new Set<string>(),
-    replacementIdsByToolCallId: new Map<string, string[]>(),
+    replacementsByCallId: new Map<string, string[]>(),
     resultEntryIds: new Set<string>(),
   };
 }
@@ -70,7 +70,7 @@ export function filterContextMessages(
   state: PrunerState,
 ): ContextPruneResult {
   const prunedToolCallIds = new Set(state.failedToolCallIds);
-  for (const [toolCallId, repeatIds] of state.replacementIdsByToolCallId) {
+  for (const [toolCallId, repeatIds] of state.replacementsByCallId) {
     if (repeatIds.every((repeatId) => state.resultEntryIds.has(repeatId))) {
       prunedToolCallIds.add(toolCallId);
     }

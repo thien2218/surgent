@@ -18,7 +18,9 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
         ["function_declaration", [{ kind: "func", topLevelOnly: true }]],
         ["arrow_function", [{ kind: "func", topLevelOnly: true }]],
         ["function_expression", [{ kind: "func", topLevelOnly: true }]],
+        ["abstract_class_declaration", [{ kind: "class" }]],
         ["class_declaration", [{ kind: "class" }]],
+        ["abstract_method_signature", [{ kind: "method", parent: "class_body" }]],
         [
           "method_definition",
           [

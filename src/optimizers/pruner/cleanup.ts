@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
-import { getEntryId, getMessage, getParentId, getToolResultMessage, isRecord } from "./entries.js";
+import { getEntryId, getMessage, getParentId, getToolResultMessage } from "../entries.js";
 import type { FailedEntryRemoval } from "./types.js";
+import { isRecord } from "../../utils.js";
 
 function resolveRemovedId(
   entryId: string | null,
@@ -93,7 +94,7 @@ export function removeFailedEntries(entries: Record<string, unknown>[]): FailedE
   };
 }
 
-export function appendFailedToolCallState(
+export function appendFailureState(
   entries: Record<string, unknown>[],
   failedToolCallIds: string[],
   parentId: string | null,

@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { buildPrunerState, emptyPrunerState, filterContextMessages } from "./context.js";
-import { getLastEntryId } from "./entries.js";
+import { getLastEntryId } from "../entries.js";
 import { readSessionEntries, rewritePrunedSessionFile } from "./session.js";
 import type { PrunerState } from "./types.js";
 
@@ -18,10 +18,7 @@ export default function (pi: ExtensionAPI) {
   let state = emptyPrunerState();
 
   pi.on("session_start", (_event, ctx) => {
-    state = loadPrunerState(
-      ctx.sessionManager.getSessionFile(),
-      ctx.sessionManager.getLeafId(),
-    );
+    state = loadPrunerState(ctx.sessionManager.getSessionFile(), ctx.sessionManager.getLeafId());
   });
 
   pi.on("session_tree", (event, ctx) => {

@@ -108,7 +108,8 @@ const codeMap = defineTool({
       }
 
       try {
-        result.symbols = collapseGroupedSymbols(await collectSymbols(ctx.cwd, path, kinds));
+        const symbols = collapseGroupedSymbols(await collectSymbols(ctx.cwd, path, kinds));
+        result.symbols.push(...symbols);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         result.failed.push(`${path}: ${message}`);

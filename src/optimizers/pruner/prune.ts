@@ -9,9 +9,9 @@ import {
   getMessage,
   getRepeatIds,
   getToolResultMessage,
-  isRecord,
-} from "./entries.js";
+} from "../entries.js";
 import type { PruneEntriesResult, ResourceResult } from "./types.js";
+import { isRecord } from "../../utils.js";
 
 function clearRepeat(entry: Record<string, unknown>): boolean {
   const message = getToolResultMessage(entry);
@@ -57,17 +57,17 @@ function restoreOriginalContent(entry: Record<string, unknown>): boolean {
 function collectToolCallInputs(
   activeEntries: Record<string, unknown>[],
 ): Map<string, Record<string, unknown>> {
-  const inputsByToolCallId = new Map<string, Record<string, unknown>>();
+  const inputsByCallId = new Map<string, Record<string, unknown>>();
   for (const entry of activeEntries) {
     const message = getMessage(entry);
     if (message?.role !== "assistant" || !Array.isArray(message.content)) continue;
     for (const block of message.content) {
       if (!isRecord(block) || block.type !== "toolCall") continue;
       if (typeof block.id !== "string" || !isRecord(block.arguments)) continue;
-      inputsByToolCallId.set(block.id, block.arguments);
+      inputsByCallId.set(block.id, block.arguments);
     }
   }
-  return inputsByToolCallId;
+  return inputsByCallId;
 }
 
 function getResultText(message: Record<string, unknown>): string | undefined {
@@ -123,7 +123,7 @@ function normalizeResourcePath(sourcePath: string, cwd: string): string {
 
 function collectResourceResults(
   activeEntries: Record<string, unknown>[],
-  inputsByToolCallId: Map<string, Record<string, unknown>>,
+  inputsByCallId: Map<string, Record<string, unknown>>,
   cwd: string,
 ): ResourceResult[] {
   const resourceResults: ResourceResult[] = [];
@@ -133,7 +133,7 @@ function collectResourceResults(
     if (!entryId || !message || message.isError === true) continue;
 
     if (message.toolName === "read") {
-      const input = inputsByToolCallId.get(message.toolCallId as string);
+      const input = inputsByCallId.get(message.toolCallId as string);
       if (!input) continue;
       const read = getReadRange(message, input);
       if (!read) continue;
@@ -255,8 +255,8 @@ export function pruneEntries(
   }
 
   const activeEntries = getBranchEntries(failedEntryRemoval.entries, activeLeafId);
-  const inputsByToolCallId = collectToolCallInputs(activeEntries);
-  const resourceResults = collectResourceResults(activeEntries, inputsByToolCallId, cwd);
+  const inputsByCallId = collectToolCallInputs(activeEntries);
+  const resourceResults = collectResourceResults(activeEntries, inputsByCallId, cwd);
   let changed = failedEntryRemoval.changed;
 
   for (const resourceResult of resourceResults) {

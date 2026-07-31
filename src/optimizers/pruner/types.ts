@@ -22,7 +22,7 @@ export interface PruneEntriesResult {
 
 export interface PrunerState {
   failedToolCallIds: Set<string>;
-  replacementIdsByToolCallId: Map<string, string[]>;
+  replacementsByCallId: Map<string, string[]>;
   resultEntryIds: Set<string>;
 }
 

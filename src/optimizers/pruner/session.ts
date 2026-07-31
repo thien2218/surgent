@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { appendFailedToolCallState } from "./cleanup.js";
-import { getLastEntryId, isRecord } from "./entries.js";
+import { appendFailureState } from "./cleanup.js";
+import { getLastEntryId } from "../entries.js";
 import { pruneEntries } from "./prune.js";
+import { isRecord } from "../../utils.js";
 
 export function readSessionEntries(sessionFile: string): Record<string, unknown>[] | undefined {
   if (!existsSync(sessionFile)) return;
@@ -48,14 +49,14 @@ export function rewritePrunedSessionFile(
   sessionFile: string,
   leafId: string | null,
   fallbackCwd: string,
-  useLastEntryWhenLeafMissing: boolean,
+  fallbackToLastEntry: boolean,
 ) {
   const entries = readSessionEntries(sessionFile);
   if (!entries) return;
 
-  const effectiveLeafId = leafId ?? (useLastEntryWhenLeafMissing ? getLastEntryId(entries) : null);
+  const effectiveLeafId = leafId ?? (fallbackToLastEntry ? getLastEntryId(entries) : null);
   const pruned = pruneEntries(entries, effectiveLeafId, getSessionCwd(entries, fallbackCwd));
-  const addedFailedCallState = appendFailedToolCallState(
+  const addedFailedCallState = appendFailureState(
     pruned.entries,
     pruned.failedToolCallIds,
     pruned.activeLeafId,

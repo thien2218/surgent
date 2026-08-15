@@ -1,6 +1,5 @@
-import { randomBytes } from "node:crypto";
 import { getEntryId, getMessage, getParentId, getToolResultMessage } from "../entries.js";
-import type { FailedEntryRemoval } from "./types.js";
+import type { RemovedEntryRemoval } from "./types.js";
 import { isRecord } from "../../utils.js";
 
 function resolveRemovedId(
@@ -16,21 +15,57 @@ function resolveRemovedId(
   return resolvedId;
 }
 
-export function removeFailedEntries(entries: Record<string, unknown>[]): FailedEntryRemoval {
-  const failedToolCallIds = new Set<string>();
+function hasEmptyResult(message: {
+  content?: unknown;
+  toolName?: unknown;
+}): boolean {
+  if (
+    message.toolName !== "ls" &&
+    message.toolName !== "find" &&
+    message.toolName !== "code_diff"
+  ) {
+    return false;
+  }
+
+  if (!Array.isArray(message.content) || message.content.length !== 1) return false;
+  const content = message.content[0];
+  if (!isRecord(content) || content.type !== "text" || typeof content.text !== "string") return false;
+
+  return (
+    content.text === "(empty directory)" ||
+    content.text === "No files found matching pattern" ||
+    content.text === "No changes found." ||
+    content.text === "No changes in selected files."
+  );
+}
+
+export function getRemovedToolCallId(message: {
+  content?: unknown;
+  isError?: unknown;
+  toolCallId?: unknown;
+  toolName?: unknown;
+}): string | undefined {
+  if (typeof message.toolCallId !== "string") return;
+  if (message.isError === true) return message.toolName === "bash" ? undefined : message.toolCallId;
+  return hasEmptyResult(message) ? message.toolCallId : undefined;
+}
+
+export function removeEntries(entries: Record<string, unknown>[]): RemovedEntryRemoval {
+  const removedToolCallIds = new Set<string>();
   const replacementParents = new Map<string, string | null>();
 
   for (const entry of entries) {
     const message = getToolResultMessage(entry);
     const entryId = getEntryId(entry);
-    if (!message || !entryId || message.isError !== true || message.toolName === "bash") continue;
+    const toolCallId = message ? getRemovedToolCallId(message) : undefined;
+    if (!entryId || !toolCallId) continue;
 
-    failedToolCallIds.add(message.toolCallId as string);
+    removedToolCallIds.add(toolCallId);
     replacementParents.set(entryId, getParentId(entry));
   }
 
-  if (failedToolCallIds.size === 0) {
-    return { changed: false, entries, failedToolCallIds, replacementParents };
+  if (removedToolCallIds.size === 0) {
+    return { changed: false, entries, replacementParents };
   }
 
   const retainedEntries: Record<string, unknown>[] = [];
@@ -49,13 +84,13 @@ export function removeFailedEntries(entries: Record<string, unknown>[]): FailedE
         !isRecord(block) ||
         block.type !== "toolCall" ||
         typeof block.id !== "string" ||
-        !failedToolCallIds.has(block.id),
+        !removedToolCallIds.has(block.id),
     );
     if (retainedContent.length === message.content.length) {
       retainedEntries.push(entry);
       continue;
     }
-    if (retainedContent.length === 0 && entryId) {
+    if (entryId && retainedContent.every((block) => isRecord(block) && block.type === "thinking")) {
       replacementParents.set(entryId, getParentId(entry));
       continue;
     }
@@ -86,37 +121,5 @@ export function removeFailedEntries(entries: Record<string, unknown>[]): FailedE
     repairedEntries.push(changed ? updatedEntry : entry);
   }
 
-  return {
-    changed: true,
-    entries: repairedEntries,
-    failedToolCallIds,
-    replacementParents,
-  };
-}
-
-export function appendFailureState(
-  entries: Record<string, unknown>[],
-  failedToolCallIds: string[],
-  parentId: string | null,
-): boolean {
-  if (failedToolCallIds.length === 0) return false;
-
-  const entryIds = new Set<string>();
-  for (const entry of entries) {
-    const entryId = getEntryId(entry);
-    if (entryId) entryIds.add(entryId);
-  }
-
-  let entryId = randomBytes(4).toString("hex");
-  while (entryIds.has(entryId)) entryId = randomBytes(4).toString("hex");
-
-  entries.push({
-    type: "custom",
-    customType: "pruner",
-    data: { failedToolCallIds },
-    id: entryId,
-    parentId,
-    timestamp: new Date().toISOString(),
-  });
-  return true;
+  return { changed: true, entries: repairedEntries, replacementParents };
 }

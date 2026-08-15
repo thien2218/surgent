@@ -1,4 +1,39 @@
+import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { isRecord } from "../utils.js";
+
+export function readSessionEntries(
+  sessionFile: string | undefined,
+): Record<string, unknown>[] | undefined {
+  if (!sessionFile || !existsSync(sessionFile)) return;
+
+  try {
+    const sessionText = readFileSync(sessionFile, "utf8");
+    const entries: Record<string, unknown>[] = [];
+    for (const line of sessionText.split("\n")) {
+      if (line.trim().length === 0) continue;
+      const entry = JSON.parse(line);
+      if (!isRecord(entry)) return;
+      entries.push(entry);
+    }
+    return entries;
+  } catch {
+    return;
+  }
+}
+
+export function writeSessionEntries(sessionFile: string, entries: Record<string, unknown>[]) {
+  const temporaryFile = `${sessionFile}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    writeFileSync(
+      temporaryFile,
+      `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`,
+      "utf8",
+    );
+    renameSync(temporaryFile, sessionFile);
+  } finally {
+    if (existsSync(temporaryFile)) unlinkSync(temporaryFile);
+  }
+}
 
 export function getEntryId(entry: Record<string, unknown>): string | undefined {
   const entryId = entry.id;
@@ -27,19 +62,6 @@ export function getDetails(message: Record<string, unknown>): Record<string, unk
   const details = message.details;
   if (!isRecord(details)) return;
   return details;
-}
-
-export function getRepeatIds(message: Record<string, unknown>): string[] | undefined {
-  const repeat = getDetails(message)?.repeat;
-  if (typeof repeat === "string" && repeat.length > 0) return [repeat];
-  if (!Array.isArray(repeat) || repeat.length === 0) return;
-
-  const repeatIds: string[] = [];
-  for (const repeatId of repeat) {
-    if (typeof repeatId !== "string" || repeatId.length === 0) return;
-    repeatIds.push(repeatId);
-  }
-  return repeatIds;
 }
 
 export function getParentId(entry: Record<string, unknown>): string | null {

@@ -1,39 +1,29 @@
 import { statSync } from "node:fs";
 import { isBashToolResult, isGrepToolResult } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { rebuildActiveSummaries, rewriteTailWithSummaries } from "./helpers.js";
+import { rewriteTailWithSummaries } from "./helpers.js";
 import { extractBashSummary, extractGrepSummary } from "./extractors.js";
-import type { PersistedState, SummaryStore } from "./types.js";
-
-const CUSTOM_ENTRY_TYPE = "read-summarizer";
+import type { SummaryStore } from "./types.js";
 
 export default function (pi: ExtensionAPI) {
   const store: SummaryStore = { active: new Map(), pending: new Map() };
-  let runStartOffset = 0;
-
-  pi.on("session_start", async (_event, ctx) => {
-    store.pending.clear();
-    rebuildActiveSummaries(store, ctx.sessionManager.getBranch(), CUSTOM_ENTRY_TYPE);
-  });
-
-  pi.on("session_tree", async (_event, ctx) => {
-    store.pending.clear();
-    rebuildActiveSummaries(store, ctx.sessionManager.getBranch(), CUSTOM_ENTRY_TYPE);
-  });
+  const pendingWrites = new Map<string, string>();
+  let writeStartOffset = 0;
 
   pi.on("agent_start", async (_event, ctx) => {
     store.pending.clear();
+    if (pendingWrites.size > 0) return;
 
     const sessionFile = ctx.sessionManager.getSessionFile();
     if (!sessionFile) {
-      runStartOffset = 0;
+      writeStartOffset = 0;
       return;
     }
 
     try {
-      runStartOffset = statSync(sessionFile).size;
+      writeStartOffset = statSync(sessionFile).size;
     } catch {
-      runStartOffset = 0;
+      writeStartOffset = 0;
     }
   });
 
@@ -51,7 +41,7 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
-  pi.on("agent_end", async (event, ctx) => {
+  pi.on("agent_end", async (event) => {
     const completedRunSummaries = new Map<string, string>();
 
     try {
@@ -65,22 +55,24 @@ export default function (pi: ExtensionAPI) {
         }
       }
 
-      if (completedRunSummaries.size === 0) return;
-
       for (const [toolCallId, summaryText] of completedRunSummaries) {
         store.active.set(toolCallId, summaryText);
+        pendingWrites.set(toolCallId, summaryText);
       }
-
-      const sessionFile = ctx.sessionManager.getSessionFile();
-      if (sessionFile) {
-        rewriteTailWithSummaries(sessionFile, runStartOffset, completedRunSummaries);
-      }
-
-      pi.appendEntry(CUSTOM_ENTRY_TYPE, {
-        summaries: Object.fromEntries(completedRunSummaries),
-      } satisfies PersistedState);
     } finally {
       store.pending.clear();
+    }
+  });
+
+  pi.on("session_shutdown", (event, ctx) => {
+    if (pendingWrites.size === 0) return;
+
+    const sessionFile = ctx.sessionManager.getSessionFile();
+    if (sessionFile) {
+      rewriteTailWithSummaries(sessionFile, writeStartOffset, pendingWrites);
+    }
+    if (event.targetSessionFile && event.targetSessionFile !== sessionFile) {
+      rewriteTailWithSummaries(event.targetSessionFile, writeStartOffset, pendingWrites);
     }
   });
 

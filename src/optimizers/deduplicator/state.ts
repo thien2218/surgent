@@ -1,58 +1,16 @@
 import { realpathSync } from "node:fs";
 import { normalize, resolve } from "node:path";
 import { parseInspectToolDetails } from "../inspector/helpers.js";
-import { removeFailedEntries } from "./cleanup.js";
 import {
   getBranchEntries,
   getDetails,
   getEntryId,
+  getLastEntryId,
   getMessage,
-  getRepeatIds,
   getToolResultMessage,
 } from "../entries.js";
-import type { PruneEntriesResult, ResourceResult } from "./types.js";
 import { isRecord } from "../../utils.js";
-
-function clearRepeat(entry: Record<string, unknown>): boolean {
-  const message = getToolResultMessage(entry);
-  const details = message ? getDetails(message) : undefined;
-  if (!message || !details || !("repeat" in details)) return false;
-
-  const updatedDetails = { ...details };
-  delete updatedDetails.repeat;
-  entry.message = { ...message, details: updatedDetails };
-  return true;
-}
-
-function setRepeat(entry: Record<string, unknown>, repeat: string | string[]): boolean {
-  const message = getToolResultMessage(entry);
-  if (!message) return false;
-
-  const details = getDetails(message);
-  entry.message = {
-    ...message,
-    details: {
-      ...(details ?? {}),
-      repeat,
-    },
-  };
-  return true;
-}
-
-function restoreOriginalContent(entry: Record<string, unknown>): boolean {
-  const message = getToolResultMessage(entry);
-  const details = message ? getDetails(message) : undefined;
-  if (!message || !details || typeof details.originalContent !== "string") return false;
-
-  const updatedDetails = { ...details };
-  delete updatedDetails.originalContent;
-  entry.message = {
-    ...message,
-    content: [{ type: "text", text: details.originalContent }],
-    details: updatedDetails,
-  };
-  return true;
-}
+import type { DeduplicatorState, ResourceResult } from "./types.js";
 
 function collectToolCallInputs(
   activeEntries: Record<string, unknown>[],
@@ -130,7 +88,14 @@ function collectResourceResults(
   for (const entry of activeEntries) {
     const entryId = getEntryId(entry);
     const message = getToolResultMessage(entry);
-    if (!entryId || !message || message.isError === true) continue;
+    if (
+      !entryId ||
+      !message ||
+      message.isError === true ||
+      typeof message.toolCallId !== "string"
+    ) {
+      continue;
+    }
 
     if (message.toolName === "read") {
       const input = inputsByCallId.get(message.toolCallId as string);
@@ -143,6 +108,7 @@ function collectResourceResults(
         kind: "read",
         range: read.range,
         resource: normalizeResourcePath(read.path, cwd),
+        toolCallId: message.toolCallId,
       });
       continue;
     }
@@ -155,6 +121,7 @@ function collectResourceResults(
       entryId,
       kind: "inspect",
       resource: `${normalizeResourcePath(inspected.path, cwd)}\u0000${inspected.symbol}`,
+      toolCallId: message.toolCallId,
     });
   }
   return resourceResults;
@@ -187,17 +154,17 @@ function hasFullCoverage(range: [number, number], candidates: ResourceResult[]):
   return coveredLines === range[1] - range[0] + 1;
 }
 
-function linkSupersededResults(resourceResults: ResourceResult[]): boolean {
+function collectReplacementIds(resourceResults: ResourceResult[]): Map<string, string[]> {
   const latestInspectByResource = new Map<string, ResourceResult>();
   const retainedReadsByResource = new Map<string, ResourceResult[]>();
-  let changed = false;
+  const replacementIdsByEntryId = new Map<string, string[]>();
 
   for (let index = resourceResults.length - 1; index >= 0; index -= 1) {
     const resourceResult = resourceResults[index]!;
     if (resourceResult.kind === "inspect") {
       const replacement = latestInspectByResource.get(resourceResult.resource);
       if (replacement) {
-        changed = setRepeat(resourceResult.entry, replacement.entryId) || changed;
+        replacementIdsByEntryId.set(resourceResult.entryId, [replacement.entryId]);
       } else {
         latestInspectByResource.set(resourceResult.resource, resourceResult);
       }
@@ -213,62 +180,55 @@ function linkSupersededResults(resourceResults: ResourceResult[]): boolean {
         candidate.range[1] >= resourceResult.range![0],
     );
     if (hasFullCoverage(resourceResult.range, coveringReads)) {
-      changed =
-        setRepeat(
-          resourceResult.entry,
-          coveringReads.map((candidate) => candidate.entryId),
-        ) || changed;
+      replacementIdsByEntryId.set(
+        resourceResult.entryId,
+        coveringReads.map((candidate) => candidate.entryId),
+      );
       continue;
     }
     retainedReads.push(resourceResult);
     retainedReadsByResource.set(resourceResult.resource, retainedReads);
   }
 
-  return changed;
+  return replacementIdsByEntryId;
 }
 
-function restoreReplacementContent(resourceResults: ResourceResult[]): boolean {
-  const replacementIds = new Set<string>();
-  for (const resourceResult of resourceResults) {
-    const message = getToolResultMessage(resourceResult.entry);
-    if (!message) continue;
-    for (const repeatId of getRepeatIds(message) ?? []) replacementIds.add(repeatId);
-  }
-
-  let changed = false;
-  for (const resourceResult of resourceResults) {
-    if (!replacementIds.has(resourceResult.entryId)) continue;
-    changed = restoreOriginalContent(resourceResult.entry) || changed;
-  }
-  return changed;
-}
-
-export function pruneEntries(
+export function buildDeduplicatorState(
   entries: Record<string, unknown>[],
   leafId: string | null,
   cwd: string,
-): PruneEntriesResult {
-  const failedEntryRemoval = removeFailedEntries(entries);
-  let activeLeafId = leafId;
-  while (activeLeafId && failedEntryRemoval.replacementParents.has(activeLeafId)) {
-    activeLeafId = failedEntryRemoval.replacementParents.get(activeLeafId) ?? null;
+): DeduplicatorState {
+  let activeEntries = getBranchEntries(entries, leafId);
+  if (activeEntries.length === 0 && leafId !== null) {
+    activeEntries = getBranchEntries(entries, getLastEntryId(entries));
   }
 
-  const activeEntries = getBranchEntries(failedEntryRemoval.entries, activeLeafId);
-  const inputsByCallId = collectToolCallInputs(activeEntries);
-  const resourceResults = collectResourceResults(activeEntries, inputsByCallId, cwd);
-  let changed = failedEntryRemoval.changed;
+  const resourceResults = collectResourceResults(
+    activeEntries,
+    collectToolCallInputs(activeEntries),
+    cwd,
+  );
+  const replacementIdsByEntryId = collectReplacementIds(resourceResults);
+  const resourceResultsByEntryId = new Map(
+    resourceResults.map((resourceResult) => [resourceResult.entryId, resourceResult]),
+  );
+  const replacementsByCallId = new Map<string, string[]>();
+  const replacementToolCallIds = new Set<string>();
 
   for (const resourceResult of resourceResults) {
-    changed = clearRepeat(resourceResult.entry) || changed;
+    const replacementIds = replacementIdsByEntryId.get(resourceResult.entryId);
+    if (!replacementIds) continue;
+    replacementsByCallId.set(resourceResult.toolCallId, replacementIds);
+
+    for (const replacementId of replacementIds) {
+      const replacement = resourceResultsByEntryId.get(replacementId);
+      if (replacement) replacementToolCallIds.add(replacement.toolCallId);
+    }
   }
-  changed = linkSupersededResults(resourceResults) || changed;
-  changed = restoreReplacementContent(resourceResults) || changed;
 
   return {
-    activeLeafId,
-    changed,
-    entries: failedEntryRemoval.entries,
-    failedToolCallIds: [...failedEntryRemoval.failedToolCallIds],
+    replacementsByCallId,
+    replacementToolCallIds,
+    resultEntryIds: new Set(resourceResultsByEntryId.keys()),
   };
 }

@@ -1,37 +1,40 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { buildPrunerState, emptyPrunerState, filterContextMessages } from "./context.js";
-import { getLastEntryId } from "../entries.js";
-import { readSessionEntries, rewritePrunedSessionFile } from "./session.js";
-import type { PrunerState } from "./types.js";
+import { getRemovedToolCallId } from "./cleanup.js";
+import { buildPrunerState, filterContextMessages } from "./context.js";
+import { readSessionEntries } from "../entries.js";
+import { rewritePrunedSessionFile } from "./session.js";
 
-function loadPrunerState(sessionFile: string | undefined, leafId: string | null): PrunerState {
-  if (!sessionFile) return emptyPrunerState();
+function loadPrunerState(sessionFile: string | undefined): Set<string> {
   const entries = readSessionEntries(sessionFile);
-  if (!entries) return emptyPrunerState();
-
-  const currentState = buildPrunerState(entries, leafId);
-  if (currentState.resultEntryIds.size > 0 || leafId === null) return currentState;
-  return buildPrunerState(entries, getLastEntryId(entries));
+  return entries ? buildPrunerState(entries) : new Set<string>();
 }
 
 export default function (pi: ExtensionAPI) {
-  let state = emptyPrunerState();
+  let state = new Set<string>();
 
   pi.on("session_start", (_event, ctx) => {
-    state = loadPrunerState(ctx.sessionManager.getSessionFile(), ctx.sessionManager.getLeafId());
+    state = loadPrunerState(ctx.sessionManager.getSessionFile());
   });
 
-  pi.on("session_tree", (event, ctx) => {
-    state = loadPrunerState(ctx.sessionManager.getSessionFile(), event.newLeafId);
+  pi.on("session_tree", (_event, ctx) => {
+    state = loadPrunerState(ctx.sessionManager.getSessionFile());
+  });
+
+  pi.on("agent_end", (event) => {
+    for (const message of event.messages) {
+      if (message.role !== "toolResult") continue;
+      const toolCallId = getRemovedToolCallId(message);
+      if (toolCallId) state.add(toolCallId);
+    }
   });
 
   pi.on("session_shutdown", (event, ctx) => {
     const sessionFile = ctx.sessionManager.getSessionFile();
     if (sessionFile) {
-      rewritePrunedSessionFile(sessionFile, ctx.sessionManager.getLeafId(), ctx.cwd, false);
+      rewritePrunedSessionFile(sessionFile, ctx.sessionManager.getLeafId(), false);
     }
     if (event.targetSessionFile && event.targetSessionFile !== sessionFile) {
-      rewritePrunedSessionFile(event.targetSessionFile, null, ctx.cwd, true);
+      rewritePrunedSessionFile(event.targetSessionFile, null, true);
     }
   });
 

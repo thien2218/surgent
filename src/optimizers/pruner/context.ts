@@ -1,86 +1,27 @@
-import { isRecord } from "../../utils.js";
-import {
-  getBranchEntries,
-  getEntryId,
-  getLastEntryId,
-  getRepeatIds,
-  getToolResultMessage,
-} from "../entries.js";
-import type { ContextPruneResult, PrunerState } from "./types.js";
+import { getToolResultMessage } from "../entries.js";
+import { getRemovedToolCallId } from "./cleanup.js";
+import type { ContextPruneResult } from "./types.js";
 
-function collectFailedCallIds(entries: Record<string, unknown>[]): Set<string> {
-  const failedToolCallIds = new Set<string>();
+export function buildPrunerState(entries: Record<string, unknown>[]): Set<string> {
+  const removedToolCallIds = new Set<string>();
   for (const entry of entries) {
-    if (entry.type !== "custom" || entry.customType !== "pruner") continue;
-
-    const data = entry.data;
-    if (!isRecord(data)) continue;
-
-    const persistedIds = data.failedToolCallIds;
-    if (!Array.isArray(persistedIds)) continue;
-
-    for (const persistedId of persistedIds) {
-      if (typeof persistedId === "string" && persistedId.length > 0) {
-        failedToolCallIds.add(persistedId);
-      }
-    }
-  }
-  return failedToolCallIds;
-}
-
-export function buildPrunerState(
-  entries: Record<string, unknown>[],
-  leafId: string | null,
-): PrunerState {
-  let activeEntries = getBranchEntries(entries, leafId);
-  if (activeEntries.length === 0 && leafId !== null) {
-    activeEntries = getBranchEntries(entries, getLastEntryId(entries));
-  }
-  const resultEntryIds = new Set<string>();
-  const replacementsByCallId = new Map<string, string[]>();
-  for (const entry of activeEntries) {
-    const entryId = getEntryId(entry);
     const message = getToolResultMessage(entry);
-    if (!entryId || !message || (message.toolName !== "read" && message.toolName !== "inspect")) {
-      continue;
-    }
-
-    resultEntryIds.add(entryId);
-    const repeatIds = getRepeatIds(message);
-    if (repeatIds) replacementsByCallId.set(message.toolCallId as string, repeatIds);
+    const toolCallId = message ? getRemovedToolCallId(message) : undefined;
+    if (toolCallId) removedToolCallIds.add(toolCallId);
   }
-
-  return {
-    failedToolCallIds: collectFailedCallIds(entries),
-    replacementsByCallId,
-    resultEntryIds,
-  };
-}
-
-export function emptyPrunerState(): PrunerState {
-  return {
-    failedToolCallIds: new Set<string>(),
-    replacementsByCallId: new Map<string, string[]>(),
-    resultEntryIds: new Set<string>(),
-  };
+  return removedToolCallIds;
 }
 
 export function filterContextMessages(
   messages: ContextPruneResult["messages"],
-  state: PrunerState,
+  state: Set<string>,
 ): ContextPruneResult {
-  const prunedToolCallIds = new Set(state.failedToolCallIds);
-  for (const [toolCallId, repeatIds] of state.replacementsByCallId) {
-    if (repeatIds.every((repeatId) => state.resultEntryIds.has(repeatId))) {
-      prunedToolCallIds.add(toolCallId);
-    }
-  }
-  if (prunedToolCallIds.size === 0) return { changed: false, messages };
+  if (state.size === 0) return { changed: false, messages };
 
   const retainedMessages: ContextPruneResult["messages"] = [];
   let changed = false;
   for (const message of messages) {
-    if (message.role === "toolResult" && prunedToolCallIds.has(message.toolCallId)) {
+    if (message.role === "toolResult" && state.has(message.toolCallId)) {
       changed = true;
       continue;
     }
@@ -90,14 +31,14 @@ export function filterContextMessages(
     }
 
     const retainedContent = message.content.filter(
-      (block) => block.type !== "toolCall" || !prunedToolCallIds.has(block.id),
+      (block) => block.type !== "toolCall" || !state.has(block.id),
     );
     if (retainedContent.length === message.content.length) {
       retainedMessages.push(message);
       continue;
     }
     changed = true;
-    if (retainedContent.length > 0) {
+    if (retainedContent.some((block) => block.type !== "thinking")) {
       retainedMessages.push({ ...message, content: retainedContent });
     }
   }

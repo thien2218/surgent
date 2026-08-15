@@ -4,6 +4,9 @@ import { isReadToolResult, type ExtensionAPI } from "@earendil-works/pi-coding-a
 import { parseInspectToolDetails } from "../inspector/helpers.js";
 import type { Range } from "../inspector/types.js";
 import { type DeduplicatedFile, mergeRanges, reconcileTouched, subtractRanges } from "./helpers.js";
+import { readSessionEntries } from "../entries.js";
+import { filterDeduplicatedMessages } from "./context.js";
+import { buildDeduplicatorState } from "./state.js";
 
 function withOriginalContent(details: unknown, originalContent: string) {
   const preservedDetails =
@@ -15,10 +18,26 @@ function withOriginalContent(details: unknown, originalContent: string) {
 
 export default function (pi: ExtensionAPI) {
   const files = new Map<string, DeduplicatedFile>();
+  let state = buildDeduplicatorState([], null, "");
 
-  pi.on("session_start", () => files.clear());
   pi.on("session_compact", () => files.clear());
-  pi.on("session_tree", () => files.clear());
+
+  pi.on("session_start", (_event, ctx) => {
+    files.clear();
+    const entries = readSessionEntries(ctx.sessionManager.getSessionFile()) ?? [];
+    state = buildDeduplicatorState(entries, ctx.sessionManager.getLeafId(), ctx.cwd);
+  });
+
+  pi.on("session_tree", (event, ctx) => {
+    files.clear();
+    const entries = readSessionEntries(ctx.sessionManager.getSessionFile()) ?? [];
+    state = buildDeduplicatorState(entries, event.newLeafId, ctx.cwd);
+  });
+
+  pi.on("context", (event) => {
+    const deduplicated = filterDeduplicatedMessages(event.messages, state);
+    if (deduplicated.changed) return { messages: deduplicated.messages };
+  });
 
   pi.on("tool_result", async (event, ctx) => {
     if (event.isError || (event.toolName !== "read" && event.toolName !== "inspect")) return;
@@ -100,14 +119,19 @@ export default function (pi: ExtensionAPI) {
     storedFile.touched = mergeRanges([...storedFile.touched, ...ranges]);
     if (unseenRanges.length === 0) {
       return {
-        content: [{ type: "text", text: "(no changes made since last read)" }],
+        content: [
+          {
+            type: "text",
+            text: "(content deduped by previous read/inspect, use prior output)",
+          },
+        ],
         details: withOriginalContent(event.details, originalContent),
       };
     }
 
     let text = unseenRanges
       .map(([start, end]) => currentContent.slice(start - 1, end).join("\n"))
-      .join("\n...\n");
+      .join("\n...(content deduped by previous read/inspect, use prior output)\n");
 
     if (continuation) text += continuation;
 

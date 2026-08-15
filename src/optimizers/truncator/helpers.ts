@@ -6,38 +6,6 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import type { PersistedState, SummaryStore } from "./types.js";
-
-export function rebuildActiveSummaries(
-  store: SummaryStore,
-  branchEntries: Array<{ type: string; customType?: string; data?: unknown }>,
-  customEntryType: string,
-) {
-  store.active.clear();
-
-  for (const entry of branchEntries) {
-    if (entry.type !== "custom" || entry.customType !== customEntryType) {
-      continue;
-    }
-
-    const state = entry.data as PersistedState;
-    if (
-      !state ||
-      typeof state !== "object" ||
-      !state.summaries ||
-      typeof state.summaries !== "object"
-    ) {
-      continue;
-    }
-
-    for (const [toolCallId, summaryText] of Object.entries(state.summaries)) {
-      if (typeof summaryText === "string" && summaryText.length > 0) {
-        store.active.set(toolCallId, summaryText);
-      }
-    }
-  }
-}
-
 export function rewriteTailWithSummaries(
   sessionFile: string,
   runStartOffset: number,

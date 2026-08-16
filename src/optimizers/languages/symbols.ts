@@ -42,10 +42,12 @@ async function getRootNode(cwd: string, path: string) {
 }
 
 export async function collectSymbols(cwd: string, path: string, kinds: Set<SymbolKind>) {
-  const root = await getRootNode(cwd, path);
   const extension = extname(path).toLowerCase();
   const profile = getLanguageProfile(extension);
-  if (!profile || !root) return [];
+  if (!profile) return [];
+
+  const root = await getRootNode(cwd, path);
+  if (!root) return [];
 
   const symbols: LanguageSymbol[] = [];
   const pendingNodes: SyntaxNode[] = [root];

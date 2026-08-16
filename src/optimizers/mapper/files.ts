@@ -11,7 +11,6 @@ function normalizePath(pathValue: string) {
 async function rgFiles(
   projectPath: string,
   globTargets: string[],
-  extensions: Set<string>,
   signal?: AbortSignal,
 ) {
   const args = ["--files", "--hidden"];
@@ -29,33 +28,21 @@ async function rgFiles(
     successExitCodes: [0, 1],
     abortMessage: "mapper aborted",
   });
-  const paths = commandResult.stdout
+  return commandResult.stdout
     .split("\n")
     .map((line) => normalizePath(line.trim()))
     .filter((line) => line.length > 0);
-  if (extensions.size === 0) return paths;
-
-  return paths.filter((pathValue) => {
-    for (const extension of extensions) {
-      if (pathValue.endsWith(extension)) return true;
-    }
-    return false;
-  });
 }
 
 async function grepFiles(
   projectPath: string,
   globTargets: string[],
-  extensions: Set<string>,
   signal?: AbortSignal,
 ) {
   const args = ["-r", "-I", "-l"];
 
   for (const skipped of SKIPPED_DIRECTORIES) {
     args.push("--exclude-dir", skipped);
-  }
-  for (const extension of extensions) {
-    args.push("--include", `*${extension}`);
   }
 
   args.push("-e", "", ".");
@@ -75,7 +62,6 @@ async function grepFiles(
 export async function resolveTargetPaths(
   projectPath: string,
   targets: string[],
-  extensions: Set<string>,
   signal?: AbortSignal,
 ) {
   const globTargets = targets.flatMap((target) => {
@@ -89,7 +75,7 @@ export async function resolveTargetPaths(
   if (globTargets.length === 0) return [];
 
   try {
-    const paths = await rgFiles(projectPath, globTargets, extensions, signal);
+    const paths = await rgFiles(projectPath, globTargets, signal);
     return [...new Set(paths)].sort();
   } catch (rgError) {
     const rgMessage = rgError instanceof Error ? rgError.message : String(rgError);
@@ -98,7 +84,7 @@ export async function resolveTargetPaths(
     }
 
     try {
-      const paths = await grepFiles(projectPath, globTargets, extensions, signal);
+      const paths = await grepFiles(projectPath, globTargets, signal);
       return [...new Set(paths)].sort();
     } catch (grepError) {
       const grepMessage = grepError instanceof Error ? grepError.message : String(grepError);

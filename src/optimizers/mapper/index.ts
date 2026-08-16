@@ -2,14 +2,9 @@ import { defineTool, keyHint } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { resolveTargetPaths } from "./files.js";
-import { getSupportedExtensions, collectSymbols, SYMBOL_KINDS } from "../languages/index.js";
+import { collectSymbols, SYMBOL_KINDS } from "../languages/index.js";
 import type { LanguageSymbol } from "../languages/index.js";
 import type { MapperResult } from "./types.js";
-
-function normalizeExtension(extension: string) {
-  const normalized = extension.trim().toLowerCase();
-  return normalized.startsWith(".") ? normalized : `.${normalized}`;
-}
 
 function collapseGroupedSymbols(symbols: LanguageSymbol[]) {
   let groupedSymbolKind: "deps" | "public" | undefined;
@@ -43,10 +38,6 @@ const codeMap = defineTool({
     targets: Type.Array(Type.String(), {
       description: "Paths or globs to scan (relative to cwd). Keep scope narrow.",
     }),
-    extensions: Type.Array(Type.String({ description: "File extension, e.g. .ts" }), {
-      minItems: 1,
-      description: "File extensions to include (e.g. `.ts`).",
-    }),
     kinds: Type.Optional(
       Type.Array(Type.Union(SYMBOL_KINDS.map((kind) => Type.Literal(kind))), {
         description: "Abstraction kinds to include. Omit to include all supported.",
@@ -56,26 +47,10 @@ const codeMap = defineTool({
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
     const kinds = new Set(params.kinds ?? SYMBOL_KINDS);
     const result: MapperResult = { symbols: [], failed: [] };
-    const extensions = new Set(params.extensions.map(normalizeExtension));
-    const unsupported = extensions.difference(getSupportedExtensions());
-
-    if (unsupported.size > 0) {
-      const unsupportedText = [...unsupported].join(", ");
-      return {
-        isError: true,
-        details: "code_map target validation failed",
-        content: [
-          {
-            type: "text",
-            text: `code_map target validation failed: unsupported extensions: ${unsupportedText}`,
-          },
-        ],
-      };
-    }
 
     let paths: string[] = [];
     try {
-      paths = await resolveTargetPaths(ctx.cwd, params.targets, extensions, signal);
+      paths = await resolveTargetPaths(ctx.cwd, params.targets, signal);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return {
@@ -144,11 +119,10 @@ const codeMap = defineTool({
   },
   renderCall(args, theme) {
     const targets = Array.isArray(args.targets) ? args.targets.join(", ") : "";
-    const extensions = Array.isArray(args.extensions) ? args.extensions.join(", ") : "";
     const kinds = Array.isArray(args.kinds) ? args.kinds.join(", ") : "default";
 
     return new Text(
-      `${theme.fg("toolTitle", "code_map")} targets=[${targets}] extensions=[${extensions}] kinds=[${kinds}]`,
+      `${theme.fg("toolTitle", "code_map")} targets=[${targets}] kinds=[${kinds}]`,
       0,
       0,
     );

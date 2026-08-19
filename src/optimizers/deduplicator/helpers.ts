@@ -11,7 +11,7 @@ export function mergeRanges(ranges: Range[]) {
 
   for (const range of sortedRanges) {
     const previousRange = mergedRanges.at(-1);
-    if (!previousRange || previousRange[1] < range[0]) {
+    if (!previousRange || previousRange[1] < range[0] - 1) {
       mergedRanges.push([range[0], range[1]]);
       continue;
     }
@@ -132,22 +132,17 @@ function findUnchangedLines(previousContent: string[], currentContent: string[])
   return [];
 }
 
-export function reconcileTouched(
-  previousContent: string[],
-  currentContent: string[],
-  touched: Range[],
-) {
+export function reconcileTouched(storedFile: DeduplicatedFile, currentContent: string[]) {
   const currentLength = currentContent.length;
-  const previousLength = previousContent.length;
-
+  const previousLength = storedFile.content.length;
   if (
     previousLength === currentLength &&
-    previousContent.every((line, index) => line === currentContent[index])
+    storedFile.content.every((line, index) => line === currentContent[index])
   ) {
-    return { changed: [], touched };
+    return;
   }
 
-  const unchangedLines = findUnchangedLines(previousContent, currentContent);
+  const unchangedLines = findUnchangedLines(storedFile.content, currentContent);
   const unchangedRuns: [number, number, number][] = [];
 
   for (const [previousLine, currentLine] of unchangedLines) {
@@ -191,7 +186,7 @@ export function reconcileTouched(
   );
   const shiftedTouched: Range[] = [];
 
-  for (const [touchedStart, touchedEnd] of touched) {
+  for (const [touchedStart, touchedEnd] of storedFile.touched) {
     for (const [previousStart, previousEnd, offset] of unchangedRuns) {
       const intersectionStart = Math.max(touchedStart, previousStart);
       const intersectionEnd = Math.min(touchedEnd, previousEnd);
@@ -202,5 +197,6 @@ export function reconcileTouched(
     }
   }
 
-  return { changed, touched: subtractRanges(shiftedTouched, changed) };
+  storedFile.content = currentContent;
+  storedFile.touched = subtractRanges(shiftedTouched, changed);
 }

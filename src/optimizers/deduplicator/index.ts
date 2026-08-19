@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { isReadToolResult, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { parseInspectToolDetails } from "../inspector/helpers.js";
 import type { Range } from "../inspector/types.js";
-import { type DeduplicatedFile, mergeRanges, reconcileTouched, subtractRanges } from "./helpers.js";
+import { type DeduplicatedFile, reconcileTouched, subtractRanges } from "./helpers.js";
 import { readSessionEntries } from "../entries.js";
 import { filterDeduplicatedMessages } from "./context.js";
 import { buildDeduplicatorState } from "./state.js";
@@ -101,28 +101,15 @@ export default function (pi: ExtensionAPI) {
       return;
     }
 
-    const reconciled = reconcileTouched(storedFile.content, currentContent, storedFile.touched);
-    storedFile.content = currentContent;
-    storedFile.touched = reconciled.touched;
-
-    const hasTouchedLines = ranges.some(([start, end]) =>
-      storedFile.touched.some(
-        ([touchedStart, touchedEnd]) => touchedStart <= end && touchedEnd >= start,
-      ),
-    );
-    if (!hasTouchedLines) {
-      storedFile.touched = mergeRanges([...storedFile.touched, ...ranges]);
-      return;
-    }
-
+    reconcileTouched(storedFile, currentContent);
     const unseenRanges = subtractRanges(ranges, storedFile.touched);
-    storedFile.touched = mergeRanges([...storedFile.touched, ...ranges]);
+
     if (unseenRanges.length === 0) {
       return {
         content: [
           {
             type: "text",
-            text: "(content deduped by previous read/inspect, use prior output)",
+            text: "(content from previous read/inspect is still valid, use prior output)",
           },
         ],
         details: withOriginalContent(event.details, originalContent),
@@ -131,7 +118,7 @@ export default function (pi: ExtensionAPI) {
 
     let text = unseenRanges
       .map(([start, end]) => currentContent.slice(start - 1, end).join("\n"))
-      .join("\n...(content deduped by previous read/inspect, use prior output)\n");
+      .join("\n...\n");
 
     if (continuation) text += continuation;
 

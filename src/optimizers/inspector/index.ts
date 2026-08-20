@@ -1,15 +1,13 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { mergeRanges } from "../deduplicator/helpers.js";
 import { inspectSymbol } from "./inspect.js";
 import type { InspectToolDetails } from "./types.js";
 
 const inspect = defineTool({
   name: "inspect",
   label: "Inspect",
-  description:
-    "Fetch one symbol body from one file. Output is safe for targeted edits; omit depth for exact body text.",
+  description: "Fetch one symbol's full body from one file. Output is safe for targeted edits.",
   parameters: Type.Object({
     path: Type.String({
       description: "Exact file path containing target symbol (relative to cwd or absolute)",
@@ -18,17 +16,8 @@ const inspect = defineTool({
       description:
         "Exact symbol string for one declaration in file: function name, class name, method name (MyClass.method), synthetic anonymous name (anonymous~1), or duplicate form name~2",
     }),
-    depth: Type.Optional(
-      Type.Integer({
-        minimum: 0,
-        description:
-          "Nested expansion depth. Lower depth collapse blocks to save resource; increase to expand or omit for exact symbol body text. Prefer lower value on first round.",
-      }),
-    ),
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-    const depth = typeof params.depth === "number" ? params.depth : Number.POSITIVE_INFINITY;
-    const depthLabel = typeof params.depth === "number" ? params.depth : "full";
     const path = params.path.trim().replaceAll("\\", "/");
     const symbol = params.symbol.trim();
 
@@ -46,7 +35,7 @@ const inspect = defineTool({
     }
 
     try {
-      const inspected = await inspectSymbol(ctx.cwd, path, symbol, depth, signal);
+      const inspected = await inspectSymbol(ctx.cwd, path, symbol, signal);
       if (!inspected) {
         return {
           isError: false,
@@ -63,8 +52,7 @@ const inspect = defineTool({
       const details = {
         path: inspected.path,
         symbol: inspected.symbol,
-        depth: depthLabel,
-        ranges: mergeRanges(inspected.ranges),
+        range: inspected.range,
       } satisfies InspectToolDetails;
 
       return { isError: false, details, content: [{ type: "text", text: inspected.text }] };
@@ -78,9 +66,8 @@ const inspect = defineTool({
     }
   },
   renderCall(args, theme) {
-    const depth = typeof args.depth === "number" ? String(args.depth) : "full";
     return new Text(
-      `${theme.fg("toolTitle", "inspect")} path=${args.path} symbol=${args.symbol} depth=${depth}`,
+      `${theme.fg("toolTitle", "inspect")} path=${args.path} symbol=${args.symbol}`,
       0,
       0,
     );

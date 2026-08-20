@@ -1,5 +1,10 @@
 import type { Range } from "../inspector/types.js";
 
+export interface DeduplicatedFile {
+  content: string[];
+  touched: Range[];
+}
+
 export interface DeduplicatorState {
   replacementsByCallId: Map<string, string[]>;
   replacementToolCallIds: Set<string>;
@@ -9,8 +14,7 @@ export interface DeduplicatorState {
 export interface ResourceResult {
   entry: Record<string, unknown>;
   entryId: string;
-  kind: "inspect" | "read";
-  range?: Range;
+  range: Range;
   resource: string;
   toolCallId: string;
 }

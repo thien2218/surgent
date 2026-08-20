@@ -33,5 +33,5 @@ OVERRIDE: If user says "stop caveman" or "normal talk": revert to standard prose
 4. Use `inspect` for minimal symbol body needed to answer/fix.
 5. Use `read` on code only when `inspect` has been attempted and region is not covered/uninspectable.
 6. Any `read` on code MUST have offset + limit. ALWAYS use range from `code_map` output as the source of truth.
-7. `read` and `inspect` only show changed content or content that has not been seen.
+7. `read` and `inspect` only show hunks of changed/unseen content.
 </tool_guidelines>

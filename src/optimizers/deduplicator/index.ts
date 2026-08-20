@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import { isReadToolResult, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { parseInspectToolDetails } from "../inspector/helpers.js";
 import type { Range } from "../inspector/types.js";
-import { type DeduplicatedFile, reconcileTouched, subtractRanges } from "./helpers.js";
+import { mergeRanges, reconcileTouched, subtractRanges } from "./helpers.js";
+import type { DeduplicatedFile } from "./types.js";
 import { readSessionEntries } from "../entries.js";
 import { filterDeduplicatedMessages } from "./context.js";
 import { buildDeduplicatorState } from "./state.js";
@@ -45,7 +46,7 @@ export default function (pi: ExtensionAPI) {
 
     const originalContent = event.content[0].text;
     let sourcePath: string;
-    let ranges: Range[];
+    let range: Range;
     let continuation: string | undefined;
 
     if (isReadToolResult(event)) {
@@ -66,22 +67,21 @@ export default function (pi: ExtensionAPI) {
       if (truncation?.firstLineExceedsLimit) return;
 
       continuation = originalContent.match(/\n\n\[[^\n]*Use offset=\d+ to continue\.\]$/)?.[0];
-      const visibleText = continuation
-        ? originalContent.slice(0, -continuation.length)
-        : originalContent;
+      const toSlice = continuation ? -continuation.length : undefined;
+
       const visibleLines = truncation?.truncated
         ? truncation.outputLines
-        : visibleText.split("\n").length;
+        : originalContent.slice(0, toSlice).split("\n").length;
       if (visibleLines <= 0) return;
 
       sourcePath = inputPath;
       const start = inputOffset ?? 1;
-      ranges = [[start, start + visibleLines - 1]];
+      range = [start, start + visibleLines - 1];
     } else {
       const details = parseInspectToolDetails(event.details);
       if (!details) return;
       sourcePath = details.path;
-      ranges = details.ranges;
+      range = details.range;
     }
 
     let canonicalPath: string;
@@ -93,16 +93,15 @@ export default function (pi: ExtensionAPI) {
       return;
     }
 
-    if (ranges.length === 0) return;
-
     const storedFile = files.get(canonicalPath);
     if (!storedFile) {
-      files.set(canonicalPath, { content: currentContent, touched: ranges });
+      files.set(canonicalPath, { content: currentContent, touched: [range] });
       return;
     }
 
     reconcileTouched(storedFile, currentContent);
-    const unseenRanges = subtractRanges(ranges, storedFile.touched);
+    const unseenRanges = subtractRanges([range], storedFile.touched);
+    storedFile.touched = mergeRanges([...storedFile.touched, range]);
 
     if (unseenRanges.length === 0) {
       return {
@@ -116,10 +115,20 @@ export default function (pi: ExtensionAPI) {
       };
     }
 
-    let text = unseenRanges
-      .map(([start, end]) => currentContent.slice(start - 1, end).join("\n"))
-      .join("\n...\n");
+    if (
+      unseenRanges.length === 1 &&
+      unseenRanges[0]![0] === range[0] &&
+      unseenRanges[0]![1] === range[1]
+    ) {
+      return;
+    }
 
+    let text = unseenRanges
+      .map(
+        ([start, end]) =>
+          `@@ lines ${start}-${end} @@\n${currentContent.slice(start - 1, end).join("\n")}`,
+      )
+      .join("\n...\n");
     if (continuation) text += continuation;
 
     return {

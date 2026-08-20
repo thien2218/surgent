@@ -10,6 +10,7 @@ import {
   getToolResultMessage,
 } from "../entries.js";
 import { isRecord } from "../../utils.js";
+import { hasFullCoverage } from "./helpers.js";
 import type { DeduplicatorState, ResourceResult } from "./types.js";
 
 function collectToolCallInputs(
@@ -105,7 +106,6 @@ function collectResourceResults(
       resourceResults.push({
         entry,
         entryId,
-        kind: "read",
         range: read.range,
         resource: normalizeResourcePath(read.path, cwd),
         toolCallId: message.toolCallId,
@@ -119,75 +119,35 @@ function collectResourceResults(
     resourceResults.push({
       entry,
       entryId,
-      kind: "inspect",
-      resource: `${normalizeResourcePath(inspected.path, cwd)}\u0000${inspected.symbol}`,
+      range: inspected.range,
+      resource: normalizeResourcePath(inspected.path, cwd),
       toolCallId: message.toolCallId,
     });
   }
   return resourceResults;
 }
 
-function hasFullCoverage(range: [number, number], candidates: ResourceResult[]): boolean {
-  const intersections: [number, number][] = [];
-  for (const candidate of candidates) {
-    if (!candidate.range) continue;
-    const start = Math.max(range[0], candidate.range[0]);
-    const end = Math.min(range[1], candidate.range[1]);
-    if (start <= end) intersections.push([start, end]);
-  }
-  if (intersections.length === 0) return false;
-
-  intersections.sort(([firstStart], [secondStart]) => firstStart - secondStart);
-  let coveredLines = 0;
-  let coveredStart = intersections[0]![0];
-  let coveredEnd = intersections[0]![1];
-  for (const [start, end] of intersections.slice(1)) {
-    if (start > coveredEnd + 1) {
-      coveredLines += coveredEnd - coveredStart + 1;
-      coveredStart = start;
-      coveredEnd = end;
-      continue;
-    }
-    coveredEnd = Math.max(coveredEnd, end);
-  }
-  coveredLines += coveredEnd - coveredStart + 1;
-  return coveredLines === range[1] - range[0] + 1;
-}
-
 function collectReplacementIds(resourceResults: ResourceResult[]): Map<string, string[]> {
-  const latestInspectByResource = new Map<string, ResourceResult>();
-  const retainedReadsByResource = new Map<string, ResourceResult[]>();
+  const retainedByResource = new Map<string, ResourceResult[]>();
   const replacementIdsByEntryId = new Map<string, string[]>();
 
   for (let index = resourceResults.length - 1; index >= 0; index -= 1) {
     const resourceResult = resourceResults[index]!;
-    if (resourceResult.kind === "inspect") {
-      const replacement = latestInspectByResource.get(resourceResult.resource);
-      if (replacement) {
-        replacementIdsByEntryId.set(resourceResult.entryId, [replacement.entryId]);
-      } else {
-        latestInspectByResource.set(resourceResult.resource, resourceResult);
-      }
-      continue;
-    }
-
-    if (!resourceResult.range) continue;
-    const retainedReads = retainedReadsByResource.get(resourceResult.resource) ?? [];
-    const coveringReads = retainedReads.filter(
+    const retainedResults = retainedByResource.get(resourceResult.resource) ?? [];
+    const coveringResults = retainedResults.filter(
       (candidate) =>
-        candidate.range &&
-        candidate.range[0] <= resourceResult.range![1] &&
-        candidate.range[1] >= resourceResult.range![0],
+        candidate.range[0] <= resourceResult.range[1] &&
+        candidate.range[1] >= resourceResult.range[0],
     );
-    if (hasFullCoverage(resourceResult.range, coveringReads)) {
+    if (hasFullCoverage(resourceResult.range, coveringResults.map((candidate) => candidate.range))) {
       replacementIdsByEntryId.set(
         resourceResult.entryId,
-        coveringReads.map((candidate) => candidate.entryId),
+        coveringResults.map((candidate) => candidate.entryId),
       );
       continue;
     }
-    retainedReads.push(resourceResult);
-    retainedReadsByResource.set(resourceResult.resource, retainedReads);
+    retainedResults.push(resourceResult);
+    retainedByResource.set(resourceResult.resource, retainedResults);
   }
 
   return replacementIdsByEntryId;

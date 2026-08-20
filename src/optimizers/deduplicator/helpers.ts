@@ -1,9 +1,5 @@
 import type { Range } from "../inspector/types.js";
-
-export interface DeduplicatedFile {
-  content: string[];
-  touched: Range[];
-}
+import type { DeduplicatedFile } from "./types.js";
 
 export function mergeRanges(ranges: Range[]) {
   const sortedRanges = ranges.toSorted(([firstStart], [secondStart]) => firstStart - secondStart);
@@ -19,6 +15,21 @@ export function mergeRanges(ranges: Range[]) {
   }
 
   return mergedRanges;
+}
+
+export function hasFullCoverage(range: Range, candidates: Range[]): boolean {
+  const intersections: Range[] = [];
+  for (const candidate of candidates) {
+    const start = Math.max(range[0], candidate[0]);
+    const end = Math.min(range[1], candidate[1]);
+    if (start <= end) intersections.push([start, end]);
+  }
+  if (intersections.length === 0) return false;
+
+  const merged = mergeRanges(intersections);
+  return (
+    merged.reduce((lines, [start, end]) => lines + end - start + 1, 0) === range[1] - range[0] + 1
+  );
 }
 
 export function subtractRanges(ranges: Range[], removedRanges: Range[]) {
@@ -139,7 +150,7 @@ export function reconcileTouched(storedFile: DeduplicatedFile, currentContent: s
     previousLength === currentLength &&
     storedFile.content.every((line, index) => line === currentContent[index])
   ) {
-    return;
+    return [];
   }
 
   const unchangedLines = findUnchangedLines(storedFile.content, currentContent);
@@ -156,6 +167,7 @@ export function reconcileTouched(storedFile: DeduplicatedFile, currentContent: s
     }
   }
 
+  const shiftedTouched: Range[] = [];
   const rawChanged: Range[] = [];
   let previousCursor = 1;
   let currentCursor = 1;
@@ -163,31 +175,16 @@ export function reconcileTouched(storedFile: DeduplicatedFile, currentContent: s
   for (const [previousStart, previousEnd, offset] of unchangedRuns) {
     const currentStart = previousStart + offset;
     if (previousStart > previousCursor || currentStart > currentCursor) {
-      const changedLine = Math.min(currentCursor, currentLength);
       rawChanged.push(
         currentStart > currentCursor
           ? [currentCursor, currentStart - 1]
-          : [changedLine, changedLine],
+          : [currentStart, currentStart],
       );
     }
     previousCursor = previousEnd + 1;
     currentCursor = previousEnd + offset + 1;
-  }
 
-  if (previousCursor <= previousLength || currentCursor <= currentLength) {
-    const changedLine = Math.min(currentCursor, currentLength);
-    rawChanged.push(
-      currentCursor <= currentLength ? [currentCursor, currentLength] : [changedLine, changedLine],
-    );
-  }
-
-  const changed = mergeRanges(
-    rawChanged.map(([start, end]) => [Math.max(1, start - 2), Math.min(currentLength, end + 2)]),
-  );
-  const shiftedTouched: Range[] = [];
-
-  for (const [touchedStart, touchedEnd] of storedFile.touched) {
-    for (const [previousStart, previousEnd, offset] of unchangedRuns) {
+    for (const [touchedStart, touchedEnd] of storedFile.touched) {
       const intersectionStart = Math.max(touchedStart, previousStart);
       const intersectionEnd = Math.min(touchedEnd, previousEnd);
 
@@ -196,6 +193,18 @@ export function reconcileTouched(storedFile: DeduplicatedFile, currentContent: s
       }
     }
   }
+
+  if (previousCursor <= previousLength || currentCursor <= currentLength) {
+    rawChanged.push(
+      currentCursor <= currentLength
+        ? [currentCursor, currentLength]
+        : [currentLength, currentLength],
+    );
+  }
+
+  const changed = mergeRanges(
+    rawChanged.map(([start, end]) => [Math.max(1, start - 2), Math.min(currentLength, end + 2)]),
+  );
 
   storedFile.content = currentContent;
   storedFile.touched = subtractRanges(shiftedTouched, changed);

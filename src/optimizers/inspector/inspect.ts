@@ -1,14 +1,13 @@
 import type { SyntaxNode } from "tree-sitter";
 import type { LanguageSymbol } from "../languages/index.js";
 import { collectSymbols, SYMBOL_KINDS } from "../languages/index.js";
-import { renderNodeWithDepth } from "./extract.js";
 import type { Range } from "./types.js";
 
 function inspectGroupedSymbols(
   path: string,
   symbolName: string,
   symbols: LanguageSymbol[],
-): { path: string; symbol: string; ranges: Range[]; text: string } | undefined {
+): { path: string; symbol: string; range: Range; text: string } | undefined {
   const groupedSymbolsMatch = /^(imports|exports)~([1-9]\d*)$/.exec(symbolName);
   if (!groupedSymbolsMatch) return;
 
@@ -44,15 +43,17 @@ function inspectGroupedSymbols(
     groupedNodes.push(groupedNode);
   }
 
-  if (groupedNodes.length === 0) return;
+  const firstNode = groupedNodes[0];
+  const lastNode = groupedNodes[groupedNodes.length - 1];
+  if (!firstNode || !lastNode) return;
   return {
     path,
     symbol: symbolName,
     text: groupedNodes.map((groupedNode) => groupedNode.text).join("\n"),
-    ranges: groupedNodes.map<Range>((groupedNode) => [
-      groupedNode.startPosition.row + 1,
-      groupedNode.endPosition.row + (groupedNode.endPosition.column > 0 ? 1 : 0),
-    ]),
+    range: [
+      firstNode.startPosition.row + 1,
+      lastNode.endPosition.row + (lastNode.endPosition.column > 0 ? 1 : 0),
+    ],
   };
 }
 
@@ -60,9 +61,8 @@ export async function inspectSymbol(
   cwd: string,
   path: string,
   symbolName: string,
-  depth: number,
   signal?: AbortSignal,
-): Promise<{ path: string; symbol: string; ranges: Range[]; text: string } | undefined> {
+): Promise<{ path: string; symbol: string; range: Range; text: string } | undefined> {
   if (signal?.aborted) {
     throw new Error("inspector aborted");
   }
@@ -74,13 +74,15 @@ export async function inspectSymbol(
 
   for (const symbol of symbols) {
     if (symbol.name !== symbolName) continue;
-    const rendered = renderNodeWithDepth(symbol.node, depth);
 
     return {
       path: symbol.path,
       symbol: symbol.name,
-      ranges: rendered.ranges,
-      text: rendered.text,
+      range: [
+        symbol.node.startPosition.row + 1,
+        symbol.node.endPosition.row + (symbol.node.endPosition.column > 0 ? 1 : 0),
+      ],
+      text: symbol.node.text,
     };
   }
 }

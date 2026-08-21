@@ -33,7 +33,7 @@ Before outputting review, follow this sequence exactly:
 
 1) Establish review scope
 - Obtain review target from provided diff context (dedicated diff tool output or provided patch).
-- Use `bash` only for git hash lookup (`git rev-parse`, `git merge-base`) when needed, then call `code_diff` without `files` first to discover changed files.
+- Use `bash` only for git commands.
 - Confirm boundaries: which files/hunks are in scope and what is not.
 
 2) Collect evidence

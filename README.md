@@ -40,7 +40,7 @@ Features such as `code_map`, `inspect`, grep and bash result compaction, cached 
 ## Key features
 
 - custom commands: `/agents`, `/mcp`, `/permissions`, `/plan`, `/review`, `/web-login`
-- custom tools: `code_diff`, `code_map`, `inspect`, `list_mcp_tools`, `call_mcp_tool`, `questionnaire`, `web_search`, `web_fetch`
+- custom tools: `code_map`, `inspect`, `list_mcp_tools`, `call_mcp_tool`, `questionnaire`, `web_search`, `web_fetch`
 - token-saving code inspection built around `code_map` and `inspect`
 - context compaction for noisy `grep` and `bash` output
 - agent profiles with per-agent tool, model, and MCP allowlists
@@ -223,7 +223,6 @@ Additional commands may also be available through the upstream pi framework.
 
 `surgent` adds the following primary tools:
 
-- `code_diff` — compare uncommitted changes, commit ranges, or GitHub pull requests
 - `code_map` — generate a fast symbol map with line ranges
 - `inspect` — fetch an exact symbol body with optional depth collapsing
 - `list_mcp_tools` — discover tools from configured MCP servers
@@ -357,7 +356,6 @@ Manual validation remains important for:
 - there is no substantial automated test suite yet
 - several important workflows require an interactive TUI to verify
 - `code_map` and `inspect` grammar support currently covers TypeScript, Python, Go, and Java
-- `code_diff` pull request mode depends on `gh`
 - checkpoint features assume a git repository with a usable worktree
 - web tools require provider keys for most non-native behavior
 

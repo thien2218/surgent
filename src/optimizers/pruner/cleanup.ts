@@ -19,11 +19,7 @@ function hasEmptyResult(message: {
   content?: unknown;
   toolName?: unknown;
 }): boolean {
-  if (
-    message.toolName !== "ls" &&
-    message.toolName !== "find" &&
-    message.toolName !== "code_diff"
-  ) {
+  if (message.toolName !== "ls" && message.toolName !== "find") {
     return false;
   }
 

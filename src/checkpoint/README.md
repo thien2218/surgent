@@ -26,7 +26,7 @@ This extension does not register commands or tools.
 5. If no base checkpoint exists, it stages current project state and records its Git tree hash.
 6. After each `write` or `edit`, it stages changed tracked files and nonignored untracked files, then records a new tree hash for the current leaf entry.
 7. Before a tree jump or fork, it finds the target and current checkpoints. If they differ, it asks whether to restore code state.
-8. On restore, it loads the target tree into the shadow index, writes that index to the project worktree, and removes checkpointed files absent from the target tree.
+8. On restore, Git resets the shadow index and project worktree to the target tree in one `git read-tree --reset -u` operation.
 9. On agent end and session shutdown, it saves the entry mapping. Session shutdown also runs `git gc --auto` in the shadow repository.
 
 ## Key files

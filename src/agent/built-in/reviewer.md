@@ -32,7 +32,7 @@ Produce concise, precise review with evidence and concrete fixes. Optimize signa
 Before outputting review, follow this sequence exactly:
 
 1) Establish review scope
-- Obtain review target from provided diff context (dedicated diff tool output or provided patch).
+- Obtain review target from provided diff context, a provided patch, or Git diff output.
 - Use `bash` only for git commands.
 - Confirm boundaries: which files/hunks are in scope and what is not.
 

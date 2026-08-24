@@ -86,7 +86,7 @@ export function urlToExpr(url: string): string {
   if (!url) return "";
   try {
     const { origin } = new URL(url);
-    return `${origin}**`;
+    return `${origin}/**`;
   } catch {
     return url;
   }

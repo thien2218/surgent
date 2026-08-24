@@ -191,7 +191,6 @@ Common files created or updated by `surgent`:
 - `.pi/SYSTEM.md`
 - `.pi/APPEND_SYSTEM.md`
 - `.pi/agents.json`
-- `.pi/checkpoints.json`
 - `.pi/mcp.json`
 - `.pi/permissions.json`
 - `.pi/settings.json`

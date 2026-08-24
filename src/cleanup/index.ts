@@ -1,6 +1,5 @@
 import { SessionManager, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { cleanupPermissions } from "./permission.js";
-import { cleanupCheckpointStashes } from "./stash.js";
 import { pruneSessionFile } from "./helpers.js";
 import { cleanupSubsessions } from "./subsession.js";
 import { getPiPath } from "../utils.js";
@@ -15,9 +14,7 @@ export default function (pi: ExtensionAPI) {
     const allSessionIds = new Set([...sessionIds, ...subsessions.map((session) => session.id)]);
 
     cleanupPermissions(ctx.cwd, allSessionIds).catch(() => undefined);
-    pruneSessionFile(getPiPath("checkpoints", ctx.cwd), allSessionIds).catch(() => undefined);
     pruneSessionFile(getPiPath("sessionAgents", ctx.cwd), allSessionIds).catch(() => undefined);
-    cleanupCheckpointStashes(pi, ctx.cwd, allSessionIds).catch(() => undefined);
     cleanupSubsessions(ctx.cwd, sessionIds).catch(() => undefined);
   });
 }

@@ -11,7 +11,7 @@ const PI_PATHS = {
   mcp: "mcp.json",
   permissions: "permissions.json",
   sessionAgents: "agents.json",
-  checkpoints: "checkpoints.json",
+  checkpoints: "checkpoints",
   subsessions: "subsessions.json",
   subsessionsDir: "subsessions",
   grammars: "grammars",

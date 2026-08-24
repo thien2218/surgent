@@ -60,7 +60,7 @@ At a high level, the architecture centers on context discipline first, then capa
 1. `optimizers` provides code-aware tools and token-saving context compaction.
 2. `agent` loads the active agent profile and writes the session prompt files.
 3. `permission` governs sensitive tool calls.
-4. feature extensions such as `mcp-client`, `web-tools`, `code-diff`, and `questionnaire` add domain-specific capabilities.
+4. feature extensions such as `mcp-client`, `web-tools`, and `questionnaire` add domain-specific capabilities.
 5. `commands` relies on the `subsession` support module to run planner and reviewer child sessions.
 6. `checkpoint`, `cleanup`, and `redactor` protect code state and session output.
 7. `ui` customizes the TUI header and editor mode indicator.
@@ -74,7 +74,6 @@ Primary documented extension directories:
 - [`src/agent/README.md`](./src/agent/README.md) — agent profiles, active prompt materialization, and subsession tool restrictions
 - [`src/checkpoint/README.md`](./src/checkpoint/README.md) — git-backed restore points for session tree navigation
 - [`src/cleanup/README.md`](./src/cleanup/README.md) — cleanup for stale `.pi` state on session start
-- [`src/code-diff/README.md`](./src/code-diff/README.md) — structured git and GitHub diff inspection
 - [`src/commands/README.md`](./src/commands/README.md) — `/plan` and `/review` workflows
 - [`src/mcp-client/README.md`](./src/mcp-client/README.md) — MCP configuration, discovery, and tool invocation
 - [`src/optimizers/README.md`](./src/optimizers/README.md) — `code_map`, `inspect`, grammar bootstrap, and context pruning
@@ -122,7 +121,6 @@ A typical interactive session proceeds as follows:
 │   ├── agent/
 │   ├── checkpoint/
 │   ├── cleanup/
-│   ├── code-diff/
 │   ├── commands/
 │   ├── mcp-client/
 │   ├── optimizers/

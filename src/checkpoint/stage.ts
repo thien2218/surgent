@@ -32,15 +32,19 @@ export async function stageCheckpoint(
   if (untrackedResult.code !== 0) return false;
 
   const filePaths = changedResult.stdout.split("\0").filter(Boolean);
-  for (const filePath of untrackedResult.stdout.split("\0").filter(Boolean)) {
-    try {
-      const fileStatus = await lstat(join(projectRoot, filePath));
-      if (fileStatus.isFile() && fileStatus.size > UNTRACKED_FILE_LIMIT) continue;
-      filePaths.push(filePath);
-    } catch {
-      // File disappeared before staging.
-    }
-  }
+
+  await Promise.all(
+    untrackedResult.stdout.split("\0").map(async (filePath) => {
+      if (!filePath) return;
+      try {
+        const fileStatus = await lstat(join(projectRoot, filePath));
+        if (fileStatus.isFile() && fileStatus.size > UNTRACKED_FILE_LIMIT) return;
+        filePaths.push(filePath);
+      } catch {
+        return; // file disappeared before staging.
+      }
+    }),
+  );
 
   for (let start = 0; start < filePaths.length; start += STAGE_BATCH_SIZE) {
     const stageResult = await runCheckpointGit(pi, projectRoot, directory, [

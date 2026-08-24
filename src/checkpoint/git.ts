@@ -36,12 +36,11 @@ export async function openCheckpointRepo(
   }
 
   if (!needsInitialization) {
-    const configuredSourceResult = await runCheckpointGit(
-      pi,
-      projectRoot,
-      directory,
-      ["config", "--get", CHECKPOINT_SOURCE_KEY],
-    );
+    const configuredSourceResult = await runCheckpointGit(pi, projectRoot, directory, [
+      "config",
+      "--get",
+      CHECKPOINT_SOURCE_KEY,
+    ]);
     if (
       configuredSourceResult.code !== 0 ||
       configuredSourceResult.stdout.trim() !== sourceGitDir
@@ -68,20 +67,12 @@ export async function runCheckpointGit(
 ) {
   return pi.exec(
     "git",
-    [
-      `--git-dir=${join(directory, ".git")}`,
-      `--work-tree=${projectRoot}`,
-      ...args,
-    ],
+    [`--git-dir=${join(directory, ".git")}`, `--work-tree=${projectRoot}`, ...args],
     { cwd: projectRoot },
   );
 }
 
-export async function gcCheckpointRepo(
-  pi: ExtensionAPI,
-  projectRoot: string,
-  directory: string,
-) {
+export async function gcCheckpointRepo(pi: ExtensionAPI, projectRoot: string, directory: string) {
   return runCheckpointGit(pi, projectRoot, directory, ["gc", "--auto"]);
 }
 

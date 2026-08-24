@@ -45,7 +45,9 @@ export default function (pi: ExtensionAPI) {
     if (restoreResult.code !== 0) {
       const reason = restoreResult.stderr.trim() || restoreResult.stdout.trim();
       ctx.ui.notify(
-        reason ? `Checkpoint restore failed: ${reason}` : "Checkpoint restore failed due to git error.",
+        reason
+          ? `Checkpoint restore failed: ${reason}`
+          : "Checkpoint restore failed due to git error.",
         "error",
       );
       return { cancel: true };

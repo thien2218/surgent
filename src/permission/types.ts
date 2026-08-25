@@ -18,6 +18,7 @@ export interface PermissionCheck {
   toolName: PermissiveToolName;
   category: Category;
   raw: string;
+  purpose?: string;
   danger?: string;
   op?: FileOp;
 }

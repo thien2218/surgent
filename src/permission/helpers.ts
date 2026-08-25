@@ -59,6 +59,7 @@ export function getPermissionCheck(
   if (!(toolName in PERMISSIVE_TOOLS)) return null;
   const typedName = toolName as PermissiveToolName;
   let danger: string | undefined;
+  let purpose: string | undefined;
   let raw: string;
 
   switch (typedName) {
@@ -76,12 +77,13 @@ export function getPermissionCheck(
   }
 
   if (typedName === "bash") {
+    if (typeof input.purpose === "string") purpose = input.purpose;
     for (const { pattern, reason } of SUSPICIOUS_BASH_PATTERNS) {
       if (pattern.test(raw)) danger = reason;
     }
   }
 
-  return { sessionId: "", toolName: typedName, ...PERMISSIVE_TOOLS[typedName], danger, raw };
+  return { sessionId: "", toolName: typedName, ...PERMISSIVE_TOOLS[typedName], danger, purpose, raw };
 }
 
 export function findRecentModeOverride(entries: SessionEntry[]): AgentMode | null {

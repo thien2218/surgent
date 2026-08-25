@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { readJson } from "../utils.js";
+import { isUuidv7, readJson } from "../utils.js";
 
 export const BASE_CHECKPOINT_KEY = "__base__";
 
@@ -40,6 +40,39 @@ export async function writeCheckpointStore(
     store[sessionId] = Object.fromEntries(checkpoints);
   }
 
+  await persistCheckpointStore(filePath, store);
+}
+
+export async function pruneCheckpointStore(
+  filePath: string,
+  sessionIds: Set<string>,
+): Promise<string[]> {
+  const store = await readCheckpointStore(filePath);
+  const removedTrees = new Set<string>();
+  let hasChanges = false;
+
+  for (const [sessionId, checkpoints] of Object.entries(store)) {
+    if (!isUuidv7(sessionId) || sessionIds.has(sessionId)) continue;
+    for (const tree of Object.values(checkpoints)) {
+      removedTrees.add(tree);
+    }
+    delete store[sessionId];
+    hasChanges = true;
+  }
+
+  if (!hasChanges) return [];
+  await persistCheckpointStore(filePath, store);
+
+  const activeTrees = new Set(
+    Object.values(store).flatMap((checkpoints) => Object.values(checkpoints)),
+  );
+  return [...removedTrees].filter((tree) => !activeTrees.has(tree));
+}
+
+async function persistCheckpointStore(
+  filePath: string,
+  store: Record<string, Record<string, string>>,
+) {
   await mkdir(dirname(filePath), { recursive: true });
   await writeFile(filePath, JSON.stringify(store, null, 2) + "\n", "utf8");
 }

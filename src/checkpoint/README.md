@@ -49,6 +49,7 @@ This extension does not register commands or tools.
 
 - `entries.json` maps session IDs to session entry IDs and tree hashes.
 - `refs/surgent/checkpoints/<tree-hash>` keeps each tree reachable so `git gc --auto` does not prune it.
+- `cleanup` removes mappings and refs for deleted sessions; their Git objects become eligible for collection.
 - The project no longer uses `.pi/checkpoints.json` or Git stashes.
 
 ## Dependencies and integration

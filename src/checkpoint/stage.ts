@@ -2,16 +2,13 @@ import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { runCheckpointGit } from "./git.js";
+import type { Repo } from "./index.js";
 
 const UNTRACKED_FILE_LIMIT = 2 * 1024 * 1024;
 const STAGE_BATCH_SIZE = 100;
 
-export async function stageCheckpoint(
-  pi: ExtensionAPI,
-  projectRoot: string,
-  directory: string,
-): Promise<boolean> {
-  const changedResult = await runCheckpointGit(pi, projectRoot, directory, [
+export async function stageCheckpoint(pi: ExtensionAPI, repo: Repo): Promise<boolean> {
+  const changedResult = await runCheckpointGit(pi, repo, [
     "diff-files",
     "--name-only",
     "-z",
@@ -20,7 +17,7 @@ export async function stageCheckpoint(
   ]);
   if (changedResult.code !== 0) return false;
 
-  const untrackedResult = await runCheckpointGit(pi, projectRoot, directory, [
+  const untrackedResult = await runCheckpointGit(pi, repo, [
     "ls-files",
     "--full-name",
     "--others",
@@ -37,7 +34,7 @@ export async function stageCheckpoint(
     untrackedResult.stdout.split("\0").map(async (filePath) => {
       if (!filePath) return;
       try {
-        const fileStatus = await lstat(join(projectRoot, filePath));
+        const fileStatus = await lstat(join(repo.projectRoot, filePath));
         if (fileStatus.isFile() && fileStatus.size > UNTRACKED_FILE_LIMIT) return;
         filePaths.push(filePath);
       } catch {
@@ -47,7 +44,7 @@ export async function stageCheckpoint(
   );
 
   for (let start = 0; start < filePaths.length; start += STAGE_BATCH_SIZE) {
-    const stageResult = await runCheckpointGit(pi, projectRoot, directory, [
+    const stageResult = await runCheckpointGit(pi, repo, [
       "add",
       "--all",
       "--",

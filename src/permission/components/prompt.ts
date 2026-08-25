@@ -140,6 +140,11 @@ export default class PermissionPrompt extends Frame implements Focusable {
     lines.add(
       this.theme.italic(`${dangerNote}Allow agent to call ${category} tool '${toolName}'?`),
     );
+    if (category === "bash" && this.check.purpose) {
+      for (const line of wrapTextWithAnsi(`Purpose: ${this.check.purpose}`, width)) {
+        lines.add(this.theme.fg("muted", line));
+      }
+    }
     this.addRawLines(lines, raw, width);
     lines.space();
 

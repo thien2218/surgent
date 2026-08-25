@@ -9,6 +9,7 @@ The `checkpoint` extension keeps isolated, git-backed restore points for code-ch
 Hooks:
 
 - `session_start`
+- `tool_call` for `write` and `edit`
 - `tool_result` for `write` and `edit`
 - `session_before_tree`
 - `session_before_fork`
@@ -24,10 +25,11 @@ This extension does not register commands or tools.
 3. On first use, it points its object database at the source repository, copies the source index when possible, and copies `.git/info/exclude` rules. If index copying fails, it seeds from `HEAD` instead.
 4. It loads the current session's entry-ID-to-tree mapping from `entries.json` in the shadow repository.
 5. If no base checkpoint exists, it stages current project state and records its Git tree hash.
-6. After each `write` or `edit`, it stages changed tracked files and nonignored untracked files, then records a new tree hash for the current leaf entry.
-7. Before a tree jump or fork, it finds the target and current checkpoints. If they differ, it asks whether to restore code state.
-8. On restore, Git resets the shadow index and project worktree to the target tree in one `git read-tree --reset -u` operation.
-9. On agent end and session shutdown, it saves the entry mapping. Session shutdown also runs `git gc --auto` in the shadow repository.
+6. Before each `write` or `edit` executes, it stages changed tracked files and nonignored untracked files, then holds the pre-change tree hash for that tool call.
+7. On a successful tool result, it records that tree hash for the current leaf entry. Failed tool results discard their pending checkpoint.
+8. Before a tree jump or fork, it finds the target and current checkpoints. If they differ, it asks whether to restore code state.
+9. On restore, Git resets the shadow index and project worktree to the target tree in one `git read-tree --reset -u` operation.
+10. On agent end and session shutdown, it saves the entry mapping. Session shutdown also runs `git gc --auto` in the shadow repository.
 
 ## Key files
 
@@ -58,7 +60,7 @@ This extension does not register commands or tools.
 
 ## Edge cases and guardrails
 
-- Only `write` and `edit` create checkpoints. Bash commands do not.
+- Only `write` and `edit` create pre-change checkpoints. Bash commands do not.
 - Ignored files are excluded through project ignore rules and copied `info/exclude` rules.
 - Newly discovered untracked files larger than 2 MiB are excluded.
 - Restore preserves ignored files and untracked files never captured by a checkpoint.

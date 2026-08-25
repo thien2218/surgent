@@ -14,14 +14,21 @@ export async function createSnapshot(
   if (treeResult.code !== 0) return undefined;
 
   const tree = treeResult.stdout.trim();
-  if (!/^[0-9a-f]{40,64}$/i.test(tree)) return undefined;
+  return /^[0-9a-f]{40,64}$/i.test(tree) ? tree : undefined;
+}
 
+export async function retainSnapshot(
+  pi: ExtensionAPI,
+  projectRoot: string,
+  directory: string,
+  tree: string,
+): Promise<boolean> {
   const referenceResult = await runCheckpointGit(pi, projectRoot, directory, [
     "update-ref",
     `refs/surgent/checkpoints/${tree}`,
     tree,
   ]);
-  return referenceResult.code === 0 ? tree : undefined;
+  return referenceResult.code === 0;
 }
 
 export async function restoreSnapshot(

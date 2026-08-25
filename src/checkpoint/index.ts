@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { gcCheckpointRepo, openCheckpointRepo } from "./git.js";
-import { createSnapshot, restoreSnapshot } from "./snapshot.js";
+import { createSnapshot, retainSnapshot, restoreSnapshot } from "./snapshot.js";
 import {
   BASE_CHECKPOINT_KEY,
   readCheckpointStore,
@@ -11,6 +11,7 @@ import {
 
 export default function (pi: ExtensionAPI) {
   const checkpoints = new Map<string, string>();
+  const pendingCheckpoints = new Map<string, { entryId: string; tree: string }>();
   let checkpointRepo: { projectRoot: string; directory: string } | undefined;
 
   async function saveCheckpoints(ctx: ExtensionContext) {
@@ -58,6 +59,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_start", async (_event, ctx) => {
     checkpoints.clear();
+    pendingCheckpoints.clear();
     checkpointRepo = await openCheckpointRepo(pi, ctx.cwd);
     if (!checkpointRepo) return;
 
@@ -69,17 +71,34 @@ export default function (pi: ExtensionAPI) {
 
     if (checkpoints.has(BASE_CHECKPOINT_KEY)) return;
     const tree = await createSnapshot(pi, checkpointRepo.projectRoot, checkpointRepo.directory);
-    if (tree) checkpoints.set(BASE_CHECKPOINT_KEY, tree);
+    if (tree && (await retainSnapshot(pi, checkpointRepo.projectRoot, checkpointRepo.directory, tree))) {
+      checkpoints.set(BASE_CHECKPOINT_KEY, tree);
+    }
   });
 
-  pi.on("tool_result", async (event, ctx) => {
+  pi.on("tool_call", async (event, ctx) => {
     if ((event.toolName !== "write" && event.toolName !== "edit") || !checkpointRepo) return;
 
-    const leafEntryId = ctx.sessionManager.getLeafId();
-    if (!leafEntryId) return;
+    const entryId = ctx.sessionManager.getLeafId();
+    if (!entryId) return;
 
     const tree = await createSnapshot(pi, checkpointRepo.projectRoot, checkpointRepo.directory);
-    if (tree) checkpoints.set(leafEntryId, tree);
+    if (tree) pendingCheckpoints.set(event.toolCallId, { entryId, tree });
+  });
+
+  pi.on("tool_result", async (event) => {
+    const pendingCheckpoint = pendingCheckpoints.get(event.toolCallId);
+    if (!pendingCheckpoint) return;
+    pendingCheckpoints.delete(event.toolCallId);
+    if (event.isError || !checkpointRepo) return;
+
+    const retained = await retainSnapshot(
+      pi,
+      checkpointRepo.projectRoot,
+      checkpointRepo.directory,
+      pendingCheckpoint.tree,
+    );
+    if (retained) checkpoints.set(pendingCheckpoint.entryId, pendingCheckpoint.tree);
   });
 
   pi.on("session_before_tree", (event, ctx) => {

@@ -7,20 +7,12 @@ import type { Repo } from "./index.js";
 
 const CHECKPOINT_SOURCE_KEY = "surgent.checkpointSource";
 
-export async function openCheckpointRepo(pi: ExtensionAPI, cwd: string): Promise<Repo | undefined> {
+export async function getCheckpointRepo(pi: ExtensionAPI, cwd: string): Promise<Repo | undefined> {
   const projectRootResult = await pi.exec("git", ["rev-parse", "--show-toplevel"], { cwd });
   const projectRoot = projectRootResult.stdout.trim();
   if (projectRootResult.code !== 0 || !projectRoot) return undefined;
 
-  const sourceGitDirResult = await pi.exec(
-    "git",
-    ["rev-parse", "--path-format=absolute", "--git-common-dir"],
-    { cwd: projectRoot },
-  );
-  const sourceGitDir = sourceGitDirResult.stdout.trim();
-  if (sourceGitDirResult.code !== 0 || !sourceGitDir) return undefined;
-
-  const repo = {
+  return {
     projectRoot,
     directory: getPiPath(
       "checkpoints",
@@ -28,6 +20,19 @@ export async function openCheckpointRepo(pi: ExtensionAPI, cwd: string): Promise
       createHash("sha256").update(projectRoot).digest("hex"),
     ),
   };
+}
+
+export async function openCheckpointRepo(pi: ExtensionAPI, cwd: string): Promise<Repo | undefined> {
+  const repo = await getCheckpointRepo(pi, cwd);
+  if (!repo) return undefined;
+
+  const sourceGitDirResult = await pi.exec(
+    "git",
+    ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    { cwd: repo.projectRoot },
+  );
+  const sourceGitDir = sourceGitDirResult.stdout.trim();
+  if (sourceGitDirResult.code !== 0 || !sourceGitDir) return undefined;
   let needsInitialization = false;
 
   try {

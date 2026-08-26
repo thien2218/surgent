@@ -63,10 +63,14 @@ function parseConfigValues(values: Record<string, string>) {
   return updated;
 }
 
-export function getAgentConfigForm(agent: string, meta: AgentMeta): FormConfig<AgentMeta> {
+export function getAgentConfigForm(
+  agent: string,
+  meta: AgentMeta,
+  builtIn: boolean,
+): FormConfig<AgentMeta> {
   return {
     title: `Edit agent config: ${agent}`,
-    fields: META_FIELDS.map((field) => {
+    fields: META_FIELDS.filter((field) => !builtIn || field !== "description").map((field) => {
       const value = meta[field];
       let placeholder: string;
       if (field === "description") {
@@ -91,6 +95,8 @@ export function getAgentConfigForm(agent: string, meta: AgentMeta): FormConfig<A
       };
     }),
     emptyMessage: "No metadata fields available for editing.",
-    parseOnSave: parseConfigValues,
+    parseOnSave: builtIn
+      ? (values) => parseConfigValues({ description: meta.description, ...values })
+      : parseConfigValues,
   };
 }

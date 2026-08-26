@@ -76,7 +76,7 @@ async function openAgentConfigEditor(ctx: ExtensionCommandContext, agent: Agent)
       tui,
       keybindings,
       theme,
-      getAgentConfigForm(agent.name, agent.meta),
+      getAgentConfigForm(agent.name, agent.meta, isBuiltIn(agent.filePath)),
     );
 
     editor.onCancel = () => done();

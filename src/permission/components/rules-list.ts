@@ -187,7 +187,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
     lines.space();
 
     const addSelected = this.cursor === 0;
-    const addText = `${addSelected ? "→" : " "} [Add a new permission rule]`;
+    const addText = `${addSelected ? "→" : " "} [Add new permission rule]`;
     lines.add(this.theme.fg(addSelected ? "accent" : "text", addText));
 
     let orderedIndex = 1;

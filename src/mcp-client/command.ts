@@ -1,5 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Key, Spacer } from "@earendil-works/pi-tui";
+import { Key } from "@earendil-works/pi-tui";
 import {
   loadMcpConfigSet,
   normalizeServerConfig,
@@ -7,15 +7,12 @@ import {
   updateServerConfig,
 } from "./storage.js";
 import type { McpServer, McpTransport, ResolvedMcpServer } from "./types.js";
-import { customText } from "../utils.js";
 import { ExtendedSelectList, type SelectEntry } from "../ui/components/extended-select-list.js";
-import { Frame } from "../ui/components/frame.js";
-import { PlaceholderInput } from "../ui/components/placeholder-input.js";
 import { ScopedInput } from "../ui/components/scoped-input.js";
 import { Form } from "../ui/components/form.js";
 import { McpClientManager } from "./client.js";
 import { parseEditConfigValues } from "./validation.js";
-import { buildConfigTemplate, getEditFields, saveEditedServer } from "./helpers.js";
+import { getEditFields, saveEditedServer } from "./helpers.js";
 
 export async function mcpCommandHandler(_args: string, ctx: ExtensionCommandContext) {
   if (!ctx.hasUI) {
@@ -213,7 +210,7 @@ async function handleSaveFlow(ctx: ExtensionCommandContext) {
   const transportType = await ctx.ui.select("Server type", ["Remote", "Local"]);
   const transport = transportType === "Remote" ? "http" : "stdio";
 
-  const config = await promptServerConfig(ctx, transport, name, configuredServers[name]);
+  const config = await promptServerConfig(ctx, transport, name, scope, configuredServers[name]);
   if (!config) return;
 
   const upsertResult = await updateServerConfig(scope, ctx.cwd, name, {
@@ -230,44 +227,31 @@ async function promptServerConfig(
   ctx: ExtensionCommandContext,
   transport: McpTransport,
   name: string,
+  scope: "project" | "global",
   existingConfig?: McpServer,
 ): Promise<McpServer | undefined> {
-  const placeholder = existingConfig
-    ? JSON.stringify(existingConfig, null, 2)
-    : buildConfigTemplate(transport);
+  const defaults =
+    transport === "http"
+      ? { name, scope, transport, url: "" }
+      : { name, scope, transport, command: "" };
+  const server: ResolvedMcpServer = existingConfig ? { name, scope, ...existingConfig } : defaults;
 
-  const config = await ctx.ui.custom<string>((tui, theme, keybindings, done) => {
-    const frame = new Frame(theme);
-    const input = new PlaceholderInput(tui, keybindings, theme, placeholder, "dim");
-    const title = customText(theme.bold(`Configure ${name} MCP server`));
+  return ctx.ui.custom<McpServer | undefined>((tui, theme, keybindings, done) => {
+    const editor = new Form<McpServer>(tui, keybindings, theme, {
+      title: `Configure ${name} MCP server`,
+      fields: getEditFields(server).filter(
+        (field) => !["name", "scope", "transport"].includes(field.key),
+      ),
+      parseOnSave: (values) =>
+        normalizeServerConfig(name, parseEditConfigValues({ ...values, name, scope, transport })),
+    });
 
-    input.onSubmit = done;
-    input.onEscape = () => done("");
-    input.focused = true;
-
-    frame.addCustom(title);
-    frame.addCustom(new Spacer());
-    frame.addCustom(input);
-
-    return {
-      handleInput: (data: string) => input.handleInput(data),
-      render: (width: number) => frame.render(width),
-      invalidate: () => frame.invalidate(),
+    editor.onCancel = () => done(undefined);
+    editor.onSave = (serverConfig) => done(serverConfig);
+    editor.onSaveError = (error) => {
+      ctx.ui.notify(error instanceof Error ? error.message : "Invalid MCP server config", "error");
     };
+
+    return editor;
   });
-
-  if (!config) return;
-
-  try {
-    const parsed = JSON.parse(config) as Record<string, any>;
-    parsed.transport = transport;
-    const serverConfig = normalizeServerConfig(name, parsed);
-    return serverConfig;
-  } catch (error) {
-    if (error instanceof Error) {
-      ctx.ui.notify(error.message, "error");
-    } else {
-      ctx.ui.notify("Invalid MCP JSON config", "error");
-    }
-  }
 }

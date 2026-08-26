@@ -1,6 +1,6 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { normalizeServerConfig, readConfigFile, updateServerConfig } from "./storage.js";
-import type { McpTransport, ResolvedMcpServer } from "./types.js";
+import type { ResolvedMcpServer } from "./types.js";
 import type { Field } from "../ui/components/form-field.js";
 
 export async function saveEditedServer(
@@ -29,25 +29,8 @@ export async function saveEditedServer(
   ctx.ui.notify(`Updated MCP server ${previous.name}.`, "info");
 }
 
-export function buildConfigTemplate(transport: McpTransport): string {
-  const httpExample = {
-    url: "https://mcp.example.com/",
-    description: "This field is useful for telling agent when it should use an MCP",
-    headers: {},
-  };
-  const stdioExample = {
-    command: "npx",
-    description: "This field is useful for telling agent when it should use an MCP",
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "."],
-    env: {},
-  };
-  const template = transport === "http" ? httpExample : stdioExample;
-
-  return JSON.stringify(template, null, 2);
-}
-
 export function getEditFields(server: ResolvedMcpServer): Field<string | number | boolean>[] {
-  return [
+  const base: Field<string | number | boolean>[] = [
     {
       key: "name",
       label: "name",
@@ -98,46 +81,54 @@ export function getEditFields(server: ResolvedMcpServer): Field<string | number 
         text: server.description ?? "",
       },
     },
-    {
-      key: "command",
-      label: "command",
-      labelWidth: 18,
-      mode: {
-        type: "input",
-        placeholder: "Required when transport=stdio",
-        text: server.transport === "stdio" ? server.command : "",
+  ];
+
+  if (server.transport === "stdio") {
+    return base.concat([
+      {
+        key: "command",
+        label: "command",
+        labelWidth: 18,
+        mode: {
+          type: "input",
+          placeholder: "Required when transport=stdio",
+          text: server.command,
+        },
       },
-    },
-    {
-      key: "args",
-      label: "args",
-      labelWidth: 18,
-      mode: {
-        type: "input",
-        placeholder: "Optional JSON string array",
-        text: server.transport === "stdio" && server.args ? JSON.stringify(server.args) : "",
+      {
+        key: "args",
+        label: "args",
+        labelWidth: 18,
+        mode: {
+          type: "input",
+          placeholder: "Optional JSON string array",
+          text: server.args ? JSON.stringify(server.args) : "",
+        },
       },
-    },
-    {
-      key: "cwd",
-      label: "cwd",
-      labelWidth: 18,
-      mode: {
-        type: "input",
-        placeholder: "Optional working directory",
-        text: server.transport === "stdio" ? (server.cwd ?? "") : "",
+      {
+        key: "cwd",
+        label: "cwd",
+        labelWidth: 18,
+        mode: {
+          type: "input",
+          placeholder: "Optional working directory",
+          text: server.cwd ?? "",
+        },
       },
-    },
-    {
-      key: "env",
-      label: "env",
-      labelWidth: 18,
-      mode: {
-        type: "input",
-        placeholder: "Optional JSON object of env vars",
-        text: server.transport === "stdio" && server.env ? JSON.stringify(server.env) : "",
+      {
+        key: "env",
+        label: "env",
+        labelWidth: 18,
+        mode: {
+          type: "input",
+          placeholder: "Optional JSON object of env vars",
+          text: server.env ? JSON.stringify(server.env) : "",
+        },
       },
-    },
+    ]);
+  }
+
+  return base.concat([
     {
       key: "url",
       label: "url",
@@ -145,7 +136,7 @@ export function getEditFields(server: ResolvedMcpServer): Field<string | number 
       mode: {
         type: "input",
         placeholder: "Required when transport=http",
-        text: server.transport === "http" ? server.url : "",
+        text: server.url,
       },
     },
     {
@@ -155,8 +146,8 @@ export function getEditFields(server: ResolvedMcpServer): Field<string | number 
       mode: {
         type: "input",
         placeholder: "Optional JSON object of headers",
-        text: server.transport === "http" && server.headers ? JSON.stringify(server.headers) : "",
+        text: server.headers ? JSON.stringify(server.headers) : "",
       },
     },
-  ];
+  ]);
 }

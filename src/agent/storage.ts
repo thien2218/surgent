@@ -161,9 +161,12 @@ export async function createAgentFile(base: string, name: string): Promise<strin
 export async function writeAgentMeta(cwd: string, agent: Agent, meta: AgentMeta) {
   if (isBuiltIn(agent.filePath)) {
     const settings = await readJson<SettingsSchema>(getPiPath("settings", cwd), {});
+    const stored: Partial<AgentMeta> = { ...meta };
+    delete stored.description;
+
     settings.agent = {
       ...settings.agent,
-      meta: { ...settings.agent?.meta, [agent.name]: meta },
+      meta: { ...settings.agent?.meta, [agent.name]: stored },
     };
     await writeJson(getPiPath("settings", cwd), settings);
     return;

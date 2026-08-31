@@ -8,26 +8,11 @@ const STORE_FILE = getPiPath("subsessions", process.cwd());
 const subsessions: StoredSubsessions = {};
 let isStoreLoaded = false;
 
-export function getSubsessionDir(cwd: string): string {
-  return getPiPath("subsessionsDir", cwd);
-}
-
-export function getSubsessionDirs(cwd: string): string[] {
-  const projectDir = getSubsessionDir(cwd);
-  const legacyDir = getPiPath("subsessionsDir");
-  return projectDir === legacyDir ? [projectDir] : [projectDir, legacyDir];
-}
-
 export async function findSubsessionSession(cwd: string, id: string) {
-  for (const sessionDir of getSubsessionDirs(cwd)) {
-    try {
-      const sessions = await SessionManager.list(cwd, sessionDir);
-      const session = sessions.find((item) => item.id === id);
-      if (session) return { path: session.path, sessionDir };
-    } catch {
-      continue;
-    }
-  }
+  const sessionDir = getPiPath("subsessionsDir", cwd);
+  const sessions = await SessionManager.list(cwd, sessionDir);
+  const session = sessions.find((item) => item.id === id);
+  if (session) return { path: session.path, sessionDir };
 }
 
 async function loadStore() {

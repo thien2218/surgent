@@ -1,3 +1,4 @@
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AgentAllowList, AgentMeta } from "../agent/types.js";
 
 export type SubsessionStatus = "done" | "aborted" | "error";
@@ -40,7 +41,7 @@ export interface RuntimeConfig {
 }
 
 export interface SubsessionRequest {
-  context: import("@earendil-works/pi-coding-agent").ExtensionContext;
+  context: ExtensionContext;
   pid: string;
   agent: string;
   modelId?: string;

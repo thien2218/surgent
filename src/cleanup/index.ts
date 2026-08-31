@@ -4,19 +4,13 @@ import { cleanupPermissions } from "./permission.js";
 import { pruneSessionFile } from "./helpers.js";
 import { cleanupSubsessions } from "./subsession.js";
 import { getPiPath } from "../utils.js";
-import { getSubsessionDirs } from "../subsession/storage.js";
 
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
-    const [sessions, subsessionGroups] = await Promise.all([
+    const [sessions, subsessions] = await Promise.all([
       SessionManager.list(ctx.cwd),
-      Promise.all(
-        getSubsessionDirs(ctx.cwd).map((sessionDir) =>
-          SessionManager.list(ctx.cwd, sessionDir).catch(() => []),
-        ),
-      ),
+      SessionManager.list(ctx.cwd, getPiPath("subsessionsDir", ctx.cwd)),
     ]);
-    const subsessions = subsessionGroups.flat();
     const sessionIds = new Set(sessions.map((session) => session.id));
     const allSessionIds = new Set([...sessionIds, ...subsessions.map((session) => session.id)]);
 

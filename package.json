@@ -1,6 +1,6 @@
 {
   "name": "surgent",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "A coding harness designed to optimize token usage using context engineering best practices",
   "main": "index.js",
   "bin": {
@@ -21,9 +21,9 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "^0.84.1",
-    "@earendil-works/pi-coding-agent": "^0.84.1",
-    "@earendil-works/pi-tui": "^0.84.1",
+    "@earendil-works/pi-ai": "^0.84.4",
+    "@earendil-works/pi-coding-agent": "^0.84.4",
+    "@earendil-works/pi-tui": "^0.84.4",
     "@mendable/firecrawl-js": "^4.22.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@tavily/core": "^0.7.3",

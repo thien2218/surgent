@@ -1,18 +1,13 @@
 import type { AgentAllowList, AgentMeta } from "../agent/types.js";
 
-export type SubsessionUsage = {
+export type SubsessionStatus = "done" | "aborted" | "error";
+export type SubsessionLabel = "plan" | "review" | "other";
+
+export interface SubsessionUsage {
   input: number;
   output: number;
   toolCalls: number;
-};
-
-export interface Interaction {
-  toolName: string;
-  input: Record<string, any>;
 }
-
-export type SubsessionStatus = "done" | "aborted" | "error" | "pending";
-export type SubsessionLabel = "plan" | "review" | "other";
 
 export interface SubsessionSnapshot {
   id: string;
@@ -27,7 +22,6 @@ export interface SubsessionResult {
   output: string;
   usage: SubsessionUsage;
   toolCounts: Record<string, number>;
-  interaction?: Interaction;
 }
 
 export interface SubsessionMeta {
@@ -38,6 +32,7 @@ export interface SubsessionMeta {
 }
 
 export interface RuntimeConfig {
+  agentMeta: AgentMeta;
   systemPrompt: string;
   tools?: AgentAllowList;
   modelId?: string;
@@ -45,6 +40,7 @@ export interface RuntimeConfig {
 }
 
 export interface SubsessionRequest {
+  context: import("@earendil-works/pi-coding-agent").ExtensionContext;
   pid: string;
   agent: string;
   modelId?: string;
@@ -65,4 +61,5 @@ export interface Subsession {
   result: SubsessionResult;
   runtime: RuntimeConfig;
   exec(input: string, signal?: AbortSignal): Promise<void>;
+  dispose(): Promise<void>;
 }

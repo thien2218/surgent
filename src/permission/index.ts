@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, ToolCallEvent } from "@earendil-works/pi-coding-agent";
 import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { handlePermissionsCommand } from "./command.js";
 import { checkAgentRules, resolvePermission } from "./resolution.js";
@@ -8,16 +8,12 @@ import { loadMainAgent } from "../agent/storage.js";
 import type { PermissionCheck, PromptDecision } from "./types.js";
 import PermissionPrompt from "./components/prompt.js";
 import { toPermExpr } from "./expression.js";
-import { emitInteractionHandoff, IS_SUBSESSION } from "../subsession/index.js";
 import { findRecentModeOverride, getPermissionCheck } from "./helpers.js";
 import type { AgentMeta, AgentMode } from "../agent/types.js";
 
 const SWITCH_MODE_KEY = Key.ctrlAlt("y");
 
 export async function askForPermission(ctx: ExtensionContext, check: PermissionCheck) {
-  const emitted = emitInteractionHandoff(check.toolName, check, ctx);
-  if (emitted) return emitted;
-
   const expr = toPermExpr(check.toolName, check.raw);
   const decision = await ctx.ui.custom<PromptDecision>((_tui, theme, _keybindings, done) => {
     const component = new PermissionPrompt(theme, expr, check);
@@ -39,6 +35,40 @@ export async function askForPermission(ctx: ExtensionContext, check: PermissionC
       reason: `User allow this tool call, but with notes: ${decision.amended}`,
     };
   }
+}
+
+export async function enforceToolPermission(
+  event: ToolCallEvent,
+  ctx: ExtensionContext,
+  agentMeta: AgentMeta,
+  sessionId: string,
+  bypassPermissions: boolean,
+) {
+  for (const input of getPiIgnoreInputs(event)) {
+    const piIgnoreBlock = await resolvePiIgnorePathBlock(ctx.cwd, input);
+    if (piIgnoreBlock) {
+      return { block: true, reason: piIgnoreBlock };
+    }
+  }
+
+  const check = getPermissionCheck(event.toolName, event.input);
+  if (!check || bypassPermissions) return;
+
+  if (!checkAgentRules(agentMeta, check)) {
+    return { block: true, reason: "Access to this resource is beyond allowed scope" };
+  }
+
+  check.sessionId = sessionId;
+  const permission = await resolvePermission(ctx.cwd, check);
+  if (permission === "allowed" && !check.danger) return;
+  if (permission === "blocked") {
+    return { block: true, reason: "Access to this resource is denied" };
+  }
+  if (!ctx.hasUI) {
+    return { block: true, reason: "Permission request requires interactive UI" };
+  }
+
+  return askForPermission(ctx, check);
 }
 
 export default function (pi: ExtensionAPI) {
@@ -82,7 +112,6 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
-    if (IS_SUBSESSION) return;
     if (!agentLoaded) {
       [agentMeta, agentMode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode(ctx.cwd)]);
       agentLoaded = true;
@@ -97,13 +126,11 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("before_agent_start", async (_event, ctx) => {
-    if (IS_SUBSESSION) return;
     turnMode = findRecentModeOverride(ctx.sessionManager.getEntries()) ?? null;
     updateStatus?.();
   });
 
   pi.on("agent_end", async (_event, _ctx) => {
-    if (IS_SUBSESSION) return;
     turnMode = null;
     updateStatus?.();
   });
@@ -114,30 +141,13 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
-  pi.on("tool_call", async (event, ctx) => {
-    for (const input of getPiIgnoreInputs(event)) {
-      const piIgnoreBlock = await resolvePiIgnorePathBlock(ctx.cwd, input);
-      if (piIgnoreBlock) {
-        return { block: true, reason: piIgnoreBlock };
-      }
-    }
-
-    const check = getPermissionCheck(event.toolName, event.input);
-    if (!check || (turnMode ?? agentMode) === "yolo") return;
-
-    const runtimeAllowed = checkAgentRules(agentMeta, check);
-    if (!runtimeAllowed) {
-      return { block: true, reason: "Access to this resource is beyond allowed scope" };
-    }
-
-    check.sessionId = ctx.sessionManager.getSessionId();
-    const permission = await resolvePermission(ctx.cwd, check);
-
-    if (permission === "allowed" && !check.danger) return;
-    if (permission === "blocked") {
-      return { block: true, reason: "Access to this resource is denied" };
-    }
-
-    return askForPermission(ctx, check);
-  });
+  pi.on("tool_call", async (event, ctx) =>
+    enforceToolPermission(
+      event,
+      ctx,
+      agentMeta,
+      ctx.sessionManager.getSessionId(),
+      (turnMode ?? agentMode) === "yolo",
+    ),
+  );
 }

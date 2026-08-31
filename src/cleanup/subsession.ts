@@ -2,7 +2,6 @@ import { unlink } from "node:fs/promises";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { StoredSubsessions } from "../subsession/types.js";
 import { getPiPath, isMissingFileError, readJson, writeJson } from "../utils.js";
-import { getSubsessionDirs } from "../subsession/storage.js";
 
 function collectOrphanedSubsessionIds(store: StoredSubsessions, pids: Set<string>): Set<string> {
   const orphanedIds = new Set<string>();
@@ -16,17 +15,10 @@ function collectOrphanedSubsessionIds(store: StoredSubsessions, pids: Set<string
 
 async function deleteSessionFilesByIds(cwd: string, sessionIds: Set<string>): Promise<void> {
   if (sessionIds.size === 0) return;
-  const sessionPaths: string[] = [];
-  for (const sessionDir of getSubsessionDirs(cwd)) {
-    try {
-      const sessions = await SessionManager.list(cwd, sessionDir);
-      sessionPaths.push(
-        ...sessions.filter((session) => sessionIds.has(session.id)).map((session) => session.path),
-      );
-    } catch {
-      continue;
-    }
-  }
+  const sessions = await SessionManager.list(cwd, getPiPath("subsessionsDir", cwd));
+  const sessionPaths = sessions
+    .filter((session) => sessionIds.has(session.id))
+    .map((session) => session.path);
 
   for (const sessionPath of sessionPaths) {
     try {

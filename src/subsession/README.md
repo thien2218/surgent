@@ -27,4 +27,4 @@ Child sessions use a controlled resource loader. An inline bridge supplies quest
 - `.pi/subsessions.json` stores label, parent session ID, title, and usage.
 - `.pi/subsessions/` stores Pi child session JSONL files.
 
-Existing session files remain compatible because both implementations use Pi `SessionManager` files.
+All child session files live in project `.pi/subsessions/`.

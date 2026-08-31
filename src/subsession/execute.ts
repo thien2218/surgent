@@ -11,7 +11,6 @@ import { createErrorResult, extractSubsessionTitle } from "./helpers.js";
 import {
   findSubsession,
   findSubsessionSession,
-  getSubsessionDir,
   loadSubsessionOutput,
   resolveRuntime,
   saveSubsession,
@@ -25,6 +24,7 @@ import type {
   SubsessionSnapshot,
   SubsessionUsage,
 } from "./types.js";
+import { getPiPath } from "../utils.js";
 
 interface ExecuteTurnRequest {
   input: string;
@@ -153,7 +153,7 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
 }
 
 async function openSessionManager(request: SubsessionRequest): Promise<SessionManager> {
-  const subsessionsDir = getSubsessionDir(request.context.cwd);
+  const subsessionsDir = getPiPath("subsessionsDir", request.context.cwd);
   if (!request.id) {
     const parentSession = request.context.sessionManager.getSessionFile();
     return SessionManager.create(request.context.cwd, subsessionsDir, {

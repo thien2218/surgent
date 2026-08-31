@@ -15,7 +15,7 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const subsession = await runSubsession(
         {
-          context: ctx,
+          ctx,
           pid: ctx.sessionManager.getSessionId(),
           label: "other",
           agent: params.agent,

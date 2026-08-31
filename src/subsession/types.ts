@@ -41,7 +41,7 @@ export interface RuntimeConfig {
 }
 
 export interface SubsessionRequest {
-  context: ExtensionContext;
+  ctx: ExtensionContext;
   pid: string;
   agent: string;
   modelId?: string;

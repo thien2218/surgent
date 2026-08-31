@@ -24,7 +24,8 @@ async function loadStore() {
   isStoreLoaded = true;
 }
 
-export async function findSubsession(id: string, pid?: string): Promise<SubsessionMeta | null> {
+export async function findSubsession(id?: string, pid?: string): Promise<SubsessionMeta | null> {
+  if (!id) return null;
   await loadStore();
   const found = subsessions[id];
   if (!found || (pid && found.pid !== pid)) return null;

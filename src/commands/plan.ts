@@ -58,13 +58,7 @@ async function resolveSubsession(
   input: PlanCommandInput,
 ): Promise<Subsession | null> {
   const pid = ctx.sessionManager.getSessionId();
-  const request: SubsessionRequest = {
-    context: ctx,
-    pid,
-    label: "plan",
-    agent: PLAN_AGENT,
-    input: "",
-  };
+  const request: SubsessionRequest = { ctx, pid, label: "plan", agent: PLAN_AGENT, input: "" };
 
   if (input.kind === "prompt") {
     request.input = input.prompt;

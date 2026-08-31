@@ -53,13 +53,7 @@ async function resolveReviewSubsession(
 ): Promise<Subsession | null> {
   const normalizedArgs = args.trim();
   const pid = ctx.sessionManager.getSessionId();
-  const request: SubsessionRequest = {
-    context: ctx,
-    pid,
-    label: "review",
-    agent: REVIEW_AGENT,
-    input: "",
-  };
+  const request: SubsessionRequest = { ctx, pid, label: "review", agent: REVIEW_AGENT, input: "" };
 
   if (normalizedArgs.length > 0) {
     request.input = normalizedArgs;

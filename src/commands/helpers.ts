@@ -1,6 +1,5 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { AgentMode } from "../agent/types.js";
-import { resolveInteractionHandoff } from "../subsession/index.js";
 import type { Subsession, SubsessionRequest } from "../subsession/types.js";
 import { terminateSubsession } from "../subsession/storage.js";
 import {
@@ -85,29 +84,24 @@ export async function runSubsessionLoop(
 ) {
   try {
     while (true) {
-      let resumeInput = await resolveInteractionHandoff(ctx, subsession.result.interaction);
+      ctx.ui.setWidget(config.agent, undefined);
+      const action = await showActionUi(ctx, subsession.result.output, config);
 
-      if (!resumeInput) {
-        ctx.ui.setWidget(config.agent, undefined);
-        const action = await showActionUi(ctx, subsession.result.output, config);
-
-        if (!action || action.kind === "exit") return;
-        if (action.kind === "discard") {
-          discardSubsession(ctx, subsession);
-          return;
-        }
-        if (action.kind === "forward") {
-          const forwarded = await forwardAction(pi, ctx, action.mode, subsession);
-          if (forwarded) return;
-          continue;
-        }
-
-        resumeInput = action.feedback;
+      if (!action || action.kind === "exit") return;
+      if (action.kind === "discard") {
+        discardSubsession(ctx, subsession);
+        return;
+      }
+      if (action.kind === "forward") {
+        const forwarded = await forwardAction(pi, ctx, action.mode, subsession);
+        if (forwarded) return;
+        continue;
       }
 
-      await subsession.exec(resumeInput);
+      await subsession.exec(action.feedback);
     }
   } finally {
+    await subsession.dispose();
     ctx.ui.setWidget(config.agent, undefined);
   }
 }

@@ -29,7 +29,7 @@ This extension does not register any tools.
 
 1. `/agents` lists the available built-in and user-defined agent files.
 2. The user can create, edit, or switch the active agent profile.
-3. On session start, the extension resolves the active agent name from the session mapping, the subsession environment, or the built-in default.
+3. On session start, the extension resolves the active agent name from the session mapping or the built-in default.
 4. The agent file frontmatter is parsed into `AgentMeta`; project-local `agent.meta.<name>` settings override built-in metadata.
 5. The extension applies agent constraints:
    - it narrows the active tools with `pi.setActiveTools`
@@ -64,7 +64,7 @@ This extension does not register any tools.
 ## Dependencies and integration
 
 - reads enabled MCP configuration through `mcp-client` storage
-- uses `subsession` environment flags to detect child sessions
+- child session restrictions are applied by `subsession` bridge extensions
 - works with `permission` by reducing the active tool set before permission checks run
 - built-in planner and reviewer profiles support the `commands` and `subsession` flows
 
@@ -74,7 +74,7 @@ This extension does not register any tools.
 - a non-built-in agent named `default` is ignored
 - an unknown model produces a warning instead of failing the session
 - disabled or missing MCP servers are not appended to the prompt
-- pathless scans in subsessions are blocked to keep child sessions narrow
+- child tool policy is applied by the subsession bridge before tool execution
 
 ## Manual test checklist
 

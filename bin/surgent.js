@@ -14,7 +14,6 @@ const args = process.argv.slice(2);
 const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT_ENTRY_URL = import.meta.resolve("@earendil-works/pi-coding-agent");
 const CLEAR_SCREEN = "\x1b[H\x1b[2J\x1b[3J";
-const NON_EXTENSION_DIRS = new Set(["subsession", "commands"]);
 
 function isMissingFileError(error) {
   return Boolean(error) && typeof error === "object" && "code" in error && error.code === "ENOENT";
@@ -114,9 +113,7 @@ async function setupGlobalConfig() {
   }
 
   const entries = await readdir(srcDir, { withFileTypes: true });
-  const extensions = entries
-    .filter((e) => e.isDirectory() && !NON_EXTENSION_DIRS.has(e.name))
-    .map((e) => resolve(srcDir, e.name));
+  const extensions = entries.filter((e) => e.isDirectory()).map((e) => resolve(srcDir, e.name));
 
   let rawSettings;
   const globalSettingsPath = resolve(agentDir, "settings.json");

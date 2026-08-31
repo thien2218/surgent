@@ -8,6 +8,28 @@ const STORE_FILE = getPiPath("subsessions", process.cwd());
 const subsessions: StoredSubsessions = {};
 let isStoreLoaded = false;
 
+export function getSubsessionDir(cwd: string): string {
+  return getPiPath("subsessionsDir", cwd);
+}
+
+export function getSubsessionDirs(cwd: string): string[] {
+  const projectDir = getSubsessionDir(cwd);
+  const legacyDir = getPiPath("subsessionsDir");
+  return projectDir === legacyDir ? [projectDir] : [projectDir, legacyDir];
+}
+
+export async function findSubsessionSession(cwd: string, id: string) {
+  for (const sessionDir of getSubsessionDirs(cwd)) {
+    try {
+      const sessions = await SessionManager.list(cwd, sessionDir);
+      const session = sessions.find((item) => item.id === id);
+      if (session) return { path: session.path, sessionDir };
+    } catch {
+      continue;
+    }
+  }
+}
+
 async function loadStore() {
   if (isStoreLoaded) return;
   const persistedStore = await readJson<StoredSubsessions>(STORE_FILE, {});
@@ -32,15 +54,10 @@ export async function saveSubsession(id: string, entry: SubsessionMeta) {
 
 export async function loadSubsessionOutput(cwd: string, id: string): Promise<string> {
   try {
-    const sessions = await SessionManager.list(cwd, getPiPath("subsessionsDir"));
-    const matchedSession = sessions.find((session) => session.id === id);
-    if (!matchedSession) return "";
+    const session = await findSubsessionSession(cwd, id);
+    if (!session) return "";
 
-    const sessionManager = SessionManager.open(
-      matchedSession.path,
-      getPiPath("subsessionsDir"),
-      cwd,
-    );
+    const sessionManager = SessionManager.open(session.path, session.sessionDir, cwd);
     const branchEntries = sessionManager.getBranch();
 
     for (let entryIndex = branchEntries.length - 1; entryIndex >= 0; entryIndex -= 1) {
@@ -68,15 +85,15 @@ export async function terminateSubsession(cwd: string, id: string) {
   delete subsessions[id];
   await writeJson(STORE_FILE, subsessions);
 
-  const sessions = await SessionManager.list(cwd, getPiPath("subsessionsDir"));
-  const target = sessions.find((session) => session.id === id);
-  if (!target) return;
-  await unlink(target.path);
+  const session = await findSubsessionSession(cwd, id);
+  if (!session) return;
+  await unlink(session.path);
 }
 
 export async function resolveRuntime(name: string, model?: string): Promise<RuntimeConfig> {
   const [agent] = await loadAgents(process.cwd(), name);
   return {
+    agentMeta: agent.meta,
     systemPrompt: agent.body,
     tools: agent.meta.tools,
     modelId: agent.meta.model ?? model,

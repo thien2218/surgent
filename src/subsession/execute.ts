@@ -15,40 +15,20 @@ import {
   saveSubsession,
 } from "./storage.js";
 import type {
+  CreateSubsessionParams,
+  ExecuteTurnRequest,
   RuntimeConfig,
   Subsession,
-  SubsessionLabel,
   SubsessionRequest,
   SubsessionResult,
   SubsessionSnapshot,
-  SubsessionUsage,
 } from "./types.js";
 import { getPiPath } from "../utils.js";
-
-interface ExecuteTurnRequest {
-  input: string;
-  onSnapshot?: (snapshot: SubsessionSnapshot) => void;
-  session: AgentSession;
-  signal?: AbortSignal;
-  usage: SubsessionUsage;
-}
-
-interface CreateSubsessionParams {
-  agent: string;
-  label: SubsessionLabel;
-  onSnapshot?: (snapshot: SubsessionSnapshot) => void;
-  pid: string;
-  result: SubsessionResult;
-  runtime: RuntimeConfig;
-  session?: AgentSession;
-  title: string;
-}
 
 function formatToolUse(name: string, argumentsValue: unknown): string {
   if (!argumentsValue || typeof argumentsValue !== "object") {
     return `${name}()`;
   }
-
   try {
     return `${name}(${JSON.stringify(argumentsValue)})`;
   } catch {
@@ -59,7 +39,6 @@ function formatToolUse(name: string, argumentsValue: unknown): string {
 function getLastAssistantOutput(session: AgentSession): string {
   for (const message of [...session.messages].reverse()) {
     if (message.role !== "assistant") continue;
-
     for (const contentPart of [...message.content].reverse()) {
       if (contentPart.type === "text") {
         return contentPart.text;
@@ -131,20 +110,17 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
     unsubscribe();
   }
 
+  const output = lastMessage || getLastAssistantOutput(request.session);
+  const errorOutput = errorMessage || output || "Subsession failed";
   const status = aborted ? "aborted" : stoppedWithError || errorMessage ? "error" : "done";
+
   snapshot.status = status;
   request.onSnapshot?.(snapshot);
 
   return {
     id: request.session.sessionId,
     status,
-    output:
-      status === "error"
-        ? errorMessage ||
-          lastMessage ||
-          getLastAssistantOutput(request.session) ||
-          "Subsession failed"
-        : lastMessage || getLastAssistantOutput(request.session) || errorMessage,
+    output: status === "error" ? errorOutput : output,
     usage: snapshot.usage,
     toolCounts,
   };
@@ -154,9 +130,7 @@ async function openSessionManager(request: SubsessionRequest): Promise<SessionMa
   const subsessionsDir = getPiPath("subsessionsDir", request.ctx.cwd);
   if (!request.id) {
     const parentSession = request.ctx.sessionManager.getSessionFile();
-    return SessionManager.create(request.ctx.cwd, subsessionsDir, {
-      ...(parentSession ? { parentSession } : {}),
-    });
+    return SessionManager.create(request.ctx.cwd, subsessionsDir, { parentSession });
   }
 
   const storedSession = await findSubsessionSession(request.ctx.cwd, request.id);
@@ -172,11 +146,10 @@ async function createSdkSession(
   sessionManager: SessionManager,
 ): Promise<AgentSession> {
   const modelId = runtime.modelId;
+  const requestedModel = request.id ? undefined : request.ctx.model;
   const model = modelId
     ? request.ctx.modelRegistry.getAll().find((available) => modelId.endsWith(available.id))
-    : request.id
-      ? undefined
-      : request.ctx.model;
+    : requestedModel;
   if (modelId && !model) {
     throw new Error(`Unknown model "${modelId}" in agent config`);
   }

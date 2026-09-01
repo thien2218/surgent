@@ -1,4 +1,4 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { AgentSession, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AgentAllowList, AgentMeta } from "../agent/types.js";
 
 export type SubsessionStatus = "done" | "aborted" | "error";
@@ -63,4 +63,23 @@ export interface Subsession {
   runtime: RuntimeConfig;
   exec(input: string, signal?: AbortSignal): Promise<void>;
   dispose(): Promise<void>;
+}
+
+export interface ExecuteTurnRequest {
+  input: string;
+  onSnapshot?: (snapshot: SubsessionSnapshot) => void;
+  session: AgentSession;
+  signal?: AbortSignal;
+  usage: SubsessionUsage;
+}
+
+export interface CreateSubsessionParams {
+  agent: string;
+  label: SubsessionLabel;
+  onSnapshot?: (snapshot: SubsessionSnapshot) => void;
+  pid: string;
+  result: SubsessionResult;
+  runtime: RuntimeConfig;
+  session?: AgentSession;
+  title: string;
 }

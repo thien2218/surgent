@@ -8,14 +8,14 @@ import { readAgentMode } from "../permission/storage.js";
 const PATH_TOOLS = new Set(["read", "write", "edit", "grep", "find", "ls"]);
 
 export function createSubsessionBridge(
-  context: ExtensionContext,
+  ctx: ExtensionContext,
   agentMeta: AgentMeta,
   sessionId: string,
 ): InlineExtension {
   return {
     name: "subsession-bridge",
     factory(pi) {
-      pi.registerTool(createQuestionnaireTool(context));
+      pi.registerTool(createQuestionnaireTool(ctx));
 
       pi.on("tool_call", async (event) => {
         if (event.toolName === "subagent") {
@@ -28,10 +28,10 @@ export function createSubsessionBridge(
         }
 
         const mode =
-          findRecentModeOverride(context.sessionManager.getEntries()) ??
-          (await readAgentMode(context.cwd));
+          findRecentModeOverride(ctx.sessionManager.getEntries()) ??
+          (await readAgentMode(ctx.cwd));
 
-        return enforceToolPermission(event, context, agentMeta, sessionId, mode === "yolo");
+        return enforceToolPermission(event, ctx, agentMeta, sessionId, mode === "yolo");
       });
     },
   };

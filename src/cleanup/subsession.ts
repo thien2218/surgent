@@ -15,7 +15,7 @@ function collectOrphanedSubsessionIds(store: StoredSubsessions, pids: Set<string
 
 async function deleteSessionFilesByIds(cwd: string, sessionIds: Set<string>): Promise<void> {
   if (sessionIds.size === 0) return;
-  const sessions = await SessionManager.list(cwd, getPiPath("subsessionsDir"));
+  const sessions = await SessionManager.list(cwd, getPiPath("subsessionsDir", cwd));
   const sessionPaths = sessions
     .filter((session) => sessionIds.has(session.id))
     .map((session) => session.path);

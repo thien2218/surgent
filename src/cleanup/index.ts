@@ -9,7 +9,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     const [sessions, subsessions] = await Promise.all([
       SessionManager.list(ctx.cwd),
-      SessionManager.list(ctx.cwd, getPiPath("subsessionsDir")),
+      SessionManager.list(ctx.cwd, getPiPath("subsessionsDir", ctx.cwd)),
     ]);
     const sessionIds = new Set(sessions.map((session) => session.id));
     const allSessionIds = new Set([...sessionIds, ...subsessions.map((session) => session.id)]);

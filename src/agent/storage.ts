@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 import { getPiPath } from "../utils.js";
 import type { AgentMeta, Agent, AgentAllowList, SettingsSchema } from "./types.js";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { SUBAGENT } from "../subsession/index.js";
 import { loadMcpConfigSet } from "../mcp-client/storage.js";
 
 const FRONTMATTER_BLOCK = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
@@ -219,7 +218,7 @@ export async function writeSessionAgent(cwd: string, sessionId: string, agent: s
 
 export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
   const file = await readJson<Record<string, string>>(getPiPath("sessionAgents", ctx.cwd), {});
-  const name = file[ctx.sessionManager.getSessionId()] ?? SUBAGENT ?? DEFAULT_AGENT;
+  const name = file[ctx.sessionManager.getSessionId()] ?? DEFAULT_AGENT;
   ctx.ui.setStatus("agent", ctx.ui.theme.fg("dim", `agent: ${name}`));
 
   const allMcpConfigs = await loadMcpConfigSet(ctx.cwd);

@@ -37,6 +37,7 @@ export async function reviewCommandHandler(
   }
 
   if (reviewSubsession.result.status === "error") {
+    await reviewSubsession.dispose();
     ctx.ui.setWidget(REVIEW_AGENT, undefined);
     ctx.ui.notify(reviewSubsession.result.output, "error");
     return;
@@ -52,12 +53,7 @@ async function resolveReviewSubsession(
 ): Promise<Subsession | null> {
   const normalizedArgs = args.trim();
   const pid = ctx.sessionManager.getSessionId();
-  const request: SubsessionRequest = {
-    pid,
-    label: "review",
-    agent: REVIEW_AGENT,
-    input: "",
-  };
+  const request: SubsessionRequest = { ctx, pid, label: "review", agent: REVIEW_AGENT, input: "" };
 
   if (normalizedArgs.length > 0) {
     request.input = normalizedArgs;
@@ -88,6 +84,7 @@ async function resolveReviewSubsession(
   );
 
   if (!session.result.id) {
+    await session.dispose();
     ctx.ui.notify(session.result.output || "Failed to initiate review session", "error");
     return null;
   }

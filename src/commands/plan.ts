@@ -28,6 +28,7 @@ export async function planCommandHandler(
   }
 
   if (subsession.result.status === "error") {
+    await subsession.dispose();
     ctx.ui.setWidget(PLAN_AGENT, undefined);
     ctx.ui.notify(subsession.result.output, "error");
     return;
@@ -57,7 +58,7 @@ async function resolveSubsession(
   input: PlanCommandInput,
 ): Promise<Subsession | null> {
   const pid = ctx.sessionManager.getSessionId();
-  const request: SubsessionRequest = { pid, label: "plan", agent: PLAN_AGENT, input: "" };
+  const request: SubsessionRequest = { ctx, pid, label: "plan", agent: PLAN_AGENT, input: "" };
 
   if (input.kind === "prompt") {
     request.input = input.prompt;
@@ -76,6 +77,7 @@ async function resolveSubsession(
     renderSnapshotWidget(ctx, PLAN_AGENT, snapshot, ctx.model?.contextWindow),
   );
   if (!session.result.id) {
+    await session.dispose();
     ctx.ui.notify(session.result.output || "Failed to initiate planning session", "error");
     return null;
   }

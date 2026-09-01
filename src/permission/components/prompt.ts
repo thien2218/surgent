@@ -1,11 +1,4 @@
-import {
-  Input,
-  Key,
-  matchesKey,
-  visibleWidth,
-  wrapTextWithAnsi,
-  type Focusable,
-} from "@earendil-works/pi-tui";
+import { Input, Key, visibleWidth, wrapTextWithAnsi, type Focusable } from "@earendil-works/pi-tui";
 import type { PromptDecision, PermissionCheck, Scope, Category, FileAccess } from "../types.js";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Frame } from "../../ui/components/frame.js";
@@ -141,10 +134,12 @@ export default class PermissionPrompt extends Frame implements Focusable {
       this.theme.italic(`${dangerNote}Allow agent to call ${category} tool '${toolName}'?`),
     );
     if (category === "bash" && this.check.purpose) {
-      for (const line of wrapTextWithAnsi(`Purpose: ${this.check.purpose}`, width)) {
+      for (const line of wrapTextWithAnsi(this.check.purpose, width)) {
         lines.add(this.theme.fg("muted", line));
       }
     }
+
+    lines.space();
     this.addRawLines(lines, raw, width);
     lines.space();
 

@@ -1,177 +1,213 @@
-import { spawn, type ChildProcess } from "node:child_process";
-import { findSubsession, loadSubsessionOutput, resolveRuntime, saveSubsession } from "./storage.js";
-import { createJsonLineParser } from "./parser.js";
 import {
-  createErrorResult,
-  extractSubsessionTitle,
-  getSurgentInvoker,
-  parseInteractionHandoff,
-} from "./helpers.js";
+  createAgentSession,
+  DefaultResourceLoader,
+  getAgentDir,
+  SessionManager,
+  type AgentSession,
+} from "@earendil-works/pi-coding-agent";
+import { createSubsessionBridge } from "./bridge.js";
+import { createErrorResult, extractSubsessionTitle } from "./helpers.js";
+import {
+  findSubsession,
+  findSubsessionSession,
+  loadSubsessionOutput,
+  resolveRuntime,
+  saveSubsession,
+} from "./storage.js";
 import type {
-  SubsessionLabel,
-  SubsessionRequest,
-  Subsession,
+  CreateSubsessionParams,
+  ExecuteTurnRequest,
   RuntimeConfig,
+  Subsession,
+  SubsessionRequest,
   SubsessionResult,
   SubsessionSnapshot,
-  SubsessionStatus,
-  SubsessionUsage,
 } from "./types.js";
 import { getPiPath } from "../utils.js";
 
-interface ExecuteTurnRequest {
-  sessionId?: string;
-  input: string;
-  runtime: RuntimeConfig;
-  agent: string;
-  signal?: AbortSignal;
-  onSnapshot?: (snapshot: SubsessionSnapshot) => void;
-  usage: SubsessionUsage;
+function formatToolUse(name: string, argumentsValue: unknown): string {
+  if (!argumentsValue || typeof argumentsValue !== "object") {
+    return `${name}()`;
+  }
+  try {
+    return `${name}(${JSON.stringify(argumentsValue)})`;
+  } catch {
+    return `${name}(<args>)`;
+  }
 }
 
-interface CreateSubsessionParams {
-  agent: string;
-  pid: string;
-  label: SubsessionLabel;
-  title: string;
-  result: SubsessionResult;
-  runtime: RuntimeConfig;
-  onSnapshot?: (snapshot: SubsessionSnapshot) => void;
+function getLastAssistantOutput(session: AgentSession): string {
+  for (const message of [...session.messages].reverse()) {
+    if (message.role !== "assistant") continue;
+    for (const contentPart of [...message.content].reverse()) {
+      if (contentPart.type === "text") {
+        return contentPart.text;
+      }
+    }
+  }
+  return "";
 }
 
 async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResult> {
-  const args: string[] = ["--mode", "json", "-p", "--session-dir", getPiPath("subsessionsDir")];
-  const allowedTools = request.runtime.tools;
-
-  if (request.sessionId) {
-    args.push("--session", request.sessionId);
-  }
-  if (request.runtime.systemPrompt) {
-    args.push("--system-prompt", request.runtime.systemPrompt);
-  }
-  if (Array.isArray(allowedTools) && allowedTools.length > 0) {
-    args.push("--tools", allowedTools.join(","));
-  } else {
-    args.push("--no-tools");
-  }
-  if (request.runtime.modelId) {
-    args.push("--model", request.runtime.modelId);
-  }
-  if (request.runtime.thinkingLevel) {
-    args.push("--thinking", request.runtime.thinkingLevel);
-  }
-
   const snapshot: SubsessionSnapshot = {
-    id: request.sessionId ?? "",
+    id: request.session.sessionId,
     status: "running",
     toolsUsed: [],
-    usage: request.usage,
+    usage: { ...request.usage },
   };
+  const toolCounts: Record<string, number> = {};
+  let aborted = false;
+  let errorMessage = "";
+  let lastMessage = "";
+  let stoppedWithError = false;
 
   request.onSnapshot?.(snapshot);
-  const parser = createJsonLineParser(snapshot, request.onSnapshot);
+  const unsubscribe = request.session.subscribe((event) => {
+    if (event.type !== "message_end" || event.message.role !== "assistant") return;
 
-  let wasAborted = false;
-  let stderrOutput = "";
-
-  const exitCode = await new Promise<number>((resolve) => {
-    const invoker = getSurgentInvoker(args);
-    const childProcess = spawn(invoker.command, invoker.args, {
-      cwd: process.cwd(),
-      shell: false,
-      stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, SURGENT_SUBSESSION: "true", SURGENT_SUBAGENT: request.agent },
-    }) as ChildProcess;
-
-    childProcess.stdin?.end(request.input);
-
-    childProcess.stdout?.on("data", (chunk: Buffer) => {
-      parser.push(chunk.toString());
-    });
-
-    childProcess.stderr?.on("data", (chunk: Buffer) => {
-      stderrOutput += chunk.toString();
-    });
-
-    childProcess.on("close", (code: number | null) => {
-      parser.flush();
-      resolve(code ?? 0);
-    });
-
-    childProcess.on("error", () => {
-      parser.flush();
-      resolve(1);
-    });
-
-    if (request.signal) {
-      const terminateProcess = () => {
-        wasAborted = true;
-        childProcess.kill("SIGTERM");
-        setTimeout(() => {
-          if (!childProcess.killed) childProcess.kill("SIGKILL");
-        }, 5000);
-      };
-
-      if (request.signal.aborted) {
-        terminateProcess();
-      } else {
-        request.signal.addEventListener("abort", terminateProcess, { once: true });
-      }
+    const message = event.message;
+    snapshot.usage.input += message.usage?.input ?? 0;
+    snapshot.usage.output += message.usage?.output ?? 0;
+    if (message.stopReason === "aborted") {
+      aborted = true;
+    } else if (message.stopReason === "error") {
+      stoppedWithError = true;
+      errorMessage ||= message.errorMessage || "Subsession failed";
     }
+
+    for (const contentPart of message.content) {
+      if (contentPart.type === "text") {
+        lastMessage = contentPart.text;
+        continue;
+      }
+      if (contentPart.type !== "toolCall") continue;
+
+      const toolCount = (toolCounts[contentPart.name] ?? 0) + 1;
+      toolCounts[contentPart.name] = toolCount;
+      snapshot.usage.toolCalls += 1;
+      snapshot.toolsUsed.push(formatToolUse(contentPart.name, contentPart.arguments));
+    }
+
+    request.onSnapshot?.(snapshot);
   });
 
-  const interaction = parseInteractionHandoff(stderrOutput);
-  const isError = exitCode !== 0 || parser.state.stopReason === "error";
-  const output = parser.state.lastMessage || (isError ? stderrOutput.trim() : "");
-  const status: SubsessionStatus = interaction
-    ? "pending"
-    : wasAborted || parser.state.stopReason === "aborted"
-      ? "aborted"
-      : isError
-        ? "error"
-        : "done";
+  const abortTurn = () => {
+    aborted = true;
+    void request.session.abort().catch(() => undefined);
+  };
+
+  try {
+    if (request.signal?.aborted) {
+      abortTurn();
+    } else {
+      request.signal?.addEventListener("abort", abortTurn, { once: true });
+      await request.session.prompt(request.input);
+    }
+  } catch (error) {
+    errorMessage = error instanceof Error ? error.message : String(error);
+  } finally {
+    request.signal?.removeEventListener("abort", abortTurn);
+    unsubscribe();
+  }
+
+  const output = lastMessage || getLastAssistantOutput(request.session);
+  const errorOutput = errorMessage || output || "Subsession failed";
+  const status = aborted ? "aborted" : stoppedWithError || errorMessage ? "error" : "done";
 
   snapshot.status = status;
   request.onSnapshot?.(snapshot);
 
   return {
-    id: snapshot.id || request.sessionId || "",
+    id: request.session.sessionId,
     status,
-    output,
+    output: status === "error" ? errorOutput : output,
     usage: snapshot.usage,
-    toolCounts: parser.state.toolCounts,
-    interaction,
+    toolCounts,
   };
 }
 
+async function openSessionManager(request: SubsessionRequest): Promise<SessionManager> {
+  const subsessionsDir = getPiPath("subsessionsDir", request.ctx.cwd);
+  if (!request.id) {
+    const parentSession = request.ctx.sessionManager.getSessionFile();
+    return SessionManager.create(request.ctx.cwd, subsessionsDir, { parentSession });
+  }
+
+  const storedSession = await findSubsessionSession(request.ctx.cwd, request.id);
+  if (!storedSession) {
+    throw new Error(`Subsession file not found: ${request.id}`);
+  }
+  return SessionManager.open(storedSession.path, storedSession.sessionDir, request.ctx.cwd);
+}
+
+async function createSdkSession(
+  request: SubsessionRequest,
+  runtime: RuntimeConfig,
+  sessionManager: SessionManager,
+): Promise<AgentSession> {
+  const modelId = runtime.modelId;
+  const requestedModel = request.id ? undefined : request.ctx.model;
+  const model = modelId
+    ? request.ctx.modelRegistry.getAll().find((available) => modelId.endsWith(available.id))
+    : requestedModel;
+  if (modelId && !model) {
+    throw new Error(`Unknown model "${modelId}" in agent config`);
+  }
+
+  const resourceLoader = new DefaultResourceLoader({
+    cwd: request.ctx.cwd,
+    agentDir: getAgentDir(),
+    noExtensions: true,
+    systemPromptOverride: () => runtime.systemPrompt,
+    extensionFactories: [
+      createSubsessionBridge(request.ctx, runtime.agentMeta, sessionManager.getSessionId()),
+    ],
+  });
+  await resourceLoader.reload();
+
+  const { session } = await createAgentSession({
+    cwd: request.ctx.cwd,
+    model,
+    thinkingLevel: runtime.thinkingLevel ?? (request.id ? undefined : request.ctx.thinkingLevel),
+    resourceLoader,
+    sessionManager,
+    tools: Array.isArray(runtime.tools) ? runtime.tools : [],
+  });
+  return session;
+}
+
 async function createSubsession(params: CreateSubsessionParams): Promise<Subsession> {
-  const { onSnapshot, agent, ...rest } = params;
+  const { agent, onSnapshot, session, ...rest } = params;
 
   const save = async (subsession: Subsession) => {
-    if (subsession.result.id) {
-      await saveSubsession(subsession.result.id, {
-        label: subsession.label,
-        pid: subsession.pid,
-        title: subsession.title,
-        usage: subsession.result.usage,
-      });
-    }
+    if (!subsession.result.id) return;
+    await saveSubsession(subsession.result.id, {
+      label: subsession.label,
+      pid: subsession.pid,
+      title: subsession.title,
+      usage: subsession.result.usage,
+    });
   };
 
   const subsession: Subsession = {
     ...rest,
     async exec(input: string, signal?: AbortSignal) {
+      if (!session) {
+        subsession.result = createErrorResult("Subsession is unavailable");
+        return;
+      }
+
       subsession.result = await executeTurn({
-        agent,
-        sessionId: subsession.result.id,
+        session,
         input,
-        runtime: subsession.runtime,
         signal,
         onSnapshot,
         usage: subsession.result.usage,
       });
-
       await save(subsession);
+    },
+    async dispose() {
+      session?.dispose();
     },
   };
 
@@ -188,7 +224,7 @@ export default async function runSubsession(
     agent: request.agent,
     label: request.label,
     pid: request.pid,
-    title: "",
+    title: request.input.trim() || "Untitled",
     result: {
       status: "done",
       output: "",
@@ -199,39 +235,37 @@ export default async function runSubsession(
     onSnapshot,
   };
 
-  if (request.id) {
+  try {
     const existing = await findSubsession(request.id, request.pid);
-    if (!existing) {
+    if (!existing && request.id) {
       params.title = "Unknown subsession";
-      params.result = createErrorResult(`Subsession not found: ${request.id}`);
-    } else {
-      params.label = existing.label;
+      throw Error(`Subsession not found: ${request.id}`);
+    }
+
+    const sessionManager = await openSessionManager(request);
+    params.session = await createSdkSession(request, runtime, sessionManager);
+
+    if (existing && request.id) {
       params.title = existing.title;
       params.result.id = request.id;
       params.result.usage = existing.usage;
-      params.result.output = await loadSubsessionOutput(process.cwd(), request.id);
-    }
-  } else {
-    params.title = request.input.trim() || "Untitled";
-
-    const initialTurn = await executeTurn({
-      agent: request.agent,
-      input: request.input,
-      runtime,
-      signal: request.signal,
-      onSnapshot,
-      usage: { input: 0, output: 0, toolCalls: 0 },
-    });
-
-    if (!initialTurn.id) {
-      const errorOutput = initialTurn.output.trim();
-      params.result = createErrorResult(errorOutput || "Cannot start subsession");
+      params.result.output = await loadSubsessionOutput(request.ctx.cwd, request.id);
     } else {
-      params.result = initialTurn;
-      const extractedTitle = extractSubsessionTitle(initialTurn.output);
-      if (extractedTitle) {
-        params.title = extractedTitle;
-      }
+      params.result = await executeTurn({
+        session: params.session,
+        input: request.input,
+        signal: request.signal,
+        onSnapshot,
+        usage: params.result.usage,
+      });
+
+      const title = extractSubsessionTitle(params.result.output);
+      if (title) params.title = title;
+    }
+  } catch (error) {
+    params.result = createErrorResult(error instanceof Error ? error.message : String(error));
+    if (params.session && !params.result.id) {
+      params.result.id = params.session.sessionId;
     }
   }
 

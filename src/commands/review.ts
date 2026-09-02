@@ -1,24 +1,18 @@
-import type {
-  ExtensionAPI,
-  ExtensionCommandContext,
-  ExecResult,
-} from "@earendil-works/pi-coding-agent";
+import { readFileSync } from "node:fs";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { SubsessionRequest, Subsession } from "../subsession/types.js";
 import { runSubsession, renderSnapshotWidget } from "../subsession/index.js";
 import { applyCurrentModel, runSubsessionLoop, pickSubsessionId } from "./helpers.js";
 
-const REVIEW_AGENT = "reviewer";
+const REVIEW_AGENT = "default";
+const REVIEW_PROMPT = readFileSync(new URL("./prompts/review.md", import.meta.url), "utf8").trim();
+
 const REVIEW_LOOP_CONFIG = {
   agent: REVIEW_AGENT,
   title: "Next step?",
   prefix: "Fix issues",
-  placeholder: "Tell reviewer what to check again...",
+  placeholder: "Tell agent what to check again...",
 };
-
-interface PullRequestSummary {
-  number: number;
-  title: string;
-}
 
 export async function reviewCommandHandler(
   pi: ExtensionAPI,
@@ -30,7 +24,7 @@ export async function reviewCommandHandler(
     return;
   }
 
-  const reviewSubsession = await resolveReviewSubsession(pi, args, ctx);
+  const reviewSubsession = await resolveReviewSubsession(args, ctx);
   if (!reviewSubsession) {
     ctx.ui.setWidget(REVIEW_AGENT, undefined);
     return;
@@ -47,7 +41,6 @@ export async function reviewCommandHandler(
 }
 
 async function resolveReviewSubsession(
-  pi: ExtensionAPI,
   args: string,
   ctx: ExtensionCommandContext,
 ): Promise<Subsession | null> {
@@ -55,27 +48,12 @@ async function resolveReviewSubsession(
   const request: SubsessionRequest = { ctx, label: "review", agent: REVIEW_AGENT, input: "" };
 
   if (normalizedArgs.length > 0) {
-    request.input = normalizedArgs;
+    request.input = `${REVIEW_PROMPT}\n\n## Review target\n${normalizedArgs}`;
     applyCurrentModel(ctx, request);
   } else {
-    const startOption = await ctx.ui.select("Start review", [
-      "List available PRs to review",
-      "List existing reviews",
-    ]);
-    if (!startOption) return null;
-
-    if (startOption.includes("PRs")) {
-      const reviewPrompt = await resolvePromptFromPullRequest(pi, ctx);
-      if (!reviewPrompt) return null;
-
-      request.input = reviewPrompt;
-      applyCurrentModel(ctx, request);
-      return null;
-    } else if (startOption.includes("reviews")) {
-      const selectedSubsessionId = await pickSubsessionId(ctx, "review");
-      if (!selectedSubsessionId) return null;
-      request.id = selectedSubsessionId;
-    }
+    const selectedSubsessionId = await pickSubsessionId(ctx, "review");
+    if (!selectedSubsessionId) return null;
+    request.id = selectedSubsessionId;
   }
 
   const session = await runSubsession(request, (snapshot) =>
@@ -89,106 +67,4 @@ async function resolveReviewSubsession(
   }
 
   return session;
-}
-
-async function resolvePromptFromPullRequest(
-  pi: ExtensionAPI,
-  ctx: ExtensionCommandContext,
-): Promise<string | null> {
-  const pullRequests = await loadOpenPullRequests(pi, ctx);
-
-  if (!pullRequests) return null;
-  if (pullRequests.length === 0) {
-    ctx.ui.notify("No open pull requests found", "warning");
-    return null;
-  }
-
-  const optionByNumber = new Map<string, number>();
-  const options = pullRequests.map((pullRequest) => {
-    const optionLabel = `#${pullRequest.number} ${pullRequest.title}`;
-    optionByNumber.set(optionLabel, pullRequest.number);
-    return optionLabel;
-  });
-
-  const selectedOption = await ctx.ui.select("Choose pull request to review", options);
-  if (!selectedOption) {
-    return null;
-  }
-
-  const selectedPullRequestNumber = optionByNumber.get(selectedOption);
-  if (selectedPullRequestNumber === undefined) {
-    ctx.ui.notify("Selected pull request was not found", "error");
-    return null;
-  }
-
-  return `Review pull request #${selectedPullRequestNumber}. Focus on correctness, regressions, and actionable fixes.`;
-}
-
-async function loadOpenPullRequests(
-  pi: ExtensionAPI,
-  ctx: ExtensionCommandContext,
-): Promise<PullRequestSummary[] | null> {
-  let result: ExecResult;
-
-  try {
-    result = await pi.exec("gh", ["pr", "list", "--state", "open", "--json", "number,title"], {
-      cwd: ctx.cwd,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    ctx.ui.notify(`Failed to run gh pr list: ${message}`, "error");
-    return null;
-  }
-
-  if (result.code !== 0) {
-    const errorOutput = result.stderr.trim() || result.stdout.trim() || "Unknown gh error";
-    ctx.ui.notify(`Failed to list open pull requests: ${errorOutput}`, "error");
-    return null;
-  }
-
-  return parsePullRequestList(result.stdout, ctx);
-}
-
-function parsePullRequestList(
-  stdout: string,
-  ctx: ExtensionCommandContext,
-): PullRequestSummary[] | null {
-  let parsedOutput: unknown;
-
-  try {
-    parsedOutput = JSON.parse(stdout);
-  } catch {
-    ctx.ui.notify("Failed to parse gh pr list output", "error");
-    return null;
-  }
-
-  if (!Array.isArray(parsedOutput)) {
-    ctx.ui.notify("Malformed gh pr list output", "error");
-    return null;
-  }
-
-  const pullRequests: PullRequestSummary[] = [];
-  for (const pullRequestItem of parsedOutput) {
-    if (!isPullRequestSummary(pullRequestItem)) {
-      ctx.ui.notify("Malformed gh pr list output", "error");
-      return null;
-    }
-    pullRequests.push({
-      number: pullRequestItem.number,
-      title: pullRequestItem.title,
-    });
-  }
-
-  return pullRequests;
-}
-
-function isPullRequestSummary(value: unknown): value is PullRequestSummary {
-  if (!value || typeof value !== "object") return false;
-
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate["number"] === "number" &&
-    Number.isInteger(candidate["number"]) &&
-    typeof candidate["title"] === "string"
-  );
 }

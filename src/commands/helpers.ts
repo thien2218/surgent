@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { AgentMode } from "../agent/types.js";
 import type { Subsession, SubsessionRequest } from "../subsession/types.js";
@@ -25,6 +27,28 @@ interface LoopConfig {
   title: string;
   prefix: string;
   placeholder: string;
+}
+
+export async function saveSubsessionOutput(ctx: ExtensionCommandContext, subsession: Subsession) {
+  const outputPath = getPiPath(
+    subsession.label === "plan" ? "plans" : "reviews",
+    ctx.cwd,
+    `${
+      subsession.title
+        .toLowerCase()
+        .replaceAll(/[^a-z0-9]+/g, "_")
+        .replaceAll(/^_+|_+$/g, "") || "untitled"
+    }.md`,
+  );
+
+  try {
+    await mkdir(dirname(outputPath), { recursive: true });
+    await writeFile(outputPath, `${subsession.result.output.trimEnd()}\n`, "utf8");
+    ctx.ui.notify(`Saved ${subsession.label} to ${outputPath}`, "info");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    ctx.ui.notify(`Failed to save ${subsession.label}: ${message}`, "error");
+  }
 }
 
 function mapActionResult(result: ActionSelectResult): LoopAction | null {
@@ -83,6 +107,8 @@ export async function runSubsessionLoop(
   config: LoopConfig,
 ) {
   try {
+    await saveSubsessionOutput(ctx, subsession);
+
     while (true) {
       ctx.ui.setWidget(config.agent, undefined);
       const action = await showActionUi(ctx, subsession.result.output, config);

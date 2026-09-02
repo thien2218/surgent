@@ -1,10 +1,12 @@
+import { readFileSync } from "node:fs";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { SubsessionRequest, Subsession } from "../subsession/types.js";
 import { runSubsession, renderSnapshotWidget } from "../subsession/index.js";
 import { applyCurrentModel, runSubsessionLoop, pickSubsessionId } from "./helpers.js";
 import { isUuidv7 } from "../utils.js";
 
-const PLAN_AGENT = "planner";
+const PLAN_AGENT = "default";
+const PLAN_PROMPT = readFileSync(new URL("./prompts/plan.md", import.meta.url), "utf8").trim();
 
 type PlanCommandInput =
   | { kind: "list" }
@@ -38,7 +40,7 @@ export async function planCommandHandler(
     agent: PLAN_AGENT,
     title: "Forward this plan to main agent?",
     prefix: "Yes, proceed",
-    placeholder: "Tell planner what to revise...",
+    placeholder: "Tell agent what to revise...",
   });
 }
 
@@ -60,7 +62,7 @@ async function resolveSubsession(
   const request: SubsessionRequest = { ctx, label: "plan", agent: PLAN_AGENT, input: "" };
 
   if (input.kind === "prompt") {
-    request.input = input.prompt;
+    request.input = `${PLAN_PROMPT}\n\n## Task\n${input.prompt}`;
     applyCurrentModel(ctx, request);
   } else if (input.kind === "resume") {
     request.id = input.subsessionId;

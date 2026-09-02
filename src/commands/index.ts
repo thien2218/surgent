@@ -6,12 +6,12 @@ export const MODE_ENTRY = "commands/mode";
 
 export default function commandsExtension(pi: ExtensionAPI) {
   pi.registerCommand("plan", {
-    description: "Run planner in a reusable planning subsession",
+    description: "Create and save an implementation plan",
     handler: (args, ctx) => planCommandHandler(pi, args, ctx),
   });
 
   pi.registerCommand("review", {
-    description: "Run reviewer in a reusable review subsession",
+    description: "Create and save a code review",
     handler: (args, ctx) => reviewCommandHandler(pi, args, ctx),
   });
 }

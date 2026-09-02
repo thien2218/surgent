@@ -22,8 +22,8 @@ async function main() {
 
   console.log("Ensuring global ~/.pi/agent/ directories...");
   await mkdir(globalPiDir, { recursive: true });
-  for (const globalPiAgentSubdirectory of globalPiSubdirs) {
-    await mkdir(resolve(globalPiDir, globalPiAgentSubdirectory), { recursive: true });
+  for (const globalPiSubdir of globalPiSubdirs) {
+    await mkdir(resolve(globalPiDir, globalPiSubdir), { recursive: true });
   }
 }
 

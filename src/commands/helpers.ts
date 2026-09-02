@@ -144,14 +144,13 @@ export function applyCurrentModel(ctx: ExtensionCommandContext, request: Subsess
 
 export async function pickSubsessionId(
   ctx: ExtensionContext,
-  pid: string,
   label: "plan" | "review",
 ): Promise<string | null> {
   const store = await readJson<StoredSubsessions>(getPiPath("subsessions", ctx.cwd), {});
   const previews: { subsessionId: string; title: string }[] = [];
 
   for (const [subsessionId, metadata] of Object.entries(store)) {
-    if (metadata.label === label && metadata.pid === pid) {
+    if (metadata.label === label && metadata.pid === ctx.sessionManager.getSessionId()) {
       previews.push({ subsessionId, title: metadata.title });
     }
   }

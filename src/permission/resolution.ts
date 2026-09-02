@@ -119,7 +119,7 @@ export function checkAgentRules(meta: AgentMeta, check: PermissionCheck): boolea
     return isAllowedByPattern(raw, meta.bash, true);
   }
   if (category === "file") {
-    return isAllowedByPattern(raw, meta.files);
+    return isAllowedByPattern(raw, meta[check.op === "write" ? "files.write" : "files.read"]);
   }
   return true;
 }

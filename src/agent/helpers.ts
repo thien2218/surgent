@@ -1,16 +1,6 @@
 import type { AgentMeta } from "./types.js";
 import type { FormConfig } from "../ui/components/form.js";
-
-const META_FIELDS: readonly (keyof AgentMeta)[] = [
-  "description",
-  "model",
-  "thinking_level",
-  "tools",
-  "mcp_servers",
-  "skills",
-  "bash",
-  "files",
-];
+import { META_KEYS } from "./storage.js";
 
 function parseConfigValues(values: Record<string, string>) {
   const description = (values.description ?? "").trim();
@@ -19,7 +9,7 @@ function parseConfigValues(values: Record<string, string>) {
   }
 
   const updated: AgentMeta = { description };
-  for (const field of META_FIELDS) {
+  for (const field of META_KEYS) {
     if (field === "description") continue;
 
     const rawValue = values[field] ?? "";
@@ -46,18 +36,17 @@ function parseConfigValues(values: Record<string, string>) {
 
     const normalizedValue = rawValue.trim();
     if (!normalizedValue) continue;
-    if (normalizedValue === "none") {
-      updated[field] = "none";
-      continue;
-    }
 
-    const entries = normalizedValue
-      .split(",")
-      .map((entry) => entry.trim().replace(/^['\"]|['\"]$/g, ""))
-      .filter(Boolean);
-    if (entries.length > 0) {
-      updated[field] = entries;
-    }
+    const entries =
+      normalizedValue === "none"
+        ? "none"
+        : normalizedValue
+            .split(",")
+            .map((entry) => entry.trim().replace(/^['\"]|['\"]$/g, ""))
+            .filter(Boolean);
+    if (entries !== "none" && entries.length === 0) continue;
+
+    updated[field] = entries;
   }
 
   return updated;
@@ -70,7 +59,7 @@ export function getAgentConfigForm(
 ): FormConfig<AgentMeta> {
   return {
     title: `Edit agent config: ${agent}`,
-    fields: META_FIELDS.filter((field) => !builtIn || field !== "description").map((field) => {
+    fields: META_KEYS.filter((field) => !builtIn || field !== "description").map((field) => {
       const value = meta[field];
       let placeholder: string;
       if (field === "description") {

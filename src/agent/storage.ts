@@ -9,22 +9,31 @@ import { loadMcpConfigSet } from "../mcp-client/storage.js";
 
 const FRONTMATTER_BLOCK = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 const LINE_ENDING = /\r?\n/;
-const KEY_VALUE_PAIR = /^(\w+):\s*(.*)$/;
+const KEY_VALUE_PAIR = /^([\w.]+):\s*(.*)$/;
 const INLINE_ARRAY = /^\[(.*)\]$/;
 const QUOTED_STRING = /^["']|["']$/g;
 
-const ARRAY_KEYS = new Set<keyof AgentMeta>(["tools", "mcp_servers", "skills", "bash", "files"]);
-const STRING_KEYS = new Set<keyof AgentMeta>(["description", "model", "thinking_level"]);
-const META_KEYS: (keyof AgentMeta)[] = [
+export const META_KEYS: (keyof AgentMeta)[] = [
   "description",
   "tools",
   "mcp_servers",
   "skills",
   "bash",
-  "files",
+  "files.read",
+  "files.write",
   "model",
   "thinking_level",
 ];
+
+const ARRAY_KEYS = new Set<keyof AgentMeta>([
+  "tools",
+  "mcp_servers",
+  "skills",
+  "bash",
+  "files.read",
+  "files.write",
+]);
+const STRING_KEYS = new Set<keyof AgentMeta>(["description", "model", "thinking_level"]);
 const META_KEY_SET = new Set<string>(META_KEYS);
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
 const APPEND_PROMPT = resolve(BUILT_IN_DIR, "..", "append.md");
@@ -56,15 +65,15 @@ function parseAgentConfig(content: string, filePath: string): Agent | null {
   for (const line of frontmatter.split(LINE_ENDING)) {
     const kv = line.match(KEY_VALUE_PAIR);
     if (!kv) continue;
-    const key = kv[1] as keyof AgentMeta;
+    const key = kv[1]!;
     const value = kv[2]!.trim();
 
-    if (ARRAY_KEYS.has(key)) {
+    if (ARRAY_KEYS.has(key as keyof AgentMeta)) {
       const parsedAllowList = parseAllowList(value);
       if (parsedAllowList !== undefined) {
         (meta as Record<string, AgentAllowList>)[key] = parsedAllowList;
       }
-    } else if (STRING_KEYS.has(key)) {
+    } else if (STRING_KEYS.has(key as keyof AgentMeta)) {
       (meta as Record<string, string>)[key] = value.replace(QUOTED_STRING, "");
     }
   }

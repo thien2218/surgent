@@ -6,23 +6,14 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "subagent",
     label: "Subagent",
-    description: "Delegate a focused task to a persistent specialist agent.",
+    description: "Delegate a focused task to a specialist agent.",
     parameters: Type.Object({
       agent: Type.String({ description: "Configured agent profile name" }),
-      input: Type.String({ description: "Task or feedback for the subagent" }),
-      id: Type.Optional(Type.String({ description: "Subagent session ID to resume" })),
+      task: Type.String({ description: "Task for the subagent" }),
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const subsession = await runSubsession(
-        {
-          ctx,
-          pid: ctx.sessionManager.getSessionId(),
-          label: "other",
-          agent: params.agent,
-          input: params.input,
-          id: params.id,
-          signal,
-        },
+        { ctx, label: "other", agent: params.agent, input: params.task, signal },
         (snapshot) => {
           onUpdate?.({
             content: [
@@ -37,10 +28,6 @@ export default function (pi: ExtensionAPI) {
       );
 
       try {
-        if (params.id && subsession.result.status !== "error") {
-          await subsession.exec(params.input, signal);
-        }
-
         return {
           content: [
             {

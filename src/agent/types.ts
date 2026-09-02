@@ -8,7 +8,8 @@ export interface AgentMeta {
   mcp_servers?: AgentAllowList;
   skills?: AgentAllowList;
   bash?: AgentAllowList;
-  files?: AgentAllowList;
+  "files.read"?: AgentAllowList;
+  "files.write"?: AgentAllowList;
   model?: string;
   thinking_level?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 }

@@ -52,8 +52,7 @@ async function resolveReviewSubsession(
   ctx: ExtensionCommandContext,
 ): Promise<Subsession | null> {
   const normalizedArgs = args.trim();
-  const pid = ctx.sessionManager.getSessionId();
-  const request: SubsessionRequest = { ctx, pid, label: "review", agent: REVIEW_AGENT, input: "" };
+  const request: SubsessionRequest = { ctx, label: "review", agent: REVIEW_AGENT, input: "" };
 
   if (normalizedArgs.length > 0) {
     request.input = normalizedArgs;
@@ -73,7 +72,7 @@ async function resolveReviewSubsession(
       applyCurrentModel(ctx, request);
       return null;
     } else if (startOption.includes("reviews")) {
-      const selectedSubsessionId = await pickSubsessionId(ctx, pid, "review");
+      const selectedSubsessionId = await pickSubsessionId(ctx, "review");
       if (!selectedSubsessionId) return null;
       request.id = selectedSubsessionId;
     }

@@ -196,7 +196,6 @@ async function createSubsession(params: CreateSubsessionParams): Promise<Subsess
         subsession.result = createErrorResult("Subsession is unavailable");
         return;
       }
-
       subsession.result = await executeTurn({
         session,
         input,
@@ -220,10 +219,11 @@ export default async function runSubsession(
   onSnapshot?: (snapshot: SubsessionSnapshot) => void,
 ): Promise<Subsession> {
   const runtime = await resolveRuntime(request.agent, request.modelId);
+  const pid = request.ctx.sessionManager.getSessionId();
   const params: CreateSubsessionParams = {
     agent: request.agent,
     label: request.label,
-    pid: request.pid,
+    pid,
     title: request.input.trim() || "Untitled",
     result: {
       status: "done",
@@ -236,7 +236,7 @@ export default async function runSubsession(
   };
 
   try {
-    const existing = await findSubsession(request.id, request.pid);
+    const existing = await findSubsession(request.id, pid);
     if (!existing && request.id) {
       params.title = "Unknown subsession";
       throw Error(`Subsession not found: ${request.id}`);

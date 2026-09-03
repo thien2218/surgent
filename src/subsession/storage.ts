@@ -1,7 +1,7 @@
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { loadAgents } from "../agent/storage.js";
 import { getPiPath, readJson, writeJson } from "../utils.js";
-import type { StoredSubsessions, SubsessionMeta, RuntimeConfig } from "./types.js";
+import type { StoredSubsessions, SubsessionMeta, RuntimeConfig, Subsession } from "./types.js";
 import { unlink } from "node:fs/promises";
 
 const STORE_FILE = getPiPath("subsessions", process.cwd());
@@ -32,9 +32,15 @@ export async function findSubsession(id?: string, pid?: string): Promise<Subsess
   return found;
 }
 
-export async function saveSubsession(id: string, entry: SubsessionMeta) {
+export async function saveSubsession(subsession: Subsession) {
+  if (!subsession.result.id) return;
   await loadStore();
-  subsessions[id] = entry;
+  subsessions[subsession.result.id] = {
+    label: subsession.label,
+    pid: subsession.pid,
+    title: subsession.title,
+    usage: subsession.result.usage,
+  };
   await writeJson(STORE_FILE, subsessions);
 }
 

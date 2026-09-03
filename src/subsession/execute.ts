@@ -5,8 +5,13 @@ import {
   SessionManager,
   type AgentSession,
 } from "@earendil-works/pi-coding-agent";
-import { createSubsessionBridge } from "./bridge.js";
-import { createErrorResult, extractSubsessionTitle } from "./helpers.js";
+import {
+  createErrorResult,
+  extractSubsessionTitle,
+  createSubsessionBridge,
+  formatToolUse,
+  getLastAssistantOutput,
+} from "./helpers.js";
 import {
   findSubsession,
   findSubsessionSession,
@@ -24,29 +29,6 @@ import type {
   SubsessionSnapshot,
 } from "./types.js";
 import { getPiPath } from "../utils.js";
-
-function formatToolUse(name: string, argumentsValue: unknown): string {
-  if (!argumentsValue || typeof argumentsValue !== "object") {
-    return `${name}()`;
-  }
-  try {
-    return `${name}(${JSON.stringify(argumentsValue)})`;
-  } catch {
-    return `${name}(<args>)`;
-  }
-}
-
-function getLastAssistantOutput(session: AgentSession): string {
-  for (const message of [...session.messages].reverse()) {
-    if (message.role !== "assistant") continue;
-    for (const contentPart of [...message.content].reverse()) {
-      if (contentPart.type === "text") {
-        return contentPart.text;
-      }
-    }
-  }
-  return "";
-}
 
 async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResult> {
   const snapshot: SubsessionSnapshot = {
@@ -137,14 +119,15 @@ async function openSessionManager(request: SubsessionRequest): Promise<SessionMa
   if (!storedSession) {
     throw new Error(`Subsession file not found: ${request.id}`);
   }
+
   return SessionManager.open(storedSession.path, storedSession.sessionDir, request.ctx.cwd);
 }
 
 async function createSdkSession(
   request: SubsessionRequest,
   runtime: RuntimeConfig,
-  sessionManager: SessionManager,
 ): Promise<AgentSession> {
+  const sessionManager = await openSessionManager(request);
   const modelId = runtime.modelId;
   const requestedModel = request.id ? undefined : request.ctx.model;
   const model = modelId
@@ -178,22 +161,11 @@ async function createSdkSession(
 
 async function createSubsession(params: CreateSubsessionParams): Promise<Subsession> {
   const { agent, onSnapshot, session, ...rest } = params;
-
-  const save = async (subsession: Subsession) => {
-    if (!subsession.result.id) return;
-    await saveSubsession(subsession.result.id, {
-      label: subsession.label,
-      pid: subsession.pid,
-      title: subsession.title,
-      usage: subsession.result.usage,
-    });
-  };
-
   const subsession: Subsession = {
     ...rest,
     async exec(input: string, signal?: AbortSignal) {
       if (!session) {
-        subsession.result = createErrorResult("Subsession is unavailable");
+        subsession.result = createErrorResult("Subsession unavailable");
         return;
       }
       subsession.result = await executeTurn({
@@ -203,14 +175,14 @@ async function createSubsession(params: CreateSubsessionParams): Promise<Subsess
         onSnapshot,
         usage: subsession.result.usage,
       });
-      await save(subsession);
+      await saveSubsession(subsession);
     },
     async dispose() {
       session?.dispose();
     },
   };
 
-  await save(subsession);
+  await saveSubsession(subsession);
   return subsession;
 }
 
@@ -242,9 +214,7 @@ export default async function runSubsession(
       throw Error(`Subsession not found: ${request.id}`);
     }
 
-    const sessionManager = await openSessionManager(request);
-    params.session = await createSdkSession(request, runtime, sessionManager);
-
+    params.session = await createSdkSession(request, runtime);
     if (existing && request.id) {
       params.title = existing.title;
       params.result.id = request.id;

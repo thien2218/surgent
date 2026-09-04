@@ -1,4 +1,4 @@
-import { readdir, unlink, readFile, writeFile } from "node:fs/promises";
+import { appendFile, readdir, unlink, readFile, writeFile } from "node:fs/promises";
 import path, { dirname, join, resolve } from "node:path";
 import { readJson, writeJson } from "../utils.js";
 import { fileURLToPath } from "node:url";
@@ -6,12 +6,6 @@ import { getPiPath } from "../utils.js";
 import type { AgentMeta, Agent, AgentAllowList, SettingsSchema } from "./types.js";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { loadMcpConfigSet } from "../mcp-client/storage.js";
-
-const FRONTMATTER_BLOCK = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
-const LINE_ENDING = /\r?\n/;
-const KEY_VALUE_PAIR = /^([\w.]+):\s*(.*)$/;
-const INLINE_ARRAY = /^\[(.*)\]$/;
-const QUOTED_STRING = /^["']|["']$/g;
 
 export const META_KEYS: (keyof AgentMeta)[] = [
   "description",
@@ -25,6 +19,12 @@ export const META_KEYS: (keyof AgentMeta)[] = [
   "thinking_level",
 ];
 
+const FRONTMATTER_BLOCK = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
+const LINE_ENDING = /\r?\n/;
+const KEY_VALUE_PAIR = /^([\w.]+):\s*(.*)$/;
+const INLINE_ARRAY = /^\[(.*)\]$/;
+const QUOTED_STRING = /^["']|["']$/g;
+
 const ARRAY_KEYS = new Set<keyof AgentMeta>([
   "tools",
   "mcp_servers",
@@ -36,7 +36,6 @@ const ARRAY_KEYS = new Set<keyof AgentMeta>([
 const STRING_KEYS = new Set<keyof AgentMeta>(["description", "model", "thinking_level"]);
 const META_KEY_SET = new Set<string>(META_KEYS);
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
-const APPEND_PROMPT = resolve(BUILT_IN_DIR, "..", "append.md");
 const DEFAULT_AGENT = "default";
 
 function parseAllowList(value: string): AgentAllowList | undefined {
@@ -108,6 +107,20 @@ async function getAgentFiles(cwd: string, name?: string, skipBuiltIn?: boolean):
   }
 
   return files;
+}
+
+async function appendToolDetails(
+  cwd: string,
+  activeTools: string[],
+  lines: Record<string, string>,
+) {
+  const appendContent: string[] = [];
+  for (const name of ["mcp", "subagent"]) {
+    if (activeTools.includes(name) && lines[name]) appendContent.push(lines[name]);
+  }
+  if (appendContent.length > 0) {
+    await appendFile(getPiPath("appendSystem", cwd), `\n${appendContent.join("\n")}`, "utf8");
+  }
 }
 
 export async function loadAgents(cwd: string, name?: string): Promise<[Agent, ...Agent[]]> {
@@ -231,18 +244,25 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
   ctx.ui.setStatus("agent", ctx.ui.theme.fg("dim", `agent: ${name}`));
 
   const allMcpConfigs = await loadMcpConfigSet(ctx.cwd);
-  const available = {
-    tools: pi.getAllTools().map((tool) => tool.name),
-    mcp: allMcpConfigs.filter((cfg) => cfg.enabled === true),
-  };
+  const agents = await loadAgents(ctx.cwd);
+  const main = agents.find((agent) => agent.name === name);
+  if (!main) {
+    throw new Error("Invalid agent name.");
+  }
 
-  const [agent] = await loadAgents(ctx.cwd, name);
-  const { meta, body } = agent;
+  const { meta, body } = main;
+  const mcpConfigs = allMcpConfigs.filter(
+    (cfg) =>
+      cfg.enabled === true &&
+      meta.mcp_servers !== "none" &&
+      (meta.mcp_servers ?? [cfg.name]).includes(cfg.name),
+  );
 
   pi.setActiveTools(
-    available.tools.filter(
-      (name) => meta.tools !== "none" && (meta.tools ?? [name]).includes(name),
-    ),
+    pi
+      .getAllTools()
+      .map((tool) => tool.name)
+      .filter((name) => meta.tools !== "none" && (meta.tools ?? [name]).includes(name)),
   );
 
   if (meta.model) {
@@ -258,20 +278,13 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
     pi.setThinkingLevel(meta.thinking_level);
   }
 
-  const lines = available.mcp
-    .filter(
-      (cfg) => meta.mcp_servers !== "none" && (meta.mcp_servers ?? [cfg.name]).includes(cfg.name),
-    )
-    .map((cfg) => (cfg.description ? `- ${cfg.name} - ${cfg.description}` : `- ${cfg.name}`));
-  const sharedInstructions = await readFile(APPEND_PROMPT, "utf8");
-  const appendContent = [
-    sharedInstructions,
-    lines.length > 0 ? `## Enabled MCP Servers\n${lines.join("\n")}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  await writeFile(getPiPath("appendSystem", ctx.cwd), appendContent, "utf8");
+  await appendToolDetails(ctx.cwd, pi.getActiveTools(), {
+    mcp: mcpConfigs
+      .map((cfg) => (cfg.description ? `- ${cfg.name} - ${cfg.description}` : `- ${cfg.name}`))
+      .join("\n"),
+    subagent: `## Available agents for \`subagent\` tool\n${agents.map((profile) => `- ${profile.name}: ${profile.meta.description}`).join("\n")}`,
+  });
   await writeFile(getPiPath("system"), body, "utf8");
+
   return meta;
 }

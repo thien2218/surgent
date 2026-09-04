@@ -1,5 +1,5 @@
 ---
-description: Deeply researches code and returns only relevant tool evidence as JSON
+description: Code explorer optimized for large scale searching while saving cost. Use direct tools for needle queries with known path, symbol, or ≤5 likely files. Delegate only after initial search shows 10+ relevant files, or 6+ files across 3+ source dirs; do not use for routine searches
 tools: [ls, find, grep, code_map, inspect, read]
 ---
 

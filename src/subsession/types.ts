@@ -1,8 +1,8 @@
 import type { AgentSession, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { AgentAllowList, AgentMeta } from "../agent/types.js";
+import type { AgentMeta } from "../agent/types.js";
 
 export type SubsessionStatus = "done" | "aborted" | "error";
-export type SubsessionLabel = "plan" | "review" | "other";
+export type SubsessionLabel = "plan" | "review" | "subagent";
 
 export interface SubsessionUsage {
   input: number;
@@ -25,33 +25,29 @@ export interface SubsessionResult {
   toolCounts: Record<string, number>;
 }
 
-export interface SubsessionMeta {
-  label: SubsessionLabel;
-  pid: string;
-  title: string;
-  usage: SubsessionUsage;
-}
-
 export interface RuntimeConfig {
-  agentMeta: AgentMeta;
+  agent: string;
+  meta: AgentMeta;
   systemPrompt: string;
-  tools?: AgentAllowList;
-  modelId?: string;
-  thinkingLevel?: AgentMeta["thinking_level"];
 }
 
 export interface SubsessionRequest {
   ctx: ExtensionContext;
-  agent: string;
-  modelId?: string;
-  signal?: AbortSignal;
-  id?: string;
   label: SubsessionLabel;
-  input: string;
+  id?: string;
+  agent?: string;
+  signal?: AbortSignal;
+  onSnapshot: (snapshot: SubsessionSnapshot) => void;
 }
 
 export interface StoredSubsessions {
-  [id: string]: SubsessionMeta;
+  [id: string]: {
+    agent: string;
+    label: SubsessionLabel;
+    pid: string;
+    title: string;
+    usage: SubsessionUsage;
+  };
 }
 
 export interface Subsession {
@@ -66,19 +62,19 @@ export interface Subsession {
 
 export interface ExecuteTurnRequest {
   input: string;
-  onSnapshot?: (snapshot: SubsessionSnapshot) => void;
   session: AgentSession;
-  signal?: AbortSignal;
   usage: SubsessionUsage;
+  signal?: AbortSignal;
+  onSnapshot: (snapshot: SubsessionSnapshot) => void;
 }
 
 export interface CreateSubsessionParams {
-  agent: string;
-  label: SubsessionLabel;
-  onSnapshot?: (snapshot: SubsessionSnapshot) => void;
   pid: string;
+  cwd: string;
+  title: string;
+  label: SubsessionLabel;
   result: SubsessionResult;
   runtime: RuntimeConfig;
   session?: AgentSession;
-  title: string;
+  onSnapshot: (snapshot: SubsessionSnapshot) => void;
 }

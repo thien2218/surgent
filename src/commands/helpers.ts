@@ -1,8 +1,7 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { unlink, writeFile } from "node:fs/promises";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { AgentMode } from "../agent/types.js";
-import type { Subsession, SubsessionRequest } from "../subsession/types.js";
+import type { Subsession } from "../subsession/types.js";
 import { terminateSubsession } from "../subsession/storage.js";
 import {
   ActionSelectList,
@@ -14,7 +13,7 @@ import { MODE_ENTRY } from "./index.js";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { StoredSubsessions } from "../subsession/types.js";
 import { ExtendedSelectList, type SelectEntry } from "../ui/components/extended-select-list.js";
-import { getPiPath, readJson } from "../utils.js";
+import { getPiPath, isMissingFileError, readJson } from "../utils.js";
 
 type LoopAction =
   | { kind: "forward"; mode: AgentMode }
@@ -23,13 +22,16 @@ type LoopAction =
   | { kind: "discard" };
 
 interface LoopConfig {
-  agent: string;
+  label: string;
   title: string;
   prefix: string;
   placeholder: string;
 }
 
-export async function saveSubsessionOutput(ctx: ExtensionCommandContext, subsession: Subsession) {
+export async function saveSubsessionOutput(
+  ctx: ExtensionCommandContext,
+  subsession: Subsession,
+): Promise<string | null> {
   const outputPath = getPiPath(
     subsession.label === "plan" ? "plans" : "reviews",
     ctx.cwd,
@@ -42,12 +44,13 @@ export async function saveSubsessionOutput(ctx: ExtensionCommandContext, subsess
   );
 
   try {
-    await mkdir(dirname(outputPath), { recursive: true });
     await writeFile(outputPath, `${subsession.result.output.trimEnd()}\n`, "utf8");
     ctx.ui.notify(`Saved ${subsession.label} to ${outputPath}`, "info");
+    return outputPath;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     ctx.ui.notify(`Failed to save ${subsession.label}: ${message}`, "error");
+    return null;
   }
 }
 
@@ -80,6 +83,7 @@ async function forwardAction(
   ctx: ExtensionCommandContext,
   mode: AgentMode,
   subsession: Subsession,
+  outputPath: string | null,
 ): Promise<boolean> {
   const normalizedOutput = subsession.result.output.trim();
   if (!normalizedOutput) {
@@ -88,12 +92,22 @@ async function forwardAction(
   }
 
   pi.appendEntry<{ mode: AgentMode }>(MODE_ENTRY, { mode });
-
   try {
     pi.sendUserMessage(normalizedOutput);
   } catch {
     ctx.ui.notify(`Failed to forward ${subsession.label}`, "error");
     return false;
+  }
+
+  if (outputPath) {
+    try {
+      await unlink(outputPath);
+    } catch (error) {
+      if (!isMissingFileError(error)) {
+        const message = error instanceof Error ? error.message : String(error);
+        ctx.ui.notify(`Failed to delete ${subsession.label}: ${message}`, "error");
+      }
+    }
   }
 
   discardSubsession(ctx, subsession);
@@ -107,10 +121,10 @@ export async function runSubsessionLoop(
   config: LoopConfig,
 ) {
   try {
-    await saveSubsessionOutput(ctx, subsession);
+    const outputPath = await saveSubsessionOutput(ctx, subsession);
 
     while (true) {
-      ctx.ui.setWidget(config.agent, undefined);
+      ctx.ui.setWidget(config.label, undefined);
       const action = await showActionUi(ctx, subsession.result.output, config);
 
       if (!action || action.kind === "exit") return;
@@ -119,7 +133,7 @@ export async function runSubsessionLoop(
         return;
       }
       if (action.kind === "forward") {
-        const forwarded = await forwardAction(pi, ctx, action.mode, subsession);
+        const forwarded = await forwardAction(pi, ctx, action.mode, subsession, outputPath);
         if (forwarded) return;
         continue;
       }
@@ -128,7 +142,7 @@ export async function runSubsessionLoop(
     }
   } finally {
     await subsession.dispose();
-    ctx.ui.setWidget(config.agent, undefined);
+    ctx.ui.setWidget(config.label, undefined);
   }
 }
 
@@ -137,7 +151,7 @@ export async function showActionUi(
   output: string,
   config: LoopConfig,
 ): Promise<LoopAction | null> {
-  const markdown = output.trim().length > 0 ? output : `_No ${config.agent} output yet._`;
+  const markdown = output.trim().length > 0 ? output : `_No ${config.label} output yet._`;
 
   const options: ActionSelectOption[] = [
     { value: "assistant", label: `${config.prefix} with assistant mode` },
@@ -160,12 +174,6 @@ export async function showActionUi(
 
     return scrollableView;
   });
-}
-
-export function applyCurrentModel(ctx: ExtensionCommandContext, request: SubsessionRequest) {
-  if (!ctx.model) return;
-  const { id, provider } = ctx.model;
-  request.modelId = id.includes("/") ? id : `${provider}/${id}`;
 }
 
 export async function pickSubsessionId(

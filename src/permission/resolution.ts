@@ -163,7 +163,7 @@ export async function resolvePermission(
   const [local, global, subsession] = await Promise.all([
     readRules(cwd),
     readRules(),
-    findSubsession(sessionId),
+    findSubsession(cwd, sessionId),
   ]);
 
   const scopes: Array<PermissionRule | undefined> = [global, local.project];

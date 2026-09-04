@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { SubsessionRequest, Subsession } from "../subsession/types.js";
-import { runSubsession, renderSnapshotWidget } from "../subsession/index.js";
-import { applyCurrentModel, runSubsessionLoop, pickSubsessionId } from "./helpers.js";
+import { openSubsession, renderSnapshotWidget } from "../subsession/index.js";
+import { runSubsessionLoop, pickSubsessionId } from "./helpers.js";
 import { isUuidv7 } from "../utils.js";
 
-const PLAN_AGENT = "default";
+const PLANNING = "planning";
 const PLAN_PROMPT = readFileSync(new URL("./prompts/plan.md", import.meta.url), "utf8").trim();
 
 type PlanCommandInput =
@@ -25,19 +25,19 @@ export async function planCommandHandler(
 
   const subsession = await resolveSubsession(ctx, parseCommandInput(args));
   if (!subsession) {
-    ctx.ui.setWidget(PLAN_AGENT, undefined);
+    ctx.ui.setWidget(PLANNING, undefined);
     return;
   }
 
   if (subsession.result.status === "error") {
     await subsession.dispose();
-    ctx.ui.setWidget(PLAN_AGENT, undefined);
+    ctx.ui.setWidget(PLANNING, undefined);
     ctx.ui.notify(subsession.result.output, "error");
     return;
   }
 
   await runSubsessionLoop(pi, ctx, subsession, {
-    agent: PLAN_AGENT,
+    label: PLANNING,
     title: "Forward this plan to main agent?",
     prefix: "Yes, proceed",
     placeholder: "Tell agent what to revise...",
@@ -59,11 +59,16 @@ async function resolveSubsession(
   ctx: ExtensionCommandContext,
   input: PlanCommandInput,
 ): Promise<Subsession | null> {
-  const request: SubsessionRequest = { ctx, label: "plan", agent: PLAN_AGENT, input: "" };
+  let prompt = "";
+  const request: SubsessionRequest = {
+    ctx,
+    label: "plan",
+    onSnapshot: (snapshot) =>
+      renderSnapshotWidget(ctx, PLANNING, snapshot, ctx.model?.contextWindow),
+  };
 
   if (input.kind === "prompt") {
-    request.input = `${PLAN_PROMPT}\n\n## Task\n${input.prompt}`;
-    applyCurrentModel(ctx, request);
+    prompt = `${PLAN_PROMPT}\n\n## Task\n${input.prompt}`;
   } else if (input.kind === "resume") {
     request.id = input.subsessionId;
   } else {
@@ -74,9 +79,10 @@ async function resolveSubsession(
     request.id = selectedSubsessionId;
   }
 
-  const session = await runSubsession(request, (snapshot) =>
-    renderSnapshotWidget(ctx, PLAN_AGENT, snapshot, ctx.model?.contextWindow),
-  );
+  const session = await openSubsession(request);
+  if (!request.id && session.result.status !== "error") {
+    await session.exec(prompt);
+  }
   if (!session.result.id) {
     await session.dispose();
     ctx.ui.notify(session.result.output || "Failed to initiate planning session", "error");

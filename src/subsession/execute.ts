@@ -7,14 +7,13 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import {
   createErrorResult,
-  extractSubsessionTitle,
   createSubsessionBridge,
   formatToolUse,
   getLastAssistantOutput,
 } from "./helpers.js";
 import {
   findSubsession,
-  findSubsessionSession,
+  findSubsessionFile,
   loadSubsessionOutput,
   resolveRuntime,
   saveSubsession,
@@ -109,18 +108,22 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
 }
 
 async function openSessionManager(request: SubsessionRequest): Promise<SessionManager> {
+  if (request.label === "subagent") {
+    return SessionManager.inMemory(request.ctx.cwd);
+  }
+
   const subsessionsDir = getPiPath("subsessionsDir", request.ctx.cwd);
   if (!request.id) {
     const parentSession = request.ctx.sessionManager.getSessionFile();
     return SessionManager.create(request.ctx.cwd, subsessionsDir, { parentSession });
   }
 
-  const storedSession = await findSubsessionSession(request.ctx.cwd, request.id);
-  if (!storedSession) {
+  const subsessionFile = await findSubsessionFile(request.ctx.cwd, request.id);
+  if (!subsessionFile) {
     throw new Error(`Subsession file not found: ${request.id}`);
   }
 
-  return SessionManager.open(storedSession.path, storedSession.sessionDir, request.ctx.cwd);
+  return SessionManager.open(subsessionFile.path, subsessionFile.dir, request.ctx.cwd);
 }
 
 async function createSdkSession(
@@ -128,7 +131,7 @@ async function createSdkSession(
   runtime: RuntimeConfig,
 ): Promise<AgentSession> {
   const sessionManager = await openSessionManager(request);
-  const modelId = runtime.modelId;
+  const modelId = runtime.meta.model;
   const requestedModel = request.id ? undefined : request.ctx.model;
   const model = modelId
     ? request.ctx.modelRegistry.getAll().find((available) => modelId.endsWith(available.id))
@@ -143,7 +146,7 @@ async function createSdkSession(
     noExtensions: true,
     systemPromptOverride: () => runtime.systemPrompt,
     extensionFactories: [
-      createSubsessionBridge(request.ctx, runtime.agentMeta, sessionManager.getSessionId()),
+      createSubsessionBridge(request.ctx, runtime.meta, sessionManager.getSessionId()),
     ],
   });
   await resourceLoader.reload();
@@ -151,16 +154,17 @@ async function createSdkSession(
   const { session } = await createAgentSession({
     cwd: request.ctx.cwd,
     model,
-    thinkingLevel: runtime.thinkingLevel ?? (request.id ? undefined : request.ctx.thinkingLevel),
+    thinkingLevel:
+      runtime.meta.thinking_level ?? (request.id ? undefined : request.ctx.thinkingLevel),
     resourceLoader,
     sessionManager,
-    tools: Array.isArray(runtime.tools) ? runtime.tools : [],
+    tools: Array.isArray(runtime.meta.tools) ? runtime.meta.tools : [],
   });
   return session;
 }
 
 async function createSubsession(params: CreateSubsessionParams): Promise<Subsession> {
-  const { agent, onSnapshot, session, ...rest } = params;
+  const { cwd, onSnapshot, session, ...rest } = params;
   const subsession: Subsession = {
     ...rest,
     async exec(input: string, signal?: AbortSignal) {
@@ -175,28 +179,29 @@ async function createSubsession(params: CreateSubsessionParams): Promise<Subsess
         onSnapshot,
         usage: subsession.result.usage,
       });
-      await saveSubsession(subsession);
+      await saveSubsession(cwd, subsession);
     },
     async dispose() {
       session?.dispose();
     },
   };
 
-  await saveSubsession(subsession);
+  await saveSubsession(cwd, subsession);
   return subsession;
 }
 
-export default async function runSubsession(
-  request: SubsessionRequest,
-  onSnapshot?: (snapshot: SubsessionSnapshot) => void,
-): Promise<Subsession> {
-  const runtime = await resolveRuntime(request.agent, request.modelId);
+export async function openSubsession(request: SubsessionRequest): Promise<Subsession> {
   const pid = request.ctx.sessionManager.getSessionId();
+  const existing =
+    request.label !== "subagent" ? await findSubsession(request.ctx.cwd, request.id, pid) : null;
+  const agentName = existing?.agent ?? request.agent ?? "default";
+  const runtime = await resolveRuntime(request.ctx.cwd, agentName);
+
   const params: CreateSubsessionParams = {
-    agent: request.agent,
+    cwd: request.ctx.cwd,
     label: request.label,
     pid,
-    title: request.input.trim() || "Untitled",
+    title: "",
     result: {
       status: "done",
       output: "",
@@ -204,11 +209,10 @@ export default async function runSubsession(
       toolCounts: {},
     },
     runtime,
-    onSnapshot,
+    onSnapshot: request.onSnapshot,
   };
 
   try {
-    const existing = await findSubsession(request.id, pid);
     if (!existing && request.id) {
       params.title = "Unknown subsession";
       throw Error(`Subsession not found: ${request.id}`);
@@ -220,17 +224,6 @@ export default async function runSubsession(
       params.result.id = request.id;
       params.result.usage = existing.usage;
       params.result.output = await loadSubsessionOutput(request.ctx.cwd, request.id);
-    } else {
-      params.result = await executeTurn({
-        session: params.session,
-        input: request.input,
-        signal: request.signal,
-        onSnapshot,
-        usage: params.result.usage,
-      });
-
-      const title = extractSubsessionTitle(params.result.output);
-      if (title) params.title = title;
     }
   } catch (error) {
     params.result = createErrorResult(error instanceof Error ? error.message : String(error));

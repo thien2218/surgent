@@ -13,7 +13,7 @@ import { findRecentModeOverride } from "../permission/helpers.js";
 import { readAgentMode } from "../permission/storage.js";
 
 const PATH_TOOLS = new Set(["read", "write", "edit", "grep", "find", "ls"]);
-const MARKDOWN_HEADING_PATTERN = /^\s*#\s+(.+?)\s*$/m;
+const DISALLOWED_TOOLS = new Set(["subagent", "call_mcp_tool", "list_mcp_tools"]);
 const ACTIVITY_LABELS = [
   "analyzing",
   "researching",
@@ -34,7 +34,7 @@ export function createSubsessionBridge(
       pi.registerTool(createQuestionnaireTool(ctx));
 
       pi.on("tool_call", async (event) => {
-        if (event.toolName === "subagent") {
+        if (DISALLOWED_TOOLS.has(event.toolName)) {
           return { block: true, reason: "subagent tool is not allowed in subsession" };
         }
 
@@ -57,21 +57,6 @@ function formatUsageCount(value: number): string {
     return `${Math.trunc(value / 1000)}k`;
   }
   return `${(value / 1000).toFixed(1)}k`;
-}
-
-export function extractSubsessionTitle(output: string): string | undefined {
-  const headingMatch = output.match(MARKDOWN_HEADING_PATTERN);
-  if (!headingMatch) return;
-
-  const headingText = headingMatch[1]?.trim();
-  if (!headingText) return;
-
-  const separatorIndex = headingText.indexOf(":");
-  const titleText =
-    separatorIndex >= 0 ? headingText.slice(separatorIndex + 1).trim() : headingText;
-  if (!titleText) return;
-
-  return titleText;
 }
 
 export function createErrorResult(message: string): SubsessionResult {

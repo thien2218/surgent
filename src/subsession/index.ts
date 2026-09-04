@@ -1,20 +1,25 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import runSubsession from "./execute.js";
+import { openSubsession } from "./execute.js";
+import type { SubsessionRequest } from "./types.js";
 
 export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "subagent",
     label: "Subagent",
-    description: "Delegate a focused task to a specialist agent.",
+    description: "Delegate a focused task to a configured agent.",
+    promptSnippet: "Delegate focused tasks to a configured agent",
     parameters: Type.Object({
       agent: Type.String({ description: "Configured agent profile name" }),
       task: Type.String({ description: "Task for the subagent" }),
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
-      const subsession = await runSubsession(
-        { ctx, label: "other", agent: params.agent, input: params.task, signal },
-        (snapshot) => {
+      const request: SubsessionRequest = {
+        ctx,
+        label: "subagent",
+        agent: params.agent,
+        signal,
+        onSnapshot: (snapshot) => {
           onUpdate?.({
             content: [
               {
@@ -25,9 +30,13 @@ export default function (pi: ExtensionAPI) {
             details: snapshot,
           });
         },
-      );
+      };
 
+      const subsession = await openSubsession(request);
       try {
+        if (subsession.result.status !== "error") {
+          await subsession.exec(params.task, signal);
+        }
         return {
           content: [
             {
@@ -35,18 +44,14 @@ export default function (pi: ExtensionAPI) {
               text: subsession.result.output || `Subagent ${subsession.result.status}`,
             },
           ],
-          details: {
-            id: subsession.result.id,
-            status: subsession.result.status,
-            usage: subsession.result.usage,
-          },
+          details: { status: subsession.result.status, usage: subsession.result.usage },
         };
       } finally {
-        subsession.dispose();
+        await subsession.dispose();
       }
     },
   });
 }
 
 export { renderSnapshotWidget } from "./helpers.js";
-export { runSubsession };
+export { openSubsession };

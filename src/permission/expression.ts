@@ -94,7 +94,6 @@ export function urlToExpr(url: string): string {
 
 export function toPermExpr(toolName: PermissiveToolName, input: string): string {
   const firstLine = input.replace(/\r\n?/g, "\n").split("\n")[0] ?? "";
-
   switch (toolName) {
     case "read":
     case "write":

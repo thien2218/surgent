@@ -14,7 +14,7 @@ const APP_NAME = packageJson.name;
 const APP_VERSION = packageJson.version;
 const BASH_MODE_HOTKEY = Key.ctrlAlt("b");
 
-export default function uiExtensions(pi: ExtensionAPI) {
+export default function (pi: ExtensionAPI) {
   let activeEditor: ModeIndicatorEditor | undefined;
 
   pi.registerShortcut(BASH_MODE_HOTKEY, {

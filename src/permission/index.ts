@@ -1,4 +1,8 @@
-import type { ExtensionAPI, ExtensionContext, ToolCallEvent } from "@earendil-works/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+  ToolCallEvent,
+} from "@earendil-works/pi-coding-agent";
 import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { handlePermissionsCommand } from "./command.js";
 import { checkAgentRules, resolvePermission } from "./resolution.js";
@@ -42,7 +46,7 @@ export async function enforceToolPermission(
   ctx: ExtensionContext,
   agentMeta: AgentMeta,
   sessionId: string,
-  bypassPermissions: boolean,
+  bypassed: boolean,
 ) {
   for (const input of getPiIgnoreInputs(event)) {
     const piIgnoreBlock = await resolvePiIgnorePathBlock(ctx.cwd, input);
@@ -51,14 +55,12 @@ export async function enforceToolPermission(
     }
   }
 
-  const check = getPermissionCheck(event.toolName, event.input);
-  if (!check || bypassPermissions) return;
-
+  const check = getPermissionCheck(sessionId, event.toolName, event.input);
+  if (!check || bypassed) return;
   if (!checkAgentRules(agentMeta, check)) {
     return { block: true, reason: "Access to this resource is beyond allowed scope" };
   }
 
-  check.sessionId = sessionId;
   const permission = await resolvePermission(ctx.cwd, check);
   if (permission === "allowed" && !check.danger) return;
   if (permission === "blocked") {

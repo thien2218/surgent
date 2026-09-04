@@ -3,7 +3,7 @@
 import { main } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -190,7 +190,6 @@ if (args.includes("--help") || args.includes("-h")) {
   for (const localPiSubdir of localPiSubdirs) {
     await mkdir(resolve(cwd, ".pi", localPiSubdir), { recursive: true });
   }
-  await copyFile(resolve(PACKAGE_DIR, "bin", "append.md"), resolve(cwd, ".pi", "APPEND_SYSTEM.md"));
   if (!isJsonModeActive(args)) {
     await setupGlobalConfig();
     process.stdout.write(CLEAR_SCREEN);

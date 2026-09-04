@@ -194,14 +194,14 @@ export async function openSubsession(request: SubsessionRequest): Promise<Subses
   const pid = request.ctx.sessionManager.getSessionId();
   const existing =
     request.label !== "subagent" ? await findSubsession(request.ctx.cwd, request.id, pid) : null;
-  const agentName = existing?.agent ?? request.agent ?? "default";
+  const agentName = existing?.agent ?? request.agent;
   const runtime = await resolveRuntime(request.ctx.cwd, agentName);
 
   const params: CreateSubsessionParams = {
     cwd: request.ctx.cwd,
     label: request.label,
     pid,
-    title: "",
+    title: "Untitled",
     result: {
       status: "done",
       output: "",
@@ -214,10 +214,8 @@ export async function openSubsession(request: SubsessionRequest): Promise<Subses
 
   try {
     if (!existing && request.id) {
-      params.title = "Unknown subsession";
       throw Error(`Subsession not found: ${request.id}`);
     }
-
     params.session = await createSdkSession(request, runtime);
     if (existing && request.id) {
       params.title = existing.title;

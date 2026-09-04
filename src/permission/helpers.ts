@@ -53,6 +53,7 @@ export function cycleRuleValue(rule: DisplayRule) {
 }
 
 export function getPermissionCheck(
+  sessionId: string,
   toolName: string,
   input: Record<string, unknown>,
 ): PermissionCheck | null {
@@ -83,7 +84,7 @@ export function getPermissionCheck(
     }
   }
 
-  return { sessionId: "", toolName: typedName, ...PERMISSIVE_TOOLS[typedName], danger, purpose, raw };
+  return { sessionId, toolName: typedName, ...PERMISSIVE_TOOLS[typedName], danger, purpose, raw };
 }
 
 export function findRecentModeOverride(entries: SessionEntry[]): AgentMode | null {

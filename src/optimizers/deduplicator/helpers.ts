@@ -203,7 +203,7 @@ export function reconcileTouched(storedFile: DeduplicatedFile, currentContent: s
   }
 
   const changed = mergeRanges(
-    rawChanged.map(([start, end]) => [Math.max(1, start - 2), Math.min(currentLength, end + 2)]),
+    rawChanged.map(([start, end]) => [Math.max(1, start - 3), Math.min(currentLength, end + 3)]),
   );
 
   storedFile.content = currentContent;

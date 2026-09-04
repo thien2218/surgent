@@ -34,8 +34,8 @@ export interface RuntimeConfig {
 export interface SubsessionRequest {
   ctx: ExtensionContext;
   label: SubsessionLabel;
+  agent: string;
   id?: string;
-  agent?: string;
   signal?: AbortSignal;
   onSnapshot: (snapshot: SubsessionSnapshot) => void;
 }

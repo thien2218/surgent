@@ -41,7 +41,7 @@ export async function findSubsession(cwd: string, id?: string, pid?: string) {
 
 export async function saveSubsession(cwd: string, subsession: Subsession) {
   if (!subsession.result.id || subsession.label === "subagent") return;
-  if (!subsession.title && subsession.result.status === "done") {
+  if (subsession.result.status === "done") {
     subsession.title = extractSubsessionTitle(subsession.result.output) ?? "Untitled";
   }
 

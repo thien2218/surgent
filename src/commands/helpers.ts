@@ -1,7 +1,7 @@
 import { unlink, writeFile } from "node:fs/promises";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { AgentMode } from "../agent/types.js";
-import type { Subsession } from "../subsession/types.js";
+import type { Subsession, SubsessionRequest } from "../subsession/types.js";
 import { terminateSubsession } from "../subsession/storage.js";
 import {
   ActionSelectList,
@@ -13,34 +13,24 @@ import { MODE_ENTRY } from "./index.js";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { StoredSubsessions } from "../subsession/types.js";
 import { ExtendedSelectList, type SelectEntry } from "../ui/components/extended-select-list.js";
-import { getPiPath, isMissingFileError, readJson } from "../utils.js";
+import { getPiPath, isMissingFileError, isUuidv7, readJson } from "../utils.js";
+import { renderSnapshotWidget } from "../subsession/helpers.js";
+import { openSubsession } from "../subsession/execute.js";
+import type { CommandInput, LoopAction, LoopConfig } from "./types.js";
 
-type LoopAction =
-  | { kind: "forward"; mode: AgentMode }
-  | { kind: "feedback"; feedback: string }
-  | { kind: "exit" }
-  | { kind: "discard" };
-
-interface LoopConfig {
-  label: string;
-  title: string;
-  prefix: string;
-  placeholder: string;
-}
-
-export async function saveSubsessionOutput(
+async function saveSubsessionOutput(
   ctx: ExtensionCommandContext,
   subsession: Subsession,
 ): Promise<string | null> {
+  if (!subsession.result.id) {
+    ctx.ui.notify(`Failed to save ${subsession.label}: missing subsession ID`, "error");
+    return null;
+  }
+
   const outputPath = getPiPath(
     subsession.label === "plan" ? "plans" : "reviews",
     ctx.cwd,
-    `${
-      subsession.title
-        .toLowerCase()
-        .replaceAll(/[^a-z0-9]+/g, "_")
-        .replaceAll(/^_+|_+$/g, "") || "untitled"
-    }.md`,
+    `${subsession.result.id}.md`,
   );
 
   try {
@@ -72,9 +62,7 @@ function mapActionResult(result: ActionSelectResult): LoopAction | null {
 
 function discardSubsession(ctx: ExtensionCommandContext, subsession: Subsession) {
   const subsessionId = subsession.result.id;
-  if (!subsessionId) {
-    return;
-  }
+  if (!subsessionId) return;
   terminateSubsession(ctx.cwd, subsessionId).catch(() => undefined);
 }
 
@@ -122,9 +110,8 @@ export async function runSubsessionLoop(
 ) {
   try {
     const outputPath = await saveSubsessionOutput(ctx, subsession);
-
     while (true) {
-      ctx.ui.setWidget(config.label, undefined);
+      ctx.ui.setWidget(config.agent, undefined);
       const action = await showActionUi(ctx, subsession.result.output, config);
 
       if (!action || action.kind === "exit") return;
@@ -142,7 +129,7 @@ export async function runSubsessionLoop(
     }
   } finally {
     await subsession.dispose();
-    ctx.ui.setWidget(config.label, undefined);
+    ctx.ui.setWidget(config.agent, undefined);
   }
 }
 
@@ -151,8 +138,7 @@ export async function showActionUi(
   output: string,
   config: LoopConfig,
 ): Promise<LoopAction | null> {
-  const markdown = output.trim().length > 0 ? output : `_No ${config.label} output yet._`;
-
+  const markdown = output.trim().length > 0 ? output : `_No ${config.agent} output yet._`;
   const options: ActionSelectOption[] = [
     { value: "assistant", label: `${config.prefix} with assistant mode` },
     { value: "yolo", label: `${config.prefix} with YOLO mode` },
@@ -219,4 +205,51 @@ export async function pickSubsessionId(
 
     return selectList;
   });
+}
+
+export async function resolveSubsession(
+  ctx: ExtensionCommandContext,
+  input: CommandInput,
+  config: { label: "plan" | "review"; agent: string },
+): Promise<Subsession | null> {
+  let prompt = "";
+  const request: SubsessionRequest = {
+    ctx,
+    ...config,
+    onSnapshot: (snapshot) =>
+      renderSnapshotWidget(ctx, config.agent, snapshot, ctx.model?.contextWindow),
+  };
+
+  if (input.kind === "prompt") {
+    prompt = input.prompt;
+  } else if (input.kind === "resume") {
+    request.id = input.subsessionId;
+  } else {
+    const selectedSubsessionId = await pickSubsessionId(ctx, config.label);
+    if (!selectedSubsessionId) return null;
+    request.id = selectedSubsessionId;
+  }
+
+  const subsession = await openSubsession(request);
+  if (!request.id && subsession.result.status !== "error") {
+    await subsession.exec(prompt);
+  }
+  if (!subsession.result.id) {
+    await subsession.dispose();
+    ctx.ui.notify(subsession.result.output || "Failed to initiate subsession", "error");
+    return null;
+  }
+
+  return subsession;
+}
+
+export function parseCommandInput(args: string): CommandInput {
+  const normalized = args.trim();
+  if (!normalized) {
+    return { kind: "list" };
+  }
+  if (isUuidv7(normalized)) {
+    return { kind: "resume", subsessionId: normalized };
+  }
+  return { kind: "prompt", prompt: normalized };
 }

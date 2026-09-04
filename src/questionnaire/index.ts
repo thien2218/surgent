@@ -85,6 +85,6 @@ export function createQuestionnaireTool(parentContext?: ExtensionContext) {
   });
 }
 
-export default function registerQuestionnaireTool(pi: ExtensionAPI) {
+export default function (pi: ExtensionAPI) {
   pi.registerTool(createQuestionnaireTool());
 }

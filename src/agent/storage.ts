@@ -1,4 +1,4 @@
-import { appendFile, readdir, unlink, readFile, writeFile } from "node:fs/promises";
+import { readdir, unlink, readFile, writeFile } from "node:fs/promises";
 import path, { dirname, join, resolve } from "node:path";
 import { readJson, writeJson } from "../utils.js";
 import { fileURLToPath } from "node:url";
@@ -119,7 +119,7 @@ async function appendToolDetails(
     if (activeTools.includes(name) && lines[name]) appendContent.push(lines[name]);
   }
   if (appendContent.length > 0) {
-    await appendFile(getPiPath("appendSystem", cwd), `\n${appendContent.join("\n")}`, "utf8");
+    await writeFile(getPiPath("appendSystem", cwd), `\n${appendContent.join("\n")}`, "utf8");
   }
 }
 

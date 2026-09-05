@@ -29,6 +29,7 @@
     "@tavily/core": "^0.7.3",
     "picomatch": "^4.0.4",
     "tree-sitter": "0.25.0",
+    "tree-sitter-bash": "0.25.1",
     "turndown": "^7.2.4",
     "typebox": "^1.0.55"
   }

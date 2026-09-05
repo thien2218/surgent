@@ -43,10 +43,10 @@ Guarded tools:
    - collects `.piignore` inputs from the tool payload
    - blocks immediately if an ignored path matches
    - builds a `PermissionCheck` from the tool name and input
-   - skips further checks in YOLO mode
    - applies the active agent runtime rules as a hard ceiling
    - resolves stored permission by scope precedence
-   - allows, blocks, or prompts the user
+   - blocks explicit denies, including in YOLO mode
+   - allows requests or prompts the user; YOLO mode skips prompts
 5. If a prompt is needed, the interactive UI can allow once, block, or persist a rule depending on the chosen flow.
 6. `/permissions` allows the user to inspect and edit stored rules directly.
 
@@ -121,3 +121,4 @@ Stored scopes:
 - trigger a suspicious shell command and verify the danger-prompt path
 - add a `.piignore` entry and verify that a matching path is blocked
 - toggle YOLO mode on and off and verify that prompts disappear and then return
+- in YOLO mode, trigger an explicitly denied request and verify that it remains blocked

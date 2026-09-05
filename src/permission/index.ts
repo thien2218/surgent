@@ -56,16 +56,16 @@ export async function enforceToolPermission(
   }
 
   const check = getPermissionCheck(sessionId, event.toolName, event.input);
-  if (!check || bypassed) return;
+  if (!check) return;
   if (!checkAgentRules(agentMeta, check)) {
     return { block: true, reason: "Access to this resource is beyond allowed scope" };
   }
 
   const permission = await resolvePermission(ctx.cwd, check);
-  if (permission === "allowed" && !check.danger) return;
   if (permission === "blocked") {
     return { block: true, reason: "Access to this resource is denied" };
   }
+  if (bypassed || (permission === "allowed" && !check.danger)) return;
   if (!ctx.hasUI) {
     return { block: true, reason: "Permission request requires interactive UI" };
   }
@@ -93,7 +93,7 @@ export default function (pi: ExtensionAPI) {
   };
 
   pi.registerShortcut(SWITCH_MODE_KEY, {
-    description: "Toggle YOLO mode (bypass all access control)",
+    description: "Toggle YOLO mode",
     handler: async (ctx) => {
       agentMode = agentMode === "yolo" ? "assistant" : "yolo";
       await writeAgentMode(ctx.cwd, agentMode);
@@ -101,7 +101,7 @@ export default function (pi: ExtensionAPI) {
 
       ctx.ui.notify(
         agentMode === "yolo"
-          ? "YOLO mode ON - agents can now run commands and tools without asking for permission"
+          ? "YOLO mode ON - agents can now run commands and tools without asking"
           : "YOLO mode OFF",
         "info",
       );

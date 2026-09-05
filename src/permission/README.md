@@ -54,12 +54,12 @@ Guarded tools:
 
 Resolution order:
 
-1. global `always`
-2. project
-3. parent session for subsession requests
-4. current session
+1. current session
+2. parent session for subsession requests
+3. project
+4. global `always`
 
-For file rules, `write` implies `read`. Outside matching explicit rules, file access inside the project root or the global `.pi` root defaults to allowed. Other file paths fall back to a prompt.
+The first scope containing a match wins. Within that scope, the most specific matching expression wins; deny wins ties. For file rules, `write` implies `read`. Outside matching explicit rules, file access inside the project root or the global `.pi` root defaults to allowed. Other file paths fall back to a prompt.
 
 ### Bash-specific behavior
 

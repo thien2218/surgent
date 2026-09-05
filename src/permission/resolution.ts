@@ -1,48 +1,14 @@
 import { homedir } from "node:os";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
-import pm from "picomatch";
 import type { AgentAllowList, AgentMeta } from "../agent/types.js";
 import { readRules } from "./storage.js";
 import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./types.js";
 import { getPiPath } from "../utils.js";
 import { BASH_TOKEN } from "./constants.js";
 import { findSubsession } from "../subsession/storage.js";
+import { findScopedPermission, matchesPattern } from "./precedence.js";
 
-const GLOB_CHARS = /[*?[\]{}]/;
-
-export function specificity(pattern: string): number {
-  return GLOB_CHARS.test(pattern) ? pattern.length : Infinity;
-}
-
-export function matchesPattern(input: string, pattern: string, bash = false): boolean {
-  if (pattern === input) return true;
-  if (!GLOB_CHARS.test(pattern)) return false;
-
-  try {
-    return pm(pattern, { dot: true, bash })(input);
-  } catch {
-    return false;
-  }
-}
-
-function findBestMatch(
-  rules: Record<string, FileAccess | boolean>,
-  input: string,
-  bash = false,
-): boolean | FileAccess | undefined {
-  let best: { value: FileAccess | boolean; score: number } | null = null;
-
-  for (const [pattern, value] of Object.entries(rules)) {
-    if (!matchesPattern(input, pattern, bash)) continue;
-    const score = specificity(pattern);
-
-    if (best === null || score > best.score) {
-      best = { value, score };
-    }
-  }
-
-  return best?.value;
-}
+export { matchesPattern, specificity } from "./precedence.js";
 
 function getSchemaRules(
   schema: PermissionRule | undefined,
@@ -159,33 +125,25 @@ export async function resolvePermission(
     }
   }
 
-  // Scope rules: always (global) > project > parent session > subsession — first match wins
   const [local, global, subsession] = await Promise.all([
     readRules(cwd),
     readRules(),
     findSubsession(cwd, sessionId),
   ]);
 
-  const scopes: Array<PermissionRule | undefined> = [global, local.project];
-  if (subsession?.pid) {
+  const scopes: Array<PermissionRule | undefined> = [local[sessionId]];
+  if (subsession?.pid && subsession.pid !== sessionId) {
     scopes.push(local[subsession.pid]);
   }
-  if (!subsession || subsession.pid !== sessionId) {
-    scopes.push(local[sessionId]);
-  }
+  scopes.push(local.project, global);
 
-  for (const schema of scopes) {
-    const rules = getSchemaRules(schema, category);
-    const match = findBestMatch(rules, raw, category === "bash");
-
-    if (typeof match === "undefined") continue;
-    if (category === "file") {
-      if (match === "write") return "allowed";
-      if (op === match) return "allowed";
-      return "blocked";
-    }
-    return (match as boolean) ? "allowed" : "blocked";
-  }
+  const permission = findScopedPermission(
+    scopes.map((schema) => getSchemaRules(schema, category)),
+    raw,
+    category === "bash",
+    op,
+  );
+  if (permission) return permission;
 
   if (category === "file") {
     const inAllowedDir = Boolean(

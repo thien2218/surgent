@@ -30,8 +30,6 @@ function collectToolCallInputs(
 }
 
 function getResultText(message: Record<string, unknown>): string | undefined {
-  const originalContent = getDetails(message)?.originalContent;
-  if (typeof originalContent === "string") return originalContent;
   if (!Array.isArray(message.content) || message.content.length !== 1) return;
 
   const content = message.content[0];
@@ -139,7 +137,12 @@ function collectReplacementIds(resourceResults: ResourceResult[]): Map<string, s
         candidate.range[0] <= resourceResult.range[1] &&
         candidate.range[1] >= resourceResult.range[0],
     );
-    if (hasFullCoverage(resourceResult.range, coveringResults.map((candidate) => candidate.range))) {
+    if (
+      hasFullCoverage(
+        resourceResult.range,
+        coveringResults.map((candidate) => candidate.range),
+      )
+    ) {
       replacementIdsByEntryId.set(
         resourceResult.entryId,
         coveringResults.map((candidate) => candidate.entryId),
@@ -169,26 +172,16 @@ export function buildDeduplicatorState(
     cwd,
   );
   const replacementIdsByEntryId = collectReplacementIds(resourceResults);
-  const resourceResultsByEntryId = new Map(
-    resourceResults.map((resourceResult) => [resourceResult.entryId, resourceResult]),
-  );
   const replacementsByCallId = new Map<string, string[]>();
-  const replacementToolCallIds = new Set<string>();
 
   for (const resourceResult of resourceResults) {
     const replacementIds = replacementIdsByEntryId.get(resourceResult.entryId);
     if (!replacementIds) continue;
     replacementsByCallId.set(resourceResult.toolCallId, replacementIds);
-
-    for (const replacementId of replacementIds) {
-      const replacement = resourceResultsByEntryId.get(replacementId);
-      if (replacement) replacementToolCallIds.add(replacement.toolCallId);
-    }
   }
 
   return {
     replacementsByCallId,
-    replacementToolCallIds,
-    resultEntryIds: new Set(resourceResultsByEntryId.keys()),
+    resultEntryIds: new Set(resourceResults.map((resourceResult) => resourceResult.entryId)),
   };
 }

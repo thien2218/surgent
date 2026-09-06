@@ -42,7 +42,8 @@ Guarded tools:
 4. On each guarded `tool_call`, it:
    - collects `.piignore` inputs from the tool payload
    - blocks immediately if an ignored path matches
-   - builds a `PermissionCheck` from the tool name and input
+   - builds permission checks from the tool name and input
+   - splits Bash scripts into independently resolved commands
    - applies the active agent runtime rules as a hard ceiling
    - resolves stored permission by scope precedence
    - blocks explicit denies, including in YOLO mode
@@ -59,12 +60,17 @@ Resolution order:
 3. project
 4. global `always`
 
-The first scope containing a match wins. Within that scope, the most specific matching expression wins; deny wins ties. For file rules, `write` implies `read`. Outside matching explicit rules, file access inside the project root or the global `.pi` root defaults to allowed. Other file paths fall back to a prompt.
+The first scope containing a match wins. Within that scope, the most specific matching pattern wins; deny wins ties. For file rules, `write` implies `read`. Outside matching explicit rules, file access inside the project root or the global `.pi` root defaults to allowed. Other file paths fall back to a prompt.
 
 ### Bash-specific behavior
 
-- suspicious shell patterns mark the request as dangerous and still prompt
-- path-like shell arguments are recursively checked as file reads
+- `tree-sitter-bash` extracts commands from pipelines, lists, control flow, subshells, and substitutions
+- one permission check carries extracted resources for file, Bash, and network tools
+- every extracted command is resolved independently; one denied command blocks the complete script
+- already-allowed commands are removed before one batch prompt for remaining commands
+- uncertain Bash requests still prompt when already allowed and cannot create persistent rules
+- dynamic command names, invalid syntax, and suspicious shell patterns mark a request as uncertain
+- Bash arguments are not treated as file or network permissions; a future sandbox will enforce those effects
 
 ## Key files
 
@@ -74,7 +80,8 @@ The first scope containing a match wins. Within that scope, the most specific ma
 - `components/rules-list.ts` — editable rules list UI
 - `helpers.ts` — permission check derivation, labels, and mode override parsing
 - `resolution.ts` — scope precedence, rule matching, path expansion, and default policy
-- `expression.ts` — file, shell, and URL expression normalization
+- `pattern.ts` — file, shell, and URL pattern generation
+- `bash.ts` — Bash parsing and command extraction
 - `piignore.ts` — `.piignore` parsing, caching, and match resolution
 - `storage.ts` — rule storage and agent mode persistence
 - `constants.ts` — scopes, guarded tools, and suspicious shell patterns
@@ -107,7 +114,7 @@ Stored scopes:
 
 ## Edge cases and guardrails
 
-- `.piignore` blocking occurs before permission resolution
+- `.piignore` blocking occurs before permission resolution for direct file tools, not Bash
 - a blocked runtime ceiling from agent metadata stops the request before stored rules matter
 - suspicious shell patterns still prompt even if an existing rule would otherwise allow the request
 - the resize listener for the status line is detached on shutdown
@@ -118,7 +125,9 @@ Stored scopes:
 - allow a file read inside the repository and verify that later requests do not prompt again
 - try file access outside the repository and verify that a prompt appears
 - add a deny rule for a shell command pattern
-- trigger a suspicious shell command and verify the danger-prompt path
-- add a `.piignore` entry and verify that a matching path is blocked
+- trigger a suspicious shell command and verify the uncertainty prompt has no persistent options
+- add a `.piignore` entry and verify that a matching direct file tool is blocked
+- run a pipeline containing one denied command and verify that the complete Bash call is blocked
+- run command and process substitutions and verify that nested commands are checked separately
 - toggle YOLO mode on and off and verify that prompts disappear and then return
 - in YOLO mode, trigger an explicitly denied request and verify that it remains blocked

@@ -1,23 +1,12 @@
 import { Input, Key, visibleWidth, wrapTextWithAnsi, type Focusable } from "@earendil-works/pi-tui";
-import type { PromptDecision, PermissionCheck, Scope, Category, FileAccess } from "../types.js";
+import type { PromptDecision, PermissionCheck, PromptOptions, FileAccess } from "../types.js";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Frame } from "../../ui/components/frame.js";
 import { SCOPES } from "../constants.js";
 import { Lines } from "../../ui/components/lines.js";
 import { getScopeLabel } from "../helpers.js";
-
-type PromptOptions = {
-  label: string;
-  value: PromptDecision;
-  persists: boolean;
-  separator: string;
-  defaultText?: string;
-};
-
-const INIT_OPTIONS = [
-  { label: "Yes", separator: ",", value: { allowed: true }, persists: false },
-  { label: "No", separator: ",", value: { allowed: false }, persists: false },
-];
+import { addRules } from "../storage.js";
+import { toPermPattern } from "../pattern.js";
 
 export default class PermissionPrompt extends Frame implements Focusable {
   private cursor: number = 0;
@@ -27,21 +16,22 @@ export default class PermissionPrompt extends Frame implements Focusable {
   private options: PromptOptions[] = [];
   private _focused = false;
   private cachedLines: string[] | undefined;
+  private readonly patterns: string[] = [];
 
   onDone?: (decision: PromptDecision) => void;
-  onStoreRule?: (
-    scope: Scope,
-    category: Category,
-    expr: string,
-    value: boolean | FileAccess,
-  ) => void;
 
   constructor(
     protected theme: Theme,
-    private readonly expr: string,
     private readonly check: PermissionCheck,
+    private readonly cwd: string,
   ) {
     super(theme);
+    this.patterns = [
+      ...new Set(
+        check.extracted.map((item) => toPermPattern(check.toolName, item)).filter(Boolean),
+      ),
+    ];
+
     this.setOptions();
     this.registerKeybindings([
       {
@@ -85,7 +75,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
           if (this.amending) return;
           const option = this.options[this.cursor];
           if (option) {
-            this.input.setValue(option.defaultText ?? "");
+            this.input.setValue("");
             this.setAmending(true);
           }
           this.cachedLines = undefined;
@@ -127,11 +117,11 @@ export default class PermissionPrompt extends Frame implements Focusable {
     if (this.cachedLines) return this.cachedLines;
 
     const lines = new Lines(width);
-    const { category, toolName, raw, danger } = this.check;
-    const dangerNote = danger ? `${danger} detected. ` : "";
+    const { category, toolName, extracted, uncertainty } = this.check;
+    const uncertaintyNote = uncertainty ? `${uncertainty} detected. ` : "";
 
     lines.add(
-      this.theme.italic(`${dangerNote}Allow agent to call ${category} tool '${toolName}'?`),
+      this.theme.italic(`${uncertaintyNote}Allow agent to call ${category} tool '${toolName}'?`),
     );
     if (category === "bash" && this.check.purpose) {
       for (const line of wrapTextWithAnsi(this.check.purpose, width)) {
@@ -140,7 +130,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
     }
 
     lines.space();
-    this.addRawLines(lines, raw, width);
+    this.addRawLines(lines, extracted.join(", "), width);
     lines.space();
 
     for (const [i, option] of this.options.entries()) {
@@ -198,15 +188,24 @@ export default class PermissionPrompt extends Frame implements Focusable {
     this.setAmending(false);
 
     if (option.persists) {
-      const ruleExpr = inputText || this.expr;
+      const patterns = inputText ? [inputText] : this.patterns;
       const { category } = this.check;
-      let value: boolean | "read" | "write" | "blocked";
+
+      let value: boolean | FileAccess;
       if (category === "file") {
         value = option.value.allowed ? (this.check.op ?? "write") : "blocked";
       } else {
         value = option.value.allowed;
       }
-      this.onStoreRule?.(SCOPES[this.scopeIdx]!, category, ruleExpr, value);
+
+      void addRules(
+        this.cwd,
+        this.check.sessionId,
+        SCOPES[this.scopeIdx]!,
+        category,
+        patterns,
+        value,
+      );
       this.onDone?.({ allowed: option.value.allowed });
       return;
     }
@@ -219,25 +218,28 @@ export default class PermissionPrompt extends Frame implements Focusable {
   private setOptions() {
     const { toolName } = this.check;
     const scopeLabel = getScopeLabel(SCOPES[this.scopeIdx]!);
-    this.options = [...INIT_OPTIONS];
+    this.options = [
+      { label: "Yes", separator: ",", value: { allowed: true }, persists: false },
+      { label: "No", separator: ",", value: { allowed: false }, persists: false },
+    ];
+    if (this.check.uncertainty) return;
 
-    if (this.expr) {
-      this.options.push(
-        {
-          label: `Yes, allow ${toolName} tool call ${scopeLabel} for`,
-          defaultText: this.expr,
-          separator: ":",
-          value: { allowed: true },
-          persists: true,
-        },
-        {
-          label: `No, disallow ${toolName} tool call ${scopeLabel} for`,
-          defaultText: this.expr,
-          separator: ":",
-          value: { allowed: false },
-          persists: true,
-        },
-      );
-    }
+    const defaultText = this.patterns.join(", ");
+    this.options.push(
+      {
+        label: `Yes, allow ${toolName} tool call ${scopeLabel} for`,
+        defaultText,
+        separator: ":",
+        value: { allowed: true },
+        persists: true,
+      },
+      {
+        label: `No, disallow ${toolName} tool call ${scopeLabel} for`,
+        defaultText,
+        separator: ":",
+        value: { allowed: false },
+        persists: true,
+      },
+    );
   }
 }

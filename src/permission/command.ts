@@ -1,13 +1,13 @@
 import type { ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey } from "@earendil-works/pi-tui";
 import type { Category, DisplayRule, FileAccess, PermissionRule } from "./types.js";
-import { getRulesForDisplay, addRule, readRules, writeRules } from "./storage.js";
+import { getRulesForDisplay, addRules, readRules, writeRules } from "./storage.js";
 import PermissionRulesList from "./components/rules-list.js";
 import { Frame } from "../ui/components/frame.js";
 import { FormField } from "../ui/components/form-field.js";
 import {
   formatRuleOptionLabel,
-  getRuleExprPlaceholder,
+  getRulePatternPlaceholder,
   cycleRuleScope,
   cycleRuleValue,
 } from "./helpers.js";
@@ -58,23 +58,27 @@ export async function handlePermissionsCommand(ctx: ExtensionCommandContext) {
 
     const category = categoryLabel.toLowerCase() as Category;
     const defaultValue: FileAccess | boolean = category === "file" ? "read" : true;
-    const toAdd: DisplayRule = { expr: "", value: defaultValue, scope: "session", category };
+    const toAdd: DisplayRule = { pattern: "", value: defaultValue, scope: "session", category };
 
     await ctx.ui.custom<void>((tui, theme, keybindings, done) => {
       const frame = new Frame(theme);
       const option = new FormField(tui, keybindings, theme, {
-        key: "expr",
+        key: "pattern",
         label: formatRuleOptionLabel(toAdd.scope, toAdd.value),
-        mode: { type: "input", placeholder: getRuleExprPlaceholder(category), startEditing: true },
+        mode: {
+          type: "input",
+          placeholder: getRulePatternPlaceholder(category),
+          startEditing: true,
+        },
       });
 
       option.focused = true;
       option.onInputSubmit = (inputValue) => {
-        const nextExpr = inputValue.trim();
-        if (!nextExpr) return false;
+        const nextPattern = inputValue.trim();
+        if (!nextPattern) return false;
 
-        toAdd.expr = nextExpr;
-        addRule(ctx.cwd, sessionId, toAdd.scope, category, toAdd.expr, toAdd.value)
+        toAdd.pattern = nextPattern;
+        addRules(ctx.cwd, sessionId, toAdd.scope, category, [toAdd.pattern], toAdd.value)
           .then(done)
           .catch((error) => notifyError(ctx, error, done));
         return true;

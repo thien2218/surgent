@@ -65,16 +65,16 @@ async function mutateRules(
   await writeRules(local, cwd);
 }
 
-export async function addRule(
+export async function addRules(
   cwd: string,
   sessionId: string,
   scope: Scope,
   category: Category,
-  expr: string,
+  patterns: string[],
   value: boolean | FileAccess,
 ) {
   await mutateRules(cwd, sessionId, scope, category, (rules) => {
-    rules[expr] = value;
+    for (const pattern of patterns) rules[pattern] = value;
   });
 }
 
@@ -83,10 +83,10 @@ export async function removeRule(
   sessionId: string,
   scope: Scope,
   category: Category,
-  expr: string,
+  pattern: string,
 ) {
   await mutateRules(cwd, sessionId, scope, category, (rules) => {
-    delete rules[expr];
+    delete rules[pattern];
   });
 }
 
@@ -95,19 +95,19 @@ export async function toggleRule(
   sessionId: string,
   scope: Scope,
   category: Category,
-  expr: string,
+  pattern: string,
 ) {
   await mutateRules(cwd, sessionId, scope, category, (rules) => {
     if (category === "file") {
       const cycle: FileAccess[] = ["write", "read", "blocked"];
-      const currentValue = rules[expr] as FileAccess | undefined;
+      const currentValue = rules[pattern] as FileAccess | undefined;
       const cycleIndex = cycle.indexOf(currentValue as FileAccess);
-      rules[expr] = cycle[(cycleIndex + 1) % cycle.length]!;
+      rules[pattern] = cycle[(cycleIndex + 1) % cycle.length]!;
       return;
     }
 
-    const currentValue = rules[expr] as boolean | undefined;
-    rules[expr] = !currentValue;
+    const currentValue = rules[pattern] as boolean | undefined;
+    rules[pattern] = !currentValue;
   });
 }
 
@@ -126,8 +126,8 @@ export async function getRulesForDisplay(
     for (const category of CATEGORIES) {
       if (!rules[category]) return;
       const categoryRules = schema[category] ?? {};
-      for (const [expr, value] of Object.entries(categoryRules)) {
-        rules[category].push({ expr, value: value as FileAccess | boolean, scope, category });
+      for (const [pattern, value] of Object.entries(categoryRules)) {
+        rules[category].push({ pattern, value: value as FileAccess | boolean, scope, category });
       }
     }
   };

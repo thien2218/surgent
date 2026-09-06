@@ -15,7 +15,7 @@ import {
   cycleRuleScope,
   cycleRuleValue,
   formatRuleOptionLabel,
-  getRuleExprPlaceholder,
+  getRulePatternPlaceholder,
 } from "../helpers.js";
 
 type RuleOptionEntry = {
@@ -241,11 +241,11 @@ export default class PermissionRulesList extends Frame implements Focusable {
         else target = session;
 
         if (category === "file") {
-          target.file = { ...target.file, [rule.expr]: rule.value as FileAccess };
+          target.file = { ...target.file, [rule.pattern]: rule.value as FileAccess };
         } else if (category === "web") {
-          target.web = { ...target.web, [rule.expr]: rule.value as boolean };
+          target.web = { ...target.web, [rule.pattern]: rule.value as boolean };
         } else {
-          target.bash = { ...target.bash, [rule.expr]: rule.value as boolean };
+          target.bash = { ...target.bash, [rule.pattern]: rule.value as boolean };
         }
       }
     }
@@ -288,23 +288,27 @@ export default class PermissionRulesList extends Frame implements Focusable {
     rule: DisplayRule,
   ): RuleOptionEntry {
     const option = new FormField(tui, keybindings, theme, {
-      key: "expr",
+      key: "pattern",
       label: formatRuleOptionLabel(rule.scope, rule.value),
-      mode: { type: "input", placeholder: getRuleExprPlaceholder(category), text: rule.expr },
+      mode: {
+        type: "input",
+        placeholder: getRulePatternPlaceholder(category),
+        text: rule.pattern,
+      },
     });
 
     const optionEntry: RuleOptionEntry = { rule, option, deleted: false };
 
     option.onInputSubmit = (inputValue) => {
-      const inputExpr = inputValue.trim();
-      const nextExpr = inputExpr || optionEntry.rule.expr.trim();
-      if (!nextExpr) {
+      const inputPattern = inputValue.trim();
+      const nextPattern = inputPattern || optionEntry.rule.pattern.trim();
+      if (!nextPattern) {
         return false;
       }
 
-      if (nextExpr !== optionEntry.rule.expr) {
-        optionEntry.rule.expr = nextExpr;
-        option.setText(nextExpr);
+      if (nextPattern !== optionEntry.rule.pattern) {
+        optionEntry.rule.pattern = nextPattern;
+        option.setText(nextPattern);
         this.saved = false;
       }
 
@@ -313,7 +317,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
     };
 
     option.onInputCancel = () => {
-      option.setText(optionEntry.rule.expr);
+      option.setText(optionEntry.rule.pattern);
       this.setEditing(false);
     };
 

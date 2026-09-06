@@ -7,22 +7,17 @@ import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { handlePermissionsCommand } from "./command.js";
 import { checkAgentRules, resolvePermission } from "./resolution.js";
 import { getPiIgnoreInputs, resolvePiIgnorePathBlock } from "./piignore.js";
-import { addRule, readAgentMode, writeAgentMode } from "./storage.js";
+import { readAgentMode, writeAgentMode } from "./storage.js";
 import { loadMainAgent } from "../agent/storage.js";
 import type { PermissionCheck, PromptDecision } from "./types.js";
 import PermissionPrompt from "./components/prompt.js";
-import { toPermExpr } from "./expression.js";
 import { findRecentModeOverride, getPermissionCheck } from "./helpers.js";
 import type { AgentMeta, AgentMode } from "../agent/types.js";
 
-const SWITCH_MODE_KEY = Key.ctrlAlt("y");
-
-export async function askForPermission(ctx: ExtensionContext, check: PermissionCheck) {
-  const expr = toPermExpr(check.toolName, check.raw);
+async function askForPermission(ctx: ExtensionContext, check: PermissionCheck) {
   const decision = await ctx.ui.custom<PromptDecision>((_tui, theme, _keybindings, done) => {
-    const component = new PermissionPrompt(theme, expr, check);
+    const component = new PermissionPrompt(theme, check, ctx.cwd);
     component.onDone = done;
-    component.onStoreRule = (...args) => addRule(ctx.cwd, check.sessionId, ...args);
     return component;
   });
 
@@ -61,16 +56,17 @@ export async function enforceToolPermission(
     return { block: true, reason: "Access to this resource is beyond allowed scope" };
   }
 
-  const permission = await resolvePermission(ctx.cwd, check);
+  const { permission, extracted } = await resolvePermission(ctx.cwd, check);
   if (permission === "blocked") {
     return { block: true, reason: "Access to this resource is denied" };
   }
-  if (bypassed || (permission === "allowed" && !check.danger)) return;
+  if (bypassed) return;
+  if (permission === "allowed" && !check.uncertainty) return;
   if (!ctx.hasUI) {
     return { block: true, reason: "Permission request requires interactive UI" };
   }
 
-  return askForPermission(ctx, check);
+  return askForPermission(ctx, { ...check, extracted: check.uncertainty ? [] : extracted });
 }
 
 export default function (pi: ExtensionAPI) {
@@ -92,7 +88,7 @@ export default function (pi: ExtensionAPI) {
     ctx.ui.setStatus("mode", `\x1b[${width}G` + modeText);
   };
 
-  pi.registerShortcut(SWITCH_MODE_KEY, {
+  pi.registerShortcut(Key.ctrlAlt("y"), {
     description: "Toggle YOLO mode",
     handler: async (ctx) => {
       agentMode = agentMode === "yolo" ? "assistant" : "yolo";

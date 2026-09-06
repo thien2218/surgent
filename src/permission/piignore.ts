@@ -1,17 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import {
-  matchesPattern,
-  getRelativePathInRoot,
-  specificity,
-  extractPathsFromCommand,
-} from "./resolution.js";
+import { matchesPattern, getRelativePathInRoot, specificity } from "./resolution.js";
 import { isMissingFileError } from "../utils.js";
 import type {
-  BashToolCallEvent,
-  FindToolCallEvent,
   GrepToolCallEvent,
-  LsToolCallEvent,
   ReadToolCallEvent,
   ToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
@@ -47,7 +39,6 @@ function normalizePiIgnorePattern(pattern: string): string | null {
   if (!normalizedPattern || normalizedPattern === ".") {
     return null;
   }
-
   if (directoryOnly) {
     return `${normalizedPattern}/**`;
   }
@@ -150,18 +141,6 @@ export function getPiIgnoreInputs(event: ToolCallEvent): string[] {
       if (grepEvent.input.glob) inputs.push(grepEvent.input.glob);
       return inputs;
     }
-    case "find": {
-      const findEvent = event as FindToolCallEvent;
-      const inputs = [findEvent.input.pattern];
-      if (findEvent.input.path) inputs.push(findEvent.input.path);
-      return inputs;
-    }
-    case "ls": {
-      const lsEvent = event as LsToolCallEvent;
-      return lsEvent.input.path ? [lsEvent.input.path] : [];
-    }
-    case "bash":
-      return extractPathsFromCommand((event as BashToolCallEvent).input.command);
     default:
       return [];
   }

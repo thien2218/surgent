@@ -18,8 +18,9 @@ export interface PermissionCheck {
   toolName: PermissiveToolName;
   category: Category;
   raw: string;
-  purpose?: string;
-  danger?: string;
+  extracted: string[];
+  purpose: string;
+  uncertainty?: string;
   op?: FileOp;
 }
 
@@ -30,7 +31,7 @@ export interface PromptDecision {
 
 export interface DisplayRule {
   category: Category;
-  expr: string;
+  pattern: string;
   value: FileAccess | boolean;
   scope: Scope;
 }
@@ -39,4 +40,12 @@ export type GroupedDisplayRules = {
   file: DisplayRule[];
   web: DisplayRule[];
   bash: DisplayRule[];
+};
+
+export type PromptOptions = {
+  label: string;
+  value: PromptDecision;
+  persists: boolean;
+  separator: string;
+  defaultText?: string;
 };

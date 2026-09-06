@@ -5,6 +5,7 @@ import { MODE_ENTRY } from "../commands/index.js";
 import { SCOPES } from "./constants.js";
 import type { Category, DisplayRule, FileAccess, Scope } from "./types.js";
 import type { AgentMode } from "../agent/types.js";
+import { extractBashCommands } from "./bash.js";
 
 function getRuleValueLabel(value: FileAccess | boolean): string {
   if (typeof value === "boolean") {
@@ -27,7 +28,7 @@ export function formatRuleOptionLabel(scope: Scope, value: FileAccess | boolean)
   return `${getScopeLabel(scope)} ${getRuleValueLabel(value)}`;
 }
 
-export function getRuleExprPlaceholder(category: Category): string {
+export function getRulePatternPlaceholder(category: Category): string {
   if (category === "file") {
     return "Path or glob pattern (example: src/**/*.ts)";
   }
@@ -52,6 +53,13 @@ export function cycleRuleValue(rule: DisplayRule) {
   rule.value = fileOps[(valueIndex + 1) % fileOps.length]!;
 }
 
+function getBashUncertainty(command: string): string | undefined {
+  for (const { pattern, reason } of SUSPICIOUS_BASH_PATTERNS) {
+    if (pattern.test(command)) return reason;
+  }
+  return undefined;
+}
+
 export function getPermissionCheck(
   sessionId: string,
   toolName: string,
@@ -59,8 +67,7 @@ export function getPermissionCheck(
 ): PermissionCheck | null {
   if (!(toolName in PERMISSIVE_TOOLS)) return null;
   const typedName = toolName as PermissiveToolName;
-  let danger: string | undefined;
-  let purpose: string | undefined;
+  let purpose: string;
   let raw: string;
 
   switch (typedName) {
@@ -68,23 +75,40 @@ export function getPermissionCheck(
     case "write":
     case "edit":
       raw = input.path as string;
+      purpose = `Access to file ${input.path}`;
       break;
     case "bash":
       raw = input.command as string;
+      purpose = input.purpose as string;
       break;
     case "web_fetch":
       raw = input.url as string;
+      purpose = `Fetch content from URL ${input.url}`;
       break;
   }
 
+  const check: PermissionCheck = {
+    sessionId,
+    toolName: typedName,
+    ...PERMISSIVE_TOOLS[typedName],
+    raw,
+    purpose,
+    extracted: [raw],
+  };
+
   if (typedName === "bash") {
-    if (typeof input.purpose === "string") purpose = input.purpose;
-    for (const { pattern, reason } of SUSPICIOUS_BASH_PATTERNS) {
-      if (pattern.test(raw)) danger = reason;
-    }
+    const commands = extractBashCommands(raw);
+    const uncertainty = commands
+      .map(
+        ({ text, unresolved }) =>
+          getBashUncertainty(text) ?? (unresolved ? "Dynamic or invalid Bash command" : undefined),
+      )
+      .filter(Boolean);
+    check.extracted = commands.map(({ text }) => text);
+    check.uncertainty = [...new Set(uncertainty)].join("; ") || undefined;
   }
 
-  return { sessionId, toolName: typedName, ...PERMISSIVE_TOOLS[typedName], danger, purpose, raw };
+  return check;
 }
 
 export function findRecentModeOverride(entries: SessionEntry[]): AgentMode | null {

@@ -4,7 +4,6 @@ import type { AgentAllowList, AgentMeta } from "../agent/types.js";
 import { readRules } from "./storage.js";
 import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./types.js";
 import { getPiPath } from "../utils.js";
-import { BASH_TOKEN } from "./constants.js";
 import { findSubsession } from "../subsession/storage.js";
 import { findScopedPermission, matchesPattern } from "./precedence.js";
 
@@ -20,58 +19,6 @@ function getSchemaRules(
   return schema.bash ?? {};
 }
 
-export function extractPathsFromCommand(command: string): string[] {
-  const paths: string[] = [];
-  const tokens = command.match(BASH_TOKEN) ?? [];
-
-  for (const token of tokens) {
-    const strippedToken = stripShellQuotes(token.replace(/[,;:'"]+$/, ""));
-    if (!looksLikePathToken(strippedToken)) continue;
-    paths.push(strippedToken);
-  }
-
-  return [...new Set(paths)];
-}
-
-function stripShellQuotes(token: string): string {
-  if (token.length < 2) return token;
-
-  const firstChar = token[0];
-  const lastChar = token[token.length - 1];
-  if (
-    (firstChar === "'" && lastChar === "'") ||
-    (firstChar === '"' && lastChar === '"') ||
-    (firstChar === "`" && lastChar === "`")
-  ) {
-    return token.slice(1, -1);
-  }
-
-  return token;
-}
-
-function looksLikePathToken(token: string): boolean {
-  if (!token || token.includes("://") || token.startsWith("-")) {
-    return false;
-  }
-
-  if (
-    token.startsWith("~/") ||
-    token.startsWith("./") ||
-    token.startsWith("../") ||
-    token.startsWith("/")
-  ) {
-    return true;
-  }
-  if (token.includes("/")) {
-    return true;
-  }
-  if (token.startsWith(".")) {
-    return true;
-  }
-
-  return /\.[A-Za-z][A-Za-z0-9_-]*$/.test(token);
-}
-
 function isAllowedByPattern(raw: string, allowList?: AgentAllowList, bash?: boolean): boolean {
   return Boolean(
     allowList !== "none" &&
@@ -80,12 +27,14 @@ function isAllowedByPattern(raw: string, allowList?: AgentAllowList, bash?: bool
 }
 
 export function checkAgentRules(meta: AgentMeta, check: PermissionCheck): boolean {
-  const { category, raw } = check;
+  const { category, extracted } = check;
   if (category === "bash") {
-    return isAllowedByPattern(raw, meta.bash, true);
+    return extracted.every((item) => isAllowedByPattern(item, meta.bash, true));
   }
   if (category === "file") {
-    return isAllowedByPattern(raw, meta[check.op === "write" ? "files.write" : "files.read"]);
+    return extracted.every((item) =>
+      isAllowedByPattern(item, meta[check.op === "write" ? "files.write" : "files.read"]),
+    );
   }
   return true;
 }
@@ -111,20 +60,8 @@ export function getRelativePathInRoot(path: string, root: string): string | null
   return relativePath;
 }
 
-export async function resolvePermission(
-  cwd: string,
-  check: PermissionCheck,
-): Promise<"allowed" | "blocked" | "ask"> {
-  const { category, raw, op, sessionId } = check;
-  // For bash: also check any path-like args as file reads
-  if (category === "bash") {
-    for (const path of extractPathsFromCommand(raw)) {
-      const fileCheck = { category: "file", raw: path, op: "read", toolName: "bash" } as const;
-      const filePermission = await resolvePermission(cwd, { ...fileCheck, sessionId });
-      if (filePermission !== "allowed") return filePermission;
-    }
-  }
-
+export async function resolvePermission(cwd: string, check: PermissionCheck) {
+  const { category, extracted, op, sessionId } = check;
   const [local, global, subsession] = await Promise.all([
     readRules(cwd),
     readRules(),
@@ -137,20 +74,29 @@ export async function resolvePermission(
   }
   scopes.push(local.project, global);
 
-  const permission = findScopedPermission(
-    scopes.map((schema) => getSchemaRules(schema, category)),
-    raw,
-    category === "bash",
-    op,
-  );
-  if (permission) return permission;
-
-  if (category === "file") {
-    const inAllowedDir = Boolean(
-      getRelativePathInRoot(raw, cwd) || getRelativePathInRoot(raw, dirname(getPiPath("settings"))),
+  const pending: string[] = [];
+  for (const item of extracted) {
+    let permission: "allowed" | "blocked" | "ask" | undefined = findScopedPermission(
+      scopes.map((schema) => getSchemaRules(schema, category)),
+      item,
+      category === "bash",
+      op,
     );
-    return inAllowedDir ? "allowed" : "ask";
+
+    if (!permission && category === "file") {
+      const inAllowedDir = Boolean(
+        getRelativePathInRoot(item, cwd) ||
+          getRelativePathInRoot(item, dirname(getPiPath("settings"))),
+      );
+      permission = inAllowedDir ? "allowed" : "ask";
+    }
+
+    if (permission === "blocked") return { permission, extracted: [item] };
+    if (permission !== "allowed") pending.push(item);
   }
 
-  return "ask";
+  return {
+    permission: pending.length === 0 ? ("allowed" as const) : ("ask" as const),
+    extracted: pending,
+  };
 }

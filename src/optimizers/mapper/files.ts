@@ -1,5 +1,5 @@
 import picomatch from "picomatch";
-import { runCommand } from "../../utils.js";
+import { runCommand, unique } from "../../utils.js";
 
 const SKIPPED_DIRECTORIES = new Set([".git", ".pi", "build", "coverage", "dist", "node_modules"]);
 
@@ -76,7 +76,7 @@ export async function resolveTargetPaths(
 
   try {
     const paths = await rgFiles(projectPath, globTargets, signal);
-    return [...new Set(paths)].sort();
+    return unique(paths).sort();
   } catch (rgError) {
     const rgMessage = rgError instanceof Error ? rgError.message : String(rgError);
     if (rgMessage === "mapper aborted") {
@@ -85,7 +85,7 @@ export async function resolveTargetPaths(
 
     try {
       const paths = await grepFiles(projectPath, globTargets, signal);
-      return [...new Set(paths)].sort();
+      return unique(paths).sort();
     } catch (grepError) {
       const grepMessage = grepError instanceof Error ? grepError.message : String(grepError);
       throw new Error(`mapper file scan failed: rg=${rgMessage}; grep=${grepMessage}`);

@@ -7,6 +7,7 @@ import { Lines } from "../../ui/components/lines.js";
 import { getScopeLabel } from "../helpers.js";
 import { addRules } from "../storage.js";
 import { toPermPattern } from "../pattern.js";
+import { unique } from "../../utils.js";
 
 export default class PermissionPrompt extends Frame implements Focusable {
   private cursor: number = 0;
@@ -16,6 +17,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
   private options: PromptOptions[] = [];
   private _focused = false;
   private cachedLines: string[] | undefined;
+  private inputError: string | undefined;
   private readonly patterns: string[] = [];
 
   onDone?: (decision: PromptDecision) => void;
@@ -26,11 +28,11 @@ export default class PermissionPrompt extends Frame implements Focusable {
     private readonly cwd: string,
   ) {
     super(theme);
-    this.patterns = [
-      ...new Set(
+    if (check.uncertainty) {
+      this.patterns = unique(
         check.extracted.map((item) => toPermPattern(check.toolName, item)).filter(Boolean),
-      ),
-    ];
+      );
+    }
 
     this.setOptions();
     this.registerKeybindings([
@@ -75,7 +77,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
           if (this.amending) return;
           const option = this.options[this.cursor];
           if (option) {
-            this.input.setValue("");
+            this.input.setValue(option.defaultText ?? "");
             this.setAmending(true);
           }
           this.cachedLines = undefined;
@@ -148,6 +150,11 @@ export default class PermissionPrompt extends Frame implements Focusable {
       }
     }
 
+    if (this.inputError) {
+      lines.space();
+      lines.add(this.theme.fg("warning", this.inputError));
+    }
+
     this.cachedLines = lines.get();
     return this.cachedLines;
   }
@@ -155,6 +162,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
   handleInput(data: string) {
     if (this.handleKb(data) || !this.amending) return;
     this.cachedLines = undefined;
+    this.inputError = undefined;
     this.input.handleInput(data);
   }
 
@@ -175,6 +183,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
 
   private setAmending(value: boolean) {
     this.amending = value;
+    this.inputError = undefined;
     this.input.focused = this._focused && value;
     this.setKeyAccess(Key.backspace, !value);
     if (!value) this.input.setValue("");
@@ -185,14 +194,26 @@ export default class PermissionPrompt extends Frame implements Focusable {
     if (!option) return;
 
     const inputText = this.amending ? this.input.getValue().trim() : "";
-    this.setAmending(false);
-
     if (option.persists) {
-      const patterns = inputText ? [inputText] : this.patterns;
-      const { category } = this.check;
+      let patterns = this.patterns;
+      if (inputText) {
+        try {
+          const parsed: unknown[] = JSON.parse(`[${inputText}]`);
+          patterns = unique(
+            parsed
+              .map((pattern) => (typeof pattern === "string" ? pattern.trim() : ""))
+              .filter(Boolean),
+          );
+          if (parsed.length === 0) throw new Error();
+        } catch {
+          this.inputError = "Enter non-empty patterns in double quotes, separated by commas";
+          return;
+        }
+      }
 
+      this.setAmending(false);
       let value: boolean | FileAccess;
-      if (category === "file") {
+      if (this.check.category === "file") {
         value = option.value.allowed ? (this.check.op ?? "write") : "blocked";
       } else {
         value = option.value.allowed;
@@ -202,7 +223,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
         this.cwd,
         this.check.sessionId,
         SCOPES[this.scopeIdx]!,
-        category,
+        this.check.category,
         patterns,
         value,
       );
@@ -224,7 +245,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
     ];
     if (this.check.uncertainty) return;
 
-    const defaultText = this.patterns.join(", ");
+    const defaultText = this.patterns.map((pattern) => JSON.stringify(pattern)).join(", ");
     this.options.push(
       {
         label: `Yes, allow ${toolName} tool call ${scopeLabel} for`,

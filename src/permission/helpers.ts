@@ -1,11 +1,12 @@
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
-import type { PermissionCheck, PermissiveToolName } from "./types.js";
+import type { BashCommand, PermissionCheck, PermissiveToolName } from "./types.js";
 import { PERMISSIVE_TOOLS, SUSPICIOUS_BASH_PATTERNS } from "./constants.js";
 import { MODE_ENTRY } from "../commands/index.js";
 import { SCOPES } from "./constants.js";
 import type { Category, DisplayRule, FileAccess, Scope } from "./types.js";
 import type { AgentMode } from "../agent/types.js";
 import { extractBashCommands } from "./bash.js";
+import { unique } from "../utils.js";
 
 function getRuleValueLabel(value: FileAccess | boolean): string {
   if (typeof value === "boolean") {
@@ -53,11 +54,11 @@ export function cycleRuleValue(rule: DisplayRule) {
   rule.value = fileOps[(valueIndex + 1) % fileOps.length]!;
 }
 
-function getBashUncertainty(command: string): string | undefined {
+function getBashUncertainty(command: BashCommand): string | undefined {
+  if (command.unresolved) return "Dynamic or invalid bash command";
   for (const { pattern, reason } of SUSPICIOUS_BASH_PATTERNS) {
-    if (pattern.test(command)) return reason;
+    if (pattern.test(command.text)) return reason;
   }
-  return undefined;
 }
 
 export function getPermissionCheck(
@@ -98,14 +99,9 @@ export function getPermissionCheck(
 
   if (typedName === "bash") {
     const commands = extractBashCommands(raw);
-    const uncertainty = commands
-      .map(
-        ({ text, unresolved }) =>
-          getBashUncertainty(text) ?? (unresolved ? "Dynamic or invalid Bash command" : undefined),
-      )
-      .filter(Boolean);
+    const uncertainty = commands.map(getBashUncertainty).filter(Boolean);
     check.extracted = commands.map(({ text }) => text);
-    check.uncertainty = [...new Set(uncertainty)].join("; ") || undefined;
+    check.uncertainty = unique(uncertainty).join("; ") || undefined;
   }
 
   return check;

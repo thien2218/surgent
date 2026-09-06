@@ -68,6 +68,7 @@ The first scope containing a match wins. Within that scope, the most specific ma
 - one permission check carries extracted resources for file, Bash, and network tools
 - every extracted command is resolved independently; one denied command blocks the complete script
 - already-allowed commands are removed before one batch prompt for remaining commands
+- persistent batch patterns are edited as JSON-quoted values and stored as separate rules
 - uncertain Bash requests still prompt when already allowed and cannot create persistent rules
 - dynamic command names, invalid syntax, and suspicious shell patterns mark a request as uncertain
 - Bash arguments are not treated as file or network permissions; a future sandbox will enforce those effects
@@ -128,6 +129,8 @@ Stored scopes:
 - trigger a suspicious shell command and verify the uncertainty prompt has no persistent options
 - add a `.piignore` entry and verify that a matching direct file tool is blocked
 - run a pipeline containing one denied command and verify that the complete Bash call is blocked
+- amend a persistent batch prompt and verify quoted patterns store as separate rules
+- enter malformed quoted patterns and verify the prompt remains open with an error
 - run command and process substitutions and verify that nested commands are checked separately
 - toggle YOLO mode on and off and verify that prompts disappear and then return
 - in YOLO mode, trigger an explicitly denied request and verify that it remains blocked

@@ -56,7 +56,7 @@ export async function enforceToolPermission(
     return { block: true, reason: "Access to this resource is beyond allowed scope" };
   }
 
-  const { permission, extracted } = await resolvePermission(ctx.cwd, check);
+  const permission = await resolvePermission(ctx.cwd, check);
   if (permission === "blocked") {
     return { block: true, reason: "Access to this resource is denied" };
   }
@@ -66,7 +66,7 @@ export async function enforceToolPermission(
     return { block: true, reason: "Permission request requires interactive UI" };
   }
 
-  return askForPermission(ctx, { ...check, extracted: check.uncertainty ? [] : extracted });
+  return askForPermission(ctx, check);
 }
 
 export default function (pi: ExtensionAPI) {

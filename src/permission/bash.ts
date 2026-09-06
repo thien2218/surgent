@@ -1,5 +1,6 @@
 import Parser, { type SyntaxNode } from "tree-sitter";
 import Bash from "tree-sitter-bash";
+import type { BashCommand } from "./types.js";
 
 const parser = new Parser();
 parser.setLanguage(Bash as unknown as Parser.Language);
@@ -12,11 +13,6 @@ const DYNAMIC_TYPES = new Set([
   "process_substitution",
   "simple_expansion",
 ]);
-
-export interface BashCommand {
-  text: string;
-  unresolved: boolean;
-}
 
 function containsDynamic(node: SyntaxNode): boolean {
   if (DYNAMIC_TYPES.has(node.type)) return true;

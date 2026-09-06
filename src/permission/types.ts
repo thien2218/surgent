@@ -49,3 +49,8 @@ export type PromptOptions = {
   separator: string;
   defaultText?: string;
 };
+
+export interface BashCommand {
+  text: string;
+  unresolved: boolean;
+}

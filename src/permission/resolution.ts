@@ -86,17 +86,14 @@ export async function resolvePermission(cwd: string, check: PermissionCheck) {
     if (!permission && category === "file") {
       const inAllowedDir = Boolean(
         getRelativePathInRoot(item, cwd) ||
-          getRelativePathInRoot(item, dirname(getPiPath("settings"))),
+        getRelativePathInRoot(item, dirname(getPiPath("settings"))),
       );
       permission = inAllowedDir ? "allowed" : "ask";
     }
 
-    if (permission === "blocked") return { permission, extracted: [item] };
+    if (permission === "blocked") return "blocked";
     if (permission !== "allowed") pending.push(item);
   }
 
-  return {
-    permission: pending.length === 0 ? ("allowed" as const) : ("ask" as const),
-    extracted: pending,
-  };
+  return pending.length === 0 ? ("allowed" as const) : ("ask" as const);
 }

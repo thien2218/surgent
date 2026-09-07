@@ -84,7 +84,7 @@ Primary documented extension directories:
 
 Supporting modules documented separately:
 
-- [`src/subsession/README.md`](./src/subsession/README.md) — child-session runtime used by `/plan` and `/review`
+- [`src/subagent/README.md`](./src/subagent/README.md) — specialized background agents for dedicated tasks
 - `src/utils.ts` — shared `.pi` path resolution, JSON IO, and command helpers
 
 ## How session flow works

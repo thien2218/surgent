@@ -1,5 +1,5 @@
 ---
-description: Writes concise user-facing Markdown for searchable code and technical concepts. Delegate to create or update user-facing Markdown about code or technical concepts
+description: Writes concise user-facing Markdown for searchable code and technical concepts
 tools: [code_map, inspect, read, find, grep, ls, edit, write, questionnaire]
 files.write: ["**/*.md"]
 ---

@@ -1,8 +1,8 @@
 import { unlink, writeFile } from "node:fs/promises";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { AgentMode } from "../agent/types.js";
-import type { Subsession, SubsessionRequest } from "../subsession/types.js";
-import { terminateSubsession } from "../subsession/storage.js";
+import type { Subsession, SubsessionRequest } from "../subagent/types.js";
+import { terminateSubsession } from "../subagent/storage.js";
 import {
   ActionSelectList,
   type ActionSelectOption,
@@ -11,11 +11,11 @@ import {
 import { ScrollableView } from "../ui/components/scrollable-view.js";
 import { MODE_ENTRY } from "./index.js";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { StoredSubsessions } from "../subsession/types.js";
+import type { StoredSubsessions } from "../subagent/types.js";
 import { ExtendedSelectList, type SelectEntry } from "../ui/components/extended-select-list.js";
 import { getPiPath, isMissingFileError, isUuidv7, readJson } from "../utils.js";
-import { renderSnapshotWidget } from "../subsession/helpers.js";
-import { openSubsession } from "../subsession/execute.js";
+import { renderSnapshotWidget } from "../subagent/helpers.js";
+import { openSubsession } from "../subagent/subsession.js";
 import type { CommandInput, LoopAction, LoopConfig } from "./types.js";
 
 async function saveSubsessionOutput(

@@ -4,7 +4,7 @@ import type { AgentAllowList, AgentMeta } from "../agent/types.js";
 import { readRules } from "./storage.js";
 import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./types.js";
 import { getPiPath } from "../utils.js";
-import { findSubsession } from "../subsession/storage.js";
+import { findSubsession } from "../subagent/storage.js";
 import { findScopedPermission, matchesPattern } from "./precedence.js";
 import { extractOpAndPath } from "./helpers.js";
 

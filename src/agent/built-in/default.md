@@ -94,4 +94,3 @@ CONSTRAINTS:
 6. Any `read` on code MUST have offset + limit. ALWAYS use range from `code_map` output as the source of truth.
 7. `read` and `inspect` only show hunks of changed/unseen content.
 </tool_guidelines>
-

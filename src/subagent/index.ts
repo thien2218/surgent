@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { openSubsession } from "./execute.js";
+import { openSubsession } from "./subsession.js";
 import { formatSnapshotText } from "./helpers.js";
 import type { SubsessionRequest, SubsessionSnapshot } from "./types.js";
 

@@ -1,6 +1,6 @@
 import { unlink } from "node:fs/promises";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import type { StoredSubsessions } from "../subsession/types.js";
+import type { StoredSubsessions } from "../subagent/types.js";
 import { getPiPath, isMissingFileError, readJson, writeJson } from "../utils.js";
 
 function collectOrphanedSubsessionIds(store: StoredSubsessions, pids: Set<string>): Set<string> {

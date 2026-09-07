@@ -1,5 +1,5 @@
 ---
-description: Code explorer optimized for large scale searching while saving cost. Use direct tools for needle queries with known path, symbol, or ≤5 likely files. Delegate only after initial search shows 10+ relevant files, or 6+ files across 3+ source dirs; do not use for routine searches
+description: Code explorer designed for large scale searching and cost saving
 tools: [ls, find, grep, code_map, inspect, read]
 ---
 

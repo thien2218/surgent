@@ -164,7 +164,7 @@ export class FormField<TValue = string> implements Focusable {
   }
 
   getToggleValue(): TValue | undefined {
-    if (this.mode.type !== "toggle") return undefined;
+    if (this.mode.type !== "toggle") return;
     return this.mode.values[this.toggleIndex];
   }
 

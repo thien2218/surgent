@@ -33,7 +33,7 @@ export function getValidationMessage(
     return `Select at most ${question.maxSelections} option${question.maxSelections === 1 ? "" : "s"}, or type your answer.`;
   }
   if (trimmedText) {
-    return undefined;
+    return;
   }
   if (question.options.length === 0) {
     return "Type an answer to continue.";
@@ -47,7 +47,7 @@ export function getValidationMessage(
   if (selectedCount < question.minSelections) {
     return `Select at least ${question.minSelections} option${question.minSelections === 1 ? "" : "s"}, or type an answer.`;
   }
-  return undefined;
+  return;
 }
 
 export function serializeQuestionAnswer(
@@ -214,11 +214,7 @@ function getRecommendedCount(question: {
   minSelections: number;
   recommendedCount?: number;
 }): number | undefined {
-  if (question.options.length === 0) {
-    return undefined;
-  }
-  if (!question.multi) {
-    return 1;
-  }
+  if (question.options.length === 0) return;
+  if (!question.multi) return 1;
   return question.recommendedCount ?? question.minSelections;
 }

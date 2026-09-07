@@ -10,7 +10,7 @@ const CHECKPOINT_SOURCE_KEY = "surgent.checkpointSource";
 export async function getCheckpointRepo(pi: ExtensionAPI, cwd: string): Promise<Repo | undefined> {
   const projectRootResult = await pi.exec("git", ["rev-parse", "--show-toplevel"], { cwd });
   const projectRoot = projectRootResult.stdout.trim();
-  if (projectRootResult.code !== 0 || !projectRoot) return undefined;
+  if (projectRootResult.code !== 0 || !projectRoot) return;
 
   return {
     projectRoot,
@@ -24,7 +24,7 @@ export async function getCheckpointRepo(pi: ExtensionAPI, cwd: string): Promise<
 
 export async function openCheckpointRepo(pi: ExtensionAPI, cwd: string): Promise<Repo | undefined> {
   const repo = await getCheckpointRepo(pi, cwd);
-  if (!repo) return undefined;
+  if (!repo) return;
 
   const sourceGitDirResult = await pi.exec(
     "git",
@@ -32,7 +32,7 @@ export async function openCheckpointRepo(pi: ExtensionAPI, cwd: string): Promise
     { cwd: repo.projectRoot },
   );
   const sourceGitDir = sourceGitDirResult.stdout.trim();
-  if (sourceGitDirResult.code !== 0 || !sourceGitDir) return undefined;
+  if (sourceGitDirResult.code !== 0 || !sourceGitDir) return;
   let needsInitialization = false;
 
   try {
@@ -58,7 +58,7 @@ export async function openCheckpointRepo(pi: ExtensionAPI, cwd: string): Promise
 
   if (needsInitialization) {
     const initialized = await initializeCheckpointRepo(pi, repo, sourceGitDir);
-    if (!initialized) return undefined;
+    if (!initialized) return;
   }
 
   await syncCheckpointIgnore(pi, repo);

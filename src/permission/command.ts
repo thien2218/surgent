@@ -53,7 +53,7 @@ export async function handlePermissionsCommand(ctx: ExtensionCommandContext) {
     });
     if (action !== "add") break;
 
-    const categoryLabel = await ctx.ui.select("Category", ["File", "Web", "Bash"]);
+    const categoryLabel = await ctx.ui.select("Category", ["File", "Web", "Bash", "MCP"]);
     if (!categoryLabel) continue;
 
     const category = categoryLabel.toLowerCase() as Category;

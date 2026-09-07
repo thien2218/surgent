@@ -16,6 +16,7 @@ function getSchemaRules(
   if (!schema) return {};
   if (category === "file") return schema.file ?? {};
   if (category === "web") return schema.web ?? {};
+  if (category === "mcp") return schema.mcp ?? {};
   return schema.bash ?? {};
 }
 
@@ -35,6 +36,9 @@ export function checkAgentRules(meta: AgentMeta, check: PermissionCheck): boolea
     return extracted.every((item) =>
       isAllowedByPattern(item, meta[check.op === "write" ? "files.write" : "files.read"]),
     );
+  }
+  if (category === "mcp") {
+    return Boolean(check.mcpServer && isAllowedByPattern(check.mcpServer, meta.mcp_servers));
   }
   return true;
 }

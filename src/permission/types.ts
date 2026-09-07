@@ -11,6 +11,7 @@ export interface PermissionRule {
   file?: Record<string, FileAccess>;
   web?: Record<string, boolean>;
   bash?: Record<string, boolean>;
+  mcp?: Record<string, boolean>;
 }
 
 export interface PermissionCheck {
@@ -22,6 +23,7 @@ export interface PermissionCheck {
   purpose: string;
   uncertainty?: string;
   op?: FileOp;
+  mcpServer?: string;
 }
 
 export interface PromptDecision {
@@ -40,6 +42,7 @@ export type GroupedDisplayRules = {
   file: DisplayRule[];
   web: DisplayRule[];
   bash: DisplayRule[];
+  mcp: DisplayRule[];
 };
 
 export type PromptOptions = {

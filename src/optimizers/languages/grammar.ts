@@ -34,9 +34,7 @@ async function getRepositoryRoot(cwd: string) {
     const { stdout } = await runCommand(cwd, "git", ["rev-parse", "--show-toplevel"]);
     const repoRoot = stdout.trim();
     return repoRoot.length > 0 ? repoRoot : undefined;
-  } catch {
-    return undefined;
-  }
+  } catch {}
 }
 
 async function selectSupportedBuckets(cwd: string) {

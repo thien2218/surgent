@@ -40,10 +40,7 @@ export async function readCachedContent(
   try {
     return await readFile(getCacheFilePath(url, date), "utf8");
   } catch (error) {
-    if (isMissingFileError(error)) {
-      return undefined;
-    }
-
+    if (isMissingFileError(error)) return;
     throw error;
   }
 }

@@ -5,10 +5,10 @@ import type { Repo } from "./index.js";
 
 export async function createSnapshot(pi: ExtensionAPI, repo: Repo): Promise<string | undefined> {
   const staged = await stageCheckpoint(pi, repo);
-  if (!staged) return undefined;
+  if (!staged) return;
 
   const treeResult = await runCheckpointGit(pi, repo, ["write-tree"]);
-  if (treeResult.code !== 0) return undefined;
+  if (treeResult.code !== 0) return;
 
   const tree = treeResult.stdout.trim();
   return /^[0-9a-f]{40,64}$/i.test(tree) ? tree : undefined;

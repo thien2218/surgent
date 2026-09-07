@@ -17,10 +17,7 @@ async function selectProvider(ctx: ExtensionCommandContext): Promise<WebToolsPro
     getWebToolsProviderOptions(),
   );
 
-  if (!selected) {
-    return undefined;
-  }
-
+  if (!selected) return;
   return getWebToolsProviderByLabel(selected);
 }
 
@@ -33,14 +30,9 @@ async function chooseAction(
       "Save new API key",
       "Clear saved API key",
     ]);
-
-    if (!selected) {
-      return undefined;
-    }
-
+    if (!selected) return;
     return selected === "Clear saved API key" ? "clear" : "save";
   }
-
   return "save";
 }
 

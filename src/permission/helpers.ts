@@ -36,6 +36,9 @@ export function getRulePatternPlaceholder(category: Category): string {
   if (category === "web") {
     return "Host or URL pattern (example: api.example.com/**)";
   }
+  if (category === "mcp") {
+    return "MCP server and tool (example: github:search)";
+  }
   return "Command pattern (example: git * or pnpm test)";
 }
 
@@ -70,6 +73,7 @@ export function getPermissionCheck(
   const typedName = toolName as PermissiveToolName;
   let purpose: string;
   let raw: string;
+  let mcpServer: string | undefined;
 
   switch (typedName) {
     case "read":
@@ -78,6 +82,10 @@ export function getPermissionCheck(
       raw = input.path as string;
       purpose = `Access to file ${input.path}`;
       break;
+    case "grep":
+      raw = (input.path as string | undefined) ?? ".";
+      purpose = `Search files in ${raw}`;
+      break;
     case "bash":
       raw = input.command as string;
       purpose = input.purpose as string;
@@ -85,6 +93,11 @@ export function getPermissionCheck(
     case "web_fetch":
       raw = input.url as string;
       purpose = `Fetch content from URL ${input.url}`;
+      break;
+    case "call_mcp_tool":
+      mcpServer = (input.server as string).trim();
+      raw = `${mcpServer}:${(input.tool as string).trim()}`;
+      purpose = `Call MCP tool ${raw}`;
       break;
   }
 
@@ -95,6 +108,7 @@ export function getPermissionCheck(
     raw,
     purpose,
     extracted: [raw],
+    mcpServer,
   };
 
   if (typedName === "bash") {

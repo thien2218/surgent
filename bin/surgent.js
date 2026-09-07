@@ -49,11 +49,10 @@ async function getGitExcludePath(cwd) {
       })
     ).trim();
 
-    if (!excludePath) return undefined;
-    return resolve(cwd, excludePath);
-  } catch (error) {
-    return undefined;
-  }
+    if (excludePath) {
+      return resolve(cwd, excludePath);
+    }
+  } catch {}
 }
 
 async function ensurePiExcluded(cwd) {

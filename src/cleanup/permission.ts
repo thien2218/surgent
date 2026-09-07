@@ -40,6 +40,10 @@ function pruneSchema(schema: PermissionRule): PermissionRule {
     const pruned = pruneRules(schema.bash, true);
     if (Object.keys(pruned).length > 0) result.bash = pruned;
   }
+  if (schema.mcp) {
+    const pruned = pruneRules(schema.mcp);
+    if (Object.keys(pruned).length > 0) result.mcp = pruned;
+  }
   return result;
 }
 

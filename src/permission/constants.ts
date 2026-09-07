@@ -1,12 +1,14 @@
 export const SCOPES = ["session", "project", "always"] as const;
-export const CATEGORIES = ["file", "web", "bash"] as const;
+export const CATEGORIES = ["file", "web", "bash", "mcp"] as const;
 
 export const PERMISSIVE_TOOLS = {
   read: { category: "file", op: "read" },
   write: { category: "file", op: "write" },
   edit: { category: "file", op: "write" },
+  grep: { category: "file", op: "read" },
   bash: { category: "bash" },
   web_fetch: { category: "web" },
+  call_mcp_tool: { category: "mcp" },
 } as const;
 
 export const SUSPICIOUS_BASH_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [

@@ -31,15 +31,15 @@ function findBestPermission(
 
     const permission =
       typeof value === "boolean"
-        ? value ? "allowed" : "blocked"
-        : value === "write" || value === fileOp ? "allowed" : "blocked";
+        ? value
+          ? "allowed"
+          : "blocked"
+        : value === "write" || value === fileOp
+          ? "allowed"
+          : "blocked";
     const score = specificity(pattern);
 
-    if (
-      best === null ||
-      score > best.score ||
-      (score === best.score && permission === "blocked")
-    ) {
+    if (best === null || score > best.score || (score === best.score && permission === "blocked")) {
       best = { permission, score };
     }
   }
@@ -57,6 +57,4 @@ export function findScopedPermission(
     const permission = findBestPermission(rules, input, bash, fileOp);
     if (permission) return permission;
   }
-
-  return undefined;
 }

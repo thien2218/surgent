@@ -49,7 +49,6 @@ function parseAllowList(value: string): AgentAllowList | undefined {
 
   const normalized = value.replace(QUOTED_STRING, "").trim();
   if (normalized === "none") return normalized;
-  return undefined;
 }
 
 function parseAgentConfig(content: string, filePath: string): Agent | null {

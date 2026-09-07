@@ -103,7 +103,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("permissions", {
-    description: "View and manage file, web, and bash permissions",
+    description: "View and manage permissions",
     handler: async (_args, ctx) => await handlePermissionsCommand(ctx),
   });
 

@@ -43,8 +43,11 @@ export function toPermPattern(toolName: PermissiveToolName, input: string): stri
     case "read":
     case "write":
     case "edit":
+    case "grep":
       return filePathToPattern(firstLine);
     case "web_fetch":
       return urlToPattern(firstLine);
+    case "call_mcp_tool":
+      return input;
   }
 }

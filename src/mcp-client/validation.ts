@@ -31,9 +31,7 @@ const editableResolvedMcpServerSchema = Type.Union([
   ),
 ]);
 
-export function parseEditConfigValues(
-  values: Record<string, string>,
-): ResolvedMcpServer {
+export function parseEditConfigValues(values: Record<string, string>): ResolvedMcpServer {
   const enabledText = (values.enabled ?? "").trim().toLowerCase();
   if (enabledText !== "true" && enabledText !== "false") {
     throw new Error('enabled must be "true" or "false".');
@@ -85,9 +83,7 @@ export function parseEditConfigValues(
 
 function parseOptionalJsonValue(rawValue: string | undefined, fieldName: string): unknown {
   const trimmedValue = (rawValue ?? "").trim();
-  if (!trimmedValue) {
-    return undefined;
-  }
+  if (!trimmedValue) return;
 
   try {
     return JSON.parse(trimmedValue);

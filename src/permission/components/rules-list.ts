@@ -244,6 +244,8 @@ export default class PermissionRulesList extends Frame implements Focusable {
           target.file = { ...target.file, [rule.pattern]: rule.value as FileAccess };
         } else if (category === "web") {
           target.web = { ...target.web, [rule.pattern]: rule.value as boolean };
+        } else if (category === "mcp") {
+          target.mcp = { ...target.mcp, [rule.pattern]: rule.value as boolean };
         } else {
           target.bash = { ...target.bash, [rule.pattern]: rule.value as boolean };
         }
@@ -256,9 +258,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
   }
 
   private getSelectedRule(): RuleOptionEntry | undefined {
-    if (this.cursor === 0) {
-      return undefined;
-    }
+    if (this.cursor === 0) return;
     const visibleOptions = this.getVisibleOptions();
     return visibleOptions[this.cursor - 1];
   }

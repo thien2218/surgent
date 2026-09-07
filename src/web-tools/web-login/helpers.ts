@@ -5,9 +5,7 @@ import type { WebToolsProvider, WebToolsProviderId } from "./types.js";
 
 export function findWebToolsProvider(input: string): WebToolsProvider | undefined {
   const normalized = input.trim().toLowerCase();
-  if (!normalized) {
-    return undefined;
-  }
+  if (!normalized) return;
   return WEB_TOOLS_PROVIDERS.find((provider) => provider.name === normalized);
 }
 
@@ -25,9 +23,11 @@ function maskApiKey(key: string): string {
 }
 
 function getCredentialStore(modelRegistry: ModelRegistry): CredentialStore {
-  return ((modelRegistry as unknown as { runtime: unknown }).runtime as {
-    credentials: CredentialStore;
-  }).credentials;
+  return (
+    (modelRegistry as unknown as { runtime: unknown }).runtime as {
+      credentials: CredentialStore;
+    }
+  ).credentials;
 }
 
 export async function getApiKey(

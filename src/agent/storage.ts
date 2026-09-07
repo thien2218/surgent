@@ -231,15 +231,11 @@ export function isBuiltIn(filePath: string): boolean {
   return filePath.startsWith(BUILT_IN_DIR);
 }
 
-export async function writeSessionAgent(cwd: string, sessionId: string, agent: string) {
-  const file = await readJson<Record<string, string>>(getPiPath("sessionAgents", cwd), {});
-  if (agent !== DEFAULT_AGENT) file[sessionId] = agent;
-  await writeJson(getPiPath("sessionAgents", cwd), file);
-}
-
 export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
-  const file = await readJson<Record<string, string>>(getPiPath("sessionAgents", ctx.cwd), {});
-  const name = file[ctx.sessionManager.getSessionId()] ?? DEFAULT_AGENT;
+  const selected = ctx.sessionManager
+    .getEntries()
+    .find((entry) => entry.type === "custom" && entry.customType === "agent");
+  const name = selected?.type === "custom" ? (selected.data as string) : DEFAULT_AGENT;
   ctx.ui.setStatus("agent", ctx.ui.theme.fg("dim", `agent: ${name}`));
 
   const allMcpConfigs = await loadMcpConfigSet(ctx.cwd);
@@ -265,9 +261,13 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
   );
 
   if (meta.model) {
-    const existing = ctx.modelRegistry.getAll().find((item) => meta.model?.endsWith(item.id));
+    const existing = ctx.modelRegistry.find(
+      meta.model.slice(0, meta.model.indexOf("/")),
+      meta.model.slice(meta.model.indexOf("/") + 1),
+    );
+
     if (existing) {
-      const ok = pi.setModel(existing);
+      const ok = await pi.setModel(existing);
       if (!ok) ctx.ui.notify("Agent model unavailable", "warning");
     } else {
       ctx.ui.notify(`Unknown model "${meta.model}" in agent config`, "warning");

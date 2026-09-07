@@ -8,7 +8,6 @@ import {
   isBuiltIn,
   loadAgents,
   writeAgentMeta,
-  writeSessionAgent,
 } from "./storage.js";
 import { ExtendedSelectList } from "../ui/components/extended-select-list.js";
 import { ScopedInput } from "../ui/components/scoped-input.js";
@@ -38,12 +37,14 @@ async function showAgentPicker(
   ctx: ExtensionCommandContext,
   agents: Agent[],
 ): Promise<string | null> {
-  const items = agents.map((agent) => ({
-    value: agent.name,
-    label: isBuiltIn(agent.filePath) ? `${agent.name} (built-in)` : agent.name,
-    description: agent.meta.description,
-    data: agent,
-  }));
+  const items = agents
+    .filter((agent) => agent.name !== "default")
+    .map((agent) => ({
+      value: agent.name,
+      label: isBuiltIn(agent.filePath) ? `${agent.name} (built-in)` : agent.name,
+      description: agent.meta.description,
+      data: agent,
+    }));
 
   return ctx.ui.custom<string | null>((_tui, theme, _keybindings, done) => {
     const selectList = new ExtendedSelectList(theme, {
@@ -58,7 +59,6 @@ async function showAgentPicker(
     selectList.onSelect = (item) => done(String(item.value));
     selectList.onCancel = () => done(null);
     selectList.onDeleteBlocked = () => ctx.ui.notify("Built-in agent cannot be deleted", "error");
-
     selectList.onDelete = (item) => {
       const agentName = item.data?.name ?? String(item.value);
       void deleteAgentFiles(agentName, ctx.cwd)
@@ -103,16 +103,15 @@ async function handleExistingAgent(ctx: ExtensionCommandContext, agent: Agent) {
     }
 
     const action = await ctx.ui.select(`Agent: ${agent.name}`, options);
-    if (!action) return;
+    if (!action) return false;
 
     if (action === "Start in new session") {
-      const sessionCwd = ctx.cwd;
-      await ctx.newSession({
-        setup: async (nextSessionManager) => {
-          await writeSessionAgent(sessionCwd, nextSessionManager.getSessionId(), agent.name);
+      const result = await ctx.newSession({
+        setup: async (sessionManager) => {
+          sessionManager.appendCustomEntry("agent", agent.name);
         },
       });
-      return;
+      return !result.cancelled;
     }
     if (action === "Edit agent config") {
       await openAgentConfigEditor(ctx, agent);
@@ -120,7 +119,7 @@ async function handleExistingAgent(ctx: ExtensionCommandContext, agent: Agent) {
     }
     if (action === "Open in VS Code") {
       await openInVsCode(ctx, agent.filePath);
-      return;
+      return false;
     }
   }
 }
@@ -155,6 +154,6 @@ export async function agentsCommandHandler(ctx: ExtensionCommandContext) {
     }
 
     const agent = agents.find((candidate) => candidate.name === selected);
-    if (agent) await handleExistingAgent(ctx, agent);
+    if (agent && (await handleExistingAgent(ctx, agent))) return;
   }
 }

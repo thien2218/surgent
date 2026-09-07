@@ -71,7 +71,6 @@ export default function (pi: ExtensionAPI) {
   let agentMeta: AgentMeta;
   let agentMode: AgentMode;
   let turnMode: AgentMode | null = null;
-  let agentLoaded = false;
   let updateStatus: (() => void) | undefined;
 
   const updateAgentMode = (ctx: ExtensionContext) => {
@@ -108,14 +107,10 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
-    if (!agentLoaded) {
-      [agentMeta, agentMode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode(ctx.cwd)]);
-      agentLoaded = true;
-    }
+    [agentMeta, agentMode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode(ctx.cwd)]);
     if (updateStatus) {
       process.stdout.off("resize", updateStatus);
     }
-
     updateStatus = () => updateAgentMode(ctx);
     updateStatus();
     process.stdout.on("resize", updateStatus);

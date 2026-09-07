@@ -84,10 +84,13 @@ function patternFromNode(node: SyntaxNode): string {
   if (!nameNode) return node.text.trim();
 
   const commandName = decodeCommandName(nameNode.text) ?? nameNode.text;
-  const args = node
-    .childrenForFieldName("argument")
-    .map((argument) => (containsDynamic(argument) ? "*" : argument.text));
-  return [commandName, ...args].join(" ");
+  const args = node.childrenForFieldName("argument");
+  if (!args.length) return commandName;
+
+  if (commandName === "git" && !containsDynamic(args[0]!)) {
+    return `${commandName} ${args[0]!.text} *`;
+  }
+  return `${commandName} *`;
 }
 
 export function extractBashCommands(source: string): BashCommand[] {

@@ -18,35 +18,6 @@ export function matchesPattern(input: string, pattern: string, bash = false): bo
   }
 }
 
-function findBestPermission(
-  rules: Record<string, FileAccess | boolean>,
-  input: string,
-  bash: boolean,
-  fileOp?: "read" | "write",
-): "allowed" | "blocked" | undefined {
-  let best: { permission: "allowed" | "blocked"; score: number } | null = null;
-
-  for (const [pattern, value] of Object.entries(rules)) {
-    if (!matchesPattern(input, pattern, bash)) continue;
-
-    const permission =
-      typeof value === "boolean"
-        ? value
-          ? "allowed"
-          : "blocked"
-        : value === "write" || value === fileOp
-          ? "allowed"
-          : "blocked";
-    const score = specificity(pattern);
-
-    if (best === null || score > best.score || (score === best.score && permission === "blocked")) {
-      best = { permission, score };
-    }
-  }
-
-  return best?.permission;
-}
-
 export function findScopedPermission(
   scopes: Array<Record<string, FileAccess | boolean>>,
   input: string,
@@ -54,7 +25,30 @@ export function findScopedPermission(
   fileOp?: "read" | "write",
 ): "allowed" | "blocked" | undefined {
   for (const rules of scopes) {
-    const permission = findBestPermission(rules, input, bash, fileOp);
-    if (permission) return permission;
+    let best: { permission: "allowed" | "blocked"; score: number } | null = null;
+
+    for (const [pattern, value] of Object.entries(rules)) {
+      if (!matchesPattern(input, pattern, bash)) continue;
+
+      const permission =
+        typeof value === "boolean"
+          ? value
+            ? "allowed"
+            : "blocked"
+          : value === "write" || value === fileOp
+            ? "allowed"
+            : "blocked";
+      const score = specificity(pattern);
+
+      if (
+        best === null ||
+        score > best.score ||
+        (score === best.score && permission === "blocked")
+      ) {
+        best = { permission, score };
+      }
+    }
+
+    if (best) return best.permission;
   }
 }

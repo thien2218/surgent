@@ -1,7 +1,9 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { openSubsession } from "./execute.js";
-import type { SubsessionRequest } from "./types.js";
+import { formatSnapshotText } from "./helpers.js";
+import type { SubsessionRequest, SubsessionSnapshot } from "./types.js";
 
 export default function (pi: ExtensionAPI) {
   pi.registerTool({
@@ -14,21 +16,15 @@ export default function (pi: ExtensionAPI) {
       task: Type.String({ description: "Task for the subagent" }),
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
+      let snapshot: SubsessionSnapshot | undefined;
       const request: SubsessionRequest = {
         ctx,
         label: "subagent",
         agent: params.agent,
         signal,
-        onSnapshot: (snapshot) => {
-          onUpdate?.({
-            content: [
-              {
-                type: "text",
-                text: `Subagent ${snapshot.id || params.agent}: ${snapshot.status}`,
-              },
-            ],
-            details: snapshot,
-          });
+        onSnapshot: (nextSnapshot) => {
+          snapshot = nextSnapshot;
+          onUpdate?.({ content: [], details: nextSnapshot });
         },
       };
 
@@ -41,14 +37,41 @@ export default function (pi: ExtensionAPI) {
           content: [
             {
               type: "text",
-              text: subsession.result.output || `Subagent ${subsession.result.status}`,
+              text: subsession.result.output || subsession.result.status,
             },
           ],
-          details: { status: subsession.result.status, usage: subsession.result.usage },
+          details: snapshot ?? { status: subsession.result.status, usage: subsession.result.usage },
         };
       } finally {
         await subsession.dispose();
       }
+    },
+    renderCall(args, theme) {
+      return new Text(
+        `${theme.fg("toolTitle", "subagent")} ${theme.fg("dim", `"${args.task}"`)}`,
+        0,
+        0,
+      );
+    },
+    renderResult(result, { isPartial }, theme, context) {
+      const output = result.content[0];
+      if (!isPartial) {
+        return new Text("\n" + (output?.type === "text" ? output.text : ""), 0, 0);
+      }
+
+      const snapshot = result.details as SubsessionSnapshot | undefined;
+      if (!snapshot?.toolsUsed) {
+        return new Text("\n" + theme.fg("dim", `Subagent ${context.args.agent}: starting`), 0, 0);
+      }
+
+      const lines = [
+        theme.fg(
+          snapshot.status === "error" ? "error" : "accent",
+          `${context.args.agent}: ${snapshot.status}`,
+        ),
+        ...formatSnapshotText(snapshot).map((line) => theme.fg("dim", `  ${line}`)),
+      ];
+      return new Text("\n" + lines.join("\n"), 0, 0);
     },
   });
 }

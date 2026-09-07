@@ -52,11 +52,26 @@ export function createSubsessionBridge(
   };
 }
 
-function formatUsageCount(value: number): string {
+export function formatUsageCount(value: number): string {
   if (value >= 10000) {
     return `${Math.trunc(value / 1000)}k`;
   }
   return `${(value / 1000).toFixed(1)}k`;
+}
+
+export function formatSnapshotText(snapshot: SubsessionSnapshot, contextWindow?: number): string[] {
+  const context = contextWindow ? `${((snapshot.usage.input / contextWindow) * 100).toFixed(1)}%` : "n/a";
+  const recentToolCalls = snapshot.toolsUsed.slice(-5);
+  const lines = [
+    `tools_used=${snapshot.usage.toolCalls} | in=${formatUsageCount(snapshot.usage.input)} | out=${formatUsageCount(snapshot.usage.output)} | ctx=${context}`,
+  ];
+
+  for (let toolCallIndex = 0; toolCallIndex < recentToolCalls.length; toolCallIndex += 1) {
+    const branchIndicator = toolCallIndex === recentToolCalls.length - 1 ? "└─" : "├─";
+    lines.push(`${branchIndicator} ${recentToolCalls[toolCallIndex]}`);
+  }
+
+  return lines;
 }
 
 export function createErrorResult(message: string): SubsessionResult {
@@ -74,10 +89,8 @@ export function renderSnapshotWidget(
   snapshot: SubsessionSnapshot,
   contextWindow?: number,
 ) {
-  const { usage, status, toolsUsed } = snapshot;
-  const recentToolCalls = toolsUsed.slice(-5);
-  const context = contextWindow ? `${((usage.input / contextWindow) * 100).toFixed(1)}%` : "n/a";
   const activity = ACTIVITY_LABELS[Math.floor(Math.random() * ACTIVITY_LABELS.length)]!;
+  const snapshotText = formatSnapshotText(snapshot, contextWindow);
 
   ctx.ui.setWidget(label, (tui, theme) => {
     const widget = new Container() as Container & { dispose?: () => void };
@@ -85,20 +98,17 @@ export function renderSnapshotWidget(
       tui,
       (content) => theme.fg("accent", content),
       (content) => theme.fg("muted", content),
-      `${label} (${activity}): tools_used=${usage.toolCalls} | in=${formatUsageCount(usage.input)} | out=${formatUsageCount(usage.output)} | ctx=${context}`,
+      `${label} (${activity}): ${snapshotText[0]}`,
     );
 
-    if (status !== "running") {
+    if (snapshot.status !== "running") {
       loader.setIndicator({ frames: ["•"] });
     }
 
     widget.addChild(loader);
 
-    const lastToolCallIndex = recentToolCalls.length - 1;
-    for (let toolCallIndex = 0; toolCallIndex < recentToolCalls.length; toolCallIndex += 1) {
-      const branchIndicator = toolCallIndex === lastToolCallIndex ? "└─" : "├─";
-      const toolCallLine = `  ${branchIndicator} ${recentToolCalls[toolCallIndex]}`;
-      widget.addChild(new TruncatedText(toolCallLine, 1, 0));
+    for (const line of snapshotText.slice(1)) {
+      widget.addChild(new TruncatedText(`  ${line}`, 1, 0));
     }
 
     widget.addChild(new Spacer(1));

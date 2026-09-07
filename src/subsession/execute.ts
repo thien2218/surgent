@@ -132,10 +132,12 @@ async function createSdkSession(
 ): Promise<AgentSession> {
   const sessionManager = await openSessionManager(request);
   const modelId = runtime.meta.model;
-  const requestedModel = request.id ? undefined : request.ctx.model;
   const model = modelId
-    ? request.ctx.modelRegistry.getAll().find((available) => modelId.endsWith(available.id))
-    : requestedModel;
+    ? request.ctx.modelRegistry.find(
+        modelId.slice(0, modelId.indexOf("/")),
+        modelId.slice(modelId.indexOf("/") + 1),
+      )
+    : request.ctx.model;
   if (modelId && !model) {
     throw new Error(`Unknown model "${modelId}" in agent config`);
   }

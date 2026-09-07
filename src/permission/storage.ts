@@ -28,7 +28,7 @@ export function readRules(cwd: string = ""): Promise<LocalSchema | PermissionRul
 
 export async function readAgentMode(cwd: string): Promise<AgentMode> {
   const settings = await readJson<SettingsSchema>(getPiPath("settings", cwd), {});
-  return settings.agent?.mode === "yolo" ? "yolo" : "assistant";
+  return settings.agent?.mode ?? "assistant";
 }
 
 export async function writeAgentMode(cwd: string, agentMode: AgentMode) {

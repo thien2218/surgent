@@ -120,3 +120,12 @@ export function findRecentModeOverride(entries: SessionEntry[]): AgentMode | nul
 
   return null;
 }
+
+export function cycleMode(mode: AgentMode): AgentMode {
+  switch (mode) {
+    case "yolo":
+      return "assistant";
+    case "assistant":
+      return "yolo";
+  }
+}

@@ -11,10 +11,10 @@ import { readAgentMode, writeAgentMode } from "./storage.js";
 import { loadMainAgent } from "../agent/storage.js";
 import type { PermissionCheck, PromptDecision } from "./types.js";
 import PermissionPrompt from "./components/prompt.js";
-import { findRecentModeOverride, getPermissionCheck } from "./helpers.js";
+import { findRecentModeOverride, getPermissionCheck, cycleMode } from "./helpers.js";
 import type { AgentMeta, AgentMode } from "../agent/types.js";
 
-async function askForPermission(ctx: ExtensionContext, check: PermissionCheck) {
+async function askForPermission(pi: ExtensionAPI, ctx: ExtensionContext, check: PermissionCheck) {
   const decision = await ctx.ui.custom<PromptDecision>((_tui, theme, _keybindings, done) => {
     const component = new PermissionPrompt(theme, check, ctx.cwd);
     component.onDone = done;
@@ -29,14 +29,12 @@ async function askForPermission(ctx: ExtensionContext, check: PermissionCheck) {
     };
   }
   if (decision.amended) {
-    return {
-      block: true,
-      reason: `User allow this tool call, but with notes: ${decision.amended}`,
-    };
+    pi.sendUserMessage(decision.amended, { deliverAs: "steer" });
   }
 }
 
 export async function enforceToolPermission(
+  pi: ExtensionAPI,
   event: ToolCallEvent,
   ctx: ExtensionContext,
   agentMeta: AgentMeta,
@@ -66,7 +64,7 @@ export async function enforceToolPermission(
     return { block: true, reason: "Permission request requires interactive UI" };
   }
 
-  return askForPermission(ctx, check);
+  return askForPermission(pi, ctx, check);
 }
 
 export default function (pi: ExtensionAPI) {
@@ -77,9 +75,9 @@ export default function (pi: ExtensionAPI) {
   let updateStatus: (() => void) | undefined;
 
   const updateAgentMode = (ctx: ExtensionContext) => {
-    const effectiveMode = turnMode ?? agentMode;
+    const mode = turnMode ?? agentMode;
     const modeText =
-      effectiveMode === "yolo"
+      mode === "yolo"
         ? ctx.ui.theme.fg("warning", "YOLO mode ⚠️")
         : ctx.ui.theme.fg("dim", "assistant mode");
     const width = (process.stdout.columns ?? 80) - visibleWidth(modeText) + 1;
@@ -91,7 +89,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerShortcut(Key.ctrlAlt("y"), {
     description: "Toggle YOLO mode",
     handler: async (ctx) => {
-      agentMode = agentMode === "yolo" ? "assistant" : "yolo";
+      agentMode = cycleMode(agentMode);
       await writeAgentMode(ctx.cwd, agentMode);
       updateStatus?.();
 
@@ -141,6 +139,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("tool_call", async (event, ctx) =>
     enforceToolPermission(
+      pi,
       event,
       ctx,
       agentMeta,

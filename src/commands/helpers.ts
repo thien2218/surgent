@@ -48,11 +48,8 @@ function mapActionResult(result: ActionSelectResult): LoopAction | null {
   if (result.type === "input") {
     return { kind: "feedback", feedback: result.value };
   }
-  if (result.value === "assistant") {
-    return { kind: "forward", mode: "assistant" };
-  }
-  if (result.value === "yolo") {
-    return { kind: "forward", mode: "yolo" };
+  if (result.value === "assistant" || result.value === "yolo") {
+    return { kind: "forward", mode: result.value };
   }
   if (result.value === "exit") {
     return { kind: "exit" };

@@ -91,10 +91,9 @@ export async function resolvePermission(cwd: string, check: PermissionCheck) {
     );
 
     if (!permission && category === "file") {
-      const inAllowedDir = Boolean(
-        getRelativePathInRoot(normalized, cwd) ||
-        getRelativePathInRoot(normalized, dirname(getPiPath("settings"))),
-      );
+      const inAllowedDir =
+        getRelativePathInRoot(normalized, cwd) !== null ||
+        getRelativePathInRoot(normalized, dirname(getPiPath("settings"))) !== null;
       permission = inAllowedDir ? "allowed" : "ask";
     }
 

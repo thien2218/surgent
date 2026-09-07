@@ -106,9 +106,10 @@ async function handleExistingAgent(ctx: ExtensionCommandContext, agent: Agent) {
     if (!action) return;
 
     if (action === "Start in new session") {
+      const sessionCwd = ctx.cwd;
       await ctx.newSession({
         setup: async (nextSessionManager) => {
-          await writeSessionAgent(ctx.cwd, nextSessionManager.getSessionId(), agent.name);
+          await writeSessionAgent(sessionCwd, nextSessionManager.getSessionId(), agent.name);
         },
       });
       return;
@@ -143,15 +144,17 @@ async function handleNewAgent(ctx: ExtensionCommandContext) {
 }
 
 export async function agentsCommandHandler(ctx: ExtensionCommandContext) {
-  const agents = await loadAgents(ctx.cwd);
-  const selected = await showAgentPicker(ctx, agents);
-  if (!selected) return;
+  while (true) {
+    const agents = await loadAgents(ctx.cwd);
+    const selected = await showAgentPicker(ctx, agents);
+    if (!selected) return;
 
-  if (selected === "__new__") {
-    await handleNewAgent(ctx);
-    return;
+    if (selected === "__new__") {
+      await handleNewAgent(ctx);
+      return;
+    }
+
+    const agent = agents.find((candidate) => candidate.name === selected);
+    if (agent) await handleExistingAgent(ctx, agent);
   }
-
-  const agent = agents.find((candidate) => candidate.name === selected);
-  if (agent) await handleExistingAgent(ctx, agent);
 }

@@ -23,8 +23,6 @@ export function filePathToPattern(path: string): string {
   return extDot > 0 ? `${dir}*${filename.slice(extDot)}` : `${dir}*`;
 }
 
-export { bashToPattern } from "./bash.js";
-
 export function urlToPattern(url: string): string {
   if (!url) return "";
   try {
@@ -35,9 +33,7 @@ export function urlToPattern(url: string): string {
   }
 }
 
-export function toPermPattern(toolName: PermissiveToolName, input: string): string {
-  if (toolName === "bash") return bashToPattern(input);
-
+export function toPattern(toolName: PermissiveToolName, input: string): string {
   const firstLine = input.replace(/\r\n?/g, "\n").split("\n")[0] ?? "";
   switch (toolName) {
     case "read":
@@ -47,6 +43,8 @@ export function toPermPattern(toolName: PermissiveToolName, input: string): stri
       return filePathToPattern(firstLine);
     case "web_fetch":
       return urlToPattern(firstLine);
+    case "bash":
+      return bashToPattern(input);
     case "call_mcp_tool":
       return input;
   }

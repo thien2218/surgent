@@ -4,7 +4,7 @@ type FileOp = "read" | "write";
 
 export type PermissiveToolName = keyof typeof PERMISSIVE_TOOLS;
 export type Scope = (typeof SCOPES)[number];
-export type Category = (typeof PERMISSIVE_TOOLS)[PermissiveToolName]["category"];
+export type Category = (typeof PERMISSIVE_TOOLS)[PermissiveToolName];
 export type FileAccess = FileOp | "blocked";
 
 export interface PermissionRule {
@@ -22,8 +22,6 @@ export interface PermissionCheck {
   extracted: string[];
   purpose: string;
   uncertainty?: string;
-  op?: FileOp;
-  mcpServer?: string;
 }
 
 export interface PromptDecision {

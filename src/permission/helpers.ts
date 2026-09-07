@@ -71,48 +71,50 @@ export function getPermissionCheck(
 ): PermissionCheck | null {
   if (!(toolName in PERMISSIVE_TOOLS)) return null;
   const typedName = toolName as PermissiveToolName;
-  let purpose: string;
-  let raw: string;
-  let mcpServer: string | undefined;
-
-  switch (typedName) {
-    case "read":
-    case "write":
-    case "edit":
-      raw = input.path as string;
-      purpose = `Access to file ${input.path}`;
-      break;
-    case "grep":
-      raw = (input.path as string | undefined) ?? ".";
-      purpose = `Search files in ${raw}`;
-      break;
-    case "bash":
-      raw = input.command as string;
-      purpose = input.purpose as string;
-      break;
-    case "web_fetch":
-      raw = input.url as string;
-      purpose = `Fetch content from URL ${input.url}`;
-      break;
-    case "call_mcp_tool":
-      mcpServer = (input.server as string).trim();
-      raw = `${mcpServer}:${(input.tool as string).trim()}`;
-      purpose = `Call MCP tool ${raw}`;
-      break;
-  }
-
   const check: PermissionCheck = {
     sessionId,
     toolName: typedName,
-    ...PERMISSIVE_TOOLS[typedName],
-    raw,
-    purpose,
-    extracted: [raw],
-    mcpServer,
+    category: PERMISSIVE_TOOLS[typedName],
+    raw: "",
+    purpose: "",
+    extracted: [],
   };
 
+  switch (typedName) {
+    case "read":
+      check.raw = input.path as string;
+      check.purpose = `Read file ${check.raw}`;
+      check.extracted = [`read:${check.raw}`];
+      break;
+    case "write":
+    case "edit":
+      check.raw = input.path as string;
+      check.purpose = `Write file ${check.raw}`;
+      check.extracted = [`write:${check.raw}`];
+      break;
+    case "grep":
+      check.raw = (input.path as string | undefined) ?? ".";
+      check.purpose = `Search files in ${check.raw}`;
+      check.extracted = [`read:${check.raw}`];
+      break;
+    case "bash":
+      check.raw = input.command as string;
+      check.purpose = input.purpose as string;
+      break;
+    case "web_fetch":
+      check.raw = input.url as string;
+      check.purpose = `Fetch content from URL ${input.url}`;
+      check.extracted = [check.raw];
+      break;
+    case "call_mcp_tool":
+      check.raw = `${(input.server as string).trim()}:${(input.tool as string).trim()}`;
+      check.purpose = `Call MCP tool ${check.raw}`;
+      check.extracted = [check.raw];
+      break;
+  }
+
   if (typedName === "bash") {
-    const commands = extractBashCommands(raw);
+    const commands = extractBashCommands(check.raw);
     const uncertainty = commands.map(getBashUncertainty).filter(Boolean);
     check.extracted = commands.map(({ text }) => text);
     check.uncertainty = unique(uncertainty).join("; ") || undefined;
@@ -142,4 +144,27 @@ export function cycleMode(mode: AgentMode): AgentMode {
     case "assistant":
       return "yolo";
   }
+}
+
+export function extractOpAndPath(input: string): ["read" | "write", string] {
+  const separator = input.indexOf(":");
+  if (separator < 0) return ["read", input];
+  return [input.slice(0, separator) === "write" ? "write" : "read", input.slice(separator + 1)];
+}
+
+export function mapToRules(
+  patterns: string[],
+  category: Category,
+  allowed: boolean,
+): Map<string, FileAccess | boolean> {
+  const map = new Map<string, FileAccess | boolean>();
+  for (const pattern of patterns) {
+    if (category === "file") {
+      const [op, path] = extractOpAndPath(pattern);
+      map.set(path, allowed ? op : "blocked");
+    } else {
+      map.set(pattern, allowed);
+    }
+  }
+  return map;
 }

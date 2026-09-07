@@ -77,8 +77,8 @@ export async function handlePermissionsCommand(ctx: ExtensionCommandContext) {
         const nextPattern = inputValue.trim();
         if (!nextPattern) return false;
 
-        toAdd.pattern = nextPattern;
-        addRules(ctx.cwd, sessionId, toAdd.scope, category, [toAdd.pattern], toAdd.value)
+        const rules = new Map([[nextPattern, toAdd.value]]);
+        void addRules(ctx.cwd, sessionId, toAdd.scope, category, rules)
           .then(done)
           .catch((error) => notifyError(ctx, error, done));
         return true;

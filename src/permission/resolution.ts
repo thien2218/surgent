@@ -6,6 +6,7 @@ import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./ty
 import { getPiPath } from "../utils.js";
 import { findSubsession } from "../subsession/storage.js";
 import { findScopedPermission, matchesPattern } from "./precedence.js";
+import { extractOpAndPath } from "./helpers.js";
 
 export { matchesPattern, specificity } from "./precedence.js";
 
@@ -33,12 +34,13 @@ export function checkAgentRules(meta: AgentMeta, check: PermissionCheck): boolea
     return extracted.every((item) => isAllowedByPattern(item, meta.bash, true));
   }
   if (category === "file") {
-    return extracted.every((item) =>
-      isAllowedByPattern(item, meta[check.op === "write" ? "files.write" : "files.read"]),
-    );
+    return extracted.every((item) => {
+      const [op, path] = extractOpAndPath(item);
+      return isAllowedByPattern(path, meta[`files.${op}`]);
+    });
   }
   if (category === "mcp") {
-    return Boolean(check.mcpServer && isAllowedByPattern(check.mcpServer, meta.mcp_servers));
+    return extracted.every((item) => isAllowedByPattern(item, meta.mcp_tools));
   }
   return true;
 }
@@ -65,7 +67,7 @@ export function getRelativePathInRoot(path: string, root: string): string | null
 }
 
 export async function resolvePermission(cwd: string, check: PermissionCheck) {
-  const { category, extracted, op, sessionId } = check;
+  const { category, extracted, sessionId } = check;
   const [local, global, subsession] = await Promise.all([
     readRules(cwd),
     readRules(),
@@ -80,17 +82,18 @@ export async function resolvePermission(cwd: string, check: PermissionCheck) {
 
   const pending: string[] = [];
   for (const item of extracted) {
+    const [fileOp, normalized] = category === "file" ? extractOpAndPath(item) : [undefined, item];
     let permission: "allowed" | "blocked" | "ask" | undefined = findScopedPermission(
       scopes.map((schema) => getSchemaRules(schema, category)),
-      item,
+      normalized,
       category === "bash",
-      op,
+      fileOp,
     );
 
     if (!permission && category === "file") {
       const inAllowedDir = Boolean(
-        getRelativePathInRoot(item, cwd) ||
-        getRelativePathInRoot(item, dirname(getPiPath("settings"))),
+        getRelativePathInRoot(normalized, cwd) ||
+        getRelativePathInRoot(normalized, dirname(getPiPath("settings"))),
       );
       permission = inAllowedDir ? "allowed" : "ask";
     }

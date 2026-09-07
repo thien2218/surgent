@@ -5,7 +5,7 @@ export type AgentAllowList = "none" | string[];
 export interface AgentMeta {
   description: string;
   tools?: AgentAllowList;
-  mcp_servers?: AgentAllowList;
+  mcp_tools?: AgentAllowList;
   skills?: AgentAllowList;
   bash?: AgentAllowList;
   "files.read"?: AgentAllowList;

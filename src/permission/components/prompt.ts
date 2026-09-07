@@ -4,9 +4,9 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Frame } from "../../ui/components/frame.js";
 import { SCOPES } from "../constants.js";
 import { Lines } from "../../ui/components/lines.js";
-import { getScopeLabel } from "../helpers.js";
+import { getScopeLabel, mapToRules } from "../helpers.js";
 import { addRules } from "../storage.js";
-import { toPermPattern } from "../pattern.js";
+import { toPattern } from "../pattern.js";
 import { unique } from "../../utils.js";
 
 export default class PermissionPrompt extends Frame implements Focusable {
@@ -28,9 +28,9 @@ export default class PermissionPrompt extends Frame implements Focusable {
     private readonly cwd: string,
   ) {
     super(theme);
-    if (check.uncertainty) {
+    if (!check.uncertainty) {
       this.patterns = unique(
-        check.extracted.map((item) => toPermPattern(check.toolName, item)).filter(Boolean),
+        check.extracted.map((item) => toPattern(check.toolName, item)).filter(Boolean),
       );
     }
 
@@ -211,21 +211,14 @@ export default class PermissionPrompt extends Frame implements Focusable {
         }
       }
 
+      const rules = mapToRules(patterns, this.check.category, option.value.allowed);
       this.setAmending(false);
-      let value: boolean | FileAccess;
-      if (this.check.category === "file") {
-        value = option.value.allowed ? (this.check.op ?? "write") : "blocked";
-      } else {
-        value = option.value.allowed;
-      }
-
       void addRules(
         this.cwd,
         this.check.sessionId,
         SCOPES[this.scopeIdx]!,
         this.check.category,
-        patterns,
-        value,
+        rules,
       );
       this.onDone?.({ allowed: option.value.allowed });
       return;

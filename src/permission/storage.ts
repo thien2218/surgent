@@ -70,11 +70,12 @@ export async function addRules(
   sessionId: string,
   scope: Scope,
   category: Category,
-  patterns: string[],
-  value: boolean | FileAccess,
+  rules: Map<string, FileAccess | boolean>,
 ) {
-  await mutateRules(cwd, sessionId, scope, category, (rules) => {
-    for (const pattern of patterns) rules[pattern] = value;
+  await mutateRules(cwd, sessionId, scope, category, (rulesSet) => {
+    for (const [pattern, perm] of rules) {
+      rulesSet[pattern] = perm;
+    }
   });
 }
 

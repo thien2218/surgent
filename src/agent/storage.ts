@@ -10,7 +10,7 @@ import { loadMcpConfigSet } from "../mcp-client/storage.js";
 export const META_KEYS: (keyof AgentMeta)[] = [
   "description",
   "tools",
-  "mcp_servers",
+  "mcp_tools",
   "skills",
   "bash",
   "files.read",
@@ -27,7 +27,7 @@ const QUOTED_STRING = /^["']|["']$/g;
 
 const ARRAY_KEYS = new Set<keyof AgentMeta>([
   "tools",
-  "mcp_servers",
+  "mcp_tools",
   "skills",
   "bash",
   "files.read",
@@ -253,8 +253,8 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
   const mcpConfigs = allMcpConfigs.filter(
     (cfg) =>
       cfg.enabled === true &&
-      meta.mcp_servers !== "none" &&
-      (meta.mcp_servers ?? [cfg.name]).includes(cfg.name),
+      meta.mcp_tools !== "none" &&
+      (meta.mcp_tools ?? [cfg.name]).includes(cfg.name),
   );
 
   pi.setActiveTools(

@@ -1,4 +1,4 @@
-export type AgentMode = "assistant" | "yolo";
+export type AgentMode = "assistant" | "yolo" | "restricted";
 
 export type AgentAllowList = "none" | string[];
 

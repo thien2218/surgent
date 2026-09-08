@@ -46,7 +46,7 @@ export function createSubsessionBridge(
         const mode =
           findRecentModeOverride(ctx.sessionManager.getEntries()) ?? (await readAgentMode(ctx.cwd));
 
-        return enforceToolPermission(pi, event, ctx, agentMeta, sessionId, mode === "yolo");
+        return enforceToolPermission(pi, event, ctx, agentMeta, sessionId, mode);
       });
     },
   };

@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
-import type { AgentAllowList, AgentMeta } from "../agent/types.js";
+import type { AgentAllowList, AgentMeta, AgentMode } from "../agent/types.js";
 import { readRules } from "./storage.js";
 import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./types.js";
 import { getPiPath } from "../utils.js";
@@ -66,7 +66,7 @@ export function getRelativePathInRoot(path: string, root: string): string | null
   return relativePath;
 }
 
-export async function resolvePermission(cwd: string, check: PermissionCheck) {
+export async function resolvePermission(cwd: string, check: PermissionCheck, agentMode: AgentMode) {
   const { category, extracted, sessionId } = check;
   const [local, global, subsession] = await Promise.all([
     readRules(cwd),
@@ -78,9 +78,11 @@ export async function resolvePermission(cwd: string, check: PermissionCheck) {
   if (subsession?.pid && subsession.pid !== sessionId) {
     scopes.push(local[subsession.pid]);
   }
-  scopes.push(local.project, global);
+  scopes.push(local.project);
+  if (agentMode !== "restricted") {
+    scopes.push(global);
+  }
 
-  const pending: string[] = [];
   for (const item of extracted) {
     const [fileOp, normalized] = category === "file" ? extractOpAndPath(item) : [undefined, item];
     let permission: "allowed" | "blocked" | "ask" | undefined = findScopedPermission(
@@ -91,15 +93,20 @@ export async function resolvePermission(cwd: string, check: PermissionCheck) {
     );
 
     if (!permission && category === "file") {
-      const inAllowedDir =
-        getRelativePathInRoot(normalized, cwd) !== null ||
-        getRelativePathInRoot(normalized, dirname(getPiPath("settings"))) !== null;
-      permission = inAllowedDir ? "allowed" : "ask";
+      if (agentMode === "restricted" && fileOp === "write") {
+        permission = "ask";
+      } else {
+        const inAllowedDir =
+          getRelativePathInRoot(normalized, cwd) !== null ||
+          getRelativePathInRoot(normalized, dirname(getPiPath("settings"))) !== null;
+        permission = inAllowedDir ? "allowed" : "ask";
+      }
     }
 
-    if (permission === "blocked") return "blocked";
-    if (permission !== "allowed") pending.push(item);
+    if (permission === "blocked" || permission === "ask") {
+      return permission;
+    }
   }
 
-  return pending.length === 0 ? ("allowed" as const) : ("ask" as const);
+  return "allowed";
 }

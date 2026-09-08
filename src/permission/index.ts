@@ -39,7 +39,7 @@ export async function enforceToolPermission(
   ctx: ExtensionContext,
   agentMeta: AgentMeta,
   sessionId: string,
-  bypassed: boolean,
+  agentMode: AgentMode,
 ) {
   for (const input of getPiIgnoreInputs(event)) {
     const piIgnoreBlock = await resolvePiIgnorePathBlock(ctx.cwd, input);
@@ -54,11 +54,11 @@ export async function enforceToolPermission(
     return { block: true, reason: "Access to this resource is beyond allowed scope" };
   }
 
-  const permission = await resolvePermission(ctx.cwd, check);
+  const permission = await resolvePermission(ctx.cwd, check, agentMode);
   if (permission === "blocked") {
     return { block: true, reason: "Access to this resource is denied" };
   }
-  if (bypassed) return;
+  if (agentMode === "yolo") return;
   if (permission === "allowed" && !check.uncertainty) return;
   if (!ctx.hasUI) {
     return { block: true, reason: "Permission request requires interactive UI" };
@@ -78,15 +78,17 @@ export default function (pi: ExtensionAPI) {
     const modeText =
       mode === "yolo"
         ? ctx.ui.theme.fg("warning", "YOLO mode ⚠️")
-        : ctx.ui.theme.fg("dim", "assistant mode");
+        : mode === "restricted"
+          ? ctx.ui.theme.fg("dim", "restricted mode")
+          : ctx.ui.theme.fg("dim", "assistant mode");
     const width = (process.stdout.columns ?? 80) - visibleWidth(modeText) + 1;
     // statuses are sorted alphabetically and joined with " "; use ANSI cursor absolute (CHA)
     // to jump to the right edge — spaces would be collapsed by sanitizeStatusText
     ctx.ui.setStatus("mode", `\x1b[${width}G` + modeText);
   };
 
-  pi.registerShortcut(Key.ctrlAlt("y"), {
-    description: "Toggle YOLO mode",
+  pi.registerShortcut(Key.alt("m"), {
+    description: "Cycle assistant, YOLO, and restricted modes",
     handler: async (ctx) => {
       agentMode = cycleMode(agentMode);
       await writeAgentMode(ctx.cwd, agentMode);
@@ -139,7 +141,7 @@ export default function (pi: ExtensionAPI) {
       ctx,
       agentMeta,
       ctx.sessionManager.getSessionId(),
-      (turnMode ?? agentMode) === "yolo",
+      turnMode ?? agentMode,
     ),
   );
 }

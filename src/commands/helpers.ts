@@ -48,7 +48,7 @@ function mapActionResult(result: ActionSelectResult): LoopAction | null {
   if (result.type === "input") {
     return { kind: "feedback", feedback: result.value };
   }
-  if (result.value === "assistant" || result.value === "yolo") {
+  if (result.value === "assistant" || result.value === "yolo" || result.value === "restricted") {
     return { kind: "forward", mode: result.value };
   }
   if (result.value === "exit") {
@@ -139,6 +139,7 @@ export async function showActionUi(
   const options: ActionSelectOption[] = [
     { value: "assistant", label: `${config.prefix} with assistant mode` },
     { value: "yolo", label: `${config.prefix} with YOLO mode` },
+    { value: "restricted", label: `${config.prefix} with restricted mode` },
     { value: "exit", label: "Exit and save" },
   ];
 

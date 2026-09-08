@@ -1,7 +1,5 @@
-import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { BashCommand, PermissionCheck, PermissiveToolName } from "./types.js";
 import { PERMISSIVE_TOOLS, SUSPICIOUS_BASH_PATTERNS } from "./constants.js";
-import { MODE_ENTRY } from "../commands/index.js";
 import { SCOPES } from "./constants.js";
 import type { Category, DisplayRule, FileAccess, Scope } from "./types.js";
 import type { AgentMode } from "../agent/types.js";
@@ -121,20 +119,6 @@ export function getPermissionCheck(
   }
 
   return check;
-}
-
-export function findRecentModeOverride(entries: SessionEntry[]): AgentMode | null {
-  const startIndex = Math.max(0, entries.length - 5);
-
-  for (let entryIndex = entries.length - 1; entryIndex >= startIndex; entryIndex -= 1) {
-    const entry = entries[entryIndex];
-    if (!entry || entry.type !== "custom" || entry.customType !== MODE_ENTRY) {
-      continue;
-    }
-    return (entry.data as { mode: AgentMode }).mode;
-  }
-
-  return null;
 }
 
 export function cycleMode(mode: AgentMode): AgentMode {

@@ -9,7 +9,6 @@ import { Container, Loader, Spacer, TruncatedText } from "@earendil-works/pi-tui
 import type { AgentMeta } from "../agent/types.js";
 import { createQuestionnaireTool } from "../questionnaire/index.js";
 import { enforceToolPermission } from "../permission/index.js";
-import { findRecentModeOverride } from "../permission/helpers.js";
 import { readAgentMode } from "../permission/storage.js";
 
 const PATH_TOOLS = new Set(["read", "write", "edit", "grep", "find", "ls"]);
@@ -43,10 +42,8 @@ export function createSubsessionBridge(
           return { block: true, reason: "Explicit path required in subsession" };
         }
 
-        const mode =
-          findRecentModeOverride(ctx.sessionManager.getEntries()) ?? (await readAgentMode(ctx.cwd));
-
-        return enforceToolPermission(pi, event, ctx, agentMeta, sessionId, mode);
+        const agentMode = await readAgentMode(ctx.cwd);
+        return enforceToolPermission(pi, event, ctx, agentMeta, sessionId, agentMode);
       });
     },
   };

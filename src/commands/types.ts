@@ -1,7 +1,5 @@
-import type { AgentMode } from "../agent/types.js";
-
 export type LoopAction =
-  | { kind: "forward"; mode: AgentMode }
+  | { kind: "forward" }
   | { kind: "feedback"; feedback: string }
   | { kind: "exit" }
   | { kind: "discard" };
@@ -13,7 +11,5 @@ export type CommandInput =
 
 export interface LoopConfig {
   agent: string;
-  title: string;
-  prefix: string;
-  placeholder: string;
+  submitText: string;
 }

@@ -1,6 +1,5 @@
 import { unlink, writeFile } from "node:fs/promises";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import type { AgentMode } from "../agent/types.js";
 import type { Subsession, SubsessionRequest } from "../subagent/types.js";
 import { terminateSubsession } from "../subagent/storage.js";
 import {
@@ -9,7 +8,6 @@ import {
   type ActionSelectResult,
 } from "../ui/components/action-select-list.js";
 import { ScrollableView } from "../ui/components/scrollable-view.js";
-import { MODE_ENTRY } from "./index.js";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { StoredSubsessions } from "../subagent/types.js";
 import { ExtendedSelectList, type SelectEntry } from "../ui/components/extended-select-list.js";
@@ -48,8 +46,8 @@ function mapActionResult(result: ActionSelectResult): LoopAction | null {
   if (result.type === "input") {
     return { kind: "feedback", feedback: result.value };
   }
-  if (result.value === "assistant" || result.value === "yolo" || result.value === "restricted") {
-    return { kind: "forward", mode: result.value };
+  if (result.value === "forward") {
+    return { kind: "forward" };
   }
   if (result.value === "exit") {
     return { kind: "exit" };
@@ -66,7 +64,6 @@ function discardSubsession(ctx: ExtensionCommandContext, subsession: Subsession)
 async function forwardAction(
   pi: ExtensionAPI,
   ctx: ExtensionCommandContext,
-  mode: AgentMode,
   subsession: Subsession,
   outputPath: string | null,
 ): Promise<boolean> {
@@ -76,7 +73,6 @@ async function forwardAction(
     return false;
   }
 
-  pi.appendEntry<{ mode: AgentMode }>(MODE_ENTRY, { mode });
   try {
     pi.sendUserMessage(normalizedOutput);
   } catch {
@@ -117,7 +113,7 @@ export async function runSubsessionLoop(
         return;
       }
       if (action.kind === "forward") {
-        const forwarded = await forwardAction(pi, ctx, action.mode, subsession, outputPath);
+        const forwarded = await forwardAction(pi, ctx, subsession, outputPath);
         if (forwarded) return;
         continue;
       }
@@ -137,17 +133,15 @@ export async function showActionUi(
 ): Promise<LoopAction | null> {
   const markdown = output.trim().length > 0 ? output : `_No ${config.agent} output yet._`;
   const options: ActionSelectOption[] = [
-    { value: "assistant", label: `${config.prefix} with assistant mode` },
-    { value: "yolo", label: `${config.prefix} with YOLO mode` },
-    { value: "restricted", label: `${config.prefix} with restricted mode` },
+    { value: "forward", label: config.submitText },
     { value: "exit", label: "Exit and save" },
   ];
 
   return ctx.ui.custom<LoopAction | null>((tui, theme, keybindings, done) => {
     const actionSelectList = new ActionSelectList(tui, keybindings, theme, {
-      title: config.title,
+      title: "What should surgent do next?",
       options,
-      placeholder: config.placeholder,
+      placeholder: `Feedback for ${config.agent} agent`,
     });
     actionSelectList.onSubmit = (result) => done(mapActionResult(result));
     actionSelectList.onCancel = () => done({ kind: "discard" });

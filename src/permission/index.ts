@@ -11,7 +11,7 @@ import { readAgentMode, writeAgentMode } from "./storage.js";
 import { loadMainAgent } from "../agent/storage.js";
 import type { PermissionCheck, PromptDecision } from "./types.js";
 import PermissionPrompt from "./components/prompt.js";
-import { findRecentModeOverride, getPermissionCheck, cycleMode } from "./helpers.js";
+import { getPermissionCheck, cycleMode } from "./helpers.js";
 import type { AgentMeta, AgentMode } from "../agent/types.js";
 
 async function askForPermission(pi: ExtensionAPI, ctx: ExtensionContext, check: PermissionCheck) {
@@ -37,9 +37,9 @@ export async function enforceToolPermission(
   pi: ExtensionAPI,
   event: ToolCallEvent,
   ctx: ExtensionContext,
-  agentMeta: AgentMeta,
+  meta: AgentMeta,
   sessionId: string,
-  agentMode: AgentMode,
+  mode: AgentMode,
 ) {
   for (const input of getPiIgnoreInputs(event)) {
     const piIgnoreBlock = await resolvePiIgnorePathBlock(ctx.cwd, input);
@@ -50,15 +50,15 @@ export async function enforceToolPermission(
 
   const check = getPermissionCheck(sessionId, event.toolName, event.input);
   if (!check) return;
-  if (!checkAgentRules(agentMeta, check)) {
+  if (!checkAgentRules(meta, check)) {
     return { block: true, reason: "Access to this resource is beyond allowed scope" };
   }
 
-  const permission = await resolvePermission(ctx.cwd, check, agentMode);
+  const permission = await resolvePermission(ctx.cwd, check, mode);
   if (permission === "blocked") {
     return { block: true, reason: "Access to this resource is denied" };
   }
-  if (agentMode === "yolo") return;
+  if (mode === "yolo") return;
   if (permission === "allowed" && !check.uncertainty) return;
   if (!ctx.hasUI) {
     return { block: true, reason: "Permission request requires interactive UI" };
@@ -68,13 +68,11 @@ export async function enforceToolPermission(
 }
 
 export default function (pi: ExtensionAPI) {
-  let agentMeta: AgentMeta;
-  let agentMode: AgentMode;
-  let turnMode: AgentMode | null = null;
+  let meta: AgentMeta;
+  let mode: AgentMode;
   let updateStatus: (() => void) | undefined;
 
   const updateAgentMode = (ctx: ExtensionContext) => {
-    const mode = turnMode ?? agentMode;
     const modeText =
       mode === "yolo"
         ? ctx.ui.theme.fg("warning", "YOLO mode ⚠️")
@@ -90,12 +88,12 @@ export default function (pi: ExtensionAPI) {
   pi.registerShortcut(Key.alt("m"), {
     description: "Cycle assistant, YOLO, and restricted modes",
     handler: async (ctx) => {
-      agentMode = cycleMode(agentMode);
-      await writeAgentMode(ctx.cwd, agentMode);
+      mode = cycleMode(mode);
+      await writeAgentMode(ctx.cwd, mode);
       updateStatus?.();
 
       ctx.ui.notify(
-        agentMode === "yolo"
+        mode === "yolo"
           ? "YOLO mode ON - agents can now run commands and tools without asking"
           : "YOLO mode OFF",
         "info",
@@ -109,23 +107,13 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
-    [agentMeta, agentMode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode(ctx.cwd)]);
+    [meta, mode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode(ctx.cwd)]);
     if (updateStatus) {
       process.stdout.off("resize", updateStatus);
     }
     updateStatus = () => updateAgentMode(ctx);
     updateStatus();
     process.stdout.on("resize", updateStatus);
-  });
-
-  pi.on("before_agent_start", async (_event, ctx) => {
-    turnMode = findRecentModeOverride(ctx.sessionManager.getEntries()) ?? null;
-    updateStatus?.();
-  });
-
-  pi.on("agent_end", async (_event, _ctx) => {
-    turnMode = null;
-    updateStatus?.();
   });
 
   pi.on("session_shutdown", async (_event, _ctx) => {
@@ -135,13 +123,6 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("tool_call", async (event, ctx) =>
-    enforceToolPermission(
-      pi,
-      event,
-      ctx,
-      agentMeta,
-      ctx.sessionManager.getSessionId(),
-      turnMode ?? agentMode,
-    ),
+    enforceToolPermission(pi, event, ctx, meta, ctx.sessionManager.getSessionId(), mode),
   );
 }

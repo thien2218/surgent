@@ -1,32 +1,18 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { parseCommandInput, resolveSubsession, runSubsessionLoop } from "./helpers.js";
 
-export const MODE_ENTRY = "commands/mode";
-
 const PROFILES = [
-  {
-    name: "plan",
-    agent: "planner",
-    title: "Forward this plan to main agent?",
-    prefix: "Yes, proceed",
-    placeholder: "Tell planner what to revise...",
-  },
-  {
-    name: "review",
-    agent: "reviewer",
-    title: "Next step?",
-    prefix: "Fix issues",
-    placeholder: "Tell reviewer what to check again...",
-  },
+  { name: "plan", agent: "planner", submitText: "Implement this plan" },
+  { name: "review", agent: "reviewer", submitText: "Fix issues from review" },
 ] as const;
 
 export default function (pi: ExtensionAPI) {
-  PROFILES.forEach(({ name, agent, ...rest }) => {
+  PROFILES.forEach(({ name, agent, submitText }) => {
     pi.registerCommand(name, {
       description: `Run ${agent} agent in a dedicated subsession`,
       handler: async (args, ctx) => {
         if (!ctx.hasUI) {
-          ctx.ui.notify("/plan requires interactive UI", "error");
+          ctx.ui.notify(`/${name} requires interactive UI`, "error");
           return;
         }
 
@@ -44,7 +30,7 @@ export default function (pi: ExtensionAPI) {
           return;
         }
 
-        await runSubsessionLoop(pi, ctx, subsession, { agent, ...rest });
+        await runSubsessionLoop(pi, ctx, subsession, { agent, submitText });
       },
     });
   });

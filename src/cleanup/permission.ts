@@ -1,4 +1,4 @@
-import { matchesPattern } from "../permission/resolution.js";
+import { matchesPattern } from "../permission/precedence.js";
 import { readRules, writeRules } from "../permission/storage.js";
 import type { FileAccess, PermissionRule } from "../permission/types.js";
 import { pruneSessionMap } from "./helpers.js";

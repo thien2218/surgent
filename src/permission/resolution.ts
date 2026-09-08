@@ -8,8 +8,6 @@ import { findSubsession } from "../subagent/storage.js";
 import { findScopedPermission, matchesPattern } from "./precedence.js";
 import { extractOpAndPath } from "./helpers.js";
 
-export { matchesPattern, specificity } from "./precedence.js";
-
 function getSchemaRules(
   schema: PermissionRule | undefined,
   category: Category,
@@ -19,6 +17,17 @@ function getSchemaRules(
   if (category === "web") return schema.web ?? {};
   if (category === "mcp") return schema.mcp ?? {};
   return schema.bash ?? {};
+}
+
+function getBlockedRules(schema: PermissionRule): PermissionRule {
+  const keys = ["file", "web", "bash", "mcp"] as const;
+  const rules: PermissionRule = {};
+  for (const key of keys) {
+    rules[key] = Object.fromEntries(
+      Object.entries(schema[key] ?? {}).filter(([, access]) => !access || access === "blocked"),
+    );
+  }
+  return rules;
 }
 
 function isAllowedByPattern(raw: string, allowList?: AgentAllowList, bash?: boolean): boolean {
@@ -66,7 +75,8 @@ export function getRelativePathInRoot(path: string, root: string): string | null
   return relativePath;
 }
 
-export async function resolvePermission(cwd: string, check: PermissionCheck, agentMode: AgentMode) {
+export async function resolvePermission(cwd: string, check: PermissionCheck, mode: AgentMode) {
+  let shouldAsk = false;
   const { category, extracted, sessionId } = check;
   const [local, global, subsession] = await Promise.all([
     readRules(cwd),
@@ -79,34 +89,31 @@ export async function resolvePermission(cwd: string, check: PermissionCheck, age
     scopes.push(local[subsession.pid]);
   }
   scopes.push(local.project);
-  if (agentMode !== "restricted") {
-    scopes.push(global);
-  }
+  scopes.push(mode === "restricted" ? getBlockedRules(global) : global);
 
   for (const item of extracted) {
     const [fileOp, normalized] = category === "file" ? extractOpAndPath(item) : [undefined, item];
-    let permission: "allowed" | "blocked" | "ask" | undefined = findScopedPermission(
+    let permission: "allowed" | "blocked" | "ask" = findScopedPermission(
       scopes.map((schema) => getSchemaRules(schema, category)),
       normalized,
       category === "bash",
       fileOp,
     );
 
-    if (!permission && category === "file") {
-      if (agentMode === "restricted" && fileOp === "write") {
-        permission = "ask";
-      } else {
-        const inAllowedDir =
-          getRelativePathInRoot(normalized, cwd) !== null ||
-          getRelativePathInRoot(normalized, dirname(getPiPath("settings"))) !== null;
-        permission = inAllowedDir ? "allowed" : "ask";
-      }
+    if (
+      category === "file" &&
+      permission === "ask" &&
+      (mode !== "restricted" || fileOp !== "write")
+    ) {
+      const inAllowedDir =
+        getRelativePathInRoot(normalized, cwd) !== null ||
+        getRelativePathInRoot(normalized, dirname(getPiPath("settings"))) !== null;
+      permission = inAllowedDir ? "allowed" : "ask";
     }
 
-    if (permission === "blocked" || permission === "ask") {
-      return permission;
-    }
+    if (permission === "blocked") return "blocked";
+    if (permission === "ask") shouldAsk = true;
   }
 
-  return "allowed";
+  return shouldAsk ? "ask" : "allowed";
 }

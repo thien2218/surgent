@@ -23,10 +23,9 @@ export function findScopedPermission(
   input: string,
   bash = false,
   fileOp?: "read" | "write",
-): "allowed" | "blocked" | undefined {
+): "allowed" | "blocked" | "ask" {
   for (const rules of scopes) {
     let best: { permission: "allowed" | "blocked"; score: number } | null = null;
-
     for (const [pattern, value] of Object.entries(rules)) {
       if (!matchesPattern(input, pattern, bash)) continue;
 
@@ -48,7 +47,8 @@ export function findScopedPermission(
         best = { permission, score };
       }
     }
-
     if (best) return best.permission;
   }
+
+  return "ask";
 }

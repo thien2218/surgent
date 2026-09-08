@@ -75,6 +75,3 @@ export default function (pi: ExtensionAPI) {
     },
   });
 }
-
-export { renderSnapshotWidget } from "./helpers.js";
-export { openSubsession };

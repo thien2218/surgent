@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { matchesPattern, getRelativePathInRoot, specificity } from "./resolution.js";
+import { getRelativePathInRoot } from "./resolution.js";
+import { matchesPattern, specificity } from "./precedence.js";
 import { isMissingFileError } from "../utils.js";
 import type {
   GrepToolCallEvent,

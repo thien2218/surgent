@@ -11,6 +11,7 @@ import {
   formatToolUse,
   getLastAssistantOutput,
 } from "./helpers.js";
+import { validateBuiltInOutput } from "./validation.js";
 import {
   findSubsession,
   findSubsessionFile,
@@ -174,13 +175,32 @@ async function createSubsession(params: CreateSubsessionParams): Promise<Subsess
         subsession.result = createErrorResult("Subsession unavailable");
         return;
       }
-      subsession.result = await executeTurn({
+
+      let validationError: string | undefined;
+      const request = {
         session,
         input,
         signal,
         onSnapshot,
         usage: subsession.result.usage,
-      });
+      };
+
+      for (let i = 0; i < 2; i++) {
+        if (i === 1) {
+          request.input = `Output failed validation: ${validationError}\nReturn only corrected output required by <output_contract>.`;
+        }
+        subsession.result = await executeTurn(request);
+        validationError =
+          subsession.runtime.builtIn && subsession.result.status === "done"
+            ? validateBuiltInOutput(subsession.runtime.agent, subsession.result.output)
+            : undefined;
+      }
+
+      if (validationError) {
+        subsession.result.status = "error";
+        subsession.result.output = `Output validation failed: ${validationError}`;
+      }
+
       await saveSubsession(cwd, subsession);
     },
     async dispose() {

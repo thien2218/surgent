@@ -1,5 +1,5 @@
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { loadAgents } from "../agent/storage.js";
+import { isBuiltIn, loadAgents } from "../agent/storage.js";
 import { getPiPath, readJson, writeJson } from "../utils.js";
 import type { StoredSubsessions, RuntimeConfig, Subsession } from "./types.js";
 import { unlink } from "node:fs/promises";
@@ -96,5 +96,5 @@ export async function terminateSubsession(cwd: string, id: string) {
 
 export async function resolveRuntime(cwd: string, agent: string): Promise<RuntimeConfig> {
   const [cfg] = await loadAgents(cwd, agent);
-  return { agent, meta: cfg.meta, systemPrompt: cfg.body };
+  return { agent, builtIn: isBuiltIn(cfg.filePath), meta: cfg.meta, systemPrompt: cfg.body };
 }

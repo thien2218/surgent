@@ -36,7 +36,7 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
     id: request.session.sessionId,
     status: "running",
     toolsUsed: [],
-    usage: { ...request.usage },
+    usage: request.usage,
   };
   const toolCounts: Record<string, number> = {};
   let aborted = false;
@@ -51,6 +51,9 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
     const message = event.message;
     snapshot.usage.input += message.usage?.input ?? 0;
     snapshot.usage.output += message.usage?.output ?? 0;
+    snapshot.usage.cost += message.usage?.cost.total ?? 0;
+    snapshot.contextUsage = request.session.getContextUsage();
+
     if (message.stopReason === "aborted") {
       aborted = true;
     } else if (message.stopReason === "error") {
@@ -236,7 +239,7 @@ export async function openSubsession(request: SubsessionRequest): Promise<Subses
     result: {
       status: "done",
       output: "",
-      usage: { input: 0, output: 0, toolCalls: 0 },
+      usage: { input: 0, output: 0, toolCalls: 0, cost: 0 },
       toolCounts: {},
     },
     runtime,

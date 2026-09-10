@@ -25,8 +25,7 @@ export default function (pi: ExtensionAPI) {
         ctx,
         label: "subagent",
         agent: "documenter",
-        onSnapshot: (snapshot) =>
-          renderSnapshotWidget(ctx, "documenter", snapshot, ctx.model?.contextWindow),
+        onSnapshot: (snapshot) => renderSnapshotWidget(ctx, "documenter", snapshot),
       });
       try {
         if (subsession.result.status !== "error") {

@@ -208,8 +208,7 @@ export async function resolveSubsession(
   const request: SubsessionRequest = {
     ctx,
     ...config,
-    onSnapshot: (snapshot) =>
-      renderSnapshotWidget(ctx, config.agent, snapshot, ctx.model?.contextWindow),
+    onSnapshot: (snapshot) => renderSnapshotWidget(ctx, config.agent, snapshot),
   };
 
   if (input.kind === "prompt") {

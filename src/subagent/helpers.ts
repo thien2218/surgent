@@ -56,11 +56,11 @@ export function formatUsageCount(value: number): string {
   return `${(value / 1000).toFixed(1)}k`;
 }
 
-export function formatSnapshotText(snapshot: SubsessionSnapshot, contextWindow?: number): string[] {
-  const context = contextWindow ? `${((snapshot.usage.input / contextWindow) * 100).toFixed(1)}%` : "n/a";
+export function formatSnapshotText(snapshot: SubsessionSnapshot): string[] {
+  const context = snapshot.contextUsage?.percent;
   const recentToolCalls = snapshot.toolsUsed.slice(-5);
   const lines = [
-    `tools_used=${snapshot.usage.toolCalls} | in=${formatUsageCount(snapshot.usage.input)} | out=${formatUsageCount(snapshot.usage.output)} | ctx=${context}`,
+    `tools_used=${snapshot.usage.toolCalls} | in=${formatUsageCount(snapshot.usage.input)} | out=${formatUsageCount(snapshot.usage.output)} | cost=$${snapshot.usage.cost.toFixed(3)} | ctx=${context === null || context === undefined ? "n/a" : `${context.toFixed(1)}%`}`,
   ];
 
   for (let toolCallIndex = 0; toolCallIndex < recentToolCalls.length; toolCallIndex += 1) {
@@ -75,7 +75,7 @@ export function createErrorResult(message: string): SubsessionResult {
   return {
     status: "error",
     output: message,
-    usage: { input: 0, output: 0, toolCalls: 0 },
+    usage: { input: 0, output: 0, toolCalls: 0, cost: 0 },
     toolCounts: {},
   };
 }
@@ -84,10 +84,9 @@ export function renderSnapshotWidget(
   ctx: ExtensionCommandContext,
   label: string,
   snapshot: SubsessionSnapshot,
-  contextWindow?: number,
 ) {
   const activity = ACTIVITY_LABELS[Math.floor(Math.random() * ACTIVITY_LABELS.length)]!;
-  const snapshotText = formatSnapshotText(snapshot, contextWindow);
+  const snapshotText = formatSnapshotText(snapshot);
 
   ctx.ui.setWidget(label, (tui, theme) => {
     const widget = new Container() as Container & { dispose?: () => void };

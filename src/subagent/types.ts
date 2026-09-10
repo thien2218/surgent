@@ -1,4 +1,4 @@
-import type { AgentSession, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { AgentSession, ContextUsage, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AgentMeta } from "../agent/types.js";
 
 export type SubsessionStatus = "done" | "aborted" | "error";
@@ -8,6 +8,7 @@ export interface SubsessionUsage {
   input: number;
   output: number;
   toolCalls: number;
+  cost: number;
 }
 
 export interface SubsessionSnapshot {
@@ -15,6 +16,7 @@ export interface SubsessionSnapshot {
   status: "running" | SubsessionStatus;
   toolsUsed: string[];
   usage: SubsessionUsage;
+  contextUsage?: ContextUsage;
 }
 
 export interface ScoutSelector {

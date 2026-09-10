@@ -119,16 +119,12 @@ export default class PermissionPrompt extends Frame implements Focusable {
     if (this.cachedLines) return this.cachedLines;
 
     const lines = new Lines(width);
-    const { category, toolName, extracted, uncertainty } = this.check;
+    const { toolName, extracted, uncertainty } = this.check;
     const uncertaintyNote = uncertainty ? `${uncertainty} detected. ` : "";
 
-    lines.add(
-      this.theme.italic(`${uncertaintyNote}Allow agent to call ${category} tool '${toolName}'?`),
-    );
-    if (category === "bash" && this.check.purpose) {
-      for (const line of wrapTextWithAnsi(this.check.purpose, width)) {
-        lines.add(this.theme.fg("muted", line));
-      }
+    lines.add(this.theme.italic(`${uncertaintyNote}Allow agent to use '${toolName}' tool?`));
+    for (const line of wrapTextWithAnsi(this.check.purpose, width)) {
+      lines.add(this.theme.fg("muted", line));
     }
 
     lines.space();

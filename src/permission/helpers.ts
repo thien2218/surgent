@@ -81,18 +81,18 @@ export function getPermissionCheck(
   switch (typedName) {
     case "read":
       check.raw = input.path as string;
-      check.purpose = `Read file ${check.raw}`;
+      check.purpose = `Read content from file ${check.raw}`;
       check.extracted = [`read:${check.raw}`];
       break;
     case "write":
     case "edit":
       check.raw = input.path as string;
-      check.purpose = `Write file ${check.raw}`;
+      check.purpose = `Write content to file ${check.raw}`;
       check.extracted = [`write:${check.raw}`];
       break;
     case "grep":
       check.raw = (input.path as string | undefined) ?? ".";
-      check.purpose = `Search files in ${check.raw}`;
+      check.purpose = `Perform search in path ${check.raw}`;
       check.extracted = [`read:${check.raw}`];
       break;
     case "bash":

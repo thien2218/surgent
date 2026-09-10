@@ -8,7 +8,7 @@ import { getPiPath, isMissingFileError, readJson, runCommand, writeJson } from "
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
-const GRAMMAR_COVERAGE_TARGET = 0.85;
+const GRAMMAR_COVERAGE_TARGET = 0.9;
 const GRAMMAR_INSTALL_KEY = "grammarInstall";
 
 async function ensureGrammarCachePackage() {

@@ -33,6 +33,11 @@ export default function (pi: ExtensionAPI) {
         if (subsession.result.status !== "error") {
           await subsession.exec(params.task, signal);
         }
+        const details = snapshot ?? {
+          status: subsession.result.status,
+          usage: subsession.result.usage,
+        };
+
         return {
           content: [
             {
@@ -40,7 +45,9 @@ export default function (pi: ExtensionAPI) {
               text: subsession.result.output || subsession.result.status,
             },
           ],
-          details: snapshot ?? { status: subsession.result.status, usage: subsession.result.usage },
+          details: subsession.result.evidence
+            ? { ...details, evidence: subsession.result.evidence }
+            : details,
         };
       } finally {
         await subsession.dispose();

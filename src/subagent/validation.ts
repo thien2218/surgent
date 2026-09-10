@@ -33,12 +33,7 @@ export function validateBuiltInOutput(agent: string, output: string): string | u
       if (!verdict || !["APPROVE", "REQUEST_CHANGES", "NEEDS_INFO"].includes(verdict)) {
         return "Review output has an invalid verdict.";
       }
-      return;
     }
-    case "scout":
-      return validateScoutOutput(output);
-    default:
-      return;
   }
 }
 
@@ -79,48 +74,6 @@ function validateMarkdownHeadings(
   for (; headingIndex < headings.length; headingIndex += 1) {
     if (!optionalHeadings.includes(headings[headingIndex]!)) {
       return `${title} output is missing "## ${headings[headingIndex]}".`;
-    }
-  }
-}
-
-function validateScoutOutput(output: string): string | undefined {
-  let entries: unknown;
-  try {
-    entries = JSON.parse(output);
-  } catch {
-    return "Scout output must be a valid JSON array.";
-  }
-  if (!Array.isArray(entries)) return "Scout output must be a JSON array.";
-
-  for (const [index, entry] of entries.entries()) {
-    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
-      return `Scout output item ${index + 1} must be an object.`;
-    }
-
-    const item = entry as Record<string, unknown>;
-    const keys = Object.keys(item);
-    if (
-      keys.length !== 3 ||
-      !keys.includes("toolName") ||
-      !keys.includes("input") ||
-      !keys.includes("output")
-    ) {
-      return `Scout output item ${index + 1} must contain only toolName, input, and output.`;
-    }
-    if (
-      typeof item.toolName !== "string" ||
-      !["code_map", "inspect", "read"].includes(item.toolName)
-    ) {
-      return `Scout output item ${index + 1} has an invalid toolName.`;
-    }
-    if (typeof item.input !== "object" || item.input === null || Array.isArray(item.input)) {
-      return `Scout output item ${index + 1} input must be an object.`;
-    }
-    if (!Object.values(item.input).every((value) => typeof value === "string")) {
-      return `Scout output item ${index + 1} input values must be strings.`;
-    }
-    if (typeof item.output !== "string") {
-      return `Scout output item ${index + 1} output must be a string.`;
     }
   }
 }

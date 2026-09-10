@@ -17,12 +17,39 @@ export interface SubsessionSnapshot {
   usage: SubsessionUsage;
 }
 
+export interface ScoutSelector {
+  toolName: "code_map" | "inspect" | "read";
+  input: Record<string, unknown>;
+}
+
+export interface ScoutResourceEvidence {
+  toolName: "inspect" | "read";
+  resource: string;
+  range: [number, number];
+}
+
+export interface ScoutEvidenceResult {
+  output?: string;
+  evidence?: ScoutResourceEvidence[];
+  error?: string;
+}
+
+export interface EvidenceCall {
+  id: string;
+  toolName: "code_map" | "inspect" | "read";
+  input: Record<string, unknown>;
+  order: number;
+  output?: string;
+  result?: unknown;
+}
+
 export interface SubsessionResult {
   id?: string;
   status: SubsessionStatus;
   output: string;
   usage: SubsessionUsage;
   toolCounts: Record<string, number>;
+  evidence?: ScoutResourceEvidence[];
 }
 
 export interface RuntimeConfig {

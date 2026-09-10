@@ -11,6 +11,7 @@ import {
   formatToolUse,
   getLastAssistantOutput,
 } from "./helpers.js";
+import { resolveScoutEvidence } from "./evidence.js";
 import { validateBuiltInOutput } from "./validation.js";
 import {
   findSubsession,
@@ -177,23 +178,31 @@ async function createSubsession(params: CreateSubsessionParams): Promise<Subsess
       }
 
       let validationError: string | undefined;
-      const request = {
-        session,
-        input,
-        signal,
-        onSnapshot,
-        usage: subsession.result.usage,
-      };
+      const request = { session, input, signal, onSnapshot, usage: subsession.result.usage };
 
-      for (let i = 0; i < 2; i++) {
-        if (i === 1) {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        if (attempt === 1) {
           request.input = `Output failed validation: ${validationError}\nReturn only corrected output required by <output_contract>.`;
         }
+
         subsession.result = await executeTurn(request);
-        validationError =
-          subsession.runtime.builtIn && subsession.result.status === "done"
-            ? validateBuiltInOutput(subsession.runtime.agent, subsession.result.output)
-            : undefined;
+        if (!subsession.runtime.builtIn || subsession.result.status !== "done") {
+          validationError = undefined;
+          break;
+        }
+
+        validationError = validateBuiltInOutput(subsession.runtime.agent, subsession.result.output);
+        if (subsession.runtime.agent === "scout") {
+          const resolved = resolveScoutEvidence(session, subsession.result.output, cwd);
+          validationError = resolved.error;
+
+          if (!validationError) {
+            subsession.result.output = resolved.output ?? "[]";
+            subsession.result.evidence = resolved.evidence;
+          }
+        }
+
+        if (!validationError) break;
       }
 
       if (validationError) {

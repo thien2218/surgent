@@ -2,6 +2,7 @@ import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { Agent, AgentMeta } from "./types.js";
 import {
   createAgentFile,
+  DEFAULT_AGENT,
   deleteAgentFiles,
   isBuiltIn,
   loadAgents,
@@ -18,7 +19,7 @@ async function showAgentPicker(
   agents: Agent[],
 ): Promise<string | null> {
   const items = agents
-    .filter((agent) => agent.name !== "default")
+    .filter((agent) => agent.name !== DEFAULT_AGENT)
     .map((agent) => ({
       value: agent.name,
       label: isBuiltIn(agent.filePath) ? `${agent.name} (built-in)` : agent.name,

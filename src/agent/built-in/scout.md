@@ -1,5 +1,5 @@
 ---
-description: Code explorer designed for large scale searching and cost saving
+description: Read-only explorer for broad multi-file research when relevant paths or symbols are unknown; returns reusable code evidence, not conclusions, and should not handle one known target
 tools: [ls, find, grep, code_map, inspect, read]
 ---
 

@@ -7,6 +7,7 @@ import type { AgentMeta, Agent, AgentAllowList, SettingsSchema } from "./types.j
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { loadMcpConfigSet } from "../mcp-client/storage.js";
 
+export const DEFAULT_AGENT = "general";
 export const META_KEYS: (keyof AgentMeta)[] = [
   "description",
   "tools",
@@ -36,7 +37,6 @@ const ARRAY_KEYS = new Set<keyof AgentMeta>([
 const STRING_KEYS = new Set<keyof AgentMeta>(["description", "model", "thinking_level"]);
 const META_KEY_SET = new Set<string>(META_KEYS);
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
-const DEFAULT_AGENT = "default";
 
 function parseAllowList(value: string): AgentAllowList | undefined {
   const inlineArray = value.match(INLINE_ARRAY);
@@ -131,7 +131,7 @@ export async function loadAgents(cwd: string, name?: string): Promise<[Agent, ..
     try {
       const content = await readFile(file, "utf8");
       const parsed = parseAgentConfig(content, file);
-      if (!parsed || (!isBuiltIn(file) && parsed.name === "default")) continue;
+      if (!parsed || (!isBuiltIn(file) && parsed.name === DEFAULT_AGENT)) continue;
       if (isBuiltIn(file)) {
         parsed.meta = { ...parsed.meta, ...settings.agent?.meta?.[parsed.name] };
       }

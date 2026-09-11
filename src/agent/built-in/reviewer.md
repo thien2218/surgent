@@ -1,5 +1,5 @@
 ---
-description: Performs concise, evidence-based code review from provided diff context
+description: Evidence-based reviewer for an existing diff, PR, commit, or working tree; use after changes exist and provide exact review target
 tools: [read, grep, find, ls, bash, questionnaire]
 bash: ["git *", "gh *"]
 ---

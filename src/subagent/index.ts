@@ -9,11 +9,15 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "subagent",
     label: "Subagent",
-    description: "Delegate a focused task to a configured agent.",
-    promptSnippet: "Delegate focused tasks to a configured agent",
+    description:
+      "Delegate bounded, self-contained work to a configured agent. Choose by agent description, provide complete context and expected output, batch independent calls, and do not duplicate delegated work.",
+    promptSnippet: "Offload bounded, context-heavy work to configured agents",
     parameters: Type.Object({
-      agent: Type.String({ description: "Configured agent profile name" }),
-      task: Type.String({ description: "Task for the subagent" }),
+      agent: Type.String({ description: "Configured agent profile selected by its description" }),
+      task: Type.String({
+        description:
+          "Standalone task with outcome, scope, known context, constraints, expected output, and done condition",
+      }),
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       let snapshot: SubsessionSnapshot | undefined;

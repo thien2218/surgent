@@ -165,7 +165,7 @@ async function createSdkSession(
       runtime.meta.thinking_level ?? (request.id ? undefined : request.ctx.thinkingLevel),
     resourceLoader,
     sessionManager,
-    tools: Array.isArray(runtime.meta.tools) ? runtime.meta.tools : [],
+    tools: Array.isArray(runtime.meta.tools) ? runtime.meta.tools : undefined,
   });
   return session;
 }

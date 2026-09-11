@@ -1,6 +1,6 @@
 import { unlink, writeFile } from "node:fs/promises";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import type { Subsession, SubsessionRequest } from "../subagent/types.js";
+import type { Subsession, SubsessionRequest, SubsessionSnapshot } from "../subagent/types.js";
 import { terminateSubsession } from "../subagent/storage.js";
 import {
   ActionSelectList,
@@ -12,9 +12,21 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { StoredSubsessions } from "../subagent/types.js";
 import { ExtendedSelectList, type SelectEntry } from "../ui/components/extended-select-list.js";
 import { getPiPath, isMissingFileError, isUuidv7, openInEditor, readJson } from "../utils.js";
-import { renderSnapshotWidget } from "../subagent/helpers.js";
 import { openSubsession } from "../subagent/subsession.js";
 import type { CommandInput, LoopAction, LoopConfig } from "./types.js";
+import { Container, Loader } from "@earendil-works/pi-tui";
+import { TruncatedText } from "@earendil-works/pi-tui";
+import { Spacer } from "@earendil-works/pi-tui";
+import { formatSnapshotText } from "../subagent/helpers.js";
+
+const ACTIVITY_LABELS = [
+  "analyzing",
+  "researching",
+  "synthesizing",
+  "scrutinizing",
+  "processing",
+  "cooking",
+] as const;
 
 async function saveSubsessionOutput(
   ctx: ExtensionCommandContext,
@@ -137,7 +149,10 @@ export async function runSubsessionLoop(
       const action = await showActionUi(ctx, subsession.result.output, config, outputPath);
 
       if (action.kind === "save") {
-        ctx.ui.notify(`Saved ${subsession.label} to ${outputPath}`, "info");
+        ctx.ui.notify(
+          `Saved ${config.name} to ${outputPath}. Resume with '/${config.name} <saved-${config.name}-id>'`,
+          "info",
+        );
         return;
       }
       if (action.kind === "discard") {
@@ -160,19 +175,44 @@ export async function runSubsessionLoop(
   }
 }
 
-export async function pickSubsessionId(
-  ctx: ExtensionContext,
+export async function getSubsessionPreviews(
+  cwd: string,
+  sessionId: string,
   label: "plan" | "review",
-): Promise<string | null> {
-  const store = await readJson<StoredSubsessions>(getPiPath("subsessions", ctx.cwd), {});
+): Promise<{ subsessionId: string; title: string }[]> {
+  const store = await readJson<StoredSubsessions>(getPiPath("subsessions", cwd), {});
   const previews: { subsessionId: string; title: string }[] = [];
 
   for (const [subsessionId, metadata] of Object.entries(store)) {
-    if (metadata.label === label && metadata.pid === ctx.sessionManager.getSessionId()) {
+    if (metadata.label === label && metadata.pid === sessionId) {
       previews.push({ subsessionId, title: metadata.title });
     }
   }
 
+  return previews;
+}
+
+export async function getSubsessionCompletions(
+  cwd: string,
+  sessionId: string,
+  label: "plan" | "review",
+  prefix: string,
+) {
+  const normalizedPrefix = prefix.trim().toLowerCase();
+  const items = (await getSubsessionPreviews(cwd, sessionId, label))
+    .filter(
+      ({ subsessionId, title }) =>
+        subsessionId.startsWith(normalizedPrefix) || title.toLowerCase().includes(normalizedPrefix),
+    )
+    .map(({ subsessionId, title }) => ({ value: subsessionId, label: title }));
+  return items.length > 0 ? items : null;
+}
+
+async function pickSubsessionId(
+  ctx: ExtensionContext,
+  label: "plan" | "review",
+): Promise<string | null> {
+  const previews = await getSubsessionPreviews(ctx.cwd, ctx.sessionManager.getSessionId(), label);
   if (previews.length === 0) {
     ctx.ui.notify(`No stored ${label} sessions`, "warning");
     return null;
@@ -249,4 +289,35 @@ export function parseCommandInput(args: string): CommandInput {
     return { kind: "resume", subsessionId: normalized };
   }
   return { kind: "prompt", prompt: normalized };
+}
+
+export function renderSnapshotWidget(
+  ctx: ExtensionCommandContext,
+  label: string,
+  snapshot: SubsessionSnapshot,
+) {
+  const activity = ACTIVITY_LABELS[Math.floor(Math.random() * ACTIVITY_LABELS.length)]!;
+  const snapshotText = formatSnapshotText(snapshot);
+
+  ctx.ui.setWidget(label, (tui, theme) => {
+    const widget = new Container() as Container & { dispose?: () => void };
+    const loader = new Loader(
+      tui,
+      (content) => theme.fg("accent", content),
+      (content) => theme.fg("muted", content),
+      `${label} (${activity}): ${snapshotText[0]}`,
+    );
+    if (snapshot.status !== "running") {
+      loader.setIndicator({ frames: ["•"] });
+    }
+
+    widget.addChild(loader);
+    for (const line of snapshotText.slice(1)) {
+      widget.addChild(new TruncatedText(`  ${line}`, 1, 0));
+    }
+
+    widget.addChild(new Spacer(1));
+    widget.dispose = () => loader.stop();
+    return widget;
+  });
 }

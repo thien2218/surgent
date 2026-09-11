@@ -1,12 +1,5 @@
 import type { KeybindingsManager, Theme } from "@earendil-works/pi-coding-agent";
-import {
-  Key,
-  matchesKey,
-  parseKey,
-  type Component,
-  type Focusable,
-  type TUI,
-} from "@earendil-works/pi-tui";
+import { Key, matchesKey, type Component, type Focusable, type TUI } from "@earendil-works/pi-tui";
 import { Lines } from "./lines.js";
 import { PlaceholderInput } from "./placeholder-input.js";
 

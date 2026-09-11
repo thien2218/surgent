@@ -33,7 +33,6 @@ async function saveSubsessionOutput(
 
   try {
     await writeFile(outputPath, `${subsession.result.output.trimEnd()}\n`, "utf8");
-    ctx.ui.notify(`Saved ${subsession.label} to ${outputPath}`, "info");
     return outputPath;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -42,12 +41,9 @@ async function saveSubsessionOutput(
   }
 }
 
-function mapActionResult(result: ActionSelectResult): LoopAction | null {
+function mapActionResult(result: ActionSelectResult): LoopAction {
   if (result.type === "input") {
     return { kind: "feedback", feedback: result.value };
-  }
-  if (result.value === "forward") {
-    return { kind: "forward" };
   }
   if (result.value === "open") {
     return { kind: "open" };
@@ -55,7 +51,7 @@ function mapActionResult(result: ActionSelectResult): LoopAction | null {
   if (result.value === "save") {
     return { kind: "save" };
   }
-  return null;
+  return { kind: "forward" };
 }
 
 function discardSubsession(ctx: ExtensionCommandContext, subsession: Subsession) {
@@ -103,7 +99,7 @@ async function showActionUi(
   output: string,
   config: LoopConfig,
   outputPath: string | null,
-): Promise<LoopAction | null> {
+): Promise<LoopAction> {
   const markdown = output.trim().length > 0 ? output : `_No ${config.agent} output yet._`;
   const options: ActionSelectOption[] = [{ value: "forward", label: config.submitText }];
   if (outputPath) {
@@ -111,7 +107,7 @@ async function showActionUi(
   }
   options.push({ value: "save", label: "Save and exit" });
 
-  return ctx.ui.custom<LoopAction | null>((tui, theme, keybindings, done) => {
+  return ctx.ui.custom<LoopAction>((tui, theme, keybindings, done) => {
     const actionSelectList = new ActionSelectList(tui, keybindings, theme, {
       title: "What should surgent do next?",
       options,
@@ -140,22 +136,23 @@ export async function runSubsessionLoop(
       ctx.ui.setWidget(config.agent, undefined);
       const action = await showActionUi(ctx, subsession.result.output, config, outputPath);
 
-      if (!action || action.kind === "save") return;
-      if (action.kind === "open") {
-        if (outputPath) await openInEditor(ctx, outputPath);
-        continue;
+      if (action.kind === "save") {
+        ctx.ui.notify(`Saved ${subsession.label} to ${outputPath}`, "info");
+        return;
       }
       if (action.kind === "discard") {
         discardSubsession(ctx, subsession);
         return;
       }
-      if (action.kind === "forward") {
+
+      if (action.kind === "open") {
+        if (outputPath) await openInEditor(ctx, outputPath);
+      } else if (action.kind === "forward") {
         const forwarded = await forwardAction(pi, ctx, subsession, outputPath);
         if (forwarded) return;
-        continue;
+      } else {
+        await subsession.exec(action.feedback);
       }
-
-      await subsession.exec(action.feedback);
     }
   } finally {
     await subsession.dispose();

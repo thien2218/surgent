@@ -1,17 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { renderSnapshotWidget } from "./render.js";
 import { openSubsession } from "../subagent/subsession.js";
-import {
-  getSubsessionCompletions,
-  parseCommandInput,
-  resolveSubsession,
-  runSubsessionLoop,
-} from "./helpers.js";
-
-const PROFILES = [
-  { name: "plan", agent: "planner", submitText: "Implement this plan" },
-  { name: "review", agent: "reviewer", submitText: "Fix issues from review" },
-] as const;
+import { getPlanCompletions, parseCommandInput, resolvePlan, runPlanLoop } from "./helpers.js";
 
 const INIT_PROMPT = `Analyze this repository and create or update AGENTS.md in its root. This file gives future coding agents concise, project-specific instructions.
 
@@ -57,35 +47,33 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  PROFILES.forEach(({ name, agent, submitText }) => {
-    pi.registerCommand(name, {
-      description: `[empty|<${name}-id>|<request>] - Resume or start a '${name}' background session. Leave empty to list saved ${name}s`,
-      getArgumentCompletions: (prefix) => {
-        if (!cwd || !pid) return null;
-        return getSubsessionCompletions(cwd, pid, name, prefix);
-      },
-      handler: async (args, ctx) => {
-        if (!ctx.hasUI) {
-          ctx.ui.notify(`/${name} requires interactive UI`, "error");
-          return;
-        }
+  pi.registerCommand("plan", {
+    description: `[empty|<plan-id>|<request>] - Resume or start a 'plan' background session. Leave empty to list saved plans`,
+    getArgumentCompletions: (prefix) => {
+      if (!cwd || !pid) return null;
+      return getPlanCompletions(cwd, pid, prefix);
+    },
+    handler: async (args, ctx) => {
+      if (!ctx.hasUI) {
+        ctx.ui.notify(`/plan requires interactive UI`, "error");
+        return;
+      }
 
-        const parsedInput = parseCommandInput(args);
-        const subsession = await resolveSubsession(ctx, parsedInput, { label: name, agent });
+      const parsedInput = parseCommandInput(args);
+      const subsession = await resolvePlan(ctx, parsedInput);
 
-        if (!subsession) {
-          ctx.ui.setWidget(agent, undefined);
-          return;
-        }
-        if (subsession.result.status === "error") {
-          await subsession.dispose();
-          ctx.ui.setWidget(agent, undefined);
-          ctx.ui.notify(subsession.result.output, "error");
-          return;
-        }
+      if (!subsession) {
+        ctx.ui.setWidget("planner", undefined);
+        return;
+      }
+      if (subsession.result.status === "error") {
+        await subsession.dispose();
+        ctx.ui.setWidget("planner", undefined);
+        ctx.ui.notify(subsession.result.output, "error");
+        return;
+      }
 
-        await runSubsessionLoop(pi, ctx, subsession, { name, agent, submitText });
-      },
-    });
+      await runPlanLoop(pi, ctx, subsession);
+    },
   });
 }

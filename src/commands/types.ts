@@ -9,9 +9,3 @@ export type CommandInput =
   | { kind: "list" }
   | { kind: "resume"; subsessionId: string }
   | { kind: "prompt"; prompt: string };
-
-export interface LoopConfig {
-  name: string;
-  agent: string;
-  submitText: string;
-}

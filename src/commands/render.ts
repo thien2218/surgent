@@ -5,7 +5,7 @@ import {
   type ActionSelectResult,
 } from "../ui/components/action-select-list.js";
 import { ScrollableView } from "../ui/components/scrollable-view.js";
-import type { LoopAction, LoopConfig } from "./types.js";
+import type { LoopAction } from "./types.js";
 import { Container, Loader } from "@earendil-works/pi-tui";
 import { TruncatedText } from "@earendil-works/pi-tui";
 import { Spacer } from "@earendil-works/pi-tui";
@@ -34,16 +34,15 @@ function mapActionResult(result: ActionSelectResult): LoopAction {
   return { kind: "forward" };
 }
 
-export async function showActionUi(
+export async function showPlanUi(
   ctx: ExtensionCommandContext,
   output: string,
-  config: LoopConfig,
   outputPath: string | null,
 ): Promise<LoopAction> {
-  const markdown = output.trim().length > 0 ? output : `_No ${config.agent} output yet._`;
-  const options: ActionSelectOption[] = [{ value: "forward", label: config.submitText }];
+  const markdown = output.trim().length > 0 ? output : "_No planner output yet._";
+  const options: ActionSelectOption[] = [{ value: "forward", label: "Implement this plan" }];
   if (outputPath) {
-    options.push({ value: "open", label: `Open ${config.name} in external editor` });
+    options.push({ value: "open", label: "Open plan in external editor" });
   }
   options.push({ value: "save", label: "Save and exit" });
 
@@ -51,7 +50,7 @@ export async function showActionUi(
     const actionSelectList = new ActionSelectList(tui, keybindings, theme, {
       title: "What should surgent do next?",
       options,
-      placeholder: `Feedback for ${config.agent} agent`,
+      placeholder: "Feedback for planner agent",
     });
     actionSelectList.onSubmit = (result) => done(mapActionResult(result));
     actionSelectList.onCancel = () => done({ kind: "discard" });

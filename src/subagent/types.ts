@@ -2,7 +2,7 @@ import type { AgentSession, ContextUsage, ExtensionContext } from "@earendil-wor
 import type { AgentMeta } from "../agent/types.js";
 
 export type SubsessionStatus = "done" | "aborted" | "error";
-export type SubsessionLabel = "plan" | "review" | "subagent";
+export type SubsessionLabel = "plan" | "subagent";
 
 export interface SubsessionUsage {
   input: number;

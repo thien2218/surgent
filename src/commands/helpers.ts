@@ -7,30 +7,26 @@ import type { StoredSubsessions } from "../subagent/types.js";
 import { ExtendedSelectList, type SelectEntry } from "../ui/components/extended-select-list.js";
 import { getPiPath, isMissingFileError, isUuidv7, openInEditor, readJson } from "../utils.js";
 import { openSubsession } from "../subagent/subsession.js";
-import { renderSnapshotWidget, showActionUi } from "./render.js";
-import type { CommandInput, LoopConfig } from "./types.js";
+import { renderSnapshotWidget, showPlanUi } from "./render.js";
+import type { CommandInput } from "./types.js";
 
-async function saveSubsessionOutput(
+async function savePlanOutput(
   ctx: ExtensionCommandContext,
   subsession: Subsession,
 ): Promise<string | null> {
   if (!subsession.result.id) {
-    ctx.ui.notify(`Failed to save ${subsession.label}: missing subsession ID`, "error");
+    ctx.ui.notify("Failed to save plan: missing subsession ID", "error");
     return null;
   }
 
-  const outputPath = getPiPath(
-    subsession.label === "plan" ? "plans" : "reviews",
-    ctx.cwd,
-    `${subsession.result.id}.md`,
-  );
+  const outputPath = getPiPath("plans", ctx.cwd, `${subsession.result.id}.md`);
 
   try {
     await writeFile(outputPath, `${subsession.result.output.trimEnd()}\n`, "utf8");
     return outputPath;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    ctx.ui.notify(`Failed to save ${subsession.label}: ${message}`, "error");
+    ctx.ui.notify(`Failed to save plan: ${message}`, "error");
     return null;
   }
 }
@@ -75,21 +71,20 @@ async function forwardAction(
   return true;
 }
 
-export async function runSubsessionLoop(
+export async function runPlanLoop(
   pi: ExtensionAPI,
   ctx: ExtensionCommandContext,
   subsession: Subsession,
-  config: LoopConfig,
 ) {
   try {
-    const outputPath = await saveSubsessionOutput(ctx, subsession);
+    const outputPath = await savePlanOutput(ctx, subsession);
     while (true) {
-      ctx.ui.setWidget(config.agent, undefined);
-      const action = await showActionUi(ctx, subsession.result.output, config, outputPath);
+      ctx.ui.setWidget("planner", undefined);
+      const action = await showPlanUi(ctx, subsession.result.output, outputPath);
 
       if (action.kind === "save") {
         ctx.ui.notify(
-          `Saved ${config.name} to ${outputPath}. Resume with '/${config.name} <saved-${config.name}-id>'`,
+          `Saved plan to ${outputPath}. Resume with '/plan <saved-plan-id>'`,
           "info",
         );
         return;
@@ -110,20 +105,19 @@ export async function runSubsessionLoop(
     }
   } finally {
     await subsession.dispose();
-    ctx.ui.setWidget(config.agent, undefined);
+    ctx.ui.setWidget("planner", undefined);
   }
 }
 
-export async function getSubsessionPreviews(
+export async function getPlanPreviews(
   cwd: string,
   sessionId: string,
-  label: "plan" | "review",
 ): Promise<{ subsessionId: string; title: string }[]> {
   const store = await readJson<StoredSubsessions>(getPiPath("subsessions", cwd), {});
   const previews: { subsessionId: string; title: string }[] = [];
 
   for (const [subsessionId, metadata] of Object.entries(store)) {
-    if (metadata.label === label && metadata.pid === sessionId) {
+    if (metadata.label === "plan" && metadata.pid === sessionId) {
       previews.push({ subsessionId, title: metadata.title });
     }
   }
@@ -131,14 +125,9 @@ export async function getSubsessionPreviews(
   return previews;
 }
 
-export async function getSubsessionCompletions(
-  cwd: string,
-  sessionId: string,
-  label: "plan" | "review",
-  prefix: string,
-) {
+export async function getPlanCompletions(cwd: string, sessionId: string, prefix: string) {
   const normalizedPrefix = prefix.trim().toLowerCase();
-  const items = (await getSubsessionPreviews(cwd, sessionId, label))
+  const items = (await getPlanPreviews(cwd, sessionId))
     .filter(
       ({ subsessionId, title }) =>
         subsessionId.startsWith(normalizedPrefix) || title.toLowerCase().includes(normalizedPrefix),
@@ -147,13 +136,10 @@ export async function getSubsessionCompletions(
   return items.length > 0 ? items : null;
 }
 
-async function pickSubsessionId(
-  ctx: ExtensionContext,
-  label: "plan" | "review",
-): Promise<string | null> {
-  const previews = await getSubsessionPreviews(ctx.cwd, ctx.sessionManager.getSessionId(), label);
+async function pickPlanId(ctx: ExtensionContext): Promise<string | null> {
+  const previews = await getPlanPreviews(ctx.cwd, ctx.sessionManager.getSessionId());
   if (previews.length === 0) {
-    ctx.ui.notify(`No stored ${label} sessions`, "warning");
+    ctx.ui.notify("No stored plan sessions", "warning");
     return null;
   }
 
@@ -165,7 +151,7 @@ async function pickSubsessionId(
 
   return ctx.ui.custom<string | null>((_tui, theme, _keybindings, done) => {
     const selectList = new ExtendedSelectList<{ subsessionId: string }>(theme, {
-      title: `Reopen ${label} session`,
+      title: "Reopen plan session",
       items,
       maxVisibleRows: 12,
     });
@@ -176,24 +162,24 @@ async function pickSubsessionId(
       const subsessionId = item.data?.subsessionId;
       if (!subsessionId) return;
       terminateSubsession(ctx.cwd, subsessionId)
-        .then(() => ctx.ui.notify(`Deleted ${label} session`, "info"))
-        .catch(() => ctx.ui.notify(`Failed to delete ${label} session`, "error"));
+        .then(() => ctx.ui.notify("Deleted plan session", "info"))
+        .catch(() => ctx.ui.notify("Failed to delete plan session", "error"));
     };
 
     return selectList;
   });
 }
 
-export async function resolveSubsession(
+export async function resolvePlan(
   ctx: ExtensionCommandContext,
   input: CommandInput,
-  config: { label: "plan" | "review"; agent: string },
 ): Promise<Subsession | null> {
   let prompt = "";
   const request: SubsessionRequest = {
     ctx,
-    ...config,
-    onSnapshot: (snapshot) => renderSnapshotWidget(ctx, config.agent, snapshot),
+    label: "plan",
+    agent: "planner",
+    onSnapshot: (snapshot) => renderSnapshotWidget(ctx, "planner", snapshot),
   };
 
   if (input.kind === "prompt") {
@@ -201,7 +187,7 @@ export async function resolveSubsession(
   } else if (input.kind === "resume") {
     request.id = input.subsessionId;
   } else {
-    const selectedSubsessionId = await pickSubsessionId(ctx, config.label);
+    const selectedSubsessionId = await pickPlanId(ctx);
     if (!selectedSubsessionId) return null;
     request.id = selectedSubsessionId;
   }

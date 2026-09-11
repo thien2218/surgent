@@ -1,6 +1,6 @@
 {
   "name": "surgent",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "description": "A coding harness designed to optimize token usage using context engineering best practices",
   "main": "index.js",
   "bin": {

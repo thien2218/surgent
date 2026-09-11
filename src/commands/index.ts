@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { renderSnapshotWidget } from "./helpers.js";
+import { renderSnapshotWidget } from "./render.js";
 import { openSubsession } from "../subagent/subsession.js";
 import {
   getSubsessionCompletions,

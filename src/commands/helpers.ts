@@ -1,32 +1,14 @@
 import { unlink, writeFile } from "node:fs/promises";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import type { Subsession, SubsessionRequest, SubsessionSnapshot } from "../subagent/types.js";
+import type { Subsession, SubsessionRequest } from "../subagent/types.js";
 import { terminateSubsession } from "../subagent/storage.js";
-import {
-  ActionSelectList,
-  type ActionSelectOption,
-  type ActionSelectResult,
-} from "../ui/components/action-select-list.js";
-import { ScrollableView } from "../ui/components/scrollable-view.js";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { StoredSubsessions } from "../subagent/types.js";
 import { ExtendedSelectList, type SelectEntry } from "../ui/components/extended-select-list.js";
 import { getPiPath, isMissingFileError, isUuidv7, openInEditor, readJson } from "../utils.js";
 import { openSubsession } from "../subagent/subsession.js";
-import type { CommandInput, LoopAction, LoopConfig } from "./types.js";
-import { Container, Loader } from "@earendil-works/pi-tui";
-import { TruncatedText } from "@earendil-works/pi-tui";
-import { Spacer } from "@earendil-works/pi-tui";
-import { formatSnapshotText } from "../subagent/helpers.js";
-
-const ACTIVITY_LABELS = [
-  "analyzing",
-  "researching",
-  "synthesizing",
-  "scrutinizing",
-  "processing",
-  "cooking",
-] as const;
+import { renderSnapshotWidget, showActionUi } from "./render.js";
+import type { CommandInput, LoopConfig } from "./types.js";
 
 async function saveSubsessionOutput(
   ctx: ExtensionCommandContext,
@@ -51,19 +33,6 @@ async function saveSubsessionOutput(
     ctx.ui.notify(`Failed to save ${subsession.label}: ${message}`, "error");
     return null;
   }
-}
-
-function mapActionResult(result: ActionSelectResult): LoopAction {
-  if (result.type === "input") {
-    return { kind: "feedback", feedback: result.value };
-  }
-  if (result.value === "open") {
-    return { kind: "open" };
-  }
-  if (result.value === "save") {
-    return { kind: "save" };
-  }
-  return { kind: "forward" };
 }
 
 function discardSubsession(ctx: ExtensionCommandContext, subsession: Subsession) {
@@ -104,36 +73,6 @@ async function forwardAction(
 
   discardSubsession(ctx, subsession);
   return true;
-}
-
-async function showActionUi(
-  ctx: ExtensionCommandContext,
-  output: string,
-  config: LoopConfig,
-  outputPath: string | null,
-): Promise<LoopAction> {
-  const markdown = output.trim().length > 0 ? output : `_No ${config.agent} output yet._`;
-  const options: ActionSelectOption[] = [{ value: "forward", label: config.submitText }];
-  if (outputPath) {
-    options.push({ value: "open", label: `Open ${config.name} in external editor` });
-  }
-  options.push({ value: "save", label: "Save and exit" });
-
-  return ctx.ui.custom<LoopAction>((tui, theme, keybindings, done) => {
-    const actionSelectList = new ActionSelectList(tui, keybindings, theme, {
-      title: "What should surgent do next?",
-      options,
-      placeholder: `Feedback for ${config.agent} agent`,
-    });
-    actionSelectList.onSubmit = (result) => done(mapActionResult(result));
-    actionSelectList.onCancel = () => done({ kind: "discard" });
-
-    const scrollableView = new ScrollableView(tui, theme, { markdown, input: actionSelectList });
-    scrollableView.focused = true;
-    scrollableView.onCancel = () => done({ kind: "discard" });
-
-    return scrollableView;
-  });
 }
 
 export async function runSubsessionLoop(
@@ -289,35 +228,4 @@ export function parseCommandInput(args: string): CommandInput {
     return { kind: "resume", subsessionId: normalized };
   }
   return { kind: "prompt", prompt: normalized };
-}
-
-export function renderSnapshotWidget(
-  ctx: ExtensionCommandContext,
-  label: string,
-  snapshot: SubsessionSnapshot,
-) {
-  const activity = ACTIVITY_LABELS[Math.floor(Math.random() * ACTIVITY_LABELS.length)]!;
-  const snapshotText = formatSnapshotText(snapshot);
-
-  ctx.ui.setWidget(label, (tui, theme) => {
-    const widget = new Container() as Container & { dispose?: () => void };
-    const loader = new Loader(
-      tui,
-      (content) => theme.fg("accent", content),
-      (content) => theme.fg("muted", content),
-      `${label} (${activity}): ${snapshotText[0]}`,
-    );
-    if (snapshot.status !== "running") {
-      loader.setIndicator({ frames: ["•"] });
-    }
-
-    widget.addChild(loader);
-    for (const line of snapshotText.slice(1)) {
-      widget.addChild(new TruncatedText(`  ${line}`, 1, 0));
-    }
-
-    widget.addChild(new Spacer(1));
-    widget.dispose = () => loader.stop();
-    return widget;
-  });
 }

@@ -30,11 +30,9 @@ export interface ScoutResourceEvidence {
   range: [number, number];
 }
 
-export interface ScoutEvidenceResult {
-  output?: string;
-  evidence?: ScoutResourceEvidence[];
-  error?: string;
-}
+export type ScoutEvidenceResult =
+  | { error: string; output?: undefined; evidence?: undefined }
+  | { error?: undefined; output: string; evidence: ScoutResourceEvidence[] };
 
 export interface EvidenceCall {
   id: string;

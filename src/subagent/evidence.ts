@@ -99,9 +99,9 @@ export function resolveScoutEvidence(
   if (parsed.error) return { error: parsed.error };
 
   const calls = collectEvidenceCalls(session);
-  const selectedById = new Map<string, EvidenceCall>();
+  const selected: EvidenceCall[] = [];
 
-  for (const [index, selector] of (parsed.selectors ?? []).entries()) {
+  for (const selector of parsed.selectors ?? []) {
     const call = calls.findLast(
       (candidate) =>
         candidate.output !== undefined &&
@@ -109,14 +109,14 @@ export function resolveScoutEvidence(
         isDeepStrictEqual(candidate.input, selector.input),
     );
     if (!call) {
-      return { error: `Scout output item ${index + 1} does not match a successful tool call.` };
+      return {
+        error: `Scout ${selector.toolName} output item does not match a successful tool call.`,
+      };
     }
-    selectedById.set(call.id, call);
+    selected.push(call);
   }
 
-  const selected = [...selectedById.values()].toSorted(
-    (firstCall, secondCall) => firstCall.order - secondCall.order,
-  );
+  selected.sort((firstCall, secondCall) => firstCall.order - secondCall.order);
   const retained: EvidenceCall[] = [];
   const retainedCoverage = new Map<string, [number, number][]>();
   const evidence: ScoutResourceEvidence[] = [];
@@ -144,9 +144,6 @@ export function resolveScoutEvidence(
       range: coverage.range,
     });
   }
-
-  retained.reverse();
-  evidence.reverse();
 
   return {
     output: JSON.stringify(retained.map((call) => ({ input: call.input, output: call.output }))),

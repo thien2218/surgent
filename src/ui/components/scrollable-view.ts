@@ -38,7 +38,7 @@ export class ScrollableView extends Frame implements Focusable {
     this.markdownView = new Markdown(options.markdown, 0, 0, getMarkdownTheme());
 
     const keybindings: Keybindings = [
-      { key: Key.escape, hint: "close", handler: () => this.onCancel?.() },
+      { key: Key.escape, hint: "discard and exit", handler: () => this.onCancel?.() },
       {
         key: { navigation: "vertical" },
         hint: "navigate",

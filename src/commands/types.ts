@@ -1,7 +1,8 @@
 export type LoopAction =
   | { kind: "forward" }
   | { kind: "feedback"; feedback: string }
-  | { kind: "exit" }
+  | { kind: "open" }
+  | { kind: "save" }
   | { kind: "discard" };
 
 export type CommandInput =
@@ -10,6 +11,7 @@ export type CommandInput =
   | { kind: "prompt"; prompt: string };
 
 export interface LoopConfig {
+  name: string;
   agent: string;
   submitText: string;
 }

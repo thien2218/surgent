@@ -11,7 +11,7 @@ import { ScrollableView } from "../ui/components/scrollable-view.js";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { StoredSubsessions } from "../subagent/types.js";
 import { ExtendedSelectList, type SelectEntry } from "../ui/components/extended-select-list.js";
-import { getPiPath, isMissingFileError, isUuidv7, readJson } from "../utils.js";
+import { getPiPath, isMissingFileError, isUuidv7, openInEditor, readJson } from "../utils.js";
 import { renderSnapshotWidget } from "../subagent/helpers.js";
 import { openSubsession } from "../subagent/subsession.js";
 import type { CommandInput, LoopAction, LoopConfig } from "./types.js";
@@ -49,8 +49,11 @@ function mapActionResult(result: ActionSelectResult): LoopAction | null {
   if (result.value === "forward") {
     return { kind: "forward" };
   }
-  if (result.value === "exit") {
-    return { kind: "exit" };
+  if (result.value === "open") {
+    return { kind: "open" };
+  }
+  if (result.value === "save") {
+    return { kind: "save" };
   }
   return null;
 }
@@ -95,47 +98,18 @@ async function forwardAction(
   return true;
 }
 
-export async function runSubsessionLoop(
-  pi: ExtensionAPI,
-  ctx: ExtensionCommandContext,
-  subsession: Subsession,
-  config: LoopConfig,
-) {
-  try {
-    const outputPath = await saveSubsessionOutput(ctx, subsession);
-    while (true) {
-      ctx.ui.setWidget(config.agent, undefined);
-      const action = await showActionUi(ctx, subsession.result.output, config);
-
-      if (!action || action.kind === "exit") return;
-      if (action.kind === "discard") {
-        discardSubsession(ctx, subsession);
-        return;
-      }
-      if (action.kind === "forward") {
-        const forwarded = await forwardAction(pi, ctx, subsession, outputPath);
-        if (forwarded) return;
-        continue;
-      }
-
-      await subsession.exec(action.feedback);
-    }
-  } finally {
-    await subsession.dispose();
-    ctx.ui.setWidget(config.agent, undefined);
-  }
-}
-
-export async function showActionUi(
+async function showActionUi(
   ctx: ExtensionCommandContext,
   output: string,
   config: LoopConfig,
+  outputPath: string | null,
 ): Promise<LoopAction | null> {
   const markdown = output.trim().length > 0 ? output : `_No ${config.agent} output yet._`;
-  const options: ActionSelectOption[] = [
-    { value: "forward", label: config.submitText },
-    { value: "exit", label: "Exit and save" },
-  ];
+  const options: ActionSelectOption[] = [{ value: "forward", label: config.submitText }];
+  if (outputPath) {
+    options.push({ value: "open", label: `Open ${config.name} in external editor` });
+  }
+  options.push({ value: "save", label: "Save and exit" });
 
   return ctx.ui.custom<LoopAction | null>((tui, theme, keybindings, done) => {
     const actionSelectList = new ActionSelectList(tui, keybindings, theme, {
@@ -152,6 +126,41 @@ export async function showActionUi(
 
     return scrollableView;
   });
+}
+
+export async function runSubsessionLoop(
+  pi: ExtensionAPI,
+  ctx: ExtensionCommandContext,
+  subsession: Subsession,
+  config: LoopConfig,
+) {
+  try {
+    const outputPath = await saveSubsessionOutput(ctx, subsession);
+    while (true) {
+      ctx.ui.setWidget(config.agent, undefined);
+      const action = await showActionUi(ctx, subsession.result.output, config, outputPath);
+
+      if (!action || action.kind === "save") return;
+      if (action.kind === "open") {
+        if (outputPath) await openInEditor(ctx, outputPath);
+        continue;
+      }
+      if (action.kind === "discard") {
+        discardSubsession(ctx, subsession);
+        return;
+      }
+      if (action.kind === "forward") {
+        const forwarded = await forwardAction(pi, ctx, subsession, outputPath);
+        if (forwarded) return;
+        continue;
+      }
+
+      await subsession.exec(action.feedback);
+    }
+  } finally {
+    await subsession.dispose();
+    ctx.ui.setWidget(config.agent, undefined);
+  }
 }
 
 export async function pickSubsessionId(

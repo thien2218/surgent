@@ -1,6 +1,4 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { exec, spawn } from "node:child_process";
-import { promisify } from "node:util";
 import type { Agent, AgentMeta } from "./types.js";
 import {
   createAgentFile,
@@ -13,25 +11,7 @@ import { ExtendedSelectList } from "../ui/components/extended-select-list.js";
 import { ScopedInput } from "../ui/components/scoped-input.js";
 import { Form } from "../ui/components/form.js";
 import { getAgentConfigForm } from "./helpers.js";
-
-const execAsync = promisify(exec);
-
-async function openInVsCode(ctx: ExtensionCommandContext, filePath: string) {
-  try {
-    await execAsync("which code");
-  } catch {
-    ctx.ui.notify("VS Code not found — install it or open the file manually: " + filePath, "error");
-    return;
-  }
-
-  await new Promise<void>((resolvePromise, rejectPromise) => {
-    const child = spawn("code", ["--wait", filePath], { stdio: "inherit" });
-    child.on("close", (code) =>
-      code === 0 ? resolvePromise() : rejectPromise(new Error(`code exited ${code}`)),
-    );
-    child.on("error", rejectPromise);
-  });
-}
+import { openInEditor } from "../utils.js";
 
 async function showAgentPicker(
   ctx: ExtensionCommandContext,
@@ -99,7 +79,7 @@ async function handleExistingAgent(ctx: ExtensionCommandContext, agent: Agent) {
   while (true) {
     const options = ["Start in new session", "Edit agent config"];
     if (!isBuiltIn(agent.filePath)) {
-      options.push("Open in VS Code");
+      options.push("Open in external editor");
     }
 
     const action = await ctx.ui.select(`Agent: ${agent.name}`, options);
@@ -117,8 +97,8 @@ async function handleExistingAgent(ctx: ExtensionCommandContext, agent: Agent) {
       await openAgentConfigEditor(ctx, agent);
       continue;
     }
-    if (action === "Open in VS Code") {
-      await openInVsCode(ctx, agent.filePath);
+    if (action === "Open in external editor") {
+      await openInEditor(ctx, agent.filePath);
       return false;
     }
   }
@@ -139,7 +119,7 @@ async function handleNewAgent(ctx: ExtensionCommandContext) {
   const filePath = await createAgentFile(scope === "project" ? ctx.cwd : scope, name);
 
   ctx.ui.notify(`Agent created: ${filePath}`, "info");
-  await openInVsCode(ctx, filePath);
+  await openInEditor(ctx, filePath);
 }
 
 export async function agentsCommandHandler(ctx: ExtensionCommandContext) {

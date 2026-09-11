@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { SettingsManager, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 
 const PI_PATHS = {
@@ -104,6 +105,34 @@ export async function runCommand(
       });
     },
   );
+}
+
+export async function openInEditor(
+  ctx: ExtensionCommandContext,
+  filePath: string,
+): Promise<boolean> {
+  const command = SettingsManager.create(ctx.cwd, undefined, {
+    projectTrusted: ctx.isProjectTrusted(),
+  }).getExternalEditorCommand();
+  const commandParts = tokenizeArgs(command);
+  const editor = commandParts.shift();
+  if (!editor) {
+    ctx.ui.notify("External editor command is empty", "error");
+    return false;
+  }
+
+  const exitCode = await new Promise<number | null>((resolvePromise) => {
+    const child = spawn(editor, [...commandParts, filePath], {
+      stdio: "inherit",
+      shell: process.platform === "win32",
+    });
+    child.on("error", () => resolvePromise(null));
+    child.on("close", (code) => resolvePromise(code));
+  });
+
+  if (exitCode === 0) return true;
+  ctx.ui.notify(`Failed to open ${filePath}. Set externalEditor, VISUAL, or EDITOR.`, "error");
+  return false;
 }
 
 export function normalizeText(value: unknown): string {

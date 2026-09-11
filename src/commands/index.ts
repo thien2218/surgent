@@ -67,7 +67,7 @@ export default function (pi: ExtensionAPI) {
           return;
         }
 
-        await runSubsessionLoop(pi, ctx, subsession, { agent, submitText });
+        await runSubsessionLoop(pi, ctx, subsession, { name, agent, submitText });
       },
     });
   });

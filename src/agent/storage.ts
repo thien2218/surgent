@@ -118,7 +118,7 @@ async function appendToolDetails(
     if (activeTools.includes(name) && lines[name]) appendContent.push(lines[name]);
   }
   if (appendContent.length > 0) {
-    await writeFile(getPiPath("appendSystem", cwd), `\n${appendContent.join("\n")}`, "utf8");
+    await writeFile(getPiPath("appendSystem", cwd), `${appendContent.join("\n")}\n`, "utf8");
   }
 }
 

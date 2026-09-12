@@ -15,7 +15,6 @@ const PI_PATHS = {
   subsessions: "subsessions.json",
   subsessionsDir: "subsessions",
   plans: "plans",
-  reviews: "reviews",
   grammars: "grammars",
   system: "SYSTEM.md",
   appendSystem: "APPEND_SYSTEM.md",

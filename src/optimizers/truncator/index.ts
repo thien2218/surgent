@@ -1,17 +1,13 @@
 import { statSync } from "node:fs";
-import { isBashToolResult, isGrepToolResult } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { rewriteTailWithSummaries } from "./helpers.js";
-import { extractBashSummary, extractGrepSummary } from "./extractors.js";
-import type { SummaryStore } from "./types.js";
+import { rewriteTailWithSummaries, extractBashSummary, extractGrepSummary } from "./helpers.js";
 
 export default function (pi: ExtensionAPI) {
-  const store: SummaryStore = { active: new Map(), pending: new Map() };
+  const store = new Map<string, string>();
   const pendingWrites = new Map<string, string>();
   let writeStartOffset = 0;
 
   pi.on("agent_start", async (_event, ctx) => {
-    store.pending.clear();
     if (pendingWrites.size > 0) return;
 
     const sessionFile = ctx.sessionManager.getSessionFile();
@@ -27,40 +23,22 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
-  pi.on("tool_result", async (event) => {
-    if (isGrepToolResult(event)) {
-      const summary = extractGrepSummary(event);
-      if (summary) {
-        store.pending.set(event.toolCallId, summary);
-      }
-    } else if (isBashToolResult(event)) {
-      const summary = extractBashSummary(event);
-      if (summary) {
-        store.pending.set(event.toolCallId, summary);
-      }
-    }
-  });
-
   pi.on("agent_end", async (event) => {
-    const completedRunSummaries = new Map<string, string>();
+    for (const message of event.messages) {
+      if (message.role !== "toolResult") continue;
+      const text = message.content.find((content) => content.type === "text")?.text;
+      if (text === undefined) continue;
 
-    try {
-      for (const message of event.messages) {
-        if (
-          message.role === "toolResult" &&
-          (message.toolName === "grep" || message.toolName === "bash") &&
-          store.pending.has(message.toolCallId)
-        ) {
-          completedRunSummaries.set(message.toolCallId, store.pending.get(message.toolCallId)!);
-        }
+      let summary: string | null = null;
+      if (message.toolName === "grep") {
+        summary = extractGrepSummary(text);
+      } else if (message.toolName === "bash") {
+        summary = extractBashSummary(text, message.details);
       }
 
-      for (const [toolCallId, summaryText] of completedRunSummaries) {
-        store.active.set(toolCallId, summaryText);
-        pendingWrites.set(toolCallId, summaryText);
-      }
-    } finally {
-      store.pending.clear();
+      if (!summary) continue;
+      store.set(message.toolCallId, summary);
+      pendingWrites.set(message.toolCallId, summary);
     }
   });
 
@@ -77,7 +55,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("context", async (event) => {
-    if (store.active.size === 0) return;
+    if (store.size === 0) return;
 
     let changed = false;
     for (const message of event.messages) {
@@ -87,7 +65,8 @@ export default function (pi: ExtensionAPI) {
       ) {
         continue;
       }
-      const summaryText = store.active.get(message.toolCallId);
+
+      const summaryText = store.get(message.toolCallId);
       if (!summaryText) continue;
 
       message.content = [{ type: "text", text: summaryText }];

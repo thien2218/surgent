@@ -12,7 +12,7 @@ import { loadMainAgent } from "../agent/storage.js";
 import type { PermissionCheck, PromptDecision } from "./types.js";
 import PermissionPrompt from "./components/prompt.js";
 import { getPermissionCheck, cycleMode } from "./helpers.js";
-import type { AgentMeta, AgentMode } from "../agent/types.js";
+import type { Agent, AgentMeta, AgentMode } from "../agent/types.js";
 
 async function askForPermission(pi: ExtensionAPI, ctx: ExtensionContext, check: PermissionCheck) {
   const decision = await ctx.ui.custom<PromptDecision>((_tui, theme, _keybindings, done) => {
@@ -68,7 +68,7 @@ export async function enforceToolPermission(
 }
 
 export default function (pi: ExtensionAPI) {
-  let meta: AgentMeta;
+  let agent: Agent;
   let mode: AgentMode;
   let updateStatus: (() => void) | undefined;
 
@@ -107,13 +107,20 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
-    [meta, mode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode(ctx.cwd)]);
+    [agent, mode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode(ctx.cwd)]);
+    ctx.ui.setStatus("agent", ctx.ui.theme.fg("dim", `agent: ${agent.name}`));
+
     if (updateStatus) {
       process.stdout.off("resize", updateStatus);
     }
     updateStatus = () => updateAgentMode(ctx);
     updateStatus();
     process.stdout.on("resize", updateStatus);
+  });
+
+  pi.on("before_agent_start", (event) => {
+    const appended = event.systemPromptOptions.appendSystemPrompt;
+    return { systemPrompt: appended ? `${agent.body}\n\n${appended}` : agent.body };
   });
 
   pi.on("session_shutdown", async (_event, _ctx) => {
@@ -123,6 +130,6 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("tool_call", async (event, ctx) =>
-    enforceToolPermission(pi, event, ctx, meta, ctx.sessionManager.getSessionId(), mode),
+    enforceToolPermission(pi, event, ctx, agent.meta, ctx.sessionManager.getSessionId(), mode),
   );
 }

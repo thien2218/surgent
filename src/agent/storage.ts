@@ -236,7 +236,6 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
     .getEntries()
     .find((entry) => entry.type === "custom" && entry.customType === "agent");
   const name = selected?.type === "custom" ? (selected.data as string) : DEFAULT_AGENT;
-  ctx.ui.setStatus("agent", ctx.ui.theme.fg("dim", `agent: ${name}`));
 
   const allMcpConfigs = await loadMcpConfigSet(ctx.cwd);
   const agents = await loadAgents(ctx.cwd);
@@ -245,7 +244,7 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
     throw new Error("Invalid agent name.");
   }
 
-  const { meta, body } = main;
+  const { meta } = main;
   const mcpConfigs = allMcpConfigs.filter(
     (cfg) =>
       cfg.enabled === true &&
@@ -283,7 +282,5 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
       .join("\n"),
     subagent: `## Available agents for \`subagent\` tool\n${agents.map((profile) => `- ${profile.name}: ${profile.meta.description}`).join("\n")}`,
   });
-  await writeFile(getPiPath("system"), body, "utf8");
-
-  return meta;
+  return main;
 }

@@ -17,7 +17,6 @@ const PI_PATHS = {
   plans: "plans",
   grammars: "grammars",
   system: "SYSTEM.md",
-  appendSystem: "APPEND_SYSTEM.md",
 } as const;
 
 type PathKey = keyof typeof PI_PATHS;

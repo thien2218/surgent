@@ -108,17 +108,19 @@ async function getAgentFiles(cwd: string, name?: string, skipBuiltIn?: boolean):
   return files;
 }
 
-async function appendToolDetails(
-  cwd: string,
-  activeTools: string[],
-  lines: Record<string, string>,
-) {
+async function appendToolDetails(activeTools: string[], lines: Record<string, string>) {
   const appendContent: string[] = [];
-  for (const name of ["mcp", "subagent"]) {
-    if (activeTools.includes(name) && lines[name]) appendContent.push(lines[name]);
+  if (
+    (activeTools.includes("call_mcp_tool") || activeTools.includes("list_mcp_tools")) &&
+    lines.mcp
+  ) {
+    appendContent.push(lines.mcp);
+  }
+  if (activeTools.includes("subagent") && lines.subagent) {
+    appendContent.push(lines.subagent);
   }
   if (appendContent.length > 0) {
-    await writeFile(getPiPath("appendSystem", cwd), `${appendContent.join("\n")}\n`, "utf8");
+    await writeFile(getPiPath("system"), `${appendContent.join("\n")}\n`, "utf8");
   }
 }
 
@@ -276,10 +278,10 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
     pi.setThinkingLevel(meta.thinking_level);
   }
 
-  await appendToolDetails(ctx.cwd, pi.getActiveTools(), {
-    mcp: mcpConfigs
-      .map((cfg) => (cfg.description ? `- ${cfg.name} - ${cfg.description}` : `- ${cfg.name}`))
-      .join("\n"),
+  await appendToolDetails(pi.getActiveTools(), {
+    mcp: `## Available MCP servers\n${mcpConfigs
+      .map((cfg) => (cfg.description ? `- ${cfg.name}: ${cfg.description}` : `- ${cfg.name}`))
+      .join("\n")}`,
     subagent: `## Available agents for \`subagent\` tool\n${agents.map((profile) => `- ${profile.name}: ${profile.meta.description}`).join("\n")}`,
   });
   return main;

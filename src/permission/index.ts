@@ -118,10 +118,9 @@ export default function (pi: ExtensionAPI) {
     process.stdout.on("resize", updateStatus);
   });
 
-  pi.on("before_agent_start", (event) => {
-    const appended = event.systemPromptOptions.appendSystemPrompt;
-    return { systemPrompt: appended ? `${agent.body}\n\n${appended}` : agent.body };
-  });
+  pi.on("before_agent_start", (event) => ({
+    systemPrompt: `${agent.body}\n\n${event.systemPrompt}`,
+  }));
 
   pi.on("session_shutdown", async (_event, _ctx) => {
     if (updateStatus) {

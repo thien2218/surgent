@@ -67,13 +67,22 @@ const inspect = defineTool({
   },
   renderCall(args, theme) {
     return new Text(
-      `${theme.fg("toolTitle", "inspect")} path=${args.path} symbol=${args.symbol}`,
+      `${theme.fg("toolTitle", "inspect")} ${theme.underline(theme.fg("accent", args.path))} ${theme.fg("warning", args.symbol)}`,
       0,
       0,
     );
   },
-  renderResult() {
-    return new Text("", 0, 0);
+  renderResult(result, { expanded }, theme, context) {
+    if (!expanded && !context.isError) {
+      return new Text("", 0, 0);
+    }
+
+    const output = result.content[0];
+    return new Text(
+      `\n${output?.type === "text" ? theme.fg("toolOutput", output.text) : ""}`,
+      0,
+      0,
+    );
   },
 });
 

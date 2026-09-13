@@ -122,14 +122,14 @@ const codeMap = defineTool({
     const kinds = Array.isArray(args.kinds) ? args.kinds.join(", ") : "default";
 
     return new Text(
-      `${theme.fg("toolTitle", "code_map")} targets=[${targets}] kinds=[${kinds}]`,
+      `${theme.fg("toolTitle", "code_map")} ${theme.underline(theme.fg("accent", targets))} ${theme.fg("dim", `[${kinds}]`)}`, 
       0,
       0,
     );
   },
   renderResult(result, { isPartial, expanded }, theme) {
     if (isPartial) {
-      return new Text(theme.fg("warning", "Mapping..."), 0, 0);
+      return new Text(`\n${theme.fg("warning", "Mapping...")}`, 0, 0);
     }
 
     const text = result.details as string;
@@ -137,7 +137,7 @@ const codeMap = defineTool({
     const maxLines = expanded ? lines.length : 10;
 
     if (lines.length === 0) {
-      return new Text(theme.fg("dim", "No symbols found"), 0, 0);
+      return new Text(`\n${theme.fg("dim", "No symbols found")}`, 0, 0);
     }
 
     const visible = lines.slice(0, maxLines);
@@ -147,7 +147,7 @@ const codeMap = defineTool({
       );
     }
 
-    return new Text(visible.join("\n"), 0, 0);
+    return new Text(`\n${visible.join("\n")}`, 0, 0);
   },
 });
 

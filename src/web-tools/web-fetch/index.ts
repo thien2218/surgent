@@ -1,5 +1,4 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { formatErrorMessage, formatFetchResult, getValidatedUrl } from "./helpers.js";
 import {
@@ -12,6 +11,7 @@ import { WebToolsFactory } from "../providers/index.js";
 import type { WebFetchResponse } from "./types.js";
 import { WEB_FETCH_PROVIDERS } from "../settings.js";
 import { getApiKey } from "../web-login/helpers.js";
+import { renderCallText } from "../../utils.js";
 
 const webToolsFactory = new WebToolsFactory();
 
@@ -36,7 +36,6 @@ const webFetchTool = defineTool({
     const nativeFetch = { name: "native", label: "Native fetch" } as const;
 
     pruneExpiredCacheDirs(cacheDate);
-
     if (signal?.aborted) {
       throw new Error("web_fetch was cancelled.");
     }
@@ -56,9 +55,7 @@ const webFetchTool = defineTool({
       }
 
       const apiKey =
-        provider.name === "native"
-          ? undefined
-          : await getApiKey(ctx.modelRegistry, provider.name);
+        provider.name === "native" ? undefined : await getApiKey(ctx.modelRegistry, provider.name);
 
       if ((provider.name === "firecrawl" || provider.name === "tavily") && !apiKey) {
         attempts.push(`${provider.label}: not configured`);
@@ -67,7 +64,6 @@ const webFetchTool = defineTool({
 
       try {
         const response = await webToolsFactory.createWebFetcher(provider.name, apiKey).fetch(url);
-
         if (response.error === undefined) {
           await writeFetchedResult(url, response.content, cacheDate);
           return {
@@ -84,21 +80,11 @@ const webFetchTool = defineTool({
 
     throw new Error(`Web fetch failed.\n|- ${attempts.join("\n|- ")}`);
   },
-  renderCall(args, theme) {
-    return new Text(`${theme.fg("toolTitle", "web_fetch")} [${args.url}]`, 0, 0);
-  },
-  renderResult(result, { isPartial }, theme) {
-    if (isPartial) {
-      return new Text(theme.fg("warning", "Fetching content..."), 0, 0);
-    }
-
-    const details = result.details as WebFetchResponse | undefined;
-
-    if (!details?.url) {
-      return new Text(theme.fg("dim", "Fetched content"), 0, 0);
-    }
-
-    return new Text(`Fetched content from ${details.url}`, 0, 0);
+  renderCall(args, theme, { isPartial }) {
+    return renderCallText(
+      `${theme.fg("toolTitle", "web_fetch")} ${theme.underline(theme.fg("accent", args.url))}`,
+      isPartial,
+    );
   },
 });
 

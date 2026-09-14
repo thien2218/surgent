@@ -1,8 +1,8 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { resolveServerConfig } from "./storage.js";
 import { McpClientManager } from "./client.js";
+import { renderCallText } from "../utils.js";
 
 export function createMcpListToolsTool(clientManager: McpClientManager) {
   return defineTool({
@@ -41,7 +41,6 @@ export function createMcpListToolsTool(clientManager: McpClientManager) {
           sections.push(`### ${serverName}\nError: MCP server is disabled.`);
           continue;
         }
-
         if (signal?.aborted) {
           throw new Error("list_mcp_tools was cancelled.");
         }
@@ -65,32 +64,21 @@ export function createMcpListToolsTool(clientManager: McpClientManager) {
           const inputSchema = JSON.stringify(tool.inputSchema, null, 2);
           return `- **${tool.name}**${description}\nInput schema:\n\`\`\`json\n${inputSchema}\n\`\`\``;
         });
-
         sections.push(`### ${serverName}\n${lines.join("\n\n")}`);
       }
 
       return {
         content: [{ type: "text", text: sections.join("\n\n") }],
-        details: {
-          servers: params.servers,
-          filter: params.searchRegex ?? null,
-        },
+        details: { servers: params.servers, filter: params.searchRegex ?? null },
       };
     },
-    renderCall(args, theme) {
+    renderCall(args, theme, { isPartial }) {
       const serverList = Array.isArray(args.servers) ? args.servers.join(", ") : "";
-      const filterPart = args.searchRegex ? ` [/${args.searchRegex}/]` : "";
-      return new Text(
-        `${theme.fg("toolTitle", "list_mcp_tools")} [${serverList}]${filterPart}`,
-        0,
-        0,
+      const filterPart = args.searchRegex ? theme.fg("dim", `/${args.searchRegex}/`) : "";
+      return renderCallText(
+        `${theme.fg("toolTitle", "list_mcp_tools")} ${theme.fg("accent", serverList)} ${filterPart}`,
+        isPartial,
       );
-    },
-    renderResult(result, { isPartial }, theme) {
-      if (isPartial) {
-        return new Text(theme.fg("warning", "Listing MCP tools..."), 0, 0);
-      }
-      return new Text(theme.fg("dim", "MCP tools listed"), 0, 0);
     },
   });
 }

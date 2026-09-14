@@ -3,9 +3,9 @@ import {
   type ExtensionAPI,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
-import { askQuestions, summarizeAnswer } from "./helpers.js";
+import { askQuestions } from "./helpers.js";
 import { QuestionnaireParamsSchema, type Question, type QuestionnaireResult } from "./types.js";
+import { renderCallText } from "../utils.js";
 
 export function createQuestionnaireTool(parentContext?: ExtensionContext) {
   return defineTool({
@@ -52,35 +52,11 @@ export function createQuestionnaireTool(parentContext?: ExtensionContext) {
         details: result,
       };
     },
-    renderCall(args, theme) {
+    renderCall(args, theme, { isPartial }) {
       const questions = ((args.questions as Question[] | undefined) ?? []).filter(Boolean);
       const count = questions.length;
-      const preview = questions[0]?.prompt ?? "";
-      let text = theme.fg("toolTitle", theme.bold("questionnaire "));
-      text += theme.fg("muted", `${count} question${count === 1 ? "" : "s"}`);
-      if (preview) {
-        text += theme.fg("dim", ` (${preview.slice(0, 50)}${preview.length > 50 ? "..." : ""})`);
-      }
-      return new Text(text, 0, 0);
-    },
-    renderResult(result, { isPartial }, theme) {
-      if (isPartial) {
-        return new Text(theme.fg("warning", "Questionnaire in progress..."), 0, 0);
-      }
-
-      const details = result.details as QuestionnaireResult | undefined;
-      if (!details) {
-        const firstBlock = result.content[0];
-        return new Text(firstBlock?.type === "text" ? firstBlock.text : "", 0, 0);
-      }
-      if (details.cancelled) {
-        return new Text(theme.fg("warning", "Cancelled"), 0, 0);
-      }
-
-      const lines = details.answers.map(
-        (answer, index) => `${theme.fg("success", `${index + 1}.`)} ${summarizeAnswer(answer)}`,
-      );
-      return new Text(lines.join("\n"), 0, 0);
+      let text = `${theme.fg("toolTitle", "questionnaire")} ${theme.fg("muted", `${count} question${count === 1 ? "" : "s"}`)}`;
+      return renderCallText(text, isPartial);
     },
   });
 }

@@ -1,10 +1,10 @@
 import { defineTool, keyHint } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { resolveTargetPaths } from "./files.js";
 import { collectSymbols, SYMBOL_KINDS } from "../languages/index.js";
 import type { LanguageSymbol } from "../languages/index.js";
 import type { MapperResult } from "./types.js";
+import { renderCallText } from "../../utils.js";
 
 function collapseGroupedSymbols(symbols: LanguageSymbol[]) {
   let groupedSymbolKind: "deps" | "public" | undefined;
@@ -117,37 +117,14 @@ const codeMap = defineTool({
     const output = outputLines.join("\n");
     return { isError: false, details: output, content: [{ type: "text", text: output }] };
   },
-  renderCall(args, theme) {
+  renderCall(args, theme, { isPartial }) {
     const targets = Array.isArray(args.targets) ? args.targets.join(", ") : "";
     const kinds = Array.isArray(args.kinds) ? args.kinds.join(", ") : "default";
 
-    return new Text(
-      `${theme.fg("toolTitle", "code_map")} ${theme.underline(theme.fg("accent", targets))} ${theme.fg("dim", `[${kinds}]`)}`, 
-      0,
-      0,
+    return renderCallText(
+      `${theme.fg("toolTitle", "code_map")} ${theme.underline(theme.fg("accent", targets))} ${theme.fg("dim", `[${kinds}]`)}`,
+      isPartial,
     );
-  },
-  renderResult(result, { isPartial, expanded }, theme) {
-    if (isPartial) {
-      return new Text(`\n${theme.fg("warning", "Mapping...")}`, 0, 0);
-    }
-
-    const text = result.details as string;
-    const lines = text.split("\n");
-    const maxLines = expanded ? lines.length : 10;
-
-    if (lines.length === 0) {
-      return new Text(`\n${theme.fg("dim", "No symbols found")}`, 0, 0);
-    }
-
-    const visible = lines.slice(0, maxLines);
-    if (lines.length > maxLines) {
-      visible.push(
-        `... (${lines.length - maxLines} more lines, ${keyHint("app.tools.expand", "to expand")})`,
-      );
-    }
-
-    return new Text(`\n${visible.join("\n")}`, 0, 0);
   },
 });
 

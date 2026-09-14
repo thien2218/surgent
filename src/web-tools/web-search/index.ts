@@ -5,7 +5,8 @@ import { WEB_SEARCH_PROVIDERS } from "../settings.js";
 import { WebToolsFactory } from "../providers/index.js";
 import { formatErrorMessage } from "./helpers.js";
 import { getApiKey } from "../web-login/helpers.js";
-import type { WebSearchToolDetails } from "./types.js";
+import type { WebSearchResult } from "./types.js";
+import { renderCallText, renderResultText } from "../../utils.js";
 
 const webToolsFactory = new WebToolsFactory();
 
@@ -61,7 +62,7 @@ const webSearchTool = defineTool({
 
         return {
           content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
-          details: { results } satisfies WebSearchToolDetails,
+          details: { results } satisfies { results: WebSearchResult[] },
         };
       } catch (error) {
         attempts.push(`${provider.label}: ${formatErrorMessage(error)}`);
@@ -78,29 +79,19 @@ const webSearchTool = defineTool({
       `Web search failed across all configured providers.\n|- ${attempts.join("\n|- ")}`,
     );
   },
-  renderCall(args, theme) {
-    return new Text(`${theme.fg("toolTitle", "web_search")} ${args.query}`, 0, 0);
+  renderCall(args, theme, { isPartial }) {
+    return renderCallText(
+      `${theme.fg("toolTitle", "web_search")} ${theme.fg("accent", args.query)}`,
+      isPartial,
+    );
   },
-  renderResult(result, { isPartial }, theme) {
+  renderResult(result, { expanded, isPartial }, theme) {
     if (isPartial) {
       return new Text(theme.fg("warning", "Searching..."), 0, 0);
     }
-
-    const details = result.details as WebSearchToolDetails | undefined;
-    const urls = details?.results.map((item) => item.url) ?? [];
-
-    if (urls.length === 0) {
-      return new Text(theme.fg("dim", "No search results"), 0, 0);
-    }
-
-    const visibleUrls = urls.slice(0, 3);
-    let text = visibleUrls.join("\n");
-
-    if (urls.length > visibleUrls.length) {
-      text += `\n...and ${urls.length - visibleUrls.length} more results`;
-    }
-
-    return new Text(text, 0, 0);
+    const details = result.details as { results: WebSearchResult[] } | undefined;
+    const text = (details?.results.map((item) => item.url) ?? ["No search results"]).join("\n");
+    return renderResultText(text, theme, expanded);
   },
 });
 

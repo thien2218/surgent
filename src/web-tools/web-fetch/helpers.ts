@@ -18,11 +18,7 @@ export function toCanonicalUrl(value: string): string {
 
 export function isTextLikeContentType(contentType: string | null): boolean {
   const normalized = normalizeText(contentType).toLowerCase();
-
-  if (!normalized) {
-    return true;
-  }
-
+  if (!normalized) return true;
   return (
     normalized.startsWith("text/") ||
     normalized.includes("json") ||
@@ -34,32 +30,28 @@ export function isTextLikeContentType(contentType: string | null): boolean {
 
 export function formatFetchResult(result: WebFetchResponse, cacheDate: string): string {
   const filePath = getCacheFilePath(result.url, cacheDate);
-  return `Source: ${result.url}\nProvider: ${result.provider}\nPath: ${filePath}\n\n${parseWebFetchContent(result.content!)}`;
+  return `Provider: ${result.provider}\nOutput path: ${filePath}\nSections:\n${parseWebFetchContent(result.content!)}`;
 }
 
 export function formatErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
     return error.message;
   }
-
   return String(error);
 }
 
 export async function getHttpError(response: Response): Promise<string> {
   const responseText = await response.text();
   const body = responseText.trim();
-
   if (!body) {
     return `HTTP ${response.status}`;
   }
-
   return `HTTP ${response.status}: ${body}`;
 }
 
 export function getValidatedUrl(url: string): string {
   const value = url.trim();
   let parsed: URL;
-
   try {
     parsed = new URL(value);
   } catch {

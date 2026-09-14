@@ -8,10 +8,6 @@ export interface WebSearchResult {
   url: string;
 }
 
-export interface WebSearchToolDetails {
-  results: WebSearchResult[];
-}
-
 export interface WebSearchResultInput {
   title?: string;
   description?: string;

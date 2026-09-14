@@ -2,8 +2,15 @@ import { spawn } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { SettingsManager, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
+import {
+  keyHint,
+  SettingsManager,
+  Theme,
+  truncateToVisualLines,
+  type ExtensionCommandContext,
+} from "@earendil-works/pi-coding-agent";
+import { Spacer, Text } from "@earendil-works/pi-tui";
+import { Container } from "@earendil-works/pi-tui";
 
 const PI_PATHS = {
   web: "web-results",
@@ -168,4 +175,32 @@ export function isMissingFileError(error: any) {
 export function isUuidv7(input: string): boolean {
   const pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   return pattern.test(input);
+}
+
+export function renderCallText(text: string, isPartial: boolean) {
+  const container = new Container();
+  container.addChild(new Text(text, 0, 0));
+  if (!isPartial) {
+    container.addChild(new Spacer(1));
+  }
+  return container;
+}
+
+export function renderResultText(text: string, theme: Theme, expanded: boolean) {
+  if (expanded) {
+    return new Text(theme.fg("toolOutput", text), 0, 0);
+  }
+  return {
+    render(width: number) {
+      const result = truncateToVisualLines(text, 10, width);
+      const lines = result.visualLines.map((line) => theme.fg("toolOutput", line));
+      if (result.skippedCount > 0) {
+        lines.push(
+          `${theme.fg("toolOutput", `... (${result.skippedCount} more lines,`)} ${keyHint("app.tools.expand", "to expand")}${theme.fg("toolOutput", ")")}`,
+        );
+      }
+      return lines;
+    },
+    invalidate() {},
+  };
 }

@@ -31,5 +31,4 @@ export interface McpToolCallDetails {
   server: string;
   transport: McpTransport;
   remoteTool: string;
-  isError?: boolean;
 }

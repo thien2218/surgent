@@ -1,9 +1,9 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { resolveServerConfig } from "./storage.js";
 import { McpClientManager } from "./client.js";
 import type { McpToolCallDetails } from "./types.js";
+import { renderCallText } from "../utils.js";
 
 export function createMcpCallTool(clientManager: McpClientManager) {
   return defineTool({
@@ -60,7 +60,6 @@ export function createMcpCallTool(clientManager: McpClientManager) {
         name: toolName,
         arguments: (params.arguments ?? {}) as Record<string, unknown>,
       });
-
       const text = formatCallToolResult(result);
 
       return {
@@ -69,35 +68,14 @@ export function createMcpCallTool(clientManager: McpClientManager) {
           server: serverConfig.name,
           transport: serverConfig.transport,
           remoteTool: toolName,
-          ...(result.isError ? { isError: true } : {}),
         } satisfies McpToolCallDetails,
+        isError: result.isError === true,
       };
     },
-    renderCall(args, theme) {
-      return new Text(
-        `${theme.fg("toolTitle", "call_mcp_tool")} [${args.server}:${args.tool}]`,
-        0,
-        0,
-      );
-    },
-    renderResult(result, { isPartial }, theme) {
-      if (isPartial) {
-        return new Text(theme.fg("warning", "Calling MCP tool..."), 0, 0);
-      }
-
-      const details = result.details as McpToolCallDetails | undefined;
-      if (!details) {
-        return new Text(theme.fg("dim", "MCP tool completed"), 0, 0);
-      }
-
-      const tone = details.isError ? "error" : "success";
-      return new Text(
-        theme.fg(
-          tone,
-          `${details.server}:${details.remoteTool} via ${details.transport}${details.isError ? " (remote error)" : ""}`,
-        ),
-        0,
-        0,
+    renderCall(args, theme, { isPartial }) {
+      return renderCallText(
+        `${theme.fg("toolTitle", "call_mcp_tool")} ${theme.fg("accent", `${args.server}:${args.tool}`)}`,
+        isPartial,
       );
     },
   });

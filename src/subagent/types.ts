@@ -19,37 +19,12 @@ export interface SubsessionSnapshot {
   contextUsage?: ContextUsage;
 }
 
-export interface ScoutSelector {
-  toolName: "code_map" | "inspect" | "read";
-  input: Record<string, unknown>;
-}
-
-export interface ScoutResourceEvidence {
-  toolName: "inspect" | "read";
-  resource: string;
-  range: [number, number];
-}
-
-export type ScoutEvidenceResult =
-  | { error: string; output?: undefined; evidence?: undefined }
-  | { error?: undefined; output: string; evidence: ScoutResourceEvidence[] };
-
-export interface EvidenceCall {
-  id: string;
-  toolName: "code_map" | "inspect" | "read";
-  input: Record<string, unknown>;
-  order: number;
-  output?: string;
-  result?: unknown;
-}
-
 export interface SubsessionResult {
   id?: string;
   status: SubsessionStatus;
   output: string;
   usage: SubsessionUsage;
   toolCounts: Record<string, number>;
-  evidence?: ScoutResourceEvidence[];
 }
 
 export interface RuntimeConfig {

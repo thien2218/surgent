@@ -11,7 +11,6 @@ import {
   formatToolUse,
   getLastAssistantOutput,
 } from "./helpers.js";
-import { resolveScoutEvidence } from "./evidence.js";
 import { validateBuiltInOutput } from "./validation.js";
 import {
   findSubsession,
@@ -194,17 +193,11 @@ async function createSubsession(params: CreateSubsessionParams): Promise<Subsess
           break;
         }
 
-        validationError = validateBuiltInOutput(subsession.runtime.agent, subsession.result.output);
-        if (subsession.runtime.agent === "scout") {
-          const resolved = resolveScoutEvidence(session, subsession.result.output, cwd);
-          validationError = resolved.error;
-
-          if (typeof resolved.error === "undefined") {
-            subsession.result.output = resolved.output;
-            subsession.result.evidence = resolved.evidence;
-          }
-        }
-
+        validationError = validateBuiltInOutput(
+          subsession.runtime.agent,
+          subsession.result.output,
+          input,
+        );
         if (!validationError) break;
       }
 

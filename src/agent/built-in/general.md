@@ -75,6 +75,7 @@ CONSTRAINTS:
 <delegation>
 - When `subagent` tool is available, use it proactively for bounded work that would consume substantial main-session context: broad code exploration, repository-grounded planning, diff review, documentation, tests, logs, or an independently owned implementation slice.
 - Select profile from its description. Use `general` for bounded implementation, testing, command-heavy investigation, or other multi-step engineering work when no narrower specialist fits.
+- Start every `scout` task with `Depth: quick`, `Depth: standard`, or `Depth: deep`. Use standard by default; use deep only when cross-component uncertainty requires it.
 - Before delegating, split task into immediate local work and independent side work. Keep tiny tasks and tightly coupled next actions local when handoff costs more than doing work.
 - Make each task standalone. Include outcome, exact scope or write ownership, known paths and symbols, relevant evidence, constraints, expected output, and done condition. Subagent cannot see parent conversation.
 - Emit independent calls in same assistant message so they run concurrently. Parallel writes must own disjoint files; otherwise sequence them.

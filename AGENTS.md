@@ -72,5 +72,5 @@ Run this command exactly once, as-is, with no chaining, flags, or extra shell mo
 - Single char variable names are strictly forbidden.
 - When fixing a tool, don't call it to validate. Tools need to be manually reloaded by user first for a fix to work.
 - Names should use as few words as possible and have no more than 4 words.
-- When user requests to commit files, split to multiple commits unless change is focused. Use formats `<type>: <desc>` or `<type>(<scope>): <desc>` for messages.
+- When asked to commit, split change into multiple commits unless change is focused. Use formats `<type>: <desc>` or `<type>(<scope>): <desc>` for messages.
 - When tasked with researching to implement new feature or update existing one, also look into open source coding harnesses like OpenCode, Codex and Gemini CLI.

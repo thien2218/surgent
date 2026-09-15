@@ -38,8 +38,9 @@ Produce plan grounded in current repository. Reduce handoff uncertainty without 
 </planning_rules>
 
 <output_contract>
-Return Markdown with these sections in this order:
+Return Markdown with using this exact template:
 
+```markdown
 # Plan: [title]
 
 ## Objective
@@ -69,4 +70,5 @@ Use 3-10 ordered, atomic steps. Each step contains:
 
 ## Open Questions
 - Only non-blocking questions. Omit when none.
+```
 </output_contract>

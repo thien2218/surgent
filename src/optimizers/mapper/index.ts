@@ -1,4 +1,4 @@
-import { defineTool, keyHint } from "@earendil-works/pi-coding-agent";
+import { defineTool, keyHint, truncateHead } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { resolveTargetPaths } from "./files.js";
 import { collectSymbols, SYMBOL_KINDS } from "../languages/index.js";
@@ -114,7 +114,10 @@ const codeMap = defineTool({
       outputLines.push("(no symbols found) targets matched no supported files or symbols");
     }
 
-    const output = outputLines.join("\n");
+    const truncation = truncateHead(outputLines.join("\n"));
+    const output = truncation.truncated
+      ? `${truncation.content}\n\n[Output truncated at 2000 lines or 50KB. Narrow targets or kinds.]`
+      : truncation.content;
     return { isError: false, details: output, content: [{ type: "text", text: output }] };
   },
   renderCall(args, theme, { isPartial }) {

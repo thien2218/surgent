@@ -6,21 +6,6 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import type { BashToolDetails } from "@earendil-works/pi-coding-agent";
-
-export function extractBashSummary(text: string, details?: BashToolDetails): string {
-  const truncation = details?.truncation;
-
-  if (truncation?.truncated) {
-    const startLine = truncation.totalLines - truncation.outputLines + 1;
-    const endLine = truncation.totalLines;
-    const partialLastLine = truncation.lastLinePartial === true ? "true" : "false";
-    return `Bash output=tail:L${startLine}-L${endLine}/L${truncation.totalLines} | partialLastLine=${partialLastLine}`;
-  }
-
-  const outputState = !text.trim() || text.trim() === "(no output)" ? "none" : "present";
-  return `Bash output=${outputState}`;
-}
 
 export function extractGrepSummary(contentText: string): string | null {
   if (contentText === "No matches found") return null;
@@ -116,4 +101,32 @@ export function rewriteTailWithSummaries(
       unlinkSync(tempFile);
     }
   }
+}
+
+export function formatGrepResult(content: string): string {
+  const formattedLines: string[] = [];
+  let currentFilePath: string | undefined;
+  let changed = false;
+
+  for (const line of content.split("\n")) {
+    const matchLine = line.match(/^(.+?):(\d+): (.*)$/);
+    const contextLine = matchLine ? null : line.match(/^(.+?)-(\d+)- (.*)$/);
+    const filePath = matchLine?.[1] ?? contextLine?.[1];
+    const lineNumber = matchLine?.[2] ?? contextLine?.[2];
+    const lineText = matchLine?.[3] ?? contextLine?.[3];
+
+    if (!filePath || !lineNumber || lineText === undefined) {
+      formattedLines.push(line);
+      continue;
+    }
+
+    if (filePath !== currentFilePath) {
+      formattedLines.push(filePath);
+      currentFilePath = filePath;
+    }
+    formattedLines.push(`${lineNumber}${matchLine ? ":" : "-"} ${lineText}`);
+    changed = true;
+  }
+
+  return changed ? formattedLines.join("\n") : content;
 }

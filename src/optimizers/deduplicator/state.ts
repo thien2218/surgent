@@ -1,6 +1,5 @@
 import {
   getBranchEntries,
-  getDetails,
   getEntryId,
   getLastEntryId,
   getMessage,
@@ -49,52 +48,17 @@ function collectResourceResults(
     }
 
     const input = inputsByCallId.get(message.toolCallId);
-    if (!input) continue;
-    if (message.toolName === "read" || message.toolName === "inspect") {
-      const coverage = getResourceCoverage(message.toolName, input, message, cwd);
-      if (!coverage) continue;
-      results.push({
-        entryId,
-        range: coverage.range,
-        resource: coverage.resource,
-        toolCallId: message.toolCallId,
-        prunable: true,
-      });
-      continue;
-    }
+    if (!input || (message.toolName !== "read" && message.toolName !== "inspect")) continue;
 
-    if (message.toolName !== "subagent" || input.agent !== "scout") continue;
-    const evidence = getDetails(message)?.evidence;
-    if (!Array.isArray(evidence)) continue;
-
-    for (const item of evidence) {
-      if (!isRecord(item) || (item.toolName !== "read" && item.toolName !== "inspect")) {
-        continue;
-      }
-      if (typeof item.resource !== "string" || item.resource.length === 0) continue;
-      if (!Array.isArray(item.range) || item.range.length !== 2) continue;
-
-      const start = item.range[0];
-      const end = item.range[1];
-      if (
-        typeof start !== "number" ||
-        typeof end !== "number" ||
-        !Number.isInteger(start) ||
-        !Number.isInteger(end) ||
-        start < 1 ||
-        end < start
-      ) {
-        continue;
-      }
-
-      results.push({
-        entryId,
-        range: [start, end],
-        resource: item.resource,
-        toolCallId: message.toolCallId,
-        prunable: false,
-      });
-    }
+    const coverage = getResourceCoverage(message.toolName, input, message, cwd);
+    if (!coverage) continue;
+    results.push({
+      entryId,
+      range: coverage.range,
+      resource: coverage.resource,
+      toolCallId: message.toolCallId,
+      prunable: true,
+    });
   }
   return results;
 }

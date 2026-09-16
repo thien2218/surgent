@@ -1,0 +1,63 @@
+name: Bug report
+description: Report reproducible incorrect behavior in surgent
+title: "[Bug]: "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve surgent.
+
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Current behavior
+      description: What happened? Include the affected command, tool, or TUI flow.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest sequence that reproduces the problem.
+      placeholder: |
+        1. Start surgent with ...
+        2. Run ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened instead?
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include surgent version or commit, OS, terminal, Node.js version, and package manager.
+      placeholder: "surgent commit ..., Ubuntu 24.04, Node.js 22, pnpm 10"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: Paste only relevant logs or screenshots. Remove API keys, tokens, and other secrets first.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: I agree to follow the project's Code of Conduct.
+          required: true

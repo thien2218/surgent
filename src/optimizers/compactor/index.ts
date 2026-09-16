@@ -9,10 +9,9 @@ import { rewriteTailWithSummaries, extractGrepSummary, formatGrepResult } from "
 import Type from "typebox";
 
 export default function (pi: ExtensionAPI) {
-  const bashTool = createBashToolDefinition(process.cwd());
-  const store = new Map<string, { summary: string; state: "pending" | "active" }>();
-  const pendingWrites = new Map<string, string>();
   let writeStartOffset = 0;
+  const bashTool = createBashToolDefinition(process.cwd());
+  const store = new Map<string, string>();
 
   pi.registerTool({
     ...bashTool,
@@ -68,33 +67,27 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
-  pi.on("turn_end", async (event) => {
-    for (const [toolCallId, compaction] of store) {
-      if (compaction.state !== "pending") continue;
-      store.set(toolCallId, { ...compaction, state: "active" });
-      pendingWrites.set(toolCallId, compaction.summary);
-    }
-
-    for (const message of event.toolResults) {
-      if (message.toolName !== "grep") continue;
+  pi.on("agent_end", async (event) => {
+    for (const message of event.messages) {
+      if (message.role !== "toolResult" || message.toolName !== "grep") continue;
       const text = message.content.find((content) => content.type === "text")?.text;
       if (text === undefined) continue;
 
       const summary = extractGrepSummary(text);
       if (!summary) continue;
-      store.set(message.toolCallId, { summary, state: "pending" });
+      store.set(message.toolCallId, summary);
     }
   });
 
   pi.on("session_shutdown", (event, ctx) => {
-    if (pendingWrites.size === 0) return;
+    if (store.size === 0) return;
 
     const sessionFile = ctx.sessionManager.getSessionFile();
     if (sessionFile) {
-      rewriteTailWithSummaries(sessionFile, writeStartOffset, pendingWrites);
+      rewriteTailWithSummaries(sessionFile, writeStartOffset, store);
     }
     if (event.targetSessionFile && event.targetSessionFile !== sessionFile) {
-      rewriteTailWithSummaries(event.targetSessionFile, writeStartOffset, pendingWrites);
+      rewriteTailWithSummaries(event.targetSessionFile, writeStartOffset, store);
     }
   });
 
@@ -105,10 +98,10 @@ export default function (pi: ExtensionAPI) {
     for (const message of event.messages) {
       if (message.role !== "toolResult" || message.toolName !== "grep") continue;
 
-      const compaction = store.get(message.toolCallId);
-      if (compaction?.state !== "active") continue;
+      const summary = store.get(message.toolCallId);
+      if (summary === undefined) continue;
 
-      message.content = [{ type: "text", text: compaction.summary }];
+      message.content = [{ type: "text", text: summary }];
       changed = true;
     }
 
@@ -119,12 +112,16 @@ export default function (pi: ExtensionAPI) {
   pi.on("tool_result", async (event) => {
     if (!isGrepToolResult(event) || event.isError) return;
 
+    let changed = false;
     const content = event.content.map((item) => {
       if (item.type !== "text") return item;
       const text = formatGrepResult(item.text);
-      return text === item.text ? item : { ...item, text };
+      if (text === item.text) {
+        changed = true;
+        return item;
+      }
+      return { ...item, text };
     });
-    const changed = content.some((item, index) => item !== event.content[index]);
 
     if (changed) return { content };
   });

@@ -10,7 +10,7 @@ import Type from "typebox";
 
 export default function (pi: ExtensionAPI) {
   const bashTool = createBashToolDefinition(process.cwd());
-  const store = new Map<string, string>();
+  const store = new Map<string, { summary: string; state: "pending" | "active" }>();
   const pendingWrites = new Map<string, string>();
   let writeStartOffset = 0;
 
@@ -52,7 +52,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("agent_start", async (_event, ctx) => {
-    if (pendingWrites.size > 0) return;
+    if (store.size > 0) return;
 
     const sessionFile = ctx.sessionManager.getSessionFile();
     if (!sessionFile) {
@@ -67,16 +67,21 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
-  pi.on("agent_end", async (event) => {
-    for (const message of event.messages) {
-      if (message.role !== "toolResult" || message.toolName !== "grep") continue;
+  pi.on("turn_end", async (event) => {
+    for (const [toolCallId, compaction] of store) {
+      if (compaction.state !== "pending") continue;
+      store.set(toolCallId, { ...compaction, state: "active" });
+      pendingWrites.set(toolCallId, compaction.summary);
+    }
+
+    for (const message of event.toolResults) {
+      if (message.toolName !== "grep") continue;
       const text = message.content.find((content) => content.type === "text")?.text;
       if (text === undefined) continue;
 
       const summary = extractGrepSummary(text);
       if (!summary) continue;
-      store.set(message.toolCallId, summary);
-      pendingWrites.set(message.toolCallId, summary);
+      store.set(message.toolCallId, { summary, state: "pending" });
     }
   });
 
@@ -99,10 +104,10 @@ export default function (pi: ExtensionAPI) {
     for (const message of event.messages) {
       if (message.role !== "toolResult" || message.toolName !== "grep") continue;
 
-      const summaryText = store.get(message.toolCallId);
-      if (!summaryText) continue;
+      const compaction = store.get(message.toolCallId);
+      if (compaction?.state !== "active") continue;
 
-      message.content = [{ type: "text", text: summaryText }];
+      message.content = [{ type: "text", text: compaction.summary }];
       changed = true;
     }
 

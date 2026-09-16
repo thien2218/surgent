@@ -1,8 +1,7 @@
 import { stripVTControlCharacters } from "node:util";
-import {
-  createLocalBashOperations,
-  type BashOperations,
-} from "@earendil-works/pi-coding-agent";
+import { createLocalBashOperations, type BashOperations } from "@earendil-works/pi-coding-agent";
+
+const localBash = createLocalBashOperations();
 
 export class BashResultCompactor {
   private readonly decoder = new TextDecoder();
@@ -34,7 +33,10 @@ export class BashResultCompactor {
   private process(text: string) {
     for (const character of text) {
       if (character === "\r") {
-        if (this.carriageLine === undefined || stripVTControlCharacters(this.currentLine).length > 0) {
+        if (
+          this.carriageLine === undefined ||
+          stripVTControlCharacters(this.currentLine).length > 0
+        ) {
           this.carriageLine = this.currentLine;
         }
         this.currentLine = "";
@@ -76,11 +78,8 @@ export class BashResultCompactor {
   }
 }
 
-const localBash = createLocalBashOperations();
-
 export function createCompactingBashOperations(filter?: string): BashOperations {
   const lineFilter = filter === undefined ? undefined : new RegExp(filter);
-
   return {
     async exec(command, cwd, options) {
       const compactor = new BashResultCompactor(options.onData, lineFilter);

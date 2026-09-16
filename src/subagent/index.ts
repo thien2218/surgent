@@ -1,5 +1,5 @@
 import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
+import { Container, Text, TruncatedText } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { openSubsession } from "./subsession.js";
 import { formatSnapshotText } from "./helpers.js";
@@ -69,7 +69,13 @@ export default function (pi: ExtensionAPI) {
         theme.bold(`${context.args.agent}: ${snapshot.status}`),
         ...formatSnapshotText(snapshot).map((line) => `  ${line}`),
       ];
-      return new Text(theme.fg("toolOutput", lines.join("\n")), 0, 0);
+
+      const output = new Container();
+      for (const line of lines) {
+        output.addChild(new TruncatedText(theme.fg("toolOutput", line), 1, 0));
+      }
+
+      return output;
     },
   });
 }

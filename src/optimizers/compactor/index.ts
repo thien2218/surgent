@@ -4,7 +4,8 @@ import {
   isGrepToolResult,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
-import { rewriteTailWithSummaries, extractGrepSummary, formatGrepResult } from "./helpers.js";
+import { createCompactingBashOperations } from "./bash.js";
+import { rewriteTailWithSummaries, extractGrepSummary, formatGrepResult } from "./grep.js";
 import Type from "typebox";
 
 export default function (pi: ExtensionAPI) {
@@ -15,6 +16,8 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerTool({
     ...bashTool,
+    description:
+      "Execute a bash command in the current working directory. Strips ANSI escapes, collapses carriage-return updates, removes consecutive duplicate lines, then optionally filters lines with a JavaScript regex before truncating to the last 2000 lines or 50KB. Saved full output is compacted.",
     parameters: Type.Object({
       command: Type.String({ description: "Bash command to execute" }),
       purpose: Type.String({
@@ -23,13 +26,22 @@ export default function (pi: ExtensionAPI) {
         maxLength: 256,
         pattern: "\\S",
       }),
+      filter: Type.Optional(
+        Type.String({
+          description: "Focused JavaScript regex that retains matching output lines",
+          minLength: 1,
+        }),
+      ),
       timeout: Type.Optional(
         Type.Number({ description: "Timeout in seconds (optional, no default timeout)" }),
       ),
     }),
     prepareArguments: undefined,
     execute(toolCallId, params, signal, onUpdate, ctx) {
-      return bashTool.execute(
+      const compactingBashTool = createBashToolDefinition(process.cwd(), {
+        operations: createCompactingBashOperations(params.filter),
+      });
+      return compactingBashTool.execute(
         toolCallId,
         { command: params.command, timeout: params.timeout },
         signal,

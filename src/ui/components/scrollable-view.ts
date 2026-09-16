@@ -133,8 +133,8 @@ export class ScrollableView extends Frame implements Focusable {
 
   private scrollBy(data: "up" | "down" | "pageUp" | "pageDown") {
     let amount: number;
-    if (data === "up") amount = -1;
-    else if (data === "down") amount = 1;
+    if (data === "up") amount = -2;
+    else if (data === "down") amount = 2;
     else if (data === "pageUp") amount = -Math.max(1, this.lastViewportHeight - 1);
     else amount = Math.max(1, this.lastViewportHeight - 1);
 

@@ -29,7 +29,6 @@ export default class Questionnaire extends Frame implements Focusable {
   private readonly editors: Editor[] = [];
 
   private tab = 0;
-  private statusMessage: string | undefined;
   private _focused = false;
 
   constructor(
@@ -44,7 +43,6 @@ export default class Questionnaire extends Frame implements Focusable {
       editor.onChange = () => {
         const draft = this.drafts[index]!;
         draft.text = editor.getText();
-        this.statusMessage = undefined;
       };
       this.editors.push(editor);
     });
@@ -202,7 +200,6 @@ export default class Questionnaire extends Frame implements Focusable {
 
   private moveQuestion(delta: number) {
     this.tab = Math.max(0, Math.min(this.questions.length, this.tab + delta));
-    this.statusMessage = undefined;
     this.syncInteractionState();
   }
 
@@ -210,7 +207,6 @@ export default class Questionnaire extends Frame implements Focusable {
     const draft = this.drafts[this.tab]!;
     if (draft.editing === editing) return;
     draft.editing = editing;
-    this.statusMessage = undefined;
     this.syncInteractionState();
   }
 
@@ -245,7 +241,6 @@ export default class Questionnaire extends Frame implements Focusable {
 
     const result = toggleSuggestion(question, draft, draft.cursor);
     this.drafts[this.tab] = { ...draft, selectedIndexes: result.selectedIndexes };
-    this.statusMessage = result.message;
   }
 
   private handleEnterKey() {
@@ -286,10 +281,8 @@ export default class Questionnaire extends Frame implements Focusable {
 
     const message = getValidationMessage(question, draft);
     if (message) {
-      this.statusMessage = message;
       return;
     }
-    this.statusMessage = undefined;
     this.tab += 1;
     this.syncInteractionState();
   }

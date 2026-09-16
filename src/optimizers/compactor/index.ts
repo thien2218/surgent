@@ -28,7 +28,8 @@ export default function (pi: ExtensionAPI) {
       }),
       filter: Type.Optional(
         Type.String({
-          description: "Focused JavaScript regex that retains matching output lines",
+          description:
+            "Focused JavaScript regex that retains matching output lines. Use this if command is expected to have long output to save context",
           minLength: 1,
         }),
       ),

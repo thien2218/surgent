@@ -1,4 +1,4 @@
-import { defineTool, keyHint, truncateHead } from "@earendil-works/pi-coding-agent";
+import { defineTool, truncateHead } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { resolveTargetPaths } from "./files.js";
 import { collectSymbols, SYMBOL_KINDS } from "../languages/index.js";
@@ -47,7 +47,6 @@ const codeMap = defineTool({
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
     const kinds = new Set(params.kinds ?? SYMBOL_KINDS);
     const result: MapperResult = { symbols: [], failed: [] };
-
     let paths: string[] = [];
     try {
       paths = await resolveTargetPaths(ctx.cwd, params.targets, signal);

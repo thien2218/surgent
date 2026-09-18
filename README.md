@@ -62,7 +62,9 @@ surgent loads its built-in extensions directly for each invocation. It does not 
 
 ### Use optimizers with Pi
 
-Optimizers are built into surgent. To use them with Pi without surgent, install the optimizer package:
+Optimizers are built into surgent. To use them with Pi without surgent, install the optimizer package.
+
+> **Important:** Install either surgent or `@surgent/optimizers`, not both in the same machine or configuration. Surgent already includes the optimizers; installing both registers duplicate tools and hooks.
 
 ```bash
 pi install npm:@surgent/optimizers

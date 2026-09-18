@@ -105,6 +105,7 @@ export function rewriteTailWithSummaries(
 
 export function formatGrepResult(content: string): string {
   const formattedLines: string[] = [];
+  const formattedIndexes = new Map<string, number>();
   let currentFilePath: string | undefined;
   let changed = false;
 
@@ -120,10 +121,18 @@ export function formatGrepResult(content: string): string {
       continue;
     }
 
+    const lineKey = `${filePath}\0${lineNumber}`;
+    const formattedIndex = formattedIndexes.get(lineKey);
+    if (formattedIndex !== undefined) {
+      if (matchLine) formattedLines[formattedIndex] = `${lineNumber}: ${lineText}`;
+      continue;
+    }
+
     if (filePath !== currentFilePath) {
       formattedLines.push(filePath);
       currentFilePath = filePath;
     }
+    formattedIndexes.set(lineKey, formattedLines.length);
     formattedLines.push(`${lineNumber}${matchLine ? ":" : "-"} ${lineText}`);
     changed = true;
   }

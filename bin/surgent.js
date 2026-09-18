@@ -13,7 +13,6 @@ const args = process.argv.slice(2);
 
 const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT_ENTRY_URL = import.meta.resolve("@earendil-works/pi-coding-agent");
-const CLEAR_SCREEN = "\x1b[H\x1b[2J\x1b[3J";
 const localPiSubdirs = ["agents", "plans"];
 
 function isMissingFileError(error) {
@@ -191,10 +190,6 @@ if (args.includes("--help") || args.includes("-h")) {
   }
   if (!isJsonModeActive(args)) {
     await setupGlobalConfig();
-    process.stdout.write(CLEAR_SCREEN);
-    process.on("exit", (code) => {
-      if (code === 0) process.stdout.write(CLEAR_SCREEN);
-    });
   }
   await main(args);
 }

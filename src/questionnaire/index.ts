@@ -4,10 +4,11 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { askQuestions } from "./helpers.js";
-import { QuestionnaireParamsSchema, type Question, type QuestionnaireResult } from "./types.js";
+import type { Question, QuestionnaireResult } from "./types.js";
 import { renderCallText } from "../utils.js";
+import { QuestionnaireParamsSchema } from "./schemas.js";
 
-export function createQuestionnaireTool(parentContext?: ExtensionContext) {
+export function createQuestionnaireTool(parentCtx?: ExtensionContext) {
   return defineTool({
     name: "questionnaire",
     label: "Questionnaire",
@@ -25,15 +26,15 @@ export function createQuestionnaireTool(parentContext?: ExtensionContext) {
     ],
     parameters: QuestionnaireParamsSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const interactionContext = parentContext ?? ctx;
-      if (!interactionContext.hasUI) {
+      const interactionCtx = parentCtx ?? ctx;
+      if (!interactionCtx.hasUI) {
         return {
           content: [{ type: "text", text: "Questionnaire requires an interactive UI." }],
           details: { cancelled: true, questions: [], answers: [] } satisfies QuestionnaireResult,
         };
       }
 
-      const result = await askQuestions(params.questions, interactionContext.ui);
+      const result = await askQuestions(params.questions, interactionCtx.ui);
       if (result.cancelled) {
         return {
           content: [{ type: "text", text: "User cancelled the questionnaire." }],

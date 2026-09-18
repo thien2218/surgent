@@ -22,7 +22,7 @@ await build({
 });
 
 const optimizerPackage = {
-  name: "pi-context-optimizers",
+  name: "pi-context-optimizer",
   version: rootPackage.version,
   description: "Context optimization tools for pi coding agent",
   type: "module",
@@ -46,4 +46,8 @@ const optimizerPackage = {
 await Promise.all([
   writeFile(resolve(optimizerDir, "package.json"), `${JSON.stringify(optimizerPackage, null, 2)}\n`),
   copyFile(resolve(projectRoot, "LICENSE"), resolve(optimizerDir, "LICENSE")),
+  copyFile(
+    resolve(projectRoot, "src", "optimizers", "README.md"),
+    resolve(optimizerDir, "README.md"),
+  ),
 ]);

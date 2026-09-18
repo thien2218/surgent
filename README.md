@@ -74,30 +74,9 @@ npm install -g surgent@latest  # update
 npm uninstall -g surgent       # remove
 ```
 
-## Optimizers for Pi
+## Optimizer package
 
-`pi-context-optimizers` is a Pi extension package that keeps code navigation and tool output focused, while being cache friendly. This extension is already built into surgent.
-
-- `code_map` and `inspect` use Tree-sitter to navigate symbols and declarations in TypeScript/JavaScript, Python, Go, Java, and Rust.
-- It compacts noisy Bash and grep output.
-- It deduplicates previously read resource content, removes superseded `read` or `inspect` results
-- It prunes empty `ls` or `find` results from context.
-
-To use the optimizers with Pi instead of surgent, install the standalone package:
-
-> **Important:** Install either surgent or `pi-context-optimizers` on a machine or configuration, not both. Surgent already includes the optimizers; installing both registers duplicate tools and hooks.
-
-```bash
-pi install npm:pi-context-optimizers
-```
-
-Verify the package is installed:
-
-```bash
-pi list
-```
-
-Start Pi in a repository, then ask the agent to use `code_map` to locate symbols and `inspect` to read a selected declaration.
+surgent includes [`pi-context-optimizer`](https://www.npmjs.com/package/pi-context-optimizer), a standalone Pi extension for structural code navigation and automatic context cleanup. Install it separately when using Pi without surgent; package page covers features and setup.
 
 ## Connect a model
 

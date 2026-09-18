@@ -161,6 +161,7 @@ if (args.includes("--help") || args.includes("-h")) {
   for (const localPiSubdir of localPiSubdirs) {
     await mkdir(resolve(cwd, ".pi", localPiSubdir), { recursive: true });
   }
+
   const srcDir = resolve(PACKAGE_DIR, "src");
   const entries = await readdir(srcDir, { withFileTypes: true });
   const extensionArgs = entries

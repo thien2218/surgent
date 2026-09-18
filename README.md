@@ -393,11 +393,14 @@ npm publish ./dist/optimizers --access public
 
 ## Reference
 
-surgent extends [Pi](https://github.com/earendil-works/pi). Refer to the upstream repository for Pi installation, configuration, providers, extension APIs, SDK usage, and other runtime documentation.
+surgent is built on [Pi](https://github.com/earendil-works/pi), created by [Mario Zechner](https://github.com/badlogic) and developed by its maintainers and contributors. Pi provides the agent runtime, TUI, model integration, extension system, and SDK that make surgent possible.
+
+Refer to the upstream repository for Pi installation, configuration, providers, extension APIs, SDK usage, and other runtime documentation.
 
 - [Pi repository](https://github.com/earendil-works/pi)
 - [Pi coding agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent)
 - [Pi documentation](https://github.com/earendil-works/pi/tree/main/packages/coding-agent/docs)
+- [Pi contributors](https://github.com/earendil-works/pi/graphs/contributors)
 
 ## License
 

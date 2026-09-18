@@ -46,15 +46,11 @@ Review this branch for correctness regressions. Do not modify files.
 
 ## Install
 
-surgent is currently installed from source:
+Install surgent globally from npm:
 
 ```bash
-git clone https://github.com/thien2218/surgent.git
-cd surgent
-node scripts/build.mjs
+npm install -g surgent
 ```
-
-The setup script installs dependencies, links the `surgent` command globally, and creates the required user configuration directories.
 
 Confirm the command is available:
 
@@ -62,18 +58,31 @@ Confirm the command is available:
 surgent --version
 ```
 
-To update an existing installation:
+surgent loads its built-in extensions directly for each invocation. It does not modify `~/.pi/agent/settings.json`.
+
+### Use optimizers with Pi
+
+Optimizers are built into surgent. To use them with Pi without surgent, install the optimizer package:
 
 ```bash
-cd /path/to/surgent
-git pull
-node scripts/build.mjs
+pi install npm:@surgent/optimizers
 ```
 
-To remove the global link:
+### Develop from source
+
+For source development, install dependencies and link the local command:
 
 ```bash
-npm unlink --global surgent
+pnpm install
+npm link
+```
+
+`pnpm build` builds only the distributable optimizer package in `dist/optimizers`. npm runs this build automatically through `prepack` when packaging surgent.
+
+To publish the standalone optimizer artifact after building it:
+
+```bash
+npm publish ./dist/optimizers --access public
 ```
 
 ## Connect a model
@@ -334,13 +343,7 @@ Web and MCP actions pass through the same permission system as file and shell op
 
 ### `surgent: command not found`
 
-Run the setup script again from the surgent repository:
-
-```bash
-node scripts/build.mjs
-```
-
-Then confirm npm's global binary directory is on your `PATH`.
+Confirm npm's global binary directory is on your `PATH`, then open a new shell.
 
 ### No models are available
 

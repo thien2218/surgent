@@ -3,7 +3,7 @@ import path, { dirname, join, resolve } from "node:path";
 import { isMissingFileError, readJson, writeJson } from "../utils.js";
 import { fileURLToPath } from "node:url";
 import { getPiPath } from "../utils.js";
-import type { AgentMeta, Agent, AgentAllowList, SettingsSchema } from "./types.js";
+import type { AgentMeta, Agent, SettingsSchema } from "./types.js";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { loadMcpConfigSet } from "../mcp-client/storage.js";
 
@@ -38,7 +38,7 @@ const STRING_KEYS = new Set<keyof AgentMeta>(["description", "model", "thinking_
 const META_KEY_SET = new Set<string>(META_KEYS);
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
 
-function parseAllowList(value: string): AgentAllowList | undefined {
+function parseAllowList(value: string): string[] | undefined {
   const inlineArray = value.match(INLINE_ARRAY);
   if (inlineArray) {
     return inlineArray[1]!
@@ -46,9 +46,6 @@ function parseAllowList(value: string): AgentAllowList | undefined {
       .map((part) => part.trim().replace(QUOTED_STRING, ""))
       .filter(Boolean);
   }
-
-  const normalized = value.replace(QUOTED_STRING, "").trim();
-  if (normalized === "none") return normalized;
 }
 
 function parseAgentConfig(content: string, filePath: string): Agent | null {
@@ -69,7 +66,7 @@ function parseAgentConfig(content: string, filePath: string): Agent | null {
     if (ARRAY_KEYS.has(key as keyof AgentMeta)) {
       const parsedAllowList = parseAllowList(value);
       if (parsedAllowList !== undefined) {
-        (meta as Record<string, AgentAllowList>)[key] = parsedAllowList;
+        (meta as Record<string, string[]>)[key] = parsedAllowList;
       }
     } else if (STRING_KEYS.has(key as keyof AgentMeta)) {
       (meta as Record<string, string>)[key] = value.replace(QUOTED_STRING, "");
@@ -155,12 +152,8 @@ function serializeMeta(meta: AgentMeta): string[] {
     const value = meta[key];
     if (value === undefined) continue;
 
-    if (ARRAY_KEYS.has(key)) {
-      const serialized =
-        typeof value === "string"
-          ? "none"
-          : `[${value.map((entry) => JSON.stringify(entry)).join(", ")}]`;
-      lines.push(`${key}: ${serialized}`);
+    if (Array.isArray(value)) {
+      lines.push(`${key}: [${value.map((entry) => JSON.stringify(entry)).join(", ")}]`);
       continue;
     }
 
@@ -257,17 +250,14 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
 
   const { meta } = main;
   const mcpConfigs = allMcpConfigs.filter(
-    (cfg) =>
-      cfg.enabled === true &&
-      meta.mcp_tools !== "none" &&
-      (meta.mcp_tools ?? [cfg.name]).includes(cfg.name),
+    (cfg) => cfg.enabled === true && (meta.mcp_tools ?? [cfg.name]).includes(cfg.name),
   );
 
   pi.setActiveTools(
     pi
       .getAllTools()
       .map((tool) => tool.name)
-      .filter((name) => meta.tools !== "none" && (meta.tools ?? [name]).includes(name)),
+      .filter((name) => (meta.tools ?? [name]).includes(name)),
   );
 
   if (meta.model) {

@@ -1,15 +1,13 @@
 export type AgentMode = "assistant" | "yolo" | "restricted";
 
-export type AgentAllowList = "none" | string[];
-
 export interface AgentMeta {
   description: string;
-  tools?: AgentAllowList;
-  mcp_tools?: AgentAllowList;
-  skills?: AgentAllowList;
-  bash?: AgentAllowList;
-  "files.read"?: AgentAllowList;
-  "files.write"?: AgentAllowList;
+  tools?: string[];
+  mcp_tools?: string[];
+  skills?: string[];
+  bash?: string[];
+  "files.read"?: string[];
+  "files.write"?: string[];
   model?: string;
   thinking_level?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 }

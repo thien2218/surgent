@@ -148,6 +148,8 @@ async function createSdkSession(
 ): Promise<AgentSession> {
   const sessionManager = await openSessionManager(request);
   const modelId = runtime.meta.model;
+  const defaultTools =
+    runtime.builtIn && runtime.agent === DEFAULT_AGENT ? DEFAULT_SUBSESSION_TOOLS : undefined;
   const model = modelId
     ? request.ctx.modelRegistry.find(
         modelId.slice(0, modelId.indexOf("/")),
@@ -176,13 +178,7 @@ async function createSdkSession(
       runtime.meta.thinking_level ?? (request.id ? undefined : request.ctx.thinkingLevel),
     resourceLoader,
     sessionManager,
-    tools: Array.isArray(runtime.meta.tools)
-      ? runtime.meta.tools
-      : runtime.meta.tools === "none"
-        ? []
-        : runtime.builtIn && runtime.agent === DEFAULT_AGENT
-          ? DEFAULT_SUBSESSION_TOOLS
-          : undefined,
+    tools: runtime.meta.tools ?? defaultTools,
   });
   return session;
 }

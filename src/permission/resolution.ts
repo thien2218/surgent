@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
-import type { AgentAllowList, AgentMeta, AgentMode } from "../agent/types.js";
+import type { AgentMeta, AgentMode } from "../agent/types.js";
 import { readRules } from "./storage.js";
 import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./types.js";
 import { getPiPath } from "../utils.js";
@@ -30,11 +30,8 @@ function getBlockedRules(schema: PermissionRule): PermissionRule {
   return rules;
 }
 
-function isAllowedByPattern(raw: string, allowList?: AgentAllowList, bash?: boolean): boolean {
-  return Boolean(
-    allowList !== "none" &&
-    (!allowList || allowList.some((pattern: string) => matchesPattern(raw, pattern, bash))),
-  );
+function isAllowedByPattern(raw: string, allowList?: string[], bash?: boolean): boolean {
+  return Boolean(!allowList || allowList.some((pattern) => matchesPattern(raw, pattern, bash)));
 }
 
 export function checkAgentRules(meta: AgentMeta, check: PermissionCheck): boolean {

@@ -13,6 +13,10 @@ export default function (pi: ExtensionAPI) {
   Reflect.set(globalThis, optimizerKey, true);
 
   try {
+    pi.on("session_shutdown", () => {
+      Reflect.deleteProperty(globalThis, optimizerKey);
+    });
+
     compactor(pi);
     languages(pi);
     deduplicator(pi);

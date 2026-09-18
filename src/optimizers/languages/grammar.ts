@@ -153,7 +153,7 @@ export async function ensureGrammarCache(ctx: ExtensionContext) {
 
     canInstall = await ctx.ui.confirm(
       "Install tree-sitter grammars for this repo?",
-      "Surgent installs missing parser grammars for optimized code read, input tokens and context optimizations.",
+      "surgent installs missing parser grammars for optimized code read, input tokens and context optimizations.",
     );
 
     if (!canInstall) {

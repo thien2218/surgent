@@ -1,95 +1,49 @@
-#!/usr/bin/env node
-
-import { spawn } from "node:child_process";
-import { mkdir } from "node:fs/promises";
-import { homedir } from "node:os";
+import { build } from "esbuild";
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, "..");
-const globalPiDir = resolve(homedir(), ".pi", "agent");
-const globalPiSubdirs = ["agents", "subsessions", "grammars", "web-results"];
+const optimizerDir = resolve(projectRoot, "dist", "optimizers");
+const rootPackage = JSON.parse(await readFile(resolve(projectRoot, "package.json"), "utf8"));
 
-async function main() {
-  process.chdir(projectRoot);
-
-  console.log("Installing dependencies...");
-  await installDependencies();
-
-  console.log("Linking package with npm link...");
-  await runCommand("npm", ["link"]);
-
-  console.log("Ensuring global ~/.pi/agent/ directories...");
-  await mkdir(globalPiDir, { recursive: true });
-  for (const globalPiSubdir of globalPiSubdirs) {
-    await mkdir(resolve(globalPiDir, globalPiSubdir), { recursive: true });
-  }
-}
-
-async function installDependencies() {
-  try {
-    await runCommand("pnpm", ["install"]);
-    return;
-  } catch (error) {
-    if (!isMissingCommandError(error, "pnpm")) {
-      throw error;
-    }
-  }
-
-  try {
-    await runCommand("npm", ["install"]);
-  } catch (error) {
-    if (isMissingCommandError(error, "npm")) {
-      throw new Error(
-        "Cannot install dependencies: neither pnpm and npm are available. Install pnpm or npm first, then rerun this script.",
-      );
-    }
-    throw error;
-  }
-}
-
-function isMissingCommandError(error, commandName) {
-  if (!error || typeof error !== "object") {
-    return false;
-  }
-
-  const hasMissingErrorName = "name" in error && error.name === "MissingCommandError";
-  if (!hasMissingErrorName) {
-    return false;
-  }
-
-  if (!commandName) {
-    return true;
-  }
-
-  return "missingCommandName" in error && error.missingCommandName === commandName;
-}
-
-async function runCommand(cmd, args) {
-  await new Promise((resolvePromise, rejectPromise) => {
-    const childProcess = spawn(process.platform === "win32" ? `${cmd}.cmd` : cmd, args, {
-      cwd: projectRoot,
-      env: process.env,
-      stdio: "inherit",
-    });
-
-    childProcess.on("error", (error) => {
-      rejectPromise(error);
-    });
-
-    childProcess.on("close", (exitCode) => {
-      if (exitCode === 0) {
-        resolvePromise();
-        return;
-      }
-
-      rejectPromise(new Error(`Command failed: ${cmd} ${args.join(" ")}`));
-    });
-  });
-}
-
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
+await rm(optimizerDir, { recursive: true, force: true });
+await mkdir(optimizerDir, { recursive: true });
+await build({
+  entryPoints: [resolve(projectRoot, "src", "optimizers", "index.ts")],
+  outfile: resolve(optimizerDir, "index.js"),
+  bundle: true,
+  format: "esm",
+  packages: "external",
+  platform: "node",
+  sourcemap: true,
+  target: "node22",
 });
+
+const optimizerPackage = {
+  name: "@surgent/optimizers",
+  version: rootPackage.version,
+  description: "Context optimization tools for pi coding agent",
+  type: "module",
+  main: "./index.js",
+  exports: "./index.js",
+  engines: rootPackage.engines,
+  license: rootPackage.license,
+  keywords: ["pi-package", "pi-coding-agent", "context-optimization"],
+  pi: { extensions: ["./index.js"] },
+  dependencies: {
+    picomatch: rootPackage.dependencies.picomatch,
+    "tree-sitter": rootPackage.dependencies["tree-sitter"],
+  },
+  peerDependencies: {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    typebox: "*",
+  },
+};
+
+await Promise.all([
+  writeFile(resolve(optimizerDir, "package.json"), `${JSON.stringify(optimizerPackage, null, 2)}\n`),
+  copyFile(resolve(projectRoot, "LICENSE"), resolve(optimizerDir, "LICENSE")),
+]);

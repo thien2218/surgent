@@ -1,6 +1,7 @@
 import { statSync } from "node:fs";
 import {
   createBashToolDefinition,
+  createGrepToolDefinition,
   isGrepToolResult,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
@@ -10,38 +11,41 @@ import Type from "typebox";
 
 export default function (pi: ExtensionAPI) {
   let writeStartOffset = 0;
-  const bashTool = createBashToolDefinition(process.cwd());
   const store = new Map<string, string>();
+  const grepTool = createGrepToolDefinition(process.cwd());
+  const bashTool = createBashToolDefinition(process.cwd(), {
+    operations: createCompactingBashOperations(),
+  });
+
+  pi.registerTool({
+    ...grepTool,
+    parameters: Type.Object({
+      ...grepTool.parameters.properties,
+      context: Type.Optional(
+        Type.Number({
+          description: "Number of lines to show before and after each match (default: 0)",
+          maximum: 3,
+        }),
+      ),
+    }),
+  });
 
   pi.registerTool({
     ...bashTool,
     description:
       "Execute a bash command in the current working directory. Strips ANSI escapes, collapses carriage-return updates, removes consecutive duplicate lines, then optionally filters lines with a JavaScript regex before truncating to the last 2000 lines or 50KB. Saved full output is compacted.",
     parameters: Type.Object({
-      command: Type.String({ description: "Bash command to execute" }),
+      ...bashTool.parameters.properties,
       purpose: Type.String({
         description: "Briefly explain what this command will do and why before running it",
         minLength: 1,
         maxLength: 256,
         pattern: "\\S",
       }),
-      filter: Type.Optional(
-        Type.String({
-          description:
-            "Focused JavaScript regex that retains matching output lines. Use this if command is expected to have long output to save context",
-          minLength: 1,
-        }),
-      ),
-      timeout: Type.Optional(
-        Type.Number({ description: "Timeout in seconds (optional, no default timeout)" }),
-      ),
     }),
     prepareArguments: undefined,
     execute(toolCallId, params, signal, onUpdate, ctx) {
-      const compactingBashTool = createBashToolDefinition(process.cwd(), {
-        operations: createCompactingBashOperations(params.filter),
-      });
-      return compactingBashTool.execute(
+      return bashTool.execute(
         toolCallId,
         { command: params.command, timeout: params.timeout },
         signal,
@@ -115,11 +119,11 @@ export default function (pi: ExtensionAPI) {
     let changed = false;
     const content = event.content.map((item) => {
       if (item.type !== "text") return item;
+
       const text = formatGrepResult(item.text);
-      if (text === item.text) {
-        changed = true;
-        return item;
-      }
+      if (text === item.text) return item;
+
+      changed = true;
       return { ...item, text };
     });
 

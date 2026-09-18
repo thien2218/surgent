@@ -6,16 +6,14 @@ const localBash = createLocalBashOperations();
 export class BashResultCompactor {
   private readonly decoder = new TextDecoder();
   private readonly onData: (data: Buffer) => void;
-  private readonly filter: RegExp | undefined;
   // Exact regex and carriage-return handling require holding one logical line.
   private currentLine = "";
   private carriageLine: string | undefined;
   private hasPendingLine = false;
   private lastLine: string | undefined;
 
-  constructor(onData: (data: Buffer) => void, filter?: RegExp) {
+  constructor(onData: (data: Buffer) => void) {
     this.onData = onData;
-    this.filter = filter;
   }
 
   append(data: Buffer) {
@@ -66,8 +64,6 @@ export class BashResultCompactor {
   private emit(normalizedLine: string, terminated: boolean) {
     if (normalizedLine === this.lastLine) return;
     this.lastLine = normalizedLine;
-    if (this.filter && !this.filter.test(normalizedLine)) return;
-
     this.onData(Buffer.from(`${normalizedLine}${terminated ? "\n" : ""}`));
   }
 
@@ -79,10 +75,9 @@ export class BashResultCompactor {
 }
 
 export function createCompactingBashOperations(filter?: string): BashOperations {
-  const lineFilter = filter === undefined ? undefined : new RegExp(filter);
   return {
     async exec(command, cwd, options) {
-      const compactor = new BashResultCompactor(options.onData, lineFilter);
+      const compactor = new BashResultCompactor(options.onData);
       try {
         return await localBash.exec(command, cwd, {
           ...options,

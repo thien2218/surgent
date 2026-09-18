@@ -6,26 +6,12 @@ import inspect from "./inspector/index.js";
 import languages from "./languages/index.js";
 import pruner from "./pruner/index.js";
 
-const optimizerKey = Symbol.for("@surgent/optimizers");
-
 export default function (pi: ExtensionAPI) {
-  if (Reflect.get(globalThis, optimizerKey)) return;
-  Reflect.set(globalThis, optimizerKey, true);
+  compactor(pi);
+  languages(pi);
+  deduplicator(pi);
+  pruner(pi);
 
-  try {
-    pi.on("session_shutdown", () => {
-      Reflect.deleteProperty(globalThis, optimizerKey);
-    });
-
-    compactor(pi);
-    languages(pi);
-    deduplicator(pi);
-    pruner(pi);
-
-    pi.registerTool(codeMap);
-    pi.registerTool(inspect);
-  } catch (error) {
-    Reflect.deleteProperty(globalThis, optimizerKey);
-    throw error;
-  }
+  pi.registerTool(codeMap);
+  pi.registerTool(inspect);
 }

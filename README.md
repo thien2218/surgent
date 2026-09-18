@@ -58,34 +58,45 @@ Confirm the command is available:
 surgent --version
 ```
 
-surgent loads its built-in extensions directly for each invocation. It does not modify `~/.pi/agent/settings.json`.
+### Start Surgent
 
-### Use optimizers with Pi
+From the repository you want to work on, run:
 
-Optimizers are built into surgent. To use them with Pi without surgent, install the optimizer package.
+```bash
+cd /path/to/your-project
+surgent
+```
 
-> **Important:** Install either surgent or `@surgent/optimizers`, not both in the same machine or configuration. Surgent already includes the optimizers; installing both registers duplicate tools and hooks.
+### Update or remove
+
+```bash
+npm install -g surgent@latest  # update
+npm uninstall -g surgent       # remove
+```
+
+## Optimizers for Pi
+
+`@surgent/optimizers` is a Pi extension package that keeps code navigation and tool output focused. It is already built into surgent.
+
+- `code_map` and `inspect` use Tree-sitter to navigate symbols and declarations in TypeScript/JavaScript, Python, Go, Java, and Rust.
+- It compacts noisy Bash and grep output.
+- It deduplicates previously read resource content, removes superseded `read` or `inspect` results, and prunes empty `ls` or `find` results from context.
+
+To use the optimizers with Pi instead of surgent, install the standalone package:
+
+> **Important:** Install either surgent or `@surgent/optimizers` on a machine or configuration, not both. Surgent already includes the optimizers; installing both registers duplicate tools and hooks.
 
 ```bash
 pi install npm:@surgent/optimizers
 ```
 
-### Develop from source
-
-For source development, install dependencies and link the local command:
+Verify the package is installed:
 
 ```bash
-pnpm install
-npm link
+pi list
 ```
 
-`pnpm build` builds only the distributable optimizer package in `dist/optimizers`. npm runs this build automatically through `prepack` when packaging surgent.
-
-To publish the standalone optimizer artifact after building it:
-
-```bash
-npm publish ./dist/optimizers --access public
-```
+Start Pi in a repository, then ask the agent to use `code_map` to locate symbols and `inspect` to read a selected declaration.
 
 ## Connect a model
 
@@ -119,13 +130,6 @@ surgent --model <provider>/<model-id>
 Provider keys are secrets. Keep them in your shell environment or a secret manager, never in the repository.
 
 ## Quick start
-
-Start surgent from the repository you want to work on:
-
-```bash
-cd /path/to/your-project
-surgent
-```
 
 For a new repository, initialize concise project instructions first:
 
@@ -368,6 +372,23 @@ Check `.piignore`, the active agent's file limits, the current permission mode, 
 ### An MCP server has no tools
 
 Open `/mcp`, verify the command or URL, and enable the server with `Tab`. A server must pass its connection check before surgent makes its tools available.
+
+## Development
+
+For source development, install dependencies and link the local command:
+
+```bash
+pnpm install
+npm link
+```
+
+`pnpm build` builds only the distributable optimizer package in `dist/optimizers`. npm runs this build automatically through `prepack` when packaging surgent.
+
+To publish the standalone optimizer artifact after building it:
+
+```bash
+npm publish ./dist/optimizers --access public
+```
 
 ## License
 

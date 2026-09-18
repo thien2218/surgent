@@ -8,6 +8,8 @@ import type { AgentMeta } from "../agent/types.js";
 import { createQuestionnaireTool } from "../questionnaire/index.js";
 import { enforceToolPermission } from "../permission/index.js";
 import { readAgentMode } from "../permission/storage.js";
+import webFetchTool from "../web-tools/web-fetch/index.js";
+import webSearchTool from "../web-tools/web-search/index.js";
 
 const PATH_TOOLS = new Set(["read", "write", "edit", "grep", "find", "ls"]);
 const DISALLOWED_TOOLS = new Set(["subagent", "call_mcp_tool", "list_mcp_tools"]);
@@ -21,6 +23,10 @@ export function createSubsessionBridge(
     name: "subsession-bridge",
     factory(pi) {
       pi.registerTool(createQuestionnaireTool(ctx));
+      if (Array.isArray(agentMeta.tools)) {
+        if (agentMeta.tools.includes("web_fetch")) pi.registerTool(webFetchTool);
+        if (agentMeta.tools.includes("web_search")) pi.registerTool(webSearchTool);
+      }
 
       pi.on("tool_call", async (event) => {
         if (DISALLOWED_TOOLS.has(event.toolName)) {

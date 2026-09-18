@@ -1,7 +1,5 @@
 ---
 description: Documentation specialist for independently owned user-facing Markdown once audience and behavior are known; use for focused doc creation or updates, not code changes
-tools: [code_map, inspect, read, find, grep, ls, edit, write, questionnaire]
-files.write: ["**/*.md"]
 ---
 
 <role>

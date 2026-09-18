@@ -38,13 +38,13 @@ function parseConfigValues(values: Record<string, string>) {
     if (!normalizedValue) continue;
 
     const entries =
-      normalizedValue === "none"
-        ? "none"
+      normalizedValue === "[]"
+        ? []
         : normalizedValue
             .split(",")
             .map((entry) => entry.trim().replace(/^['\"]|['\"]$/g, ""))
             .filter(Boolean);
-    if (entries !== "none" && entries.length === 0) continue;
+    if (entries.length === 0 && normalizedValue !== "[]") continue;
 
     updated[field] = entries;
   }
@@ -69,7 +69,7 @@ export function getAgentConfigForm(
       } else if (field === "thinking_level") {
         placeholder = "off, minimal, low, medium, high, xhigh, or max (leave blank to inherit)";
       } else {
-        placeholder = `Comma-separated allowed ${field}, or none`;
+        placeholder = `comma-separated allowed ${field}`;
       }
 
       return {
@@ -79,7 +79,11 @@ export function getAgentConfigForm(
         mode: {
           type: "input",
           placeholder,
-          text: Array.isArray(value) ? value.join(", ") : (value ?? ""),
+          text: Array.isArray(value)
+            ? value.length === 0
+              ? "[]"
+              : value.join(", ")
+            : (value ?? ""),
         },
       };
     }),

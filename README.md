@@ -1,369 +1,369 @@
 # surgent
 
-## What is surgent?
+**A terminal coding agent that keeps context focused, delegates specialized work, and puts you in control of every change.**
 
-`surgent` is a CLI coding agent built on top of `@earendil-works/pi-coding-agent`.
-It preserves the upstream pi runtime and adds project-focused tools, commands, permission flows, subsessions, MCP integration, web tooling, token optimizers, and TUI customizations.
+surgent works inside an existing repository. Give it an engineering task and it can inspect the codebase, make a plan, edit files, run commands and tests, research the web, and report the result without forcing you to manage the agent's internal machinery.
 
-The primary entrypoint is the `surgent` command, which launches an interactive terminal UI.
+It is designed for software engineers who want an agent that feels at home in a terminal: direct enough for quick fixes, structured enough for multi-step work, and careful enough for real repositories.
 
-## Why exist?
+## Why surgent
 
-The pi framework provides a capable agent runtime. `surgent` adds an opinionated workflow layer for day-to-day repository work, with a strong emphasis on reducing token waste and keeping model context focused.
+- **More useful context.** surgent navigates code structurally and reduces repetitive tool output so the model can spend more of its context on the task.
+- **Repository-grounded work.** Project instructions, source files, command output, and session history stay connected to the work at hand.
+- **Specialists when they help.** Built-in agents cover implementation, planning, codebase research, and documentation. The main agent can delegate focused work instead of filling one conversation with every detail.
+- **Plans that do not crowd the coding session.** Explore and refine a plan in a separate session, then hand the finished plan back for implementation.
+- **Explicit safety controls.** Review actions as they happen, save reusable permission rules, block sensitive paths, or switch modes when you need more or less autonomy.
+- **Recoverable edits.** In Git repositories, surgent checkpoints edits made through its file tools and can restore the corresponding code state when you rewind or fork a session.
+- **Model freedom.** Use models from Google, Anthropic, OpenAI, OpenRouter, Bedrock, and many other supported providers.
+- **Extensible tooling.** Connect local or remote MCP servers and give the agent access to web search and URL fetching.
 
-In particular, it is designed to support:
+## What you can do
 
-- lower-token code inspection workflows
-- context-aware tool usage patterns
-- reusable planning and review loops
-- stricter access control for file, shell, and web operations
-- integrated MCP server management
-- built-in web search and web fetch capabilities
-- git-backed code checkpoints across session tree navigation
-
-The overall goal is to make repository work faster, safer, and more context-efficient.
-
-## Core philosophy
-
-`surgent` is built around a simple idea: token budget is one of the main constraints in practical coding-agent work.
-
-That philosophy shows up throughout the tool:
-
-- prefer narrow, structured inspection over large file dumps
-- keep context focused on code that matters for the current step
-- summarize noisy tool output before it reaches future turns
-- encourage discovery-first workflows before requesting large patches or documents
-- preserve safety and operator control without bloating context unnecessarily
-
-Features such as `code_map`, `inspect`, grep and bash result compaction, cached web fetch output, and summary-first diff inspection all exist to reduce context size while preserving useful signal.
-
-## Key features
-
-- custom commands: `/agents`, `/mcp`, `/permissions`, `/plan`, `/review`, `/web-login`
-- custom tools: `code_map`, `inspect`, `list_mcp_tools`, `call_mcp_tool`, `questionnaire`, `web_search`, `web_fetch`
-- token-saving code inspection built around `code_map` and `inspect`
-- context compaction for noisy `grep` and `bash` output
-- agent profiles with per-agent tool, model, and MCP allowlists
-- reusable planner and reviewer subsessions
-- permission rules for file, shell, and web access
-- a YOLO mode toggle for bypassing permission prompts when appropriate
-- secret write blocking and secret redaction in tool output
-- checkpoint restore prompts during session tree navigation
-- provider-backed web search and cached web page fetch
-
-## Architecture overview
-
-The project is organized around pi extensions plus a small number of support modules.
-
-At a high level, the architecture centers on context discipline first, then capability layers around it:
-
-1. `optimizers` provides code-aware tools and token-saving context compaction.
-2. `agent` loads the active agent profile and writes the session prompt files.
-3. `permission` governs sensitive tool calls.
-4. feature extensions such as `mcp-client`, `web-tools`, and `questionnaire` add domain-specific capabilities.
-5. `commands` relies on the `subsession` support module to run planner and reviewer child sessions.
-6. `checkpoint`, `cleanup`, and `redactor` protect code state and session output.
-7. `ui` customizes the TUI header and editor mode indicator.
-
-Not every directory under `src/` is a standalone extension. `subsession/` is a shared support module, and `utils.ts` is a shared helper module.
-
-## Extension map
-
-Primary documented extension directories:
-
-- [`src/agent/README.md`](./src/agent/README.md) — agent profiles, active prompt materialization, and subsession tool restrictions
-- [`src/checkpoint/README.md`](./src/checkpoint/README.md) — git-backed restore points for session tree navigation
-- [`src/cleanup/README.md`](./src/cleanup/README.md) — cleanup for stale `.pi` state on session start
-- [`src/commands/README.md`](./src/commands/README.md) — `/plan` and `/review` workflows
-- [`src/mcp-client/README.md`](./src/mcp-client/README.md) — MCP configuration, discovery, and tool invocation
-- [`src/optimizers/README.md`](./src/optimizers/README.md) — `code_map`, `inspect`, grammar bootstrap, and context pruning
-- [`src/permission/README.md`](./src/permission/README.md) — file, shell, and web access control plus permission management UI
-- [`src/questionnaire/README.md`](./src/questionnaire/README.md) — structured clarifying-question workflow
-- [`src/redactor/README.md`](./src/redactor/README.md) — arbitrary text redaction
-- [`src/web-tools/README.md`](./src/web-tools/README.md) — web search, web fetch, authentication, and cache handling
-
-Supporting modules documented separately:
-
-- [`src/subagent/README.md`](./src/subagent/README.md) — specialized background agents for dedicated tasks
-- `src/utils.ts` — shared `.pi` path resolution, JSON IO, and command helpers
-
-## How session flow works
-
-A typical interactive session proceeds as follows:
-
-1. `surgent` starts.
-2. The CLI synchronizes `.piignore` from `.gitignore` when needed and ensures `.pi` is excluded from git status noise.
-3. Global pi settings are updated so the extension directories in this checkout are available to the runtime.
-4. The session begins.
-   - `cleanup` prunes stale state.
-   - `agent` loads the active agent and writes `.pi/SYSTEM.md`.
-   - `checkpoint` loads checkpoint state.
-   - `optimizers` ensures the grammar cache is available.
-   - `ui` installs the custom header and editor component.
-5. The agent turn runs.
-   - `permission` intercepts guarded tools.
-   - `redactor` blocks generated opaque text and redacts it from tool output.
-   - custom tools execute as needed.
-   - `optimizers` compacts bulky results for future context.
-6. The user may branch the session tree, resume an older node, or run a planner or reviewer subsession.
-7. On tree jumps or forks, `checkpoint` may offer to restore the worktree.
-8. On shutdown, active MCP connections are disposed.
-
-## Project structure
+surgent is useful anywhere the task is easier to describe than to execute manually:
 
 ```text
-.
-├── bin/
-│   └── surgent.js
-├── scripts/
-│   └── build.mjs
-├── src/
-│   ├── agent/
-│   ├── checkpoint/
-│   ├── cleanup/
-│   ├── commands/
-│   ├── mcp-client/
-│   ├── optimizers/
-│   ├── permission/
-│   ├── questionnaire/
-│   ├── redactor/
-│   ├── subsession/
-│   ├── test/
-│   ├── ui/
-│   ├── utils.ts
-│   └── web-tools/
-├── AGENTS.md
-├── package.json
-└── tsconfig.json
+Find the race condition behind the flaky queue tests, fix the root cause,
+and run the smallest test set that proves the behavior.
 ```
 
-## Installation
+```text
+Trace how authentication state reaches the API client. Explain the current
+design and identify places where an expired token can still be used.
+```
 
-Prerequisites:
+```text
+Add CSV export to the reporting command. Follow existing CLI conventions,
+update tests, and document the new flag.
+```
 
-- Node.js
-- `pnpm` or `npm`
-- `git`
+```text
+Review this branch for correctness regressions. Do not modify files.
+```
 
-Clone the repository, then run:
+## Requirements
+
+- Node.js 22.19 or newer
+
+## Install
+
+surgent is currently installed from source:
 
 ```bash
+git clone https://github.com/thien2218/surgent.git
+cd surgent
 node scripts/build.mjs
 ```
 
-This script:
+The setup script installs dependencies, links the `surgent` command globally, and creates the required user configuration directories.
 
-- installs dependencies with `pnpm` or `npm`
-- runs `npm link`
-- creates the required `~/.pi/agent/` directories
+Confirm the command is available:
 
-After the script completes, the `surgent` command should be available globally.
+```bash
+surgent --version
+```
+
+To update an existing installation:
+
+```bash
+cd /path/to/surgent
+git pull
+node scripts/build.mjs
+```
+
+To remove the global link:
+
+```bash
+npm unlink --global surgent
+```
+
+## Connect a model
+
+surgent defaults to the Google provider. The quickest setup is a Gemini API key:
+
+```bash
+export GEMINI_API_KEY="your-api-key"
+surgent --provider google
+```
+
+Other common choices work the same way:
+
+| Provider   | Environment variable | Start command                   |
+| ---------- | -------------------- | ------------------------------- |
+| Anthropic  | `ANTHROPIC_API_KEY`  | `surgent --provider anthropic`  |
+| OpenAI     | `OPENAI_API_KEY`     | `surgent --provider openai`     |
+| OpenRouter | `OPENROUTER_API_KEY` | `surgent --provider openrouter` |
+
+List models available to your current installation:
+
+```bash
+surgent --list-models
+```
+
+Select a model directly with a provider-qualified model ID:
+
+```bash
+surgent --model <provider>/<model-id>
+```
+
+Provider keys are secrets. Keep them in your shell environment or a secret manager, never in the repository.
 
 ## Quick start
 
-Start `surgent` in the repository you want to work on:
+Start surgent from the repository you want to work on:
 
 ```bash
+cd /path/to/your-project
 surgent
 ```
 
-Common first steps inside the application:
+For a new repository, initialize concise project instructions first:
 
-1. run `/agents` to inspect the active agent profile
-2. run `/permissions` to review access rules
-3. run `/web-login` if web tools require provider keys
-4. run `/mcp` if the repository depends on MCP servers
-5. use `/plan` or `/review` for delegated analysis loops
+```text
+/init
+```
 
-## Configuration
+`/init` inspects the repository and creates or updates `AGENTS.md` with verified commands, architecture notes, conventions, and project-specific guidance. Future sessions automatically benefit from those instructions.
 
-Important locations:
+Then describe the outcome you want:
 
-- project state: `.pi/`
-- global state: `~/.pi/agent/`
-- path block rules: `.piignore`
-- initial ignore source: `.gitignore`
+```text
+Add input validation to the user creation endpoint. Match the existing error
+format, add focused tests, and run them.
+```
 
-Common files created or updated by `surgent`:
+surgent will inspect the relevant code, ask for permission where required, make the changes, validate them, and summarize the result.
 
-- `.pi/SYSTEM.md`
-- `.pi/APPEND_SYSTEM.md`
-- `.pi/agents.json`
-- `.pi/mcp.json`
-- `.pi/permissions.json`
-- `.pi/settings.json`
-- `.pi/subsessions.json`
-- `.pi/subsessions/`
-- `.pi/web-results/`
-- `~/.pi/agent/settings.json`
+## Everyday workflows
 
-Agent files are loaded from:
+### Start with a task
 
-- project `.pi/agents/`
-- global `~/.pi/agent/agents/`
-- built-in agent files under `src/agent/built-in/`
+Open the interactive TUI with an initial request:
 
-## Built-in commands
+```bash
+surgent "Find and fix the failing type check in the billing module"
+```
 
-`surgent` adds the following primary commands:
+Name a longer-running session so it is easy to find later:
 
-- `/agents` — list, create, edit, and switch agent profiles
-- `/mcp` — add, edit, enable, disable, or delete MCP server configuration
-- `/permissions` — inspect and edit permission rules
-- `/plan` — run the planner in a reusable planning subsession
-- `/review` — run the reviewer in a reusable review subsession
-- `/web-login` — save or clear API keys for supported web providers
+```bash
+surgent --name "Refactor billing retries"
+```
 
-Additional commands may also be available through the upstream pi framework.
+### Plan before editing
 
-## Built-in tools
+Use a separate planning session for work that spans components or has unclear tradeoffs:
 
-`surgent` adds the following primary tools:
+```text
+/plan Replace the in-memory job scheduler with a durable queue
+```
 
-- `code_map` — generate a fast symbol map with line ranges
-- `inspect` — fetch an exact symbol body with optional depth collapsing
-- `list_mcp_tools` — discover tools from configured MCP servers
-- `call_mcp_tool` — invoke a known tool on a configured MCP server
-- `questionnaire` — ask focused, structured clarifying questions in the UI
-- `web_search` — search the web or current news through configured providers
-- `web_fetch` — fetch and cache content from a known public URL
+You can review the plan, send feedback, save it for later, or forward the final version into the main session for implementation.
 
-Upstream pi tools remain available as well, subject to the active agent profile.
+Run `/plan` with no arguments to list saved plans. Resume one by selecting it or passing its plan ID:
 
-## Agents and subsessions
+```text
+/plan <plan-id>
+```
 
-Agents are markdown files with frontmatter metadata and a prompt body. The metadata can narrow:
+### Run a one-shot task
 
-- allowed tools
-- allowed MCP servers
-- model choice
-- related policy fields
+Use print mode in scripts or for short, non-interactive work:
 
-Built-in agent profiles currently include:
+```bash
+surgent -p "Summarize the public API exposed by src/client"
+```
 
-- `default`
-- `planner`
-- `reviewer`
+### Perform a read-only review
 
-Subsessions are child `surgent` runs stored under a dedicated session directory. They power the reusable `/plan` and `/review` workflows, can be resumed by identifier, and can hand pending permission or questionnaire interactions back to the parent UI.
+Limit the active tools to read-only operations:
 
-## Permissions and safety model
+```bash
+surgent --tools read,grep,find,ls -p \
+	"Review src/auth for correctness and security regressions"
+```
 
-The safety model is layered:
+### Include files in the first message
 
-1. the active agent profile narrows the available tool set
-2. `.piignore` blocks ignored paths
-3. permission rules allow, block, or prompt for guarded tools
-4. suspicious shell patterns trigger a danger-prompt path
-5. secret-like content is blocked on writes and redacted from `read`, `bash`, and `grep` output
-6. checkpoint restore prompts protect code state during tree navigation
-7. cleanup removes stale session-linked state
+Prefix a path with `@` to attach text, images, or other relevant files:
 
-Currently guarded tools are:
+```bash
+surgent @spec.md @architecture.png "Implement the first milestone"
+```
 
-- `read`
-- `write`
-- `edit`
-- `bash`
-- `web_fetch`
+### Resume previous work
 
-YOLO mode bypasses permission prompts and should therefore be used carefully.
+Continue the most recent session:
 
-## MCP support
+```bash
+surgent --continue
+```
 
-`surgent` can manage MCP servers directly from the TUI. Supported transport types are:
+Choose from saved sessions:
 
-- `stdio`
-- `http`
+```bash
+surgent --resume
+```
 
-Typical workflow:
+Sessions can also be forked, exported to HTML, or started without persistence. Run `surgent --help` for the complete set of session options.
 
-1. add a server with `/mcp`
-2. inspect the available remote tools with `list_mcp_tools`
-3. call a remote capability with `call_mcp_tool`
+### Run shell commands from the TUI
 
-Enabled MCP servers can also be surfaced in the active prompt context for the current agent.
+Start input with `!` to run a shell command and include its result in the conversation:
 
-## Web tools
+```text
+!npm test
+```
 
-Two web capabilities are built in:
+Start with `!!` to run a command without adding its result to model context:
 
-- `web_search` for discovery
-- `web_fetch` for fetching known URLs and caching markdown locally
+```text
+!!git status
+```
 
-Supported providers:
+Use `Ctrl+Alt+B` to cycle persistently between prompt input, context-included shell input, and regular shell input.
 
-- search: Tavily, Brave Search, Firecrawl
-- fetch: native, Jina, Firecrawl, Tavily
+## Interactive commands
 
-Use `/web-login` to store provider API keys.
+| Command                 | Purpose                                                       |
+| ----------------------- | ------------------------------------------------------------- |
+| `/init`                 | Create or update repository-specific `AGENTS.md` instructions |
+| `/plan [request]`       | Start, refine, save, or resume an isolated planning session   |
+| `/agent`                | Select, create, edit, or remove agent profiles                |
+| `/permissions`          | View and manage file, shell, web, and MCP permission rules    |
+| `/mcp`                  | Add, edit, enable, disable, or remove MCP servers             |
+| `/web-login [provider]` | Configure credentials for web search and fetch providers      |
 
-## Development
+The bundled agent profiles cover these common roles:
 
-Useful commands:
+| Agent        | Best for                                                            |
+| ------------ | ------------------------------------------------------------------- |
+| `general`    | Implementation, debugging, tests, and command-heavy repository work |
+| `planner`    | Repository-grounded plans for complex changes                       |
+| `scout`      | Read-only codebase research and execution tracing                   |
+| `documenter` | User-facing Markdown and project documentation                      |
+
+Use `/agent` to start a new session with a specialist or create a project-specific or global profile. Profiles can constrain tools, files, shell commands, MCP servers, models, and thinking levels.
+
+## Command-line essentials
+
+| Option                    | Purpose                                       |
+| ------------------------- | --------------------------------------------- |
+| `-p`, `--print`           | Process a prompt non-interactively and exit   |
+| `-c`, `--continue`        | Continue the previous session                 |
+| `-r`, `--resume`          | Select a saved session                        |
+| `--name <name>`           | Give a session a memorable name               |
+| `--provider <name>`       | Select a model provider                       |
+| `--model <pattern>`       | Select a model or provider-qualified model ID |
+| `--thinking <level>`      | Set the model thinking level                  |
+| `--tools <names>`         | Enable only the listed tools                  |
+| `--exclude-tools <names>` | Disable selected tools                        |
+| `--no-session`            | Run without saving session history            |
+| `--offline`               | Disable startup network operations            |
+| `--export <file>`         | Export a session as HTML                      |
+
+Run `surgent --help` for all options, supported credential environment variables, and examples.
+
+## Permissions and safety
+
+surgent has three permission modes. Press `Alt+M` to cycle between them:
+
+| Mode       | Behavior                                                           |
+| ---------- | ------------------------------------------------------------------ |
+| Assistant  | Prompts when an action is not already covered by a permission rule |
+| YOLO       | Runs actions allowed by the active agent without prompting         |
+| Restricted | Limits actions to explicitly allowed access                        |
+
+Use `/permissions` to manage reusable rules for:
+
+- File reads and writes
+- Shell commands
+- Web requests
+- MCP tool calls
+
+Rules can apply to the current session, the current project, all projects, or permanently. More specific rules take precedence.
+
+### Keep paths out of agent reach
+
+Add sensitive or irrelevant paths to `.piignore`:
+
+```gitignore
+.env*
+secrets/**
+production-data/**
+```
+
+Negated patterns can re-include a safe example:
+
+```gitignore
+secrets/**
+!secrets/example.env
+```
+
+On the first run in a repository, surgent uses an existing `.gitignore` as the starting point for `.piignore`. Ignored paths are blocked from file access even in YOLO mode.
+
+surgent also keeps its project-local `.pi` working data out of Git through the repository's local exclude file. Checkpoints complement Git; they are not a replacement for commits, branches, or backups.
+
+## MCP and web access
+
+### Connect MCP servers
+
+Run `/mcp` and choose **Add MCP server**. surgent supports:
+
+- Local servers launched over standard input/output
+- Remote servers reached over HTTP
+- Project-scoped or global configurations
+
+New servers are disabled until you enable them. In the MCP list, press `Tab` to enable or disable a server; surgent checks the connection before enabling it.
+
+### Configure web providers
+
+surgent can search the web and fetch public URLs when a task needs current documentation or external context. Run `/web-login` to configure optional provider credentials for Tavily, Brave Search, Firecrawl, or Jina.
+
+Web and MCP actions pass through the same permission system as file and shell operations.
+
+## Tips for better results
+
+- Describe the outcome, constraints, and validation you expect. A task such as "fix login" leaves more ambiguity than "reject expired refresh tokens, preserve the existing error shape, and run the auth tests."
+- Let surgent inspect before prescribing a patch. Existing abstractions and tests often point to a smaller solution.
+- Use `/plan` when a change spans several systems or needs a design decision.
+- Use a read-only tool set for audits and reviews.
+- Put stable repository facts in `AGENTS.md`; keep one-off task details in the prompt.
+- Commit or stash valuable work before enabling YOLO mode or requesting broad changes.
+
+## Troubleshooting
+
+### `surgent: command not found`
+
+Run the setup script again from the surgent repository:
 
 ```bash
 node scripts/build.mjs
-pnpm tsc --noEmit
 ```
 
-Reference documentation for the pi framework is available in:
+Then confirm npm's global binary directory is on your `PATH`.
 
-- `node_modules/@earendil-works/pi-coding-agent/docs/extensions.md`
-- `node_modules/@earendil-works/pi-coding-agent/docs/tui.md`
-- `node_modules/@earendil-works/pi-coding-agent/docs/sdk.md`
-- `node_modules/@earendil-works/pi-coding-agent/docs/models.md`
-- `node_modules/@earendil-works/pi-coding-agent/docs/skills.md`
+### No models are available
 
-Project-specific guidance is documented in [`AGENTS.md`](./AGENTS.md).
-
-## How to add or modify extension
-
-1. create or update a TypeScript module under `src/`
-2. export a default extension entry from `index.ts`
-3. register commands, tools, hooks, or UI integrations through `ExtensionAPI`
-4. run the type check
-5. manually verify the flow in the TUI
-
-Patterns used in this repository:
-
-- multi-file extensions live in a directory under `src/`
-- support modules may live beside extensions without being registered themselves
-- global extension registration is refreshed by `bin/surgent.js`
-
-## Testing and validation
-
-Current automated validation is limited. The primary repository-level check is:
+Check that the provider's environment variable is set in the same shell, then inspect matching models:
 
 ```bash
-pnpm tsc --noEmit
+surgent --list-models <search>
 ```
 
-Manual validation remains important for:
+You can also check whether a configured provider is ready:
 
-- TUI workflows
-- permission prompts
-- subsession handoff behavior
-- MCP server setup
-- web provider authentication and fetch cache behavior
-- checkpoint restore prompts
+```bash
+surgent auth check --provider <provider>
+```
 
-## Known limits
+### A file cannot be read or edited
 
-- there is no substantial automated test suite yet
-- several important workflows require an interactive TUI to verify
-- `code_map` and `inspect` grammar support currently covers TypeScript, Python, Go, and Java
-- checkpoint features assume a git repository with a usable worktree
-- web tools require provider keys for most non-native behavior
+Check `.piignore`, the active agent's file limits, the current permission mode, and saved rules under `/permissions`. Path blocks in `.piignore` remain active in every mode.
 
-## Contributing
+### An MCP server has no tools
 
-- read [`AGENTS.md`](./AGENTS.md) first
-- keep changes small and focused
-- follow existing pi extension patterns
-- update extension documentation when behavior changes
-- run `pnpm tsc --noEmit` before handing work off
+Open `/mcp`, verify the command or URL, and enable the server with `Tab`. A server must pass its connection check before surgent makes its tools available.
 
 ## License
 
-ISC
+surgent is available under the [MIT License](LICENSE).

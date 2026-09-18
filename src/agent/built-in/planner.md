@@ -1,6 +1,5 @@
 ---
 description: Repository-grounded planner for work spanning multiple components or unclear sequencing and risks; use before complex implementation, not small obvious fixes
-tools: [read, grep, find, ls, questionnaire]
 ---
 
 <role>

@@ -28,7 +28,19 @@ import type {
   SubsessionResult,
   SubsessionSnapshot,
 } from "./types.js";
+import { DEFAULT_AGENT } from "../agent/storage.js";
 import { getPiPath } from "../utils.js";
+
+const DEFAULT_SUBSESSION_TOOLS = [
+  "read",
+  "bash",
+  "edit",
+  "write",
+  "grep",
+  "find",
+  "ls",
+  "questionnaire",
+];
 
 async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResult> {
   const snapshot: SubsessionSnapshot = {
@@ -164,7 +176,13 @@ async function createSdkSession(
       runtime.meta.thinking_level ?? (request.id ? undefined : request.ctx.thinkingLevel),
     resourceLoader,
     sessionManager,
-    tools: Array.isArray(runtime.meta.tools) ? runtime.meta.tools : undefined,
+    tools: Array.isArray(runtime.meta.tools)
+      ? runtime.meta.tools
+      : runtime.meta.tools === "none"
+        ? []
+        : runtime.builtIn && runtime.agent === DEFAULT_AGENT
+          ? DEFAULT_SUBSESSION_TOOLS
+          : undefined,
   });
   return session;
 }

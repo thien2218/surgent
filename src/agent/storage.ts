@@ -1,6 +1,6 @@
 import { readdir, unlink, readFile, writeFile } from "node:fs/promises";
 import path, { dirname, join, resolve } from "node:path";
-import { readJson, writeJson } from "../utils.js";
+import { isMissingFileError, readJson, writeJson } from "../utils.js";
 import { fileURLToPath } from "node:url";
 import { getPiPath } from "../utils.js";
 import type { AgentMeta, Agent, AgentAllowList, SettingsSchema } from "./types.js";
@@ -127,7 +127,7 @@ async function appendToolDetails(activeTools: string[], lines: Record<string, st
 export async function loadAgents(cwd: string, name?: string): Promise<[Agent, ...Agent[]]> {
   const agents: Agent[] = [];
   const files = await getAgentFiles(cwd, name);
-  const settings = await readJson<SettingsSchema>(getPiPath("settings", cwd), {});
+  const settings = await readJson<SettingsSchema>(getPiPath("settings"), {});
 
   for (const file of files) {
     try {
@@ -182,13 +182,22 @@ export async function createAgentFile(base: string, name: string): Promise<strin
 
 export async function writeAgentMeta(cwd: string, agent: Agent, meta: AgentMeta) {
   if (isBuiltIn(agent.filePath)) {
-    const settings = await readJson<SettingsSchema>(getPiPath("settings", cwd), {});
+    const settingsPath = getPiPath("settings");
+    let settings: SettingsSchema;
+
+    try {
+      settings = JSON.parse(await readFile(settingsPath, "utf8")) as SettingsSchema;
+    } catch (error) {
+      if (!isMissingFileError(error)) throw error;
+      settings = {};
+    }
+
     const { description, ...stored } = meta;
     settings.agent = {
       ...settings.agent,
       meta: { ...settings.agent?.meta, [agent.name]: stored },
     };
-    await writeJson(getPiPath("settings", cwd), settings);
+    await writeJson(settingsPath, settings);
     return;
   }
 

@@ -4,6 +4,7 @@ import { main } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,10 +13,47 @@ const args = process.argv.slice(2);
 
 const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT_ENTRY_URL = import.meta.resolve("@earendil-works/pi-coding-agent");
-const localPiSubdirs = ["agents", "plans"];
+const LOCAL_PI_SUBDIRS = ["agents", "plans"];
+const BUILT_IN_META = {
+  documenter: {
+    tools: ["code_map", "inspect", "read", "find", "grep", "ls", "edit", "write", "questionnaire"],
+    "files.write": ["**/*.md"],
+  },
+  planner: {
+    tools: ["read", "grep", "find", "ls", "web_fetch", "web_search", "questionnaire"],
+  },
+  scout: {
+    tools: ["ls", "find", "grep", "code_map", "inspect", "read", "web_fetch", "web_search"],
+  },
+};
 
 function isMissingFileError(error) {
   return Boolean(error) && typeof error === "object" && "code" in error && error.code === "ENOENT";
+}
+
+async function initBuiltInMeta() {
+  const settingsPath = resolve(homedir(), ".pi", "agent", "settings.json");
+  let settings;
+
+  try {
+    settings = JSON.parse(await readFile(settingsPath, "utf8"));
+  } catch (error) {
+    if (!isMissingFileError(error)) throw error;
+    settings = {};
+  }
+
+  const meta = { ...settings.agent?.meta };
+  let changed = false;
+  for (const [name, builtInMeta] of Object.entries(BUILT_IN_META)) {
+    if (Object.hasOwn(meta, name)) continue;
+    meta[name] = builtInMeta;
+    changed = true;
+  }
+  if (!changed) return;
+
+  settings.agent = { ...settings.agent, meta };
+  await mkdir(dirname(settingsPath), { recursive: true });
+  await writeFile(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
 }
 
 async function getGitExcludePath(cwd) {
@@ -150,6 +188,8 @@ async function runRewrittenHelp(args) {
   });
 }
 
+await initBuiltInMeta();
+
 if (args.includes("--help") || args.includes("-h")) {
   await runRewrittenHelp(args);
 } else {
@@ -158,7 +198,7 @@ if (args.includes("--help") || args.includes("-h")) {
     await ensurePiExcluded(cwd);
     await syncPiIgnore(cwd);
   }
-  for (const localPiSubdir of localPiSubdirs) {
+  for (const localPiSubdir of LOCAL_PI_SUBDIRS) {
     await mkdir(resolve(cwd, ".pi", localPiSubdir), { recursive: true });
   }
 

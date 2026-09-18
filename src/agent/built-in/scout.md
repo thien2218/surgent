@@ -1,6 +1,5 @@
 ---
 description: Read-only codebase researcher for broad or uncertain questions; returns bounded, evidence-backed synthesis at quick, standard, or deep depth and should not handle one known target
-tools: [ls, find, grep, code_map, inspect, read]
 ---
 
 <role>

@@ -26,15 +26,16 @@ export function readRules(cwd: string = ""): Promise<LocalSchema | PermissionRul
   return readJson<LocalSchema | PermissionRule>(getPiPath("permissions", cwd), {});
 }
 
-export async function readAgentMode(cwd: string): Promise<AgentMode> {
-  const settings = await readJson<SettingsSchema>(getPiPath("settings", cwd), {});
+export async function readAgentMode(): Promise<AgentMode> {
+  const settings = await readJson<SettingsSchema>(getPiPath("settings"), {});
   return settings.agent?.mode ?? "assistant";
 }
 
-export async function writeAgentMode(cwd: string, agentMode: AgentMode) {
-  const settings = await readJson<SettingsSchema>(getPiPath("settings", cwd), {});
-  settings.agent = { mode: agentMode, meta: settings.agent?.meta ?? {} };
-  await writeJson(getPiPath("settings", cwd), settings);
+export async function writeAgentMode(agentMode: AgentMode) {
+  const settingsPath = getPiPath("settings");
+  const settings = await readJson<SettingsSchema>(settingsPath, {});
+  settings.agent = { ...settings.agent, mode: agentMode };
+  await writeJson(settingsPath, settings);
 }
 
 async function mutateRules(

@@ -89,7 +89,7 @@ export default function (pi: ExtensionAPI) {
     description: "Cycle assistant, YOLO, and restricted modes",
     handler: async (ctx) => {
       mode = cycleMode(mode);
-      await writeAgentMode(ctx.cwd, mode);
+      await writeAgentMode(mode);
       updateStatus?.();
 
       ctx.ui.notify(
@@ -107,7 +107,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
-    [agent, mode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode(ctx.cwd)]);
+    [agent, mode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode()]);
     ctx.ui.setStatus("agent", ctx.ui.theme.fg("dim", `agent: ${agent.name}`));
 
     if (updateStatus) {

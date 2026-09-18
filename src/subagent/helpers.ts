@@ -31,7 +31,7 @@ export function createSubsessionBridge(
           return { block: true, reason: "Explicit path required in subsession" };
         }
 
-        const agentMode = await readAgentMode(ctx.cwd);
+        const agentMode = await readAgentMode();
         return enforceToolPermission(pi, event, ctx, agentMeta, sessionId, agentMode);
       });
     },

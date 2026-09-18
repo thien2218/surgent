@@ -173,7 +173,7 @@ export async function createAgentFile(base: string, name: string): Promise<strin
   return filePath;
 }
 
-export async function writeAgentMeta(cwd: string, agent: Agent, meta: AgentMeta) {
+export async function writeAgentMeta(agent: Agent, meta: AgentMeta) {
   if (isBuiltIn(agent.filePath)) {
     const settingsPath = getPiPath("settings");
     let settings: SettingsSchema;

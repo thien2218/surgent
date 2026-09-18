@@ -62,7 +62,7 @@ async function openAgentConfigEditor(ctx: ExtensionCommandContext, agent: Agent)
 
     editor.onCancel = () => done();
     editor.onSave = async (updatedMeta) => {
-      await writeAgentMeta(ctx.cwd, agent, updatedMeta);
+      await writeAgentMeta(agent, updatedMeta);
       agent.meta = updatedMeta;
       ctx.ui.notify(`Agent "${agent.name}" config updated`, "info");
       done();

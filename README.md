@@ -362,12 +362,12 @@ pnpm install
 npm link
 ```
 
-`pnpm build` builds only the distributable optimizer package in `dist/optimizers`. npm runs this build automatically through `prepack` when packaging surgent.
+`pnpm build` builds only the distributable optimizer package in `dist/optimizer`. npm runs this build automatically through `prepack` when packaging surgent.
 
 To publish the standalone optimizer artifact after building it:
 
 ```bash
-npm publish ./dist/optimizers --access public
+npm publish ./dist/optimizer --access public
 ```
 
 ## Reference

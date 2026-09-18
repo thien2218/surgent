@@ -5,13 +5,13 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, "..");
-const optimizerDir = resolve(projectRoot, "dist", "optimizers");
+const optimizerDir = resolve(projectRoot, "dist", "optimizer");
 const rootPackage = JSON.parse(await readFile(resolve(projectRoot, "package.json"), "utf8"));
 
 await rm(optimizerDir, { recursive: true, force: true });
 await mkdir(optimizerDir, { recursive: true });
 await build({
-  entryPoints: [resolve(projectRoot, "src", "optimizers", "index.ts")],
+  entryPoints: [resolve(projectRoot, "src", "optimizer", "index.ts")],
   outfile: resolve(optimizerDir, "index.js"),
   bundle: true,
   format: "esm",
@@ -47,7 +47,7 @@ await Promise.all([
   writeFile(resolve(optimizerDir, "package.json"), `${JSON.stringify(optimizerPackage, null, 2)}\n`),
   copyFile(resolve(projectRoot, "LICENSE"), resolve(optimizerDir, "LICENSE")),
   copyFile(
-    resolve(projectRoot, "src", "optimizers", "README.md"),
+    resolve(projectRoot, "src", "optimizer", "README.md"),
     resolve(optimizerDir, "README.md"),
   ),
 ]);

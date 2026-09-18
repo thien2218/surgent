@@ -22,7 +22,7 @@
 │   ├── code-diff
 │   ├── commands
 │   ├── mcp-client
-│   ├── optimizers
+│   ├── optimizer
 │   ├── permission
 │   ├── questionnaire
 │   ├── redactor

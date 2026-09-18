@@ -1,7 +1,7 @@
 {
   "name": "surgent",
   "version": "0.7.0-alpha.1",
-  "description": "A coding harness designed to optimize token usage using context engineering best practices",
+  "description": "A pre-built Pi coding agent built around automatic context optimization to keep your sessions longer than it should be",
   "bin": {
     "surgent": "./bin/surgent.js"
   },

@@ -28,19 +28,9 @@ import type {
   SubsessionResult,
   SubsessionSnapshot,
 } from "./types.js";
-import { DEFAULT_AGENT } from "../agent/storage.js";
 import { getPiPath } from "../utils.js";
 
-const DEFAULT_SUBSESSION_TOOLS = [
-  "read",
-  "bash",
-  "edit",
-  "write",
-  "grep",
-  "find",
-  "ls",
-  "questionnaire",
-];
+const DISALLOWED_TOOLS = new Set(["subagent", "call_mcp_tool", "list_mcp_tools"]);
 
 async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResult> {
   const snapshot: SubsessionSnapshot = {
@@ -148,8 +138,6 @@ async function createSdkSession(
 ): Promise<AgentSession> {
   const sessionManager = await openSessionManager(request);
   const modelId = runtime.meta.model;
-  const defaultTools =
-    runtime.builtIn && runtime.agent === DEFAULT_AGENT ? DEFAULT_SUBSESSION_TOOLS : undefined;
   const model = modelId
     ? request.ctx.modelRegistry.find(
         modelId.slice(0, modelId.indexOf("/")),
@@ -178,8 +166,11 @@ async function createSdkSession(
       runtime.meta.thinking_level ?? (request.id ? undefined : request.ctx.thinkingLevel),
     resourceLoader,
     sessionManager,
-    tools: runtime.meta.tools ?? defaultTools,
   });
+
+  const availableTools = session.getAllTools().map((tool) => tool.name);
+  const activeTools = runtime.meta.tools ?? availableTools;
+  session.setActiveToolsByName(activeTools.filter((name) => !DISALLOWED_TOOLS.has(name)));
   return session;
 }
 

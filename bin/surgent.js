@@ -4,7 +4,6 @@ import { main } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -104,32 +103,6 @@ function isJsonModeActive(args) {
   return false;
 }
 
-async function setupGlobalConfig() {
-  const srcDir = resolve(PACKAGE_DIR, "src");
-  const agentDir = resolve(homedir(), ".pi", "agent");
-  if (!existsSync(agentDir)) {
-    throw new Error("Missing ~/.pi/agent. Run scripts/build.mjs first.");
-  }
-
-  const entries = await readdir(srcDir, { withFileTypes: true });
-  const extensions = entries.filter((e) => e.isDirectory()).map((e) => resolve(srcDir, e.name));
-
-  let rawSettings;
-  const globalSettingsPath = resolve(agentDir, "settings.json");
-
-  try {
-    rawSettings = await readFile(globalSettingsPath, "utf8");
-  } catch (err) {
-    // ~/.pi/agent/settings.json doesn't exist
-    if (err.code !== "ENOENT") throw err;
-    rawSettings = "{}";
-  }
-
-  const globalSettings = JSON.parse(rawSettings);
-  globalSettings.extensions = extensions;
-  await writeFile(globalSettingsPath, JSON.stringify(globalSettings, null, 2) + "\n");
-}
-
 function rewriteHelpLine(line) {
   if (/^pi\b/.test(line)) {
     return line.replace(/^pi\b/, "surgent");
@@ -188,8 +161,10 @@ if (args.includes("--help") || args.includes("-h")) {
   for (const localPiSubdir of localPiSubdirs) {
     await mkdir(resolve(cwd, ".pi", localPiSubdir), { recursive: true });
   }
-  if (!isJsonModeActive(args)) {
-    await setupGlobalConfig();
-  }
-  await main(args);
+  const srcDir = resolve(PACKAGE_DIR, "src");
+  const entries = await readdir(srcDir, { withFileTypes: true });
+  const extensionArgs = entries
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) => ["--extension", resolve(srcDir, entry.name)]);
+  await main([...extensionArgs, ...args]);
 }

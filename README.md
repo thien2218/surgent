@@ -58,7 +58,7 @@ Confirm the command is available:
 surgent --version
 ```
 
-### Start Surgent
+**Starting surgent**
 
 From the repository you want to work on, run:
 
@@ -67,7 +67,7 @@ cd /path/to/your-project
 surgent
 ```
 
-### Update or remove
+**Update or remove**
 
 ```bash
 npm install -g surgent@latest  # update
@@ -76,11 +76,12 @@ npm uninstall -g surgent       # remove
 
 ## Optimizers for Pi
 
-`@surgent/optimizers` is a Pi extension package that keeps code navigation and tool output focused. It is already built into surgent.
+`@surgent/optimizers` is a Pi extension package that keeps code navigation and tool output focused, while being cache friendly. This extension is already built into surgent.
 
 - `code_map` and `inspect` use Tree-sitter to navigate symbols and declarations in TypeScript/JavaScript, Python, Go, Java, and Rust.
 - It compacts noisy Bash and grep output.
-- It deduplicates previously read resource content, removes superseded `read` or `inspect` results, and prunes empty `ls` or `find` results from context.
+- It deduplicates previously read resource content, removes superseded `read` or `inspect` results
+- It prunes empty `ls` or `find` results from context.
 
 To use the optimizers with Pi instead of surgent, install the standalone package:
 
@@ -389,6 +390,14 @@ To publish the standalone optimizer artifact after building it:
 ```bash
 npm publish ./dist/optimizers --access public
 ```
+
+## Reference
+
+surgent extends [Pi](https://github.com/earendil-works/pi). Refer to the upstream repository for Pi installation, configuration, providers, extension APIs, SDK usage, and other runtime documentation.
+
+- [Pi repository](https://github.com/earendil-works/pi)
+- [Pi coding agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent)
+- [Pi documentation](https://github.com/earendil-works/pi/tree/main/packages/coding-agent/docs)
 
 ## License
 

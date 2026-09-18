@@ -22,7 +22,7 @@ await build({
 });
 
 const optimizerPackage = {
-  name: "@surgent/optimizers",
+  name: "pi-context-optimizers",
   version: rootPackage.version,
   description: "Context optimization tools for pi coding agent",
   type: "module",

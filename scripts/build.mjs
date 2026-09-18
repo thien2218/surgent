@@ -22,7 +22,7 @@ await build({
 });
 
 const optimizerPackage = {
-  name: "pi-context-optimizer",
+  name: "pi-optimizer",
   version: rootPackage.version,
   description: "Context optimization tools for pi coding agent",
   type: "module",

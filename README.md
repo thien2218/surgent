@@ -76,7 +76,7 @@ npm uninstall -g surgent       # remove
 
 ## Optimizer package
 
-surgent includes [`pi-context-optimizer`](https://www.npmjs.com/package/pi-context-optimizer), a standalone Pi extension for structural code navigation and automatic context cleanup. Install it separately when using Pi without surgent; package page covers features and setup.
+surgent includes [`pi-optimizer`](https://www.npmjs.com/package/pi-optimizer), a standalone Pi extension for structural code navigation and automatic context cleanup. Install it separately when using Pi without surgent; package page covers features and setup.
 
 ## Connect a model
 

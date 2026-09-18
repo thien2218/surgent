@@ -1,4 +1,4 @@
-# pi-context-optimizer
+# pi-optimizer
 
 Context optimization extension for [Pi](https://github.com/earendil-works/pi). It gives coding agents more useful context by improving code navigation and reducing repeated or noisy tool output. It is also built into [surgent](https://github.com/thien2218/surgent).
 
@@ -6,7 +6,7 @@ Context optimization extension for [Pi](https://github.com/earendil-works/pi). I
 
 Long coding sessions accumulate large tool results, repeated file content, and output that no longer helps with current task. That context costs tokens and can distract model from relevant code.
 
-`pi-context-optimizer` keeps useful evidence while removing avoidable noise. It works automatically after installation and adds structural tools for reading only code needed for current task.
+`pi-optimizer` keeps useful evidence while removing avoidable noise. It works automatically after installation and adds structural tools for reading only code needed for current task.
 
 ## What it does
 
@@ -30,7 +30,7 @@ These changes reduce context growth, improve prompt-cache reuse, and leave more 
 Install package through Pi:
 
 ```bash
-pi install npm:pi-context-optimizer
+pi install npm:pi-optimizer
 ```
 
 Confirm installation:

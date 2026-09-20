@@ -13,7 +13,7 @@
   "scripts": {
     "build": "node ./scripts/build.mjs",
     "prepack": "npm run build",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run --passWithNoTests"
   },
   "engines": {
     "node": ">=22.19"
@@ -27,12 +27,13 @@
     "@types/picomatch": "^4.0.3",
     "@types/turndown": "^5.0.6",
     "esbuild": "0.28.1",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "5.0.1"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "^0.85.1",
-    "@earendil-works/pi-coding-agent": "^0.85.1",
-    "@earendil-works/pi-tui": "^0.85.1",
+    "@earendil-works/pi-ai": "^0.86.0",
+    "@earendil-works/pi-coding-agent": "^0.86.0",
+    "@earendil-works/pi-tui": "^0.86.0",
     "@mendable/firecrawl-js": "^4.22.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@tavily/core": "^0.7.3",

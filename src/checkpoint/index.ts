@@ -16,7 +16,7 @@ export interface Repo {
 
 export default function (pi: ExtensionAPI) {
   const checkpoints = new Map<string, string>();
-  const pendingCheckpoints = new Map<string, { entryId: string; tree: string }>();
+  let turnChanged = false;
   let repo: Repo | undefined;
 
   async function saveCheckpoints(ctx: ExtensionContext) {
@@ -59,7 +59,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_start", async (_event, ctx) => {
     checkpoints.clear();
-    pendingCheckpoints.clear();
+    turnChanged = false;
     repo = await openCheckpointRepo(pi, ctx.cwd);
     if (!repo) return;
 
@@ -76,24 +76,36 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
-  pi.on("tool_call", async (event, ctx) => {
-    if ((event.toolName !== "write" && event.toolName !== "edit") || !repo) return;
+  pi.on("before_agent_start", async (_event, ctx) => {
+    if (!repo) return;
+
+    const tree = await createSnapshot(pi, repo);
+    if (tree && (await retainSnapshot(pi, repo, tree))) {
+      checkpoints.set(ctx.sessionManager.getLeafId() ?? BASE_CHECKPOINT_KEY, tree);
+    }
+  });
+
+  pi.on("turn_start", () => {
+    turnChanged = false;
+  });
+
+  pi.on("tool_result", (event) => {
+    if ((event.toolName === "write" || event.toolName === "edit") && !event.isError) {
+      turnChanged = true;
+    }
+  });
+
+  pi.on("turn_end", async (_event, ctx) => {
+    if (!turnChanged || !repo) return;
+    turnChanged = false;
 
     const entryId = ctx.sessionManager.getLeafId();
     if (!entryId) return;
 
     const tree = await createSnapshot(pi, repo);
-    if (tree) pendingCheckpoints.set(event.toolCallId, { entryId, tree });
-  });
-
-  pi.on("tool_result", async (event) => {
-    const pendingCheckpoint = pendingCheckpoints.get(event.toolCallId);
-    if (!pendingCheckpoint) return;
-    pendingCheckpoints.delete(event.toolCallId);
-    if (event.isError || !repo) return;
-
-    const retained = await retainSnapshot(pi, repo, pendingCheckpoint.tree);
-    if (retained) checkpoints.set(pendingCheckpoint.entryId, pendingCheckpoint.tree);
+    if (tree && (await retainSnapshot(pi, repo, tree))) {
+      checkpoints.set(entryId, tree);
+    }
   });
 
   pi.on("session_before_tree", (event, ctx) => {

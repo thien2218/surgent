@@ -4,17 +4,12 @@ import { runCommand, unique } from "../../utils.js";
 const SKIPPED_DIRECTORIES = new Set([".git", ".pi", "build", "coverage", "dist", "node_modules"]);
 
 function normalizePath(pathValue: string) {
-  const normalizedPath = pathValue.replaceAll("\\", "/");
+  const normalizedPath = pathValue.replaceAll("\\", "/").replace(/\/+$/, "");
   return normalizedPath.startsWith("./") ? normalizedPath.slice(2) : normalizedPath;
 }
 
-async function rgFiles(
-  projectPath: string,
-  globTargets: string[],
-  signal?: AbortSignal,
-) {
+async function rgFiles(projectPath: string, globTargets: string[], signal?: AbortSignal) {
   const args = ["--files", "--hidden"];
-
   for (const skipped of SKIPPED_DIRECTORIES) {
     args.push("--glob", `!**/${skipped}/**`);
   }
@@ -34,11 +29,7 @@ async function rgFiles(
     .filter((line) => line.length > 0);
 }
 
-async function grepFiles(
-  projectPath: string,
-  globTargets: string[],
-  signal?: AbortSignal,
-) {
+async function grepFiles(projectPath: string, globTargets: string[], signal?: AbortSignal) {
   const args = ["-r", "-I", "-l"];
 
   for (const skipped of SKIPPED_DIRECTORIES) {

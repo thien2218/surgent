@@ -2,19 +2,34 @@ import { statSync } from "node:fs";
 import {
   createBashToolDefinition,
   createGrepToolDefinition,
+  createLocalBashOperations,
   isGrepToolResult,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
-import { createCompactingBashOperations } from "./bash.js";
+import { BashResultCompactor } from "./bash.js";
 import { rewriteTailWithSummaries, extractGrepSummary, formatGrepResult } from "./grep.js";
 import Type from "typebox";
+
+const localBash = createLocalBashOperations();
 
 export default function (pi: ExtensionAPI) {
   let writeStartOffset = 0;
   const store = new Map<string, string>();
   const grepTool = createGrepToolDefinition(process.cwd());
   const bashTool = createBashToolDefinition(process.cwd(), {
-    operations: createCompactingBashOperations(),
+    operations: {
+      async exec(command, cwd, options) {
+        const compactor = new BashResultCompactor(options.onData);
+        try {
+          return await localBash.exec(command, cwd, {
+            ...options,
+            onData: (data) => compactor.append(data),
+          });
+        } finally {
+          compactor.finish();
+        }
+      },
+    },
   });
 
   pi.registerTool({

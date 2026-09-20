@@ -54,7 +54,7 @@ export function rewriteTailWithSummaries(
   offset: number,
   summaries: Map<string, string>,
 ) {
-  if (summaries.size === 0) return;
+  if (summaries.size === 0 || !existsSync(sessionFile)) return;
 
   const sessionBuffer = readFileSync(sessionFile);
   if (offset > sessionBuffer.length) return;

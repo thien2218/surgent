@@ -1,7 +1,5 @@
 import { stripVTControlCharacters } from "node:util";
-import { createLocalBashOperations, type BashOperations } from "@earendil-works/pi-coding-agent";
 
-const localBash = createLocalBashOperations();
 const MIN_SIMILAR_LENGTH = 10;
 const SIMILARITY_THRESHOLD = 0.8;
 
@@ -140,20 +138,4 @@ export class BashResultCompactor {
     this.carriageLine = undefined;
     this.hasPendingLine = false;
   }
-}
-
-export function createCompactingBashOperations(filter?: string): BashOperations {
-  return {
-    async exec(command, cwd, options) {
-      const compactor = new BashResultCompactor(options.onData);
-      try {
-        return await localBash.exec(command, cwd, {
-          ...options,
-          onData: (data) => compactor.append(data),
-        });
-      } finally {
-        compactor.finish();
-      }
-    },
-  };
 }

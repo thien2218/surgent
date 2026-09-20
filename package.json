@@ -1,9 +1,9 @@
 {
   "name": "surgent",
-  "version": "0.7.0-alpha.4",
+  "version": "0.7.1-alpha.0",
   "description": "A pre-built Pi coding agent built around automatic context optimization to keep your sessions longer than it should be",
   "bin": {
-    "surgent": "./bin/surgent.js"
+    "surgent": "bin/surgent.js"
   },
   "files": [
     "bin",

@@ -21,12 +21,8 @@ async function persistRules(
   local[sessionId] = data.session;
   local.project = data.project;
 
-  if (Object.keys(data.session).length > 0 || Object.keys(data.project).length > 0) {
-    await writeRules(local, ctx.cwd);
-  }
-  if (Object.keys(data.global).length > 0) {
-    await writeRules(data.global);
-  }
+  await writeRules(local, ctx.cwd);
+  await writeRules(data.global);
 }
 
 function notifyError(ctx: ExtensionContext, error: unknown, done?: () => void) {

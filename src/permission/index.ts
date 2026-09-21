@@ -15,12 +15,17 @@ import { getPermissionCheck, cycleMode } from "./helpers.js";
 import type { Agent, AgentMeta, AgentMode } from "../agent/types.js";
 
 async function askForPermission(pi: ExtensionAPI, ctx: ExtensionContext, check: PermissionCheck) {
-  const decision = await ctx.ui.custom<PromptDecision>((_tui, theme, _keybindings, done) => {
-    const component = new PermissionPrompt(theme, check, ctx.cwd);
-    component.onDone = done;
-    return component;
-  });
+  const decision = await ctx.ui.custom<PromptDecision | undefined>(
+    (_tui, theme, _keybindings, done) => {
+      const component = new PermissionPrompt(theme, check, ctx.cwd);
+      component.onDone = done;
+      return component;
+    },
+  );
 
+  if (!decision) {
+    return { block: true, reason: "Permission request was cancelled" };
+  }
   if (!decision.allowed) {
     const appended = decision.amended ? `. User input: ${decision.amended}` : "";
     return {
@@ -41,30 +46,34 @@ export async function enforceToolPermission(
   sessionId: string,
   mode: AgentMode,
 ) {
-  for (const input of getPiIgnoreInputs(event)) {
-    const piIgnoreBlock = await resolvePiIgnorePathBlock(ctx.cwd, input);
-    if (piIgnoreBlock) {
-      return { block: true, reason: piIgnoreBlock };
+  try {
+    for (const input of getPiIgnoreInputs(event)) {
+      const piIgnoreBlock = await resolvePiIgnorePathBlock(ctx.cwd, input);
+      if (piIgnoreBlock) {
+        return { block: true, reason: piIgnoreBlock };
+      }
     }
-  }
 
-  const check = getPermissionCheck(sessionId, event.toolName, event.input);
-  if (!check) return;
-  if (!checkAgentRules(meta, check)) {
-    return { block: true, reason: "Access to this resource is beyond allowed scope" };
-  }
+    const check = getPermissionCheck(sessionId, event.toolName, event.input);
+    if (!check) return;
+    if (!checkAgentRules(meta, check)) {
+      return { block: true, reason: "Access to this resource is beyond allowed scope" };
+    }
 
-  const permission = await resolvePermission(ctx.cwd, check, mode);
-  if (permission === "blocked") {
-    return { block: true, reason: "Access to this resource is denied" };
-  }
-  if (mode === "yolo") return;
-  if (permission === "allowed" && !check.uncertainty) return;
-  if (!ctx.hasUI) {
-    return { block: true, reason: "Permission request requires interactive UI" };
-  }
+    const permission = await resolvePermission(ctx.cwd, check, mode);
+    if (permission === "blocked") {
+      return { block: true, reason: "Access to this resource is denied" };
+    }
+    if (mode === "yolo") return;
+    if (permission === "allowed" && !check.uncertainty) return;
+    if (!ctx.hasUI) {
+      return { block: true, reason: "Permission request requires interactive UI" };
+    }
 
-  return askForPermission(pi, ctx, check);
+    return await askForPermission(pi, ctx, check);
+  } catch {
+    return { block: true, reason: "Permission check failed" };
+  }
 }
 
 export default function (pi: ExtensionAPI) {
@@ -88,8 +97,9 @@ export default function (pi: ExtensionAPI) {
   pi.registerShortcut(Key.alt("m"), {
     description: "Cycle assistant, YOLO, and restricted modes",
     handler: async (ctx) => {
-      mode = cycleMode(mode);
-      await writeAgentMode(mode);
+      const nextMode = cycleMode(mode);
+      await writeAgentMode(nextMode);
+      mode = nextMode;
       updateStatus?.();
 
       ctx.ui.notify(
@@ -125,6 +135,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_shutdown", async (_event, _ctx) => {
     if (updateStatus) {
       process.stdout.off("resize", updateStatus);
+      updateStatus = undefined;
     }
   });
 

@@ -52,8 +52,11 @@ function parsePiIgnoreRules(contents: string): PiIgnoreRule[] {
 
   for (const [order, pattern] of contents.split(/\r?\n/).entries()) {
     if (!pattern || pattern.startsWith("#")) continue;
+    if (pattern === "!" || pattern.includes("\0")) {
+      throw new Error(`Invalid .piignore rule on line ${order + 1}`);
+    }
 
-    const negated = pattern.startsWith("!") && pattern !== "!";
+    const negated = pattern.startsWith("!");
     const rawPattern = negated ? pattern.slice(1) : pattern;
     const matcher = normalizePiIgnorePattern(rawPattern);
     if (!matcher) continue;

@@ -1,4 +1,6 @@
-import { readJson, writeJson } from "../utils.js";
+import { randomUUID } from "node:crypto";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
+import { isMissingFileError, isRecord, readJson, writeJson } from "../utils.js";
 import type {
   Category,
   GroupedDisplayRules,
@@ -16,14 +18,55 @@ interface LocalSchema {
   [sessionId: string]: PermissionRule | undefined;
 }
 
+function validateRule(value: unknown): asserts value is PermissionRule {
+  if (!isRecord(value)) throw new Error("Invalid permission rules");
+
+  for (const [category, rules] of Object.entries(value)) {
+    if (!CATEGORIES.includes(category as Category) || !isRecord(rules)) {
+      throw new Error("Invalid permission rules");
+    }
+    for (const permission of Object.values(rules)) {
+      const valid =
+        category === "file"
+          ? permission === "read" || permission === "write" || permission === "blocked"
+          : typeof permission === "boolean";
+      if (!valid) throw new Error("Invalid permission rules");
+    }
+  }
+}
+
 export async function writeRules(data: PermissionRule | LocalSchema, cwd: string = "") {
-  return writeJson(getPiPath("permissions", cwd), data);
+  const filePath = getPiPath("permissions", cwd);
+  const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+
+  try {
+    await writeFile(tempPath, JSON.stringify(data, null, 2) + "\n", "utf8");
+    await rename(tempPath, filePath);
+  } finally {
+    await rm(tempPath, { force: true });
+  }
 }
 
 export function readRules(cwd: string): Promise<LocalSchema>;
 export function readRules(): Promise<PermissionRule>;
-export function readRules(cwd: string = ""): Promise<LocalSchema | PermissionRule> {
-  return readJson<LocalSchema | PermissionRule>(getPiPath("permissions", cwd), {});
+export async function readRules(cwd: string = ""): Promise<LocalSchema | PermissionRule> {
+  const filePath = getPiPath("permissions", cwd);
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(await readFile(filePath, "utf8"));
+  } catch (error) {
+    if (isMissingFileError(error)) return {};
+    throw error;
+  }
+
+  if (!isRecord(parsed)) throw new Error("Invalid permission rules");
+  if (!cwd) {
+    validateRule(parsed);
+    return parsed;
+  }
+  for (const rule of Object.values(parsed)) validateRule(rule);
+  return parsed;
 }
 
 export async function readAgentMode(): Promise<AgentMode> {

@@ -10,7 +10,7 @@ import { createPermissionCheck } from "../../helpers/permission.js";
 
 describe("checkAgentRules", () => {
   it("allows a category when its allowlist is absent", () => {
-    expect(checkAgentRules({}, createPermissionCheck())).toBe(true);
+    expect(checkAgentRules({ description: "Test agent" }, createPermissionCheck())).toBe(true);
   });
 
   it("requires every Bash command to match the Bash allowlist", () => {
@@ -20,9 +20,9 @@ describe("checkAgentRules", () => {
       extracted: ["git status", "git diff"],
     });
 
-    expect(checkAgentRules({ bash: ["git *"] }, check)).toBe(true);
-    expect(checkAgentRules({ bash: ["git status"] }, check)).toBe(false);
-    expect(checkAgentRules({ bash: [] }, check)).toBe(false);
+    expect(checkAgentRules({ description: "Test agent", bash: ["git *"] }, check)).toBe(true);
+    expect(checkAgentRules({ description: "Test agent", bash: ["git status"] }, check)).toBe(false);
+    expect(checkAgentRules({ description: "Test agent", bash: [] }, check)).toBe(false);
   });
 
   it("uses separate file allowlists for reads and writes", () => {
@@ -30,10 +30,10 @@ describe("checkAgentRules", () => {
       extracted: ["read:src/a.ts", "write:src/b.ts"],
     });
 
-    expect(checkAgentRules({ "files.read": ["src/**"], "files.write": ["src/**"] }, check)).toBe(
+    expect(checkAgentRules({ description: "Test agent", "files.read": ["src/**"], "files.write": ["src/**"] }, check)).toBe(
       true,
     );
-    expect(checkAgentRules({ "files.read": ["src/**"], "files.write": ["docs/**"] }, check)).toBe(
+    expect(checkAgentRules({ description: "Test agent", "files.read": ["src/**"], "files.write": ["docs/**"] }, check)).toBe(
       false,
     );
   });
@@ -45,8 +45,8 @@ describe("checkAgentRules", () => {
       extracted: ["github:search", "github:get_issue"],
     });
 
-    expect(checkAgentRules({ mcp_tools: ["github:*"] }, check)).toBe(true);
-    expect(checkAgentRules({ mcp_tools: ["github:search"] }, check)).toBe(false);
+    expect(checkAgentRules({ description: "Test agent", mcp_tools: ["github:*"] }, check)).toBe(true);
+    expect(checkAgentRules({ description: "Test agent", mcp_tools: ["github:search"] }, check)).toBe(false);
   });
 
   it("does not apply agent metadata restrictions to web checks", () => {
@@ -56,7 +56,7 @@ describe("checkAgentRules", () => {
       extracted: ["https://example.com"],
     });
 
-    expect(checkAgentRules({}, check)).toBe(true);
+    expect(checkAgentRules({ description: "Test agent" }, check)).toBe(true);
   });
 });
 

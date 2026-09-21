@@ -19,7 +19,7 @@ export interface PermissionCheck {
   toolName: PermissiveToolName;
   category: Category;
   raw: string;
-  extracted: string[];
+  unresolved: string[];
   purpose: string;
   uncertainty?: string;
 }

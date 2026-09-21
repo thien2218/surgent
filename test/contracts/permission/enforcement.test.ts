@@ -9,7 +9,7 @@ import { enforceToolPermission } from "../../../src/permission/index.js";
 import { writeRules } from "../../../src/permission/storage.js";
 import { getPiPath } from "../../../src/utils.js";
 import { createPermissionSandbox } from "../../helpers/permission.js";
-import { testTheme } from "../../helpers/tui.js";
+import { testKeybindings, testTheme, testTui } from "../../helpers/tui.js";
 
 let sandbox: Awaited<ReturnType<typeof createPermissionSandbox>>;
 
@@ -22,8 +22,11 @@ afterEach(async () => {
 });
 
 function createHarness(promptResult?: unknown, hasUI = true) {
-  const custom = vi.fn(async () => {
+  const rendered: string[] = [];
+  const custom = vi.fn(async (factory: Parameters<ExtensionContext["ui"]["custom"]>[0]) => {
     if (promptResult instanceof Error) throw promptResult;
+    const component = await factory(testTui, testTheme, testKeybindings, () => undefined);
+    rendered.push(component.render(140).join("\n"));
     return promptResult;
   });
   const sendUserMessage = vi.fn();
@@ -33,10 +36,55 @@ function createHarness(promptResult?: unknown, hasUI = true) {
     hasUI,
     ui: { custom, theme: testTheme },
   } as unknown as ExtensionContext;
-  return { pi, ctx, custom, sendUserMessage };
+  return { pi, ctx, custom, sendUserMessage, rendered };
 }
 
 describe("permission enforcement", () => {
+  it("offers persistent rules only for unresolved commands while displaying raw input", async () => {
+    await writeRules({ project: { bash: { "git commit *": true } } }, sandbox.cwd);
+    const harness = createHarness({ allowed: true });
+    const command = 'git add . && git commit -m "test"';
+
+    const result = await enforceToolPermission(
+      harness.pi,
+      { type: "tool_call", toolCallId: "permission-test", toolName: "bash", input: { command } },
+      harness.ctx,
+      { description: "Test agent" },
+      "session-1",
+      "assistant",
+    );
+
+    expect(result).toBeUndefined();
+    expect(harness.custom).toHaveBeenCalledOnce();
+    expect(harness.rendered[0]).toContain(command);
+    expect(harness.rendered[0]).toContain('"git add *"');
+    expect(harness.rendered[0]).not.toContain('"git commit *"');
+  });
+
+  it("still prompts for uncertain commands even when every unresolved command is allowed", async () => {
+    await writeRules({ project: { bash: { "*": true } } }, sandbox.cwd);
+    const harness = createHarness({ allowed: false });
+
+    const result = await enforceToolPermission(
+      harness.pi,
+      {
+        type: "tool_call",
+        toolCallId: "permission-test",
+        toolName: "bash",
+        input: { command: "$COMMAND arg", purpose: "Run dynamic command" },
+      },
+      harness.ctx,
+      { description: "Test agent" },
+      "session-1",
+      "assistant",
+    );
+
+    expect(result).toMatchObject({ block: true });
+    expect(harness.custom).toHaveBeenCalledOnce();
+    expect(harness.rendered[0]).toContain("$COMMAND arg");
+    expect(harness.rendered[0]).not.toContain("allow bash tool call");
+  });
+
   it("applies .piignore before agent and stored rules", async () => {
     await writeFile(join(sandbox.cwd, ".piignore"), "secret.txt\n", "utf8");
     await writeRules({ project: { file: { "secret.txt": "read" } } }, sandbox.cwd);

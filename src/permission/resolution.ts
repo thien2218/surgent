@@ -35,18 +35,18 @@ function isAllowedByPattern(raw: string, allowList?: string[], bash?: boolean): 
 }
 
 export function checkAgentRules(meta: AgentMeta, check: PermissionCheck): boolean {
-  const { category, extracted } = check;
+  const { category, unresolved } = check;
   if (category === "bash") {
-    return extracted.every((item) => isAllowedByPattern(item, meta.bash, true));
+    return unresolved.every((item) => isAllowedByPattern(item, meta.bash, true));
   }
   if (category === "file") {
-    return extracted.every((item) => {
+    return unresolved.every((item) => {
       const [op, path] = extractOpAndPath(item);
       return isAllowedByPattern(path, meta[`files.${op}`]);
     });
   }
   if (category === "mcp") {
-    return extracted.every((item) => isAllowedByPattern(item, meta.mcp_tools));
+    return unresolved.every((item) => isAllowedByPattern(item, meta.mcp_tools));
   }
   return true;
 }
@@ -73,8 +73,8 @@ export function getRelativePathInRoot(path: string, root: string): string | null
 }
 
 export async function resolvePermission(cwd: string, check: PermissionCheck, mode: AgentMode) {
-  let shouldAsk = false;
-  const { category, extracted, sessionId } = check;
+  const unresolved: string[] = [];
+  const { category, sessionId } = check;
   const [local, global, subsession] = await Promise.all([
     readRules(cwd),
     readRules(),
@@ -88,7 +88,7 @@ export async function resolvePermission(cwd: string, check: PermissionCheck, mod
   scopes.push(local.project);
   scopes.push(mode === "restricted" ? getBlockedRules(global) : global);
 
-  for (const item of extracted) {
+  for (const item of check.unresolved) {
     const [fileOp, normalized] = category === "file" ? extractOpAndPath(item) : [undefined, item];
     let permission: "allowed" | "blocked" | "ask" = findScopedPermission(
       scopes.map((schema) => getSchemaRules(schema, category)),
@@ -109,8 +109,9 @@ export async function resolvePermission(cwd: string, check: PermissionCheck, mod
     }
 
     if (permission === "blocked") return "blocked";
-    if (permission === "ask") shouldAsk = true;
+    if (permission === "ask") unresolved.push(item);
   }
 
-  return shouldAsk ? "ask" : "allowed";
+  check.unresolved = unresolved;
+  return unresolved.length > 0 ? "ask" : "allowed";
 }

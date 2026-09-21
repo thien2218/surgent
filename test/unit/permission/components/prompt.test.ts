@@ -70,7 +70,7 @@ describe("PermissionPrompt", () => {
       createPermissionCheck({
         toolName: "bash",
         category: "bash",
-        extracted: ["$COMMAND arg"],
+        unresolved: ["$COMMAND arg"],
         uncertainty: "Dynamic or invalid bash command",
       }),
       process.cwd(),
@@ -101,7 +101,7 @@ describe("PermissionPrompt", () => {
   it("shows validation feedback for malformed persistent patterns", () => {
     const prompt = new PermissionPrompt(
       testTheme,
-      createPermissionCheck({ extracted: [] }),
+      createPermissionCheck({ unresolved: [] }),
       process.cwd(),
     );
     const onDone = vi.fn();
@@ -119,14 +119,14 @@ describe("PermissionPrompt", () => {
     );
   });
 
-  it("displays raw input instead of joined extracted commands", () => {
+  it("displays raw input instead of joined unresolved commands", () => {
     const prompt = new PermissionPrompt(
       testTheme,
       createPermissionCheck({
         toolName: "bash",
         category: "bash",
         raw: "git status && git diff > changes.patch",
-        extracted: ["git status", "git diff"],
+        unresolved: ["git status", "git diff"],
         purpose: "Review changes",
       }),
       process.cwd(),

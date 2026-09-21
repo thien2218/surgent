@@ -75,25 +75,25 @@ export function getPermissionCheck(
     category: PERMISSIVE_TOOLS[typedName],
     raw: "",
     purpose: "",
-    extracted: [],
+    unresolved: [],
   };
 
   switch (typedName) {
     case "read":
       check.raw = input.path as string;
       check.purpose = `Read content from file ${check.raw}`;
-      check.extracted = [`read:${check.raw}`];
+      check.unresolved = [`read:${check.raw}`];
       break;
     case "write":
     case "edit":
       check.raw = input.path as string;
       check.purpose = `Write content to file ${check.raw}`;
-      check.extracted = [`write:${check.raw}`];
+      check.unresolved = [`write:${check.raw}`];
       break;
     case "grep":
       check.raw = (input.path as string | undefined) ?? ".";
       check.purpose = `Perform search in path ${check.raw}`;
-      check.extracted = [`read:${check.raw}`];
+      check.unresolved = [`read:${check.raw}`];
       break;
     case "bash":
       check.raw = input.command as string;
@@ -102,19 +102,19 @@ export function getPermissionCheck(
     case "web_fetch":
       check.raw = input.url as string;
       check.purpose = `Fetch content from URL ${input.url}`;
-      check.extracted = [check.raw];
+      check.unresolved = [check.raw];
       break;
     case "call_mcp_tool":
       check.raw = `${(input.server as string).trim()}:${(input.tool as string).trim()}`;
       check.purpose = `Call MCP tool ${check.raw}`;
-      check.extracted = [check.raw];
+      check.unresolved = [check.raw];
       break;
   }
 
   if (typedName === "bash") {
     const commands = extractBashCommands(check.raw);
     const uncertainty = commands.map(getBashUncertainty).filter(Boolean);
-    check.extracted = commands.map(({ text }) => text);
+    check.unresolved = commands.map(({ text }) => text);
     check.uncertainty = unique(uncertainty).join("; ") || undefined;
   }
 

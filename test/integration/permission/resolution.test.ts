@@ -21,17 +21,71 @@ afterEach(async () => {
   await sandbox.cleanup();
 });
 
-function webCheck(extracted = ["https://example.test/data"]) {
+function webCheck(unresolved = ["https://example.test/data"]) {
   return createPermissionCheck({
     sessionId: "child",
     toolName: "web_fetch",
     category: "web",
-    raw: extracted[0],
-    extracted,
+    raw: unresolved[0],
+    unresolved,
   });
 }
 
 describe("persisted permission resolution", () => {
+  it("clears unresolved commands when every command is allowed", async () => {
+    await writeRules({ project: { bash: { "git commit *": true } } }, sandbox.cwd);
+    const check = createPermissionCheck({
+      toolName: "bash",
+      category: "bash",
+      raw: 'git commit -m "test"',
+      unresolved: ['git commit -m "test"'],
+    });
+
+    expect(await resolvePermission(sandbox.cwd, check, "assistant")).toBe("allowed");
+    expect(check.unresolved).toEqual([]);
+    expect(check.raw).toBe('git commit -m "test"');
+  });
+
+  it.each(["assistant", "restricted"] as const)(
+    "returns only unresolved commands under %s mode",
+    async (mode) => {
+      await writeRules({
+        bash: { "git status *": true },
+      });
+      await writeRules({
+        child: { bash: { "git diff *": true } },
+        parent: { bash: { "git log *": true } },
+        project: { bash: { "git commit *": true } },
+      }, sandbox.cwd);
+      const check = createPermissionCheck({
+        sessionId: "child",
+        toolName: "bash",
+        category: "bash",
+        unresolved: ["git add .", "git diff --stat", "git log -1", 'git commit -m "test"', "git status --short"],
+      });
+
+      expect(await resolvePermission(sandbox.cwd, check, mode)).toBe("ask");
+      expect(check.unresolved).toEqual(
+        mode === "restricted" ? ["git add .", "git status --short"] : ["git add ."],
+      );
+    },
+  );
+
+  it.each([
+    ["git add .", "git commit -m test"],
+    ["git commit -m test", "git add ."],
+  ])("blocks compound requests with denied commands in either order", async (...unresolved) => {
+    await writeRules({ project: { bash: { "git commit *": false } } }, sandbox.cwd);
+    const check = createPermissionCheck({
+      toolName: "bash",
+      category: "bash",
+      unresolved,
+    });
+
+    expect(await resolvePermission(sandbox.cwd, check, "assistant")).toBe("blocked");
+    expect(check.unresolved).toEqual(unresolved);
+  });
+
   it.each([
     [
       "session",
@@ -79,10 +133,10 @@ describe("persisted permission resolution", () => {
     const projectFile = join(sandbox.cwd, "src", "index.ts");
     const readCheck = createPermissionCheck({
       sessionId: "child",
-      extracted: [`read:${projectFile}`],
+      unresolved: [`read:${projectFile}`],
     });
 
-    expect(await resolvePermission(sandbox.cwd, readCheck, "assistant")).toBe("allowed");
+    expect(await resolvePermission(sandbox.cwd, { ...readCheck }, "assistant")).toBe("allowed");
 
     await writeRules({ project: { file: { "**/src/**": "blocked" } } }, sandbox.cwd);
     expect(await resolvePermission(sandbox.cwd, readCheck, "assistant")).toBe("blocked");
@@ -92,11 +146,11 @@ describe("persisted permission resolution", () => {
     const projectWrite = createPermissionCheck({
       sessionId: "child",
       toolName: "write",
-      extracted: [`write:${join(sandbox.cwd, "src", "index.ts")}`],
+      unresolved: [`write:${join(sandbox.cwd, "src", "index.ts")}`],
     });
     const outsideRead = createPermissionCheck({
       sessionId: "child",
-      extracted: [`read:${join(sandbox.directory, "outside.txt")}`],
+      unresolved: [`read:${join(sandbox.directory, "outside.txt")}`],
     });
 
     expect(await resolvePermission(sandbox.cwd, projectWrite, "restricted")).toBe("ask");
@@ -124,11 +178,9 @@ describe("persisted permission resolution", () => {
       ["https://one.test/a", "https://two.test/b"],
       "blocked",
     ],
-  ] as const)("combines checks with denial winning", async (project, extracted, expected) => {
+  ] as const)("combines checks with denial winning", async (project, unresolved, expected) => {
     await writeRules({ project }, sandbox.cwd);
 
-    expect(await resolvePermission(sandbox.cwd, webCheck([...extracted]), "assistant")).toBe(
-      expected,
-    );
+    expect(await resolvePermission(sandbox.cwd, webCheck([...unresolved]), "assistant")).toBe(expected);
   });
 });

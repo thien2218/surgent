@@ -9,7 +9,7 @@ export function createPermissionCheck(overrides: Partial<PermissionCheck> = {}):
     toolName: "read",
     category: "file",
     raw: "src/index.ts",
-    extracted: ["read:src/index.ts"],
+    unresolved: ["read:src/index.ts"],
     purpose: "Read source file",
     ...overrides,
   };

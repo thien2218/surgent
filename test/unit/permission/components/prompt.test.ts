@@ -119,11 +119,29 @@ describe("PermissionPrompt", () => {
     );
   });
 
+  it("displays raw input instead of joined extracted commands", () => {
+    const prompt = new PermissionPrompt(
+      testTheme,
+      createPermissionCheck({
+        toolName: "bash",
+        category: "bash",
+        raw: "git status && git diff > changes.patch",
+        extracted: ["git status", "git diff"],
+        purpose: "Review changes",
+      }),
+      process.cwd(),
+    );
+
+    const rendered = prompt.render(140).join("\n");
+    expect(rendered).toContain("git status && git diff > changes.patch");
+    expect(rendered).not.toContain("git status, git diff");
+  });
+
   it("normalizes and truncates displayed resources", () => {
     const longResource = `${"a".repeat(100)}b`;
     const prompt = new PermissionPrompt(
       testTheme,
-      createPermissionCheck({ extracted: [`${longResource}\r\nsecond`] }),
+      createPermissionCheck({ raw: `${longResource}\r\nsecond` }),
       process.cwd(),
     );
 

@@ -119,7 +119,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
     if (this.cachedLines) return this.cachedLines;
 
     const lines = new Lines(width);
-    const { toolName, extracted, uncertainty } = this.check;
+    const { toolName, raw, uncertainty } = this.check;
     const uncertaintyNote = uncertainty ? `${uncertainty} detected. ` : "";
 
     lines.add(this.theme.italic(`${uncertaintyNote}Allow agent to use '${toolName}' tool?`));
@@ -128,7 +128,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
     }
 
     lines.space();
-    this.addRawLines(lines, extracted.join(", "), width);
+    this.addRawLines(lines, raw, width);
     lines.space();
 
     for (const [i, option] of this.options.entries()) {

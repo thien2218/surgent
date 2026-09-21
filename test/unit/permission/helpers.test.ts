@@ -21,35 +21,35 @@ describe("getPermissionCheck", () => {
       "https://example.com/a",
       ["https://example.com/a"],
     ],
-  ] as const)("creates a permission check for %s", (toolName, input, category, raw, extracted) => {
+  ] as const)("creates a permission check for %s", (toolName, input, category, raw, unresolved) => {
     expect(getPermissionCheck("session-1", toolName, input)).toMatchObject({
       sessionId: "session-1",
       toolName,
       category,
       raw,
-      extracted,
+      unresolved,
     });
   });
 
   it("defaults grep path only when path is missing or null", () => {
     expect(getPermissionCheck("session-1", "grep", {})).toMatchObject({
       raw: ".",
-      extracted: ["read:."],
+      unresolved: ["read:."],
     });
     expect(getPermissionCheck("session-1", "grep", { path: null })).toMatchObject({
       raw: ".",
-      extracted: ["read:."],
+      unresolved: ["read:."],
     });
     expect(getPermissionCheck("session-1", "grep", { path: "" })).toMatchObject({
       raw: "",
-      extracted: ["read:"],
+      unresolved: ["read:"],
     });
   });
 
   it("trims MCP identifiers", () => {
     expect(
       getPermissionCheck("session-1", "call_mcp_tool", { server: " github ", tool: " search " }),
-    ).toMatchObject({ raw: "github:search", extracted: ["github:search"] });
+    ).toMatchObject({ raw: "github:search", unresolved: ["github:search"] });
   });
 
   it("extracts Bash commands and preserves supplied purpose", () => {
@@ -61,7 +61,7 @@ describe("getPermissionCheck", () => {
     ).toMatchObject({
       raw: "git status && pwd",
       purpose: "Inspect repository",
-      extracted: ["git status", "pwd"],
+      unresolved: ["git status", "pwd"],
       uncertainty: undefined,
     });
   });

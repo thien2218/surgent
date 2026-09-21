@@ -97,17 +97,16 @@ export default function (pi: ExtensionAPI) {
   pi.registerShortcut(Key.alt("m"), {
     description: "Cycle assistant, YOLO, and restricted modes",
     handler: async (ctx) => {
-      const nextMode = cycleMode(mode);
-      await writeAgentMode(nextMode);
-      mode = nextMode;
+      mode = cycleMode(mode);
       updateStatus?.();
-
       ctx.ui.notify(
         mode === "yolo"
           ? "YOLO mode ON - agents can now run commands and tools without asking"
           : "YOLO mode OFF",
         "info",
       );
+      // Optimistically change mode even on write failure
+      void writeAgentMode(mode).catch(() => undefined);
     },
   });
 

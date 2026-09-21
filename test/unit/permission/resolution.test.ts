@@ -17,7 +17,7 @@ describe("checkAgentRules", () => {
     const check = createPermissionCheck({
       toolName: "bash",
       category: "bash",
-      extracted: ["git status", "git diff"],
+      unresolved: ["git status", "git diff"],
     });
 
     expect(checkAgentRules({ description: "Test agent", bash: ["git *"] }, check)).toBe(true);
@@ -27,7 +27,7 @@ describe("checkAgentRules", () => {
 
   it("uses separate file allowlists for reads and writes", () => {
     const check = createPermissionCheck({
-      extracted: ["read:src/a.ts", "write:src/b.ts"],
+      unresolved: ["read:src/a.ts", "write:src/b.ts"],
     });
 
     expect(checkAgentRules({ description: "Test agent", "files.read": ["src/**"], "files.write": ["src/**"] }, check)).toBe(
@@ -42,7 +42,7 @@ describe("checkAgentRules", () => {
     const check = createPermissionCheck({
       toolName: "call_mcp_tool",
       category: "mcp",
-      extracted: ["github:search", "github:get_issue"],
+      unresolved: ["github:search", "github:get_issue"],
     });
 
     expect(checkAgentRules({ description: "Test agent", mcp_tools: ["github:*"] }, check)).toBe(true);
@@ -53,7 +53,7 @@ describe("checkAgentRules", () => {
     const check = createPermissionCheck({
       toolName: "web_fetch",
       category: "web",
-      extracted: ["https://example.com"],
+      unresolved: ["https://example.com"],
     });
 
     expect(checkAgentRules({ description: "Test agent" }, check)).toBe(true);

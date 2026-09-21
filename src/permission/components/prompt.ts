@@ -30,7 +30,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
     super(theme);
     if (!check.uncertainty) {
       this.patterns = unique(
-        check.extracted.map((item) => toPattern(check.toolName, item)).filter(Boolean),
+        check.unresolved.map((item) => toPattern(check.toolName, item)).filter(Boolean),
       );
     }
 

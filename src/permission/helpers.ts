@@ -50,7 +50,7 @@ export function cycleRuleValue(rule: DisplayRule) {
     rule.value = !rule.value;
     return;
   }
-  const fileOps = ["read", "write", "blocked"] as const;
+  const fileOps = ["read", "write", "deny"] as const;
   const valueIndex = fileOps.findIndex((value) => value === rule.value);
   rule.value = fileOps[(valueIndex + 1) % fileOps.length]!;
 }
@@ -147,7 +147,7 @@ export function mapToRules(
   for (const pattern of patterns) {
     if (category === "file") {
       const [op, path] = extractOpAndPath(pattern);
-      map.set(path, allowed ? op : "blocked");
+      map.set(path, allowed ? op : "deny");
     } else {
       map.set(pattern, allowed);
     }

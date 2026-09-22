@@ -28,7 +28,7 @@ function validateRule(value: unknown): asserts value is PermissionRule {
     for (const permission of Object.values(rules)) {
       const valid =
         category === "file"
-          ? permission === "read" || permission === "write" || permission === "blocked"
+          ? permission === "read" || permission === "write" || permission === "deny"
           : typeof permission === "boolean";
       if (!valid) throw new Error("Invalid permission rules");
     }
@@ -144,7 +144,7 @@ export async function toggleRule(
 ) {
   await mutateRules(cwd, sessionId, scope, category, (rules) => {
     if (category === "file") {
-      const cycle: FileAccess[] = ["write", "read", "blocked"];
+      const cycle: FileAccess[] = ["write", "read", "deny"];
       const currentValue = rules[pattern] as FileAccess | undefined;
       const cycleIndex = cycle.indexOf(currentValue as FileAccess);
       rules[pattern] = cycle[(cycleIndex + 1) % cycle.length]!;

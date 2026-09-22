@@ -1,11 +1,10 @@
 import { SCOPES, PERMISSIVE_TOOLS } from "./constants.js";
 
-type FileOp = "read" | "write";
-
+export type FileOp = "read" | "write";
 export type PermissiveToolName = keyof typeof PERMISSIVE_TOOLS;
 export type Scope = (typeof SCOPES)[number];
 export type Category = (typeof PERMISSIVE_TOOLS)[PermissiveToolName];
-export type FileAccess = FileOp | "blocked";
+export type FileAccess = FileOp | "deny";
 
 export interface PermissionRule {
   file?: Record<string, FileAccess>;

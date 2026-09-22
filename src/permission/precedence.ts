@@ -1,10 +1,34 @@
 import pm from "picomatch";
-import type { FileAccess } from "./types.js";
+import type { FileAccess, FileOp } from "./types.js";
 
-const GLOB_CHARS = /[*?[\]{}]/;
+const GLOB_CHARS = /[*?[\]{}()]/;
 
-export function specificity(pattern: string): number {
-  return GLOB_CHARS.test(pattern) ? pattern.length : Infinity;
+interface Match {
+  permission: "allowed" | "deny";
+  suffix: number;
+  length: number;
+  scope: number;
+}
+
+function getPermission(value: boolean | FileAccess, fileOp?: FileOp) {
+  if (typeof value === "boolean") {
+    return value ? "allowed" : "deny";
+  }
+  return value === "write" || value === fileOp ? "allowed" : "deny";
+}
+
+export function specificity(pattern: string): [number, number] {
+  if (!GLOB_CHARS.test(pattern)) return [Infinity, 0];
+  // Suffix length is a heuristic, not glob containment.
+  let suffix = 0;
+  const tokens = pm.parse(pattern).tokens;
+  for (let index = tokens.length - 1; index >= 0; index--) {
+    const token = tokens[index]!;
+    if (token.type === "bos") return [Infinity, 0];
+    if (!["text", "slash", "dot"].includes(token.type)) break;
+    suffix += token.value.replace(/\\(.)/g, "$1").length;
+  }
+  return [suffix, pattern.length];
 }
 
 export function matchesPattern(input: string, pattern: string, bash = false): boolean {
@@ -22,33 +46,27 @@ export function findScopedPermission(
   scopes: Array<Record<string, FileAccess | boolean>>,
   input: string,
   bash = false,
-  fileOp?: "read" | "write",
+  fileOp?: FileOp,
 ): "allowed" | "deny" | "ask" {
-  for (const rules of scopes) {
-    let best: { permission: "allowed" | "deny"; score: number } | null = null;
+  let best: Match | null = null;
+  for (const [scope, rules] of scopes.entries()) {
     for (const [pattern, value] of Object.entries(rules)) {
       if (!matchesPattern(input, pattern, bash)) continue;
 
-      const permission =
-        typeof value === "boolean"
-          ? value
-            ? "allowed"
-            : "deny"
-          : value === "write" || value === fileOp
-            ? "allowed"
-            : "deny";
-      const score = specificity(pattern);
-
+      const permission = getPermission(value, fileOp);
+      const [suffix, length] = specificity(pattern);
       if (
         best === null ||
-        score > best.score ||
-        (score === best.score && permission === "deny")
+        suffix > best.suffix ||
+        (suffix === best.suffix && length > best.length) ||
+        (suffix === best.suffix &&
+          length === best.length &&
+          (scope < best.scope || (scope === best.scope && permission === "deny")))
       ) {
-        best = { permission, score };
+        best = { permission, suffix, length, scope };
       }
     }
-    if (best) return best.permission;
   }
 
-  return "ask";
+  return best?.permission ?? "ask";
 }

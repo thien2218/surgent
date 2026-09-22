@@ -32,6 +32,8 @@ Choose the layer from the boundary the behavior crosses, not from the source dir
 
 Do not repeat the same assertion at multiple layers. Add a higher-layer test only when it proves wiring, serialization, lifecycle, process behavior, or another guarantee unavailable below. If a defect can be reproduced completely in a unit test, an E2E test alone is too broad.
 
+**Note**: surgent extensions mostly work in isolation, each extension are made up of one or more modules that can depend on one another. So a module does not refer to an extension.
+
 ## Write clear Vitest tests
 
 Name test files `*.test.ts`. Import Vitest APIs explicitly; globals are not configured.

@@ -31,31 +31,11 @@ async function savePlanOutput(
   }
 }
 
-function discardSubsession(ctx: ExtensionCommandContext, subsession: Subsession) {
-  const subsessionId = subsession.result.id;
-  if (!subsessionId) return;
-  terminateSubsession(ctx.cwd, subsessionId).catch(() => undefined);
-}
-
-async function forwardAction(
-  pi: ExtensionAPI,
+async function discardSubsession(
   ctx: ExtensionCommandContext,
   subsession: Subsession,
   outputPath: string | null,
-): Promise<boolean> {
-  const normalizedOutput = subsession.result.output.trim();
-  if (!normalizedOutput) {
-    ctx.ui.notify(`No ${subsession.label} to forward`, "warning");
-    return false;
-  }
-
-  try {
-    pi.sendUserMessage(normalizedOutput);
-  } catch {
-    ctx.ui.notify(`Failed to forward ${subsession.label}`, "error");
-    return false;
-  }
-
+) {
   if (outputPath) {
     try {
       await unlink(outputPath);
@@ -67,7 +47,27 @@ async function forwardAction(
     }
   }
 
-  discardSubsession(ctx, subsession);
+  const subsessionId = subsession.result.id;
+  if (!subsessionId) return;
+  terminateSubsession(ctx.cwd, subsessionId).catch(() => undefined);
+}
+
+async function forwardAction(
+  pi: ExtensionAPI,
+  ctx: ExtensionCommandContext,
+  subsession: Subsession,
+): Promise<boolean> {
+  const normalizedOutput = subsession.result.output.trim();
+  if (!normalizedOutput) {
+    ctx.ui.notify(`No ${subsession.label} to forward`, "warning");
+    return false;
+  }
+  try {
+    pi.sendUserMessage(normalizedOutput);
+  } catch {
+    ctx.ui.notify(`Failed to forward ${subsession.label}`, "error");
+    return false;
+  }
   return true;
 }
 
@@ -84,21 +84,23 @@ export async function runPlanLoop(
 
       if (action.kind === "save") {
         ctx.ui.notify(
-          `Saved plan to ${outputPath}. Resume with '/plan <saved-plan-id>'`,
+          `Saved plan to ${outputPath}. Resume with '/plan ${subsession.result.id}'`,
           "info",
         );
         return;
       }
       if (action.kind === "discard") {
-        discardSubsession(ctx, subsession);
+        discardSubsession(ctx, subsession, outputPath);
         return;
       }
 
       if (action.kind === "open") {
         if (outputPath) await openInEditor(ctx, outputPath);
       } else if (action.kind === "forward") {
-        const forwarded = await forwardAction(pi, ctx, subsession, outputPath);
-        if (forwarded) return;
+        if (await forwardAction(pi, ctx, subsession)) {
+          discardSubsession(ctx, subsession, outputPath);
+          return;
+        }
       } else {
         await subsession.exec(action.feedback);
       }

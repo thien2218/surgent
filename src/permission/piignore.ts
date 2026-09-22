@@ -12,14 +12,13 @@ import type {
 const PI_IGNORE_FILE = ".piignore";
 
 interface PiIgnoreRule {
+  raw: string;
   pattern: string;
-  matcher: string;
   negated: boolean;
-  score: number;
-  order: number;
+  suffix: number;
+  length: number;
+  scope: number;
 }
-
-const piIgnoreCache: { contents: string; rules: PiIgnoreRule[] } = { contents: "", rules: [] };
 
 function normalizePathToRoot(rawPath: string, rootPath: string): string | null {
   const relativePath = getRelativePathInRoot(rawPath, rootPath);
@@ -47,49 +46,44 @@ function normalizePiIgnorePattern(pattern: string): string | null {
   return normalizedPattern;
 }
 
-function parsePiIgnoreRules(contents: string): PiIgnoreRule[] {
+function parsePiIgnoreRules(contents: string, scope: number): PiIgnoreRule[] {
   const rules: PiIgnoreRule[] = [];
 
-  for (const [order, pattern] of contents.split(/\r?\n/).entries()) {
-    if (!pattern || pattern.startsWith("#")) continue;
-    if (pattern === "!" || pattern.includes("\0")) {
+  for (const [order, raw] of contents.split(/\r?\n/).entries()) {
+    if (!raw || raw.startsWith("#")) continue;
+    if (raw === "!" || raw.includes("\0")) {
       throw new Error(`Invalid .piignore rule on line ${order + 1}`);
     }
 
-    const negated = pattern.startsWith("!");
-    const rawPattern = negated ? pattern.slice(1) : pattern;
-    const matcher = normalizePiIgnorePattern(rawPattern);
-    if (!matcher) continue;
+    const negated = raw.startsWith("!");
+    const rawPattern = negated ? raw.slice(1) : raw;
+    const pattern = normalizePiIgnorePattern(rawPattern);
+    if (!pattern) continue;
 
-    rules.push({ pattern, matcher, negated, score: specificity(matcher), order });
+    const [suffix, length] = specificity(pattern);
+    rules.push({ raw, pattern, negated, suffix, length, scope });
   }
 
   return rules;
 }
 
 async function loadPiIgnoreRules(cwd: string): Promise<PiIgnoreRule[]> {
-  const piIgnorePath = resolve(cwd, PI_IGNORE_FILE);
-  let contents = "";
-
-  try {
-    contents = await readFile(piIgnorePath, "utf8");
-  } catch (error) {
-    if (isMissingFileError(error)) {
-      piIgnoreCache.contents = "";
-      piIgnoreCache.rules = [];
-      return [];
-    }
-    throw error;
-  }
-
-  if (piIgnoreCache.contents === contents) {
-    return piIgnoreCache.rules;
-  }
-
-  const rules = parsePiIgnoreRules(contents);
-  piIgnoreCache.contents = contents;
-  piIgnoreCache.rules = rules;
-  return rules;
+  const paths = [
+    resolve(cwd, PI_IGNORE_FILE),
+  ];
+  const scopes = await Promise.all(
+    paths.map(async (path, scope) => {
+      let contents: string;
+      try {
+        contents = await readFile(path, "utf8");
+      } catch (error) {
+        if (isMissingFileError(error)) return [];
+        throw error;
+      }
+      return parsePiIgnoreRules(contents, scope);
+    }),
+  );
+  return scopes.flat();
 }
 
 function findBestPiIgnoreRule(
@@ -100,21 +94,23 @@ function findBestPiIgnoreRule(
   const normalizedPath = normalizePathToRoot(rawPath, cwd);
   if (!normalizedPath) return null;
 
-  let bestRule: PiIgnoreRule | null = null;
-
+  let best: PiIgnoreRule | null = null;
   for (const rule of rules) {
-    if (!matchesPattern(normalizedPath, rule.matcher)) continue;
+    if (!matchesPattern(normalizedPath, rule.pattern)) continue;
 
     if (
-      bestRule === null ||
-      rule.score > bestRule.score ||
-      (rule.score === bestRule.score && rule.order > bestRule.order)
+      best === null ||
+      rule.suffix > best.suffix ||
+      (rule.suffix === best.suffix && rule.length > best.length) ||
+      (rule.suffix === best.suffix &&
+        rule.length === best.length &&
+        (rule.scope < best.scope || (rule.scope === best.scope && !rule.negated)))
     ) {
-      bestRule = rule;
+      best = rule;
     }
   }
 
-  return bestRule;
+  return best;
 }
 
 export async function resolvePiIgnorePathBlock(
@@ -129,7 +125,7 @@ export async function resolvePiIgnorePathBlock(
     return null;
   }
 
-  return `Path blocked by .piignore rule "${matchedRule.pattern}"`;
+  return `Path blocked by .piignore rule "${matchedRule.raw}"`;
 }
 
 export function getPiIgnoreInputs(event: ToolCallEvent): string[] {

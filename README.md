@@ -223,7 +223,7 @@ Use `Ctrl+Alt+B` to cycle persistently between prompt input, context-included sh
 | ----------------------- | ------------------------------------------------------------- |
 | `/init`                 | Create or update repository-specific `AGENTS.md` instructions |
 | `/plan [request]`       | Start, refine, save, or resume an isolated planning session   |
-| `/agent`                | Select, create, edit, or remove agent profiles                |
+| `/agents`               | Select, create, edit, or remove agent profiles                |
 | `/permissions`          | View and manage file, shell, web, and MCP permission rules    |
 | `/mcp`                  | Add, edit, enable, disable, or remove MCP servers             |
 | `/web-login [provider]` | Configure credentials for web search and fetch providers      |
@@ -237,7 +237,7 @@ The bundled agent profiles cover these common roles:
 | `scout`      | Read-only codebase research and execution tracing                   |
 | `documenter` | User-facing Markdown and project documentation                      |
 
-Use `/agent` to start a new session with a specialist or create a project-specific or global profile. Profiles can constrain tools, files, shell commands, MCP servers, models, and thinking levels.
+Use `/agents` to start a new session with a specialist or create a project-specific or global profile. Profiles can constrain tools, files, shell commands, MCP servers, models, and thinking levels.
 
 ## Command-line essentials
 

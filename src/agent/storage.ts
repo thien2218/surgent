@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { getPiPath } from "../utils.js";
 import type { AgentMeta, Agent, SettingsSchema } from "./types.js";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { loadMcpConfigSet } from "../mcp-client/storage.js";
+import { loadMcpConfigs } from "../mcp-client/storage.js";
 
 export const DEFAULT_AGENT = "general";
 export const META_KEYS: (keyof AgentMeta)[] = [
@@ -240,19 +240,13 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
     .getEntries()
     .find((entry) => entry.type === "custom" && entry.customType === "agent");
   const name = selected?.type === "custom" ? (selected.data as string) : DEFAULT_AGENT;
-
-  const allMcpConfigs = await loadMcpConfigSet(ctx.cwd);
-  const agents = await loadAgents(ctx.cwd);
+  const [mcpConfigs, agents] = await Promise.all([loadMcpConfigs(ctx.cwd), loadAgents(ctx.cwd)]);
   const main = agents.find((agent) => agent.name === name);
   if (!main) {
     throw new Error("Invalid agent name.");
   }
 
   const { meta } = main;
-  const mcpConfigs = allMcpConfigs.filter(
-    (cfg) => cfg.enabled === true && (meta.mcp_tools ?? [cfg.name]).includes(cfg.name),
-  );
-
   pi.setActiveTools(
     pi
       .getAllTools()
@@ -279,9 +273,13 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
 
   await appendToolDetails(pi.getActiveTools(), {
     mcp: `## Available MCP servers\n${mcpConfigs
+      .filter((cfg) => cfg.enabled === true && (meta.mcp_tools ?? [cfg.name]).includes(cfg.name))
       .map((cfg) => (cfg.description ? `- ${cfg.name}: ${cfg.description}` : `- ${cfg.name}`))
       .join("\n")}`,
-    subagent: `## Available agents for \`subagent\` tool\n${agents.map((profile) => `- ${profile.name}: ${profile.meta.description}`).join("\n")}`,
+    subagent: `## Available agents for 'subagent' tool\n${agents
+      .filter(({ name }) => name !== DEFAULT_AGENT)
+      .map((profile) => `- ${profile.name}: ${profile.meta.description}`)
+      .join("\n")}`,
   });
   return main;
 }

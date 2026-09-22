@@ -1,7 +1,7 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Key } from "@earendil-works/pi-tui";
 import {
-  loadMcpConfigSet,
+  loadMcpConfigs,
   normalizeServerConfig,
   readConfigFile,
   updateServerConfig,
@@ -38,7 +38,7 @@ export async function mcpCommandHandler(_args: string, ctx: ExtensionCommandCont
 async function showMcpOptions(
   ctx: ExtensionCommandContext,
 ): Promise<{ addMcp: boolean; selectedServer?: ResolvedMcpServer } | null> {
-  const configuredServers = await loadMcpConfigSet(ctx.cwd);
+  const configuredServers = await loadMcpConfigs(ctx.cwd);
   const items = configuredServers.map((server) => ({
     value: server.name,
     label: `${server.name} [${server.scope}]`,

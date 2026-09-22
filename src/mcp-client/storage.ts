@@ -24,7 +24,7 @@ export async function updateServerConfig(
   return { path, updated };
 }
 
-export async function loadMcpConfigSet(cwd: string): Promise<ResolvedMcpServer[]> {
+export async function loadMcpConfigs(cwd: string): Promise<ResolvedMcpServer[]> {
   const merged = new Map<string, ResolvedMcpServer>();
   const [localServers, globalServers] = await Promise.all([
     readConfigFile("project", cwd),
@@ -45,7 +45,7 @@ export async function resolveServerConfig(
   cwd: string,
   serverName: string,
 ): Promise<ResolvedMcpServer | undefined> {
-  const mcpServers = await loadMcpConfigSet(cwd);
+  const mcpServers = await loadMcpConfigs(cwd);
   return mcpServers.find((server) => server.name === serverName);
 }
 

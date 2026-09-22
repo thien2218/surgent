@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { getRelativePathInRoot } from "./resolution.js";
 import { matchesPattern, specificity } from "./precedence.js";
-import { isMissingFileError } from "../utils.js";
+import { getPiPath, isMissingFileError } from "../utils.js";
 import type {
   GrepToolCallEvent,
   ReadToolCallEvent,
@@ -70,6 +70,7 @@ function parsePiIgnoreRules(contents: string, scope: number): PiIgnoreRule[] {
 async function loadPiIgnoreRules(cwd: string): Promise<PiIgnoreRule[]> {
   const paths = [
     resolve(cwd, PI_IGNORE_FILE),
+    resolve(dirname(getPiPath("settings")), PI_IGNORE_FILE),
   ];
   const scopes = await Promise.all(
     paths.map(async (path, scope) => {

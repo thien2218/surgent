@@ -12,22 +12,9 @@ import {
   cycleRuleValue,
 } from "./helpers.js";
 
-async function persistRules(
-  ctx: ExtensionCommandContext,
-  sessionId: string,
-  data: { session: PermissionRule; project: PermissionRule; global: PermissionRule },
-): Promise<void> {
-  const local = await readRules(ctx.cwd);
-  local[sessionId] = data.session;
-  local.project = data.project;
-
-  await writeRules(local, ctx.cwd);
-  await writeRules(data.global);
-}
-
 function notifyError(ctx: ExtensionContext, error: unknown, done?: () => void) {
   const message = error instanceof Error ? error.message : String(error);
-  ctx.ui.notify(`Failed to save permission rule: ${message}`, "error");
+  ctx.ui.notify(`Failed to save permission rules: ${message}`, "error");
   done?.();
 }
 
@@ -41,9 +28,8 @@ export async function handlePermissionsCommand(ctx: ExtensionCommandContext) {
   while (true) {
     const rules = await getRulesForDisplay(ctx.cwd, sessionId);
     const action = await ctx.ui.custom<"exit" | "add">((tui, theme, keybindings, done) => {
-      const component = new PermissionRulesList(tui, keybindings, theme, rules);
+      const component = new PermissionRulesList(tui, keybindings, theme, ctx.cwd, sessionId, rules);
       component.onDone = done;
-      component.onSave = async (data) => persistRules(ctx, sessionId, data);
       component.onSaveErr = (error) => notifyError(ctx, error);
       return component;
     });

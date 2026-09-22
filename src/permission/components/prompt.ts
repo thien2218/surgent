@@ -1,5 +1,5 @@
 import { Input, Key, visibleWidth, wrapTextWithAnsi, type Focusable } from "@earendil-works/pi-tui";
-import type { PromptDecision, PermissionCheck, PromptOptions, FileAccess } from "../types.js";
+import type { PromptDecision, PermissionCheck, PromptOptions } from "../types.js";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Frame } from "../../ui/components/frame.js";
 import { SCOPES } from "../constants.js";
@@ -131,9 +131,9 @@ export default class PermissionPrompt extends Frame implements Focusable {
     this.addRawLines(lines, raw, width);
     lines.space();
 
-    for (const [i, option] of this.options.entries()) {
-      const isSelected = i === this.cursor;
-      const label = `${isSelected ? "→" : " "} ${i + 1}. ${option.label}`;
+    for (const [idx, option] of this.options.entries()) {
+      const isSelected = idx === this.cursor;
+      const label = `${isSelected ? "→" : " "} ${idx + 1}. ${option.label}`;
 
       if (isSelected && this.amending) {
         const fullLabel = this.theme.fg("accent", `${label}${option.separator}`);
@@ -185,10 +185,11 @@ export default class PermissionPrompt extends Frame implements Focusable {
     if (!value) this.input.setValue("");
   }
 
-  private commitSelection() {
+  private async commitSelection() {
     const option = this.options[this.cursor];
     if (!option) return;
 
+    const decision: PromptDecision = { ...option.value };
     const inputText = this.amending ? this.input.getValue().trim() : "";
     if (option.persists) {
       let patterns = this.patterns;
@@ -208,20 +209,18 @@ export default class PermissionPrompt extends Frame implements Focusable {
       }
 
       const rules = mapToRules(patterns, this.check.category, option.value.allowed);
-      this.setAmending(false);
-      void addRules(
+      await addRules(
         this.cwd,
         this.check.sessionId,
         SCOPES[this.scopeIdx]!,
         this.check.category,
         rules,
-      );
-      this.onDone?.({ allowed: option.value.allowed });
-      return;
+      ).catch(() => (decision.error = true));
+      this.setAmending(false);
+    } else if (inputText) {
+      decision.amended = inputText;
     }
 
-    const decision: PromptDecision = { ...option.value };
-    if (inputText) decision.amended = inputText;
     this.onDone?.(decision);
   }
 

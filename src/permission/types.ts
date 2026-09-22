@@ -1,3 +1,4 @@
+import type { FormField } from "../ui/components/form-field.js";
 import { SCOPES, PERMISSIVE_TOOLS } from "./constants.js";
 
 export type FileOp = "read" | "write";
@@ -25,6 +26,7 @@ export interface PermissionCheck {
 
 export interface PromptDecision {
   allowed: boolean;
+  error?: true;
   amended?: string;
 }
 
@@ -53,4 +55,10 @@ export type PromptOptions = {
 export interface BashCommand {
   text: string;
   unresolved: boolean;
+}
+
+export interface RuleOptionEntry {
+  rule: DisplayRule;
+  option: FormField;
+  deleted: boolean;
 }

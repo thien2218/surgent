@@ -26,6 +26,12 @@ async function askForPermission(pi: ExtensionAPI, ctx: ExtensionContext, check: 
   if (!decision) {
     return { block: true, reason: "Permission request was cancelled" };
   }
+  if (decision.error) {
+    ctx.ui.notify(
+      "Failed to save permission rules, use `/permissions` to set them manually",
+      "error",
+    );
+  }
   if (!decision.allowed) {
     const appended = decision.amended ? `. User input: ${decision.amended}` : "";
     return {
@@ -85,28 +91,24 @@ export default function (pi: ExtensionAPI) {
     const modeText =
       mode === "yolo"
         ? ctx.ui.theme.fg("warning", "YOLO mode ⚠️")
-        : mode === "restricted"
-          ? ctx.ui.theme.fg("dim", "restricted mode")
-          : ctx.ui.theme.fg("dim", "assistant mode");
+        : ctx.ui.theme.fg("dim", `${mode} mode`);
     const width = (process.stdout.columns ?? 80) - visibleWidth(modeText) + 1;
-    // statuses are sorted alphabetically and joined with " "; use ANSI cursor absolute (CHA)
-    // to jump to the right edge — spaces would be collapsed by sanitizeStatusText
+    // use ANSI cursor absolute (CHA) to jump to the right edge because spaces
+    // would be collapsed by sanitizeStatusText
     ctx.ui.setStatus("mode", `\x1b[${width}G` + modeText);
   };
 
   pi.registerShortcut(Key.alt("m"), {
     description: "Cycle assistant, YOLO, and restricted modes",
-    handler: async (ctx) => {
-      mode = cycleMode(mode);
-      updateStatus?.();
-      ctx.ui.notify(
-        mode === "yolo"
-          ? "YOLO mode ON - agents can now run commands and tools without asking"
-          : "YOLO mode OFF",
-        "info",
-      );
-      // Optimistically change mode even on write failure
-      void writeAgentMode(mode).catch(() => undefined);
+    handler: (ctx) => {
+      const nextMode = cycleMode(mode);
+      void writeAgentMode(nextMode)
+        .then(() => {
+          mode = nextMode;
+          updateStatus?.();
+          ctx.ui.notify(`Mode: ${mode}`, "info");
+        })
+        .catch(() => ctx.ui.notify("Failed to change mode, please try again", "error"));
     },
   });
 

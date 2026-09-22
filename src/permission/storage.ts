@@ -71,7 +71,8 @@ export async function readRules(cwd: string = ""): Promise<LocalSchema | Permiss
 
 export async function readAgentMode(): Promise<AgentMode> {
   const settings = await readJson<SettingsSchema>(getPiPath("settings"), {});
-  return settings.agent?.mode ?? "assistant";
+  const mode = settings.agent?.mode ?? "assistant";
+  return ["assistant", "restricted", "yolo"].includes(mode) ? mode : "assistant"; // Invalid mode fallback to "assistant"
 }
 
 export async function writeAgentMode(agentMode: AgentMode) {
@@ -182,4 +183,17 @@ export async function getRulesForDisplay(
   addFromSchema(global, "always");
 
   return rules;
+}
+
+export async function persistRules(
+  cwd: string,
+  sessionId: string,
+  data: { session: PermissionRule; project: PermissionRule; global: PermissionRule },
+): Promise<void> {
+  const local = await readRules(cwd);
+  local[sessionId] = data.session;
+  local.project = data.project;
+
+  await writeRules(local, cwd);
+  await writeRules(data.global);
 }

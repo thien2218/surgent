@@ -6,6 +6,7 @@ import type {
   FileAccess,
   GroupedDisplayRules,
   PermissionRule,
+  RuleOptionEntry,
 } from "../types.js";
 import { Frame } from "../../ui/components/frame.js";
 import { Lines } from "../../ui/components/lines.js";
@@ -17,12 +18,7 @@ import {
   formatRuleOptionLabel,
   getRulePatternPlaceholder,
 } from "../helpers.js";
-
-type RuleOptionEntry = {
-  rule: DisplayRule;
-  option: FormField;
-  deleted: boolean;
-};
+import { persistRules } from "../storage.js";
 
 export default class PermissionRulesList extends Frame implements Focusable {
   private cursor = 0;
@@ -32,17 +28,14 @@ export default class PermissionRulesList extends Frame implements Focusable {
   private readonly options = new Map<Category, RuleOptionEntry[]>();
 
   onDone?: (action: "exit" | "add") => void;
-  onSave?: (data: {
-    session: PermissionRule;
-    project: PermissionRule;
-    global: PermissionRule;
-  }) => Promise<void> | void;
   onSaveErr?: (error: unknown) => void;
 
   constructor(
     tui: TUI,
     keybindings: KeybindingsManager,
     protected theme: Theme,
+    private readonly cwd: string,
+    private readonly sessionId: string,
     groups: GroupedDisplayRules,
   ) {
     super(theme);
@@ -253,7 +246,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
     }
 
     const data = { session, project, global };
-    await this.onSave?.(data);
+    await persistRules(this.cwd, this.sessionId, data);
     this.saved = true;
   }
 

@@ -89,7 +89,7 @@ async function mutateRules(
   category: Category,
   mutate: (rules: Record<string, FileAccess | boolean>) => void,
 ) {
-  if (scope === "always") {
+  if (scope === "global") {
     const global = await readRules();
     const rules = { ...global[category] };
 
@@ -180,7 +180,7 @@ export async function getRulesForDisplay(
 
   addFromSchema(local[sessionId], "session");
   addFromSchema(local.project, "project");
-  addFromSchema(global, "always");
+  addFromSchema(global, "global");
 
   return rules;
 }

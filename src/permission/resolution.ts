@@ -19,12 +19,12 @@ function getSchemaRules(
   return schema.bash ?? {};
 }
 
-function getBlockedRules(schema: PermissionRule): PermissionRule {
+function getDenyRules(schema: PermissionRule): PermissionRule {
   const keys = ["file", "web", "bash", "mcp"] as const;
   const rules: PermissionRule = {};
   for (const key of keys) {
     rules[key] = Object.fromEntries(
-      Object.entries(schema[key] ?? {}).filter(([, access]) => !access || access === "blocked"),
+      Object.entries(schema[key] ?? {}).filter(([, access]) => !access || access === "deny"),
     );
   }
   return rules;
@@ -86,11 +86,11 @@ export async function resolvePermission(cwd: string, check: PermissionCheck, mod
     scopes.push(local[subsession.pid]);
   }
   scopes.push(local.project);
-  scopes.push(mode === "restricted" ? getBlockedRules(global) : global);
+  scopes.push(mode === "restricted" ? getDenyRules(global) : global);
 
   for (const item of check.unresolved) {
     const [fileOp, normalized] = category === "file" ? extractOpAndPath(item) : [undefined, item];
-    let permission: "allowed" | "blocked" | "ask" = findScopedPermission(
+    let permission: "allowed" | "deny" | "ask" = findScopedPermission(
       scopes.map((schema) => getSchemaRules(schema, category)),
       normalized,
       category === "bash",
@@ -108,7 +108,7 @@ export async function resolvePermission(cwd: string, check: PermissionCheck, mod
       permission = inAllowedDir ? "allowed" : "ask";
     }
 
-    if (permission === "blocked") return "blocked";
+    if (permission === "deny") return "deny";
     if (permission === "ask") unresolved.push(item);
   }
 

@@ -61,7 +61,7 @@ export async function enforceToolPermission(
     }
 
     const permission = await resolvePermission(ctx.cwd, check, mode);
-    if (permission === "blocked") {
+    if (permission === "deny") {
       return { block: true, reason: "Access to this resource is denied" };
     }
     if (mode === "yolo") return;

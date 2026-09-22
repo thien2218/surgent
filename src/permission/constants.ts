@@ -1,4 +1,4 @@
-export const SCOPES = ["session", "project", "always"] as const;
+export const SCOPES = ["session", "project", "global"] as const;
 export const CATEGORIES = ["file", "web", "bash", "mcp"] as const;
 
 export const PERMISSIVE_TOOLS = {

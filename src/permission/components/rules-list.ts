@@ -229,7 +229,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
         const rule = optionEntry.rule;
 
         let target: PermissionRule;
-        if (rule.scope === "always") target = global;
+        if (rule.scope === "global") target = global;
         else if (rule.scope === "project") target = project;
         else target = session;
 

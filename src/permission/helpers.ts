@@ -20,7 +20,7 @@ function getRuleValueLabel(value: FileAccess | boolean): string {
 }
 
 export function getScopeLabel(scope: Scope) {
-  return scope !== "always" ? `[this ${scope}]` : `[${scope}]`;
+  return scope !== "global" ? `[this ${scope}]` : "[across projects]";
 }
 
 export function formatRuleOptionLabel(scope: Scope, value: FileAccess | boolean): string {

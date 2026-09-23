@@ -1,4 +1,5 @@
 import { writeFile } from "node:fs/promises";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
@@ -42,6 +43,24 @@ afterEach(async () => {
 });
 
 describe("permission lifecycle and command contracts", () => {
+  it("replaces the resize listener on session restart and removes it on repeated shutdown", async () => {
+    const listeners = process.stdout.listenerCount("resize");
+    const pi = fakePi();
+    const ctx = fakeContext(false);
+    permissionExtension(pi.api);
+    try {
+      await pi.events.session_start?.({}, ctx);
+      expect(process.stdout.listenerCount("resize")).toBe(listeners + 1);
+      await pi.events.session_start?.({}, ctx);
+      expect(process.stdout.listenerCount("resize")).toBe(listeners + 1);
+      await pi.events.session_shutdown?.({}, ctx);
+      await pi.events.session_shutdown?.({}, ctx);
+      expect(process.stdout.listenerCount("resize")).toBe(listeners);
+    } finally {
+      await pi.events.session_shutdown?.({}, ctx);
+    }
+  });
+
   it("prepends the loaded agent instructions without losing the Pi system prompt", async () => {
     const pi = fakePi();
     const ctx = fakeContext(false);
@@ -72,6 +91,62 @@ describe("permission lifecycle and command contracts", () => {
 });
 
 describe("permission precedence contract", () => {
+  it.each([true, false])("routes amended prompt decisions without losing user instructions: allowed=%s", async (allowed) => {
+    const pi = fakePi();
+    const ctx = fakeContext(true);
+    ctx.ui.custom.mockResolvedValue({ allowed, amended: "Use the public endpoint instead" });
+    permissionExtension(pi.api);
+    await pi.events.session_start?.({}, ctx);
+    try {
+      const result = await pi.events.tool_call?.({ toolName: "web_fetch", input: { url: "https://example.com" } }, ctx);
+
+      if (allowed) {
+        expect(result).toBeUndefined();
+        expect((pi.api as ExtensionAPI).sendUserMessage).toHaveBeenCalledWith(
+          "Use the public endpoint instead", { deliverAs: "steer" },
+        );
+      } else {
+        expect(result).toEqual({ block: true, reason: expect.stringContaining("User input: Use the public endpoint instead") });
+        expect((pi.api as ExtensionAPI).sendUserMessage).not.toHaveBeenCalled();
+      }
+    } finally {
+      await pi.events.session_shutdown?.({}, ctx);
+    }
+  });
+
+  it("reports failed rule persistence while respecting the one-time approval", async () => {
+    const pi = fakePi();
+    const ctx = fakeContext(true);
+    ctx.ui.custom.mockResolvedValue({ allowed: true, error: true });
+    permissionExtension(pi.api);
+    await pi.events.session_start?.({}, ctx);
+    try {
+      const result = await pi.events.tool_call?.({ toolName: "web_fetch", input: { url: "https://example.com" } }, ctx);
+
+      expect(result).toBeUndefined();
+      expect(ctx.ui.notify).toHaveBeenCalledWith(
+        "Failed to save permission rules, use `/permissions` to set them manually", "error",
+      );
+    } finally {
+      await pi.events.session_shutdown?.({}, ctx);
+    }
+  });
+
+  it("fails closed when the permission UI throws", async () => {
+    const pi = fakePi();
+    const ctx = fakeContext(true);
+    ctx.ui.custom.mockRejectedValue(new Error("UI unavailable"));
+    permissionExtension(pi.api);
+    await pi.events.session_start?.({}, ctx);
+    try {
+      const result = await pi.events.tool_call?.({ toolName: "web_fetch", input: { url: "https://example.com" } }, ctx);
+
+      expect(result).toEqual({ block: true, reason: "Permission check failed" });
+    } finally {
+      await pi.events.session_shutdown?.({}, ctx);
+    }
+  });
+
   it("lets a winning allow proceed without prompting", async () => {
     await writeRules({ web: { "https://example.com": true } });
     const pi = fakePi();

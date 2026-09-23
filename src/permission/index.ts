@@ -4,15 +4,14 @@ import type {
   ToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
 import { Key, visibleWidth } from "@earendil-works/pi-tui";
-import { relative } from "node:path";
 import { handlePermissionsCommand } from "./command.js";
-import { checkAgentRules, resolvePermission, resolvePermissionPath } from "./resolution.js";
+import { checkAgentRules, resolvePermission } from "./resolution.js";
 import { getPiIgnoreInputs, resolvePiIgnorePathBlock } from "./piignore.js";
 import { readAgentMode, writeAgentMode } from "./storage.js";
 import { loadMainAgent } from "../agent/storage.js";
 import type { PermissionCheck, PromptDecision } from "./types.js";
 import PermissionPrompt from "./components/prompt.js";
-import { getPermissionCheck, cycleMode, extractOpAndPath } from "./helpers.js";
+import { getPermissionCheck, cycleMode } from "./helpers.js";
 import type { Agent, AgentMeta, AgentMode } from "../agent/types.js";
 
 async function askForPermission(pi: ExtensionAPI, ctx: ExtensionContext, check: PermissionCheck) {
@@ -61,15 +60,8 @@ export async function enforceToolPermission(
       }
     }
 
-    const check = getPermissionCheck(sessionId, event.toolName, event.input);
+    const check = await getPermissionCheck(ctx.cwd, sessionId, event.toolName, event.input);
     if (!check) return;
-    if (check.category === "file") {
-      check.unresolved = await Promise.all(check.unresolved.map(async (item) => {
-        const [operation, input] = extractOpAndPath(item);
-        const path = await resolvePermissionPath(input, ctx.cwd);
-        return `${operation}:${relative(ctx.cwd, path) || "."}`;
-      }));
-    }
     if (!checkAgentRules(meta, check)) {
       return { block: true, reason: "Access to this resource is beyond allowed scope" };
     }

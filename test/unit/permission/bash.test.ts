@@ -39,9 +39,9 @@ describe("bash command parsing", () => {
 
   it.each(["${runner} arg", "$(which git) status", "$'git' status"])(
     "marks dynamically computed or obfuscated executable %s uncertain",
-    (source) => {
+    async (source) => {
       expect(extractBashCommands(source)[0]).toMatchObject({ unresolved: true });
-      expect(getPermissionCheck("session-1", "bash", { command: source, purpose: "test" })?.uncertainty)
+      expect((await getPermissionCheck("/unused", "session-1", "bash", { command: source, purpose: "test" }))?.uncertainty)
         .toContain("Dynamic or invalid bash command");
     },
   );

@@ -1,11 +1,11 @@
 import { mkdir, symlink, writeFile } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolvePermission, resolvePermissionPath } from "../../../src/permission/resolution.js";
 import { resolvePiIgnorePathBlock } from "../../../src/permission/piignore.js";
 import { writeRules } from "../../../src/permission/storage.js";
 import type { PermissionCheck } from "../../../src/permission/types.js";
-import { extractOpAndPath } from "../../../src/permission/helpers.js";
+import { extractOpAndPath, getPermissionCheck } from "../../../src/permission/helpers.js";
 import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
 
 let workspace: PermissionWorkspace;
@@ -18,18 +18,26 @@ afterEach(async () => { await workspace.restore(); });
 
 async function fileCheck(input: string): Promise<PermissionCheck> {
   const [operation, path] = extractOpAndPath(input);
-  const physical = await resolvePermissionPath(path, workspace.cwd);
-  return {
-    sessionId: "session-1",
-    toolName: operation,
-    category: "file",
-    raw: path,
-    unresolved: [`${operation}:${relative(workspace.cwd, physical) || "."}`],
-    purpose: "test",
-  };
+  const check = await getPermissionCheck(workspace.cwd, "session-1", operation, { path });
+  if (!check) throw new Error("Missing file permission check");
+  return check;
 }
 
 describe("permission file identity", () => {
+  it.each([{}, { path: "" }, { path: "." }])("uses cwd for grep input %j", async (input) => {
+    await expect(getPermissionCheck(workspace.cwd, "session-1", "grep", input)).resolves.toMatchObject({
+      raw: ".",
+      unresolved: ["read:."],
+    });
+  });
+
+  it("honors an explicit deny for the project root", async () => {
+    await writeRules({ project: { file: { ".": "deny" } } }, workspace.cwd);
+
+    await expect(resolvePermission(workspace.cwd, await fileCheck("read:."), "assistant"))
+      .resolves.toBe("deny");
+  });
+
   it.each(["src/blocked.ts", "./src/blocked.ts", "src/../src/blocked.ts", "absolute"])(
     "denies equivalent spelling %s",
     async (spelling) => {

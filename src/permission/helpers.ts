@@ -1,10 +1,12 @@
-import type { BashCommand, PermissionCheck, PermissiveToolName } from "./types.js";
+import type { BashCommand, FileOp, PermissionCheck, PermissiveToolName } from "./types.js";
 import { PERMISSIVE_TOOLS, SUSPICIOUS_BASH_PATTERNS } from "./constants.js";
 import { SCOPES } from "./constants.js";
 import type { Category, DisplayRule, FileAccess, Scope } from "./types.js";
 import type { AgentMode } from "../agent/types.js";
 import { extractBashCommands } from "./bash.js";
 import { unique } from "../utils.js";
+import { resolvePermissionPath } from "./resolution.js";
+import { relative } from "node:path";
 
 function getRuleValueLabel(value: FileAccess | boolean): string {
   if (typeof value === "boolean") {
@@ -62,12 +64,15 @@ function getBashUncertainty(command: BashCommand): string | undefined {
   }
 }
 
-export function getPermissionCheck(
+export async function getPermissionCheck(
+  cwd: string,
   sessionId: string,
   toolName: string,
   input: Record<string, unknown>,
-): PermissionCheck | null {
+): Promise<PermissionCheck | null> {
   if (!(toolName in PERMISSIVE_TOOLS)) return null;
+
+  let fileOp: FileOp | null = null;
   const typedName = toolName as PermissiveToolName;
   const check: PermissionCheck = {
     sessionId,
@@ -82,18 +87,18 @@ export function getPermissionCheck(
     case "read":
       check.raw = input.path as string;
       check.purpose = `Read content from file ${check.raw}`;
-      check.unresolved = [`read:${check.raw}`];
+      fileOp = "read";
       break;
     case "write":
     case "edit":
       check.raw = input.path as string;
       check.purpose = `Write content to file ${check.raw}`;
-      check.unresolved = [`write:${check.raw}`];
+      fileOp = "write";
       break;
     case "grep":
       check.raw = (input.path as string | undefined) || ".";
       check.purpose = `Perform search in path ${check.raw}`;
-      check.unresolved = [`read:${check.raw}`];
+      fileOp = "read";
       break;
     case "bash":
       check.raw = input.command as string;
@@ -116,6 +121,9 @@ export function getPermissionCheck(
     const uncertainty = commands.map(getBashUncertainty).filter(Boolean);
     check.unresolved = commands.map(({ text }) => text);
     check.uncertainty = unique(uncertainty).join("; ") || undefined;
+  } else if (fileOp) {
+    const path = await resolvePermissionPath(check.raw, cwd);
+    check.unresolved = [`${fileOp}:${relative(cwd, path) || "."}`];
   }
 
   return check;

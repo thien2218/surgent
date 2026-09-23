@@ -1,8 +1,8 @@
-import { writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
-import { addRules, getRulesForDisplay, persistRules, readRules, writeRules } from "../../../src/permission/storage.js";
+import { addRules, getRulesForDisplay, persistRules, readRules, removeRule, toggleRule, writeRules } from "../../../src/permission/storage.js";
 
 let workspace: PermissionWorkspace;
 
@@ -15,6 +15,67 @@ afterEach(async () => {
 });
 
 describe("permission rule storage", () => {
+  it("treats missing files as empty rules and display groups", async () => {
+    await expect(readRules()).resolves.toEqual({});
+    await expect(readRules(workspace.cwd)).resolves.toEqual({});
+    await expect(getRulesForDisplay(workspace.cwd, "session-1")).resolves.toEqual({
+      file: [], bash: [], web: [], mcp: [],
+    });
+  });
+
+  it.each(["session", "project", "global"] as const)("removes only the selected %s rule", async (scope) => {
+    await writeRules({ web: { target: true, keep: false } });
+    await writeRules({
+      "session-1": { web: { target: true, keep: false } },
+      project: { web: { target: true, keep: false } },
+      "session-2": { web: { target: true } },
+    }, workspace.cwd);
+
+    await removeRule(workspace.cwd, "session-1", scope, "web", "target");
+    await removeRule(workspace.cwd, "session-1", scope, "web", "absent");
+
+    await expect(readRules()).resolves.toEqual({
+      web: scope === "global" ? { keep: false } : { target: true, keep: false },
+    });
+    await expect(readRules(workspace.cwd)).resolves.toEqual({
+      "session-1": { web: scope === "session" ? { keep: false } : { target: true, keep: false } },
+      project: { web: scope === "project" ? { keep: false } : { target: true, keep: false } },
+      "session-2": { web: { target: true } },
+    });
+  });
+
+  it("initializes a missing file rule and cycles through write, read, deny, and write", async () => {
+    for (const value of ["write", "read", "deny", "write"]) {
+      await toggleRule(workspace.cwd, "session-1", "session", "file", "target");
+      await expect(readRules(workspace.cwd)).resolves.toEqual({ "session-1": { file: { target: value } } });
+    }
+  });
+
+  it.each(["web", "bash", "mcp"] as const)("initializes and toggles boolean %s rules", async (category) => {
+    for (const value of [true, false, true]) {
+      await toggleRule(workspace.cwd, "session-1", "global", category, "target");
+      await expect(readRules()).resolves.toEqual({ [category]: { target: value } });
+    }
+    await expect(readRules(workspace.cwd)).resolves.toEqual({});
+  });
+
+  it("cleans temporary writes and preserves the destination when replacement fails", async () => {
+    await mkdir(join(workspace.cwd, ".pi", "permissions.json"));
+    await writeFile(join(workspace.cwd, ".pi", "permissions.json", "keep.txt"), "preserve");
+
+    await expect(writeRules({ project: { web: { target: true } } }, workspace.cwd)).rejects.toThrow();
+
+    await expect(readFile(join(workspace.cwd, ".pi", "permissions.json", "keep.txt"), "utf8"))
+      .resolves.toBe("preserve");
+    await expect(readdir(join(workspace.cwd, ".pi"))).resolves.toEqual(["permissions.json"]);
+  });
+
+  it("does not treat an unreadable rules path as missing configuration", async () => {
+    await mkdir(join(workspace.cwd, ".pi", "permissions.json"));
+
+    await expect(readRules(workspace.cwd)).rejects.toMatchObject({ code: "EISDIR" });
+  });
+
   it.each([
     { file: { "src/a.ts": true } },
     { web: { "https://example.test": "allow" } },

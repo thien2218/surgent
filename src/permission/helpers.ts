@@ -91,7 +91,7 @@ export function getPermissionCheck(
       check.unresolved = [`write:${check.raw}`];
       break;
     case "grep":
-      check.raw = (input.path as string | undefined) ?? ".";
+      check.raw = (input.path as string | undefined) || ".";
       check.purpose = `Perform search in path ${check.raw}`;
       check.unresolved = [`read:${check.raw}`];
       break;

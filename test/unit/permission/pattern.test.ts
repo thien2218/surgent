@@ -4,6 +4,8 @@ import { filePathToPattern, toPattern } from "../../../src/permission/pattern.js
 describe("suggested permission patterns", () => {
   it.each([
     ["read:src/main.ts", "read:src/*.ts"],
+    ["write:config.ts", "write:*.ts"],
+    ["read:.env", "read:.*"],
     ["write:src/.env.local", "write:src/.*.local"],
     ["read:src/one/two/file.ts", "read:src/one/two/**"],
     ["read:src/", "read:src/"],

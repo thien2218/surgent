@@ -1,4 +1,5 @@
 import { bashToPattern } from "./bash.js";
+import { extractOpAndPath } from "./helpers.js";
 import type { PermissiveToolName } from "./types.js";
 
 export function filePathToPattern(path: string): string {
@@ -39,8 +40,10 @@ export function toPattern(toolName: PermissiveToolName, input: string): string {
     case "read":
     case "write":
     case "edit":
-    case "grep":
-      return filePathToPattern(firstLine);
+    case "grep": {
+      const [operation, path] = extractOpAndPath(firstLine);
+      return `${operation}:${filePathToPattern(path)}`;
+    }
     case "web_fetch":
       return urlToPattern(firstLine);
     case "bash":

@@ -126,7 +126,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
         hint: "cycle permission",
         handler: () => {
           const selectedEntry = this.getSelectedRule();
-          selectedEntry && this.cycleScope(selectedEntry);
+          selectedEntry && this.cyclePermission(selectedEntry);
         },
       },
       {
@@ -134,7 +134,7 @@ export default class PermissionRulesList extends Frame implements Focusable {
         hint: "cycle scope",
         handler: () => {
           const selectedEntry = this.getSelectedRule();
-          selectedEntry && this.cyclePermission(selectedEntry);
+          selectedEntry && this.cycleScope(selectedEntry);
         },
       },
     ]);

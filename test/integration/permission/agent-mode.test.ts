@@ -140,7 +140,7 @@ describe("agent mode permission behavior", () => {
   });
 
   it("requires explicit permission for restricted writes that assistant auto-allows inside cwd", async () => {
-    const target = join(cwd, "src", "file.ts");
+    const target = "src/file.ts";
 
     const assistant = await resolvePermission(
       cwd,

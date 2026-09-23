@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { mkdir, symlink, writeFile } from "node:fs/promises";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -91,6 +91,33 @@ describe("permission lifecycle and command contracts", () => {
 });
 
 describe("permission precedence contract", () => {
+  it.each([
+    { alias: "alias.ts", target: "src/target.ts", blocked: false },
+    { alias: "src/alias.ts", target: "private/target.ts", blocked: true },
+  ])("applies agent file allowlists to $target, not $alias", async ({ alias, target, blocked }) => {
+    await mkdir(join(workspace.cwd, "src"));
+    await mkdir(join(workspace.cwd, "private"));
+    await writeFile(join(workspace.cwd, target), "test");
+    await symlink(join(workspace.cwd, target), join(workspace.cwd, alias));
+    agentState.meta = { description: "test", "files.read": ["src/**"] };
+    const pi = fakePi();
+    const ctx = fakeContext(false);
+    permissionExtension(pi.api);
+    await pi.events.session_start!({}, ctx);
+    try {
+      const result = await pi.events.tool_call!({ toolName: "read", input: { path: alias } }, ctx);
+
+      if (blocked) {
+        expect(result).toEqual({ block: true, reason: "Access to this resource is beyond allowed scope" });
+      } else {
+        expect(result).toBeUndefined();
+      }
+    } finally {
+      await pi.events.session_shutdown!({}, ctx);
+    }
+  });
+
+
   it.each([true, false])("routes amended prompt decisions without losing user instructions: allowed=%s", async (allowed) => {
     const pi = fakePi();
     const ctx = fakeContext(true);

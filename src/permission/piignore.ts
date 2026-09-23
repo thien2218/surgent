@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { getRelativePathInRoot } from "./resolution.js";
+import { getRelativePathInRoot, resolvePermissionPath } from "./resolution.js";
 import { matchesPattern, specificity } from "./precedence.js";
 import { getPiPath, isMissingFileError } from "../utils.js";
 import type {
@@ -117,29 +117,29 @@ function findBestPiIgnoreRule(
 export async function resolvePiIgnorePathBlock(
   cwd: string,
   rawPath: string,
+  glob = false,
 ): Promise<string | null> {
   const rules = await loadPiIgnoreRules(cwd);
   if (rules.length === 0) return null;
 
-  const matchedRule = findBestPiIgnoreRule(rules, rawPath, cwd);
-  if (!matchedRule || matchedRule.negated) {
-    return null;
-  }
-
-  return `Path blocked by .piignore rule "${matchedRule.raw}"`;
+  const path = glob ? rawPath : await resolvePermissionPath(rawPath, cwd);
+  const matchedRule = findBestPiIgnoreRule(rules, path, cwd);
+  return matchedRule && !matchedRule.negated
+    ? `Path blocked by .piignore rule "${matchedRule.raw}"`
+    : null;
 }
 
-export function getPiIgnoreInputs(event: ToolCallEvent): string[] {
+export function getPiIgnoreInputs(event: ToolCallEvent): Array<{ path: string; glob?: boolean }> {
   switch (event.toolName) {
     case "read":
     case "write":
     case "edit":
-      return [(event as ReadToolCallEvent).input.path];
+      return [{ path: (event as ReadToolCallEvent).input.path }];
     case "grep": {
       const grepEvent = event as GrepToolCallEvent;
-      const inputs: string[] = [];
-      if (grepEvent.input.path) inputs.push(grepEvent.input.path);
-      if (grepEvent.input.glob) inputs.push(grepEvent.input.glob);
+      const inputs: Array<{ path: string; glob?: boolean }> = [];
+      if (grepEvent.input.path) inputs.push({ path: grepEvent.input.path });
+      if (grepEvent.input.glob) inputs.push({ path: grepEvent.input.glob, glob: true });
       return inputs;
     }
     default:

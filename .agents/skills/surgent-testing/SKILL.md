@@ -54,7 +54,7 @@ Assert only the contract-relevant fields of large values. Prefer direct assertio
 
 Mock boundaries outside surgent when a unit test needs control: Pi capabilities, provider SDKs, remote `fetch` calls, remote transports, or process execution. Avoid mocking neighboring surgent modules merely to isolate the subject. Such mocks bind a test to module wiring and can allow broken collaboration to pass.
 
-For Pi contracts, load the extension with a typed fake `ExtensionAPI`. Capture the tools, commands, and event handlers it registers, then invoke them through the public shapes Pi uses. Type the fake against the installed Pi API where practical so upstream type changes are visible.
+For Pi contracts, use `test/helpers/extension.ts` to load the extension with a typed recording `ExtensionAPI`. Retrieve required tools, commands, shortcuts, and individual event handlers, then invoke them through the public shapes Pi uses. Supply additional capabilities explicitly. Keep extension-specific contexts and expected registration names in suite-specific setup. Type the fake against the installed Pi API where practical so upstream type changes are visible.
 
 A fake `ExtensionAPI` is a recording boundary, not a second Pi runtime. Give it only the capabilities the extension needs, such as command registration, event subscription, UI responses, or message dispatch. Fail unexpected calls with a useful message. Do not imitate Pi's routing, schema validation, or lifecycle engine.
 
@@ -97,12 +97,6 @@ Permission and redactor tests must demonstrate fail-closed behavior. Ambiguous, 
 For permissions, distinguish allowed, blocked, and ask outcomes where applicable. Cover precedence, path boundaries, unresolved commands, and mixed operations when they can change the decision. A parser failure or unknown operation must not become implicit permission.
 
 For redaction, prove that supported outputs do not reveal secrets and that secret-bearing writes or edits are blocked where required. Test relevant encoding or boundary variations without placing real secrets in source, output, failure messages, or snapshots. Security decisions should use targeted assertions, not broad snapshots.
-
-## Limit snapshots
-
-Use a snapshot only when a stable, structured, multi-line representation is clearer than focused assertions. Do not snapshot large object graphs, sessions, error stacks, security decisions, or raw secrets.
-
-Normalize volatile values before comparison, including ANSI sequences, line endings, temporary paths, path separators, ports, timestamps, and random IDs. Review a snapshot change as a behavior change. Never update snapshots merely to make a failure disappear.
 
 ## Keep E2E offline; check TUI behavior manually
 
@@ -157,5 +151,5 @@ Do not write tests that:
 - Does teardown run after setup or assertion failure?
 - Are errors, cancellation, concurrency, or fail-closed cases covered when relevant?
 - Are fixtures and factories minimal, explicit, and free of hidden state?
-- Are snapshots limited, normalized, reviewed, and secret-free?
+- Are expected outputs small, explicit, deterministic, and secret-free?
 - Can the test run offline, concurrently, and independently?

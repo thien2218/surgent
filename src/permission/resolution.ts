@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { lstat, realpath } from "node:fs/promises";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import type { AgentMeta, AgentMode } from "../agent/types.js";
 import { readRules } from "./storage.js";
 import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./types.js";
@@ -65,13 +66,43 @@ export function getRelativePathInRoot(path: string, root: string): string | null
   if (!resolvedPath) return null;
 
   const relativePath = relative(root, resolvedPath);
-  if (relativePath !== "" && (relativePath.startsWith("..") || isAbsolute(relativePath))) {
+  if (
+    relativePath !== "" &&
+    (relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath))
+  ) {
     return null;
   }
 
   return relativePath;
 }
 
+export async function resolvePermissionPath(input: string, cwd: string): Promise<string> {
+  const absolute = expandFilePath(input, cwd);
+  if (!absolute) throw new Error("Missing permission path");
+
+  let ancestor = absolute;
+  const missing: string[] = [];
+  while (true) {
+    try {
+      return resolve(await realpath(ancestor), ...missing);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      // An existing dangling symlink is not a missing destination we can safely authorize.
+      try {
+        await lstat(ancestor);
+      } catch (statError) {
+        if ((statError as NodeJS.ErrnoException).code !== "ENOENT") throw statError;
+        if (dirname(ancestor) === ancestor) throw error;
+        missing.unshift(basename(ancestor));
+        ancestor = dirname(ancestor);
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
+// File inputs must already be physical, project-relative paths.
 export async function resolvePermission(cwd: string, check: PermissionCheck, mode: AgentMode) {
   const unresolved: string[] = [];
   const { category, sessionId } = check;
@@ -88,24 +119,23 @@ export async function resolvePermission(cwd: string, check: PermissionCheck, mod
   scopes.push(local.project);
   scopes.push(mode === "restricted" ? getDenyRules(global) : global);
 
+  const rules = scopes.map((schema) => getSchemaRules(schema, category));
   for (const item of check.unresolved) {
     const [fileOp, normalized] = category === "file" ? extractOpAndPath(item) : [undefined, item];
-    let permission: "allowed" | "deny" | "ask" = findScopedPermission(
-      scopes.map((schema) => getSchemaRules(schema, category)),
-      normalized,
-      category === "bash",
-      fileOp,
-    );
+    let permission = findScopedPermission(rules, normalized, category === "bash", fileOp);
 
     if (
       category === "file" &&
       permission === "ask" &&
       (mode !== "restricted" || fileOp !== "write")
     ) {
-      const inAllowedDir =
-        getRelativePathInRoot(normalized, cwd) !== null ||
-        getRelativePathInRoot(normalized, dirname(getPiPath("settings"))) !== null;
-      permission = inAllowedDir ? "allowed" : "ask";
+      const path = resolve(cwd, normalized);
+      if (
+        getRelativePathInRoot(path, cwd) !== null ||
+        getRelativePathInRoot(path, dirname(getPiPath("settings"))) !== null
+      ) {
+        permission = "allowed";
+      }
     }
 
     if (permission === "deny") return "deny";

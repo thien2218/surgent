@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
 import { resolvePiIgnorePathBlock } from "../../../src/permission/piignore.js";
@@ -30,7 +30,7 @@ describe("persisted permission precedence", () => {
   });
 
   it("auto-allows reads in the global Pi directory but not restricted writes", async () => {
-    const path = join(workspace.home, ".pi", "agent", "settings.json");
+    const path = relative(workspace.cwd, join(workspace.home, ".pi", "agent", "settings.json"));
 
     await expect(resolvePermission(workspace.cwd, permissionCheck("file", [`read:${path}`]), "restricted"))
       .resolves.toBe("allowed");
@@ -102,7 +102,7 @@ describe("persisted permission precedence", () => {
 
     await expect(resolvePermission(workspace.cwd, permissionCheck("file", ["read:src/blocked.ts"]), "assistant")).resolves.toBe("deny");
     await expect(resolvePermission(workspace.cwd, permissionCheck("file", ["read:src/open.ts"]), "assistant")).resolves.toBe("allowed");
-    await expect(resolvePermission(workspace.cwd, permissionCheck("file", [`read:${join(workspace.root, "outside.ts")}`]), "assistant")).resolves.toBe("ask");
+    await expect(resolvePermission(workspace.cwd, permissionCheck("file", ["read:../outside.ts"]), "assistant")).resolves.toBe("ask");
   });
 });
 

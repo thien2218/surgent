@@ -97,6 +97,69 @@ describe("permission precedence contract", () => {
     expect(result).toEqual({ block: true, reason: "Path blocked by .piignore rule \"secret.txt\"" });
   });
 
+  it.each([
+    { toolName: "write", input: { path: "private/file.ts", content: "test" } },
+    { toolName: "edit", input: { path: "private/file.ts", edits: [] } },
+    { toolName: "grep", input: { path: "private", pattern: "test" } },
+    { toolName: "grep", input: { path: ".", glob: "private/**/*.ts", pattern: "test" } },
+  ])("guards .piignore inputs for $toolName: $input", async (event) => {
+    await writeFile(join(workspace.cwd, ".piignore"), "private/\n");
+    await writeRules({ project: { file: { "*": "write" } } }, workspace.cwd);
+    const pi = fakePi();
+    const ctx = fakeContext(true);
+
+    permissionExtension(pi.api);
+    await pi.events.session_start?.({}, ctx);
+    try {
+      const result = await pi.events.tool_call?.(event, ctx);
+
+      expect(result).toEqual({ block: true, reason: 'Path blocked by .piignore rule "private/"' });
+      expect(ctx.ui.custom).not.toHaveBeenCalled();
+    } finally {
+      await pi.events.session_shutdown?.({}, ctx);
+    }
+  });
+
+  it.each([
+    { decision: undefined, reason: "Permission request was cancelled" },
+    { decision: { allowed: false }, reason: "User rejected this tool call" },
+  ])("blocks execution when prompt returns $decision", async ({ decision, reason }) => {
+    const pi = fakePi();
+    const ctx = fakeContext(true);
+    ctx.ui.custom.mockResolvedValue(decision);
+
+    permissionExtension(pi.api);
+    await pi.events.session_start?.({}, ctx);
+    try {
+      const result = await pi.events.tool_call?.({ toolName: "web_fetch", input: { url: "https://example.com" } }, ctx);
+
+      expect(result).toEqual({ block: true, reason: expect.stringContaining(reason) });
+      expect(ctx.ui.custom).toHaveBeenCalledTimes(1);
+    } finally {
+      await pi.events.session_shutdown?.({}, ctx);
+    }
+  });
+
+  it.each([
+    { toolName: "write", input: null },
+    { toolName: "bash", input: { command: 42 } },
+    { toolName: "call_mcp_tool", input: { server: "docs" } },
+  ])("fails closed for malformed $toolName input", async (event) => {
+    const pi = fakePi();
+    const ctx = fakeContext(true);
+
+    permissionExtension(pi.api);
+    await pi.events.session_start?.({}, ctx);
+    try {
+      const result = await pi.events.tool_call?.(event, ctx);
+
+      expect(result).toEqual({ block: true, reason: "Permission check failed" });
+      expect(ctx.ui.custom).not.toHaveBeenCalled();
+    } finally {
+      await pi.events.session_shutdown?.({}, ctx);
+    }
+  });
+
   it("fails closed on malformed permission or .piignore state and removes resize listener", async () => {
     const listenersBefore = process.stdout.listenerCount("resize");
     await writeFile(join(workspace.home, ".pi", "agent", "permissions.json"), "not-json");

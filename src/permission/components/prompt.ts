@@ -128,7 +128,7 @@ export default class PermissionPrompt extends Frame implements Focusable {
     }
 
     lines.space();
-    this.addRawLines(lines, raw, width);
+    this.addRawLines(lines, toolName, raw, width);
     lines.space();
 
     for (const [idx, option] of this.options.entries()) {
@@ -162,9 +162,9 @@ export default class PermissionPrompt extends Frame implements Focusable {
     this.input.handleInput(data);
   }
 
-  private addRawLines(lines: Lines, raw: string, width: number) {
+  private addRawLines(lines: Lines, toolName: string, raw: string, width: number) {
     const normalized = raw.replace(/\r\n?/g, "\n");
-    const truncated = normalized.length > 100 ? `${normalized.slice(0, 100)}…` : normalized;
+    const truncated = `${toolName}("${normalized.length > 100 ? `${normalized.slice(0, 100)}…` : normalized}")`;
 
     for (const line of truncated.split("\n")) {
       if (!line) {

@@ -22,6 +22,31 @@ function permissionCheck(category: PermissionCheck["category"], unresolved: stri
 }
 
 describe("persisted permission precedence", () => {
+  it.each(["session-1", "project"])("honors explicit %s write grants in restricted mode", async (scope) => {
+    await writeRules({ [scope]: { file: { "src/file.ts": "write" } } }, workspace.cwd);
+
+    await expect(resolvePermission(workspace.cwd, permissionCheck("file", ["write:src/file.ts"]), "restricted"))
+      .resolves.toBe("allowed");
+  });
+
+  it("auto-allows reads in the global Pi directory but not restricted writes", async () => {
+    const path = join(workspace.home, ".pi", "agent", "settings.json");
+
+    await expect(resolvePermission(workspace.cwd, permissionCheck("file", [`read:${path}`]), "restricted"))
+      .resolves.toBe("allowed");
+    await expect(resolvePermission(workspace.cwd, permissionCheck("file", [`write:${path}`]), "restricted"))
+      .resolves.toBe("ask");
+  });
+
+  it("retains global file denies while ignoring global file grants in restricted mode", async () => {
+    await writeRules({ file: { "src/allowed.ts": "write", "src/blocked.ts": "deny" } });
+
+    await expect(resolvePermission(workspace.cwd, permissionCheck("file", ["write:src/allowed.ts"]), "restricted"))
+      .resolves.toBe("ask");
+    await expect(resolvePermission(workspace.cwd, permissionCheck("file", ["read:src/blocked.ts"]), "restricted"))
+      .resolves.toBe("deny");
+  });
+
   it("orders equal-ranked scopes from session to parent session to project to global", async () => {
     await writeRules({ web: { "https://example.com": false } });
     await writeRules(

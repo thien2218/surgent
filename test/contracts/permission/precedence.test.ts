@@ -41,6 +41,36 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
+describe("permission lifecycle and command contracts", () => {
+  it("prepends the loaded agent instructions without losing the Pi system prompt", async () => {
+    const pi = fakePi();
+    const ctx = fakeContext(false);
+    permissionExtension(pi.api);
+    await pi.events.session_start?.({}, ctx);
+    try {
+      expect(pi.events.before_agent_start).toBeTypeOf("function");
+      const result = await pi.events.before_agent_start!({ systemPrompt: "Pi instructions\nPreserve this line." }, ctx);
+
+      expect(result).toEqual({ systemPrompt: "agent body\n\nPi instructions\nPreserve this line." });
+    } finally {
+      await pi.events.session_shutdown?.({}, ctx);
+    }
+  });
+
+  it("rejects headless /permissions without opening UI or reading broken storage", async () => {
+    await writeFile(join(workspace.cwd, ".pi", "permissions.json"), "not-json");
+    const pi = fakePi();
+    const ctx = fakeContext(false);
+    permissionExtension(pi.api);
+
+    expect(pi.commands.permissions).toBeDefined();
+    await expect(pi.commands.permissions!.handler("", ctx)).resolves.toBeUndefined();
+
+    expect(ctx.ui.notify).toHaveBeenCalledWith("The /permissions command requires an interactive UI.", "error");
+    expect(ctx.ui.custom).not.toHaveBeenCalled();
+  });
+});
+
 describe("permission precedence contract", () => {
   it("lets a winning allow proceed without prompting", async () => {
     await writeRules({ web: { "https://example.com": true } });
@@ -181,11 +211,15 @@ describe("permission precedence contract", () => {
 
 function fakePi() {
   const events: Record<string, ((event: unknown, ctx: FakeContext) => unknown) | undefined> = {};
+  const commands: Record<string, { handler: (args: string, ctx: FakeContext) => unknown } | undefined> = {};
   return {
     events,
+    commands,
     api: {
       registerShortcut: vi.fn(),
-      registerCommand: vi.fn(),
+      registerCommand: vi.fn((name, command) => {
+        commands[name] = command;
+      }),
       on: vi.fn((name, handler) => {
         events[name] = handler as (event: unknown, ctx: FakeContext) => unknown;
       }),

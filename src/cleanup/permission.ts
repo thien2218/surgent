@@ -48,8 +48,10 @@ function pruneSchema(schema: PermissionRule): PermissionRule {
 }
 
 export async function cleanupPermissions(cwd: string, sessionIds: Set<string>) {
-  cleanupLocal(cwd, sessionIds);
-  cleanupGlobal();
+  const results = await Promise.allSettled([cleanupLocal(cwd, sessionIds), cleanupGlobal()]);
+  for (const result of results) {
+    if (result.status === "rejected") throw result.reason;
+  }
 }
 
 async function cleanupLocal(cwd: string, sessionIds: Set<string>) {

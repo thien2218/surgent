@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
 import { cleanupPermissions } from "../../../src/cleanup/permission.js";
 import { findScopedPermission } from "../../../src/permission/precedence.js";
@@ -28,13 +28,11 @@ describe("permission cleanup", () => {
 
     await cleanupPermissions(workspace.cwd, new Set());
 
-    await vi.waitFor(async () => {
-      await expect(readRules(workspace.cwd)).resolves.toMatchObject({
-        project: {
-          file: { "src/**": "read", "src/write.ts": "write" },
-          web: { "https://example.com/**": true },
-        },
-      });
+    await expect(readRules(workspace.cwd)).resolves.toEqual({
+      project: {
+        file: { "src/**": "read", "src/write.ts": "write" },
+        web: { "https://example.com/**": true },
+      },
     });
   });
 
@@ -43,12 +41,10 @@ describe("permission cleanup", () => {
 
     await cleanupPermissions(workspace.cwd, new Set());
 
-    await vi.waitFor(async () => {
-      const global = await readRules();
-      expect(global.web).toEqual({ "https://example.com/**": true, "https://example.com/private": false });
-      expect(findScopedPermission([global.web ?? {}], "https://example.com/private")).toBe("deny");
-      expect(findScopedPermission([global.web ?? {}], "https://example.com/public")).toBe("allowed");
-    });
+    const global = await readRules();
+    expect(global.web).toEqual({ "https://example.com/**": true, "https://example.com/private": false });
+    expect(findScopedPermission([global.web ?? {}], "https://example.com/private")).toBe("deny");
+    expect(findScopedPermission([global.web ?? {}], "https://example.com/public")).toBe("allowed");
   });
 
   it("uses bash wildcard matching for slash-containing commands", async () => {
@@ -56,8 +52,6 @@ describe("permission cleanup", () => {
 
     await cleanupPermissions(workspace.cwd, new Set());
 
-    await vi.waitFor(async () => {
-      await expect(readRules()).resolves.toEqual({ bash: { "git *": true, "npm *": false } });
-    });
+    await expect(readRules()).resolves.toEqual({ bash: { "git *": true, "npm *": false } });
   });
 });

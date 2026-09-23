@@ -25,7 +25,6 @@ The `test/` tree separates suites from reusable assets:
 - **`contracts/`** owns Pi-facing registrations, metadata, handlers, event responses, and lifecycle hooks.
 - **`integration/`** owns real local-boundary and multi-module suites.
 - **`e2e/`** owns process-level CLI startup and shutdown suites.
-- **`snapshots/`** owns reviewed artifacts for stable, structured, multiline output.
 
 Keep suite-specific setup nearby. Promote only genuinely shared code to `helpers/`.
 
@@ -41,7 +40,7 @@ Supply dependencies directly. When control is needed, mock an external boundary 
 
 Use contract tests for Pi extensions. Load the extension with a typed recording fake for `ExtensionAPI`, capture the tools, commands, shortcuts, or event handlers it registers, and invoke them through the public shapes Pi uses. Examples include verifying that the MCP extension registers its command and tools, that a permission hook blocks a denied tool call, or that the redactor transforms supported tool results.
 
-Implement only the needed Pi capabilities and fail clearly on unexpected calls; do not recreate Pi's runtime.
+Use `helpers/extension.ts` to record registrations and retrieve required tools, commands, shortcuts, and individual event handlers. Supply additional Pi capabilities explicitly; unsupported calls and missing registrations fail. Keep extension-specific contexts and expected registration names in suite-specific setup. The helper does not dispatch events or recreate Pi's runtime.
 
 ### Integration tests
 
@@ -69,7 +68,7 @@ surgent uses NodeNext ESM. Include `.js` extensions in relative imports, includi
 import { resolvePermission } from "../../src/permission/resolution.js";
 ```
 
-Assert contract-relevant outcomes. Prefer direct assertions over broad snapshots. Normalize paths, ports, timestamps, IDs, line endings, and ANSI before snapshot comparison. Never snapshot secrets, security decisions, sessions, or error stacks.
+Assert contract-relevant outcomes directly. Keep expected values small and explicit; avoid capturing entire sessions, object graphs, or error stacks. Never include real secrets in expected output.
 
 ## Isolation and cleanup
 

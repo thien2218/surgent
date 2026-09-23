@@ -21,16 +21,16 @@ Before writing a test, answer:
 4. Will the proof remain useful after an internal refactor?
 5. Is its diagnostic value worth its maintenance cost?
 
-## Select one primary layer
+## Select one primary layer per behavior
 
-Choose the layer from the boundary the behavior crosses, not from the source directory being changed.
+Assign a testing layer to each behavior, not to a feature, module, source file, or test file. One module or feature can need unit, contract, and integration tests for different guarantees. Split the coverage plan into observable behaviors first, then choose the lowest sufficient layer for each behavior from the boundary it crosses, not from the source directory being changed.
 
 - **Unit:** Use for deterministic functions or small components whose dependencies can be supplied directly. This is the default for parsing, matching, normalization, transformations, and state transitions without meaningful I/O.
 - **Contract:** Use when surgent registers or communicates through Pi's `ExtensionAPI`. Exercise the registered tool, command, event handler, metadata, result shape, or lifecycle through the public Pi-facing shape.
 - **Integration:** Use when correctness depends on real local I/O or collaboration among several surgent modules. Exercise a temporary filesystem, disposable Git repository, child process, loopback HTTP server, or local MCP transport.
 - **End to end (E2E):** Use only when the guarantee depends on launching the CLI as a user would. Keep these tests few because process and terminal boundaries make failures slower and less precise.
 
-Do not repeat the same assertion at multiple layers. Add a higher-layer test only when it proves wiring, serialization, lifecycle, process behavior, or another guarantee unavailable below. If a defect can be reproduced completely in a unit test, an E2E test alone is too broad.
+Do not repeat the same behavioral guarantee at multiple layers. Similar assertions can appear at different layers when they prove distinct guarantees, such as a parser returning a denial and a registered Pi handler propagating that denial. Name that distinction explicitly in coverage plans. Add a higher-layer test only when it proves wiring, serialization, lifecycle, process behavior, or another guarantee unavailable below. If a defect can be reproduced completely in a unit test, an E2E test alone is too broad.
 
 **Note**: surgent extensions mostly work in isolation, each extension are made up of one or more modules that can depend on one another. So a module does not refer to an extension.
 

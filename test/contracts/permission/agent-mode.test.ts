@@ -31,8 +31,10 @@ let root: string;
 let home: string;
 let cwd: string;
 let oldHome: string | undefined;
+let shutdowns: Array<() => unknown>;
 
 beforeEach(async () => {
+  shutdowns = [];
   root = await mkdtemp(join(tmpdir(), "surgent-mode-contract-"));
   home = join(root, "home");
   cwd = join(root, "work");
@@ -43,6 +45,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  for (const shutdown of shutdowns) await shutdown();
   if (oldHome === undefined) delete process.env.HOME;
   else process.env.HOME = oldHome;
   await rm(root, { recursive: true, force: true });
@@ -106,6 +109,7 @@ async function readJson(path: string) {
 function fakePi() {
   const events: Record<string, ((event: unknown, ctx: FakeContext) => unknown) | undefined> = {};
   let shortcut: { handler: (ctx: FakeContext) => void } | undefined;
+  shutdowns.push(() => events.session_shutdown!({}, fakeContext()));
   return {
     events,
     get shortcut() {

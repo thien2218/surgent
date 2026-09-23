@@ -31,9 +31,9 @@
     "vitest": "5.0.1"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "^0.86.0",
-    "@earendil-works/pi-coding-agent": "^0.86.0",
-    "@earendil-works/pi-tui": "^0.86.0",
+    "@earendil-works/pi-ai": "^0.87.1",
+    "@earendil-works/pi-coding-agent": "^0.87.1",
+    "@earendil-works/pi-tui": "^0.87.1",
     "@mendable/firecrawl-js": "^4.22.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@tavily/core": "^0.7.3",

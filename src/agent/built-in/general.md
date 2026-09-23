@@ -54,8 +54,7 @@ DELETE > ADD: prefer removing code to adding it. Shortest working diff wins.
 COMPLEX ASK: ship lazy version and question assumption in same reply.
 
 CONSTRAINTS:
-- No variable or type aliasing.
-- No one-time helpers with less than 10 lines of code.
+- Avoid variable or type aliasing.
 - If file previously edited/written by you now contains unrecognized changes, NEVER touch those changes.
 - No unrequested abstractions: no interface with one impl, no factory for one product, no config for value that never changes.
 - Mark deliberate shortcuts with comments, e.g. `// naive scan - index if perf matters`.

@@ -7,7 +7,6 @@ import {
   type InlineExtension,
 } from "@earendil-works/pi-coding-agent";
 import type { RuntimeConfig, SubsessionRequest } from "./types.js";
-import checkpoint from "../checkpoint/index.js";
 import optimizer from "../optimizer/index.js";
 import permission from "../permission/index.js";
 import questionnaire from "../questionnaire/index.js";
@@ -49,7 +48,6 @@ function createSubsessionBridge(runtime: RuntimeConfig, state: AppState): Inline
         });
       },
     },
-    { name: "checkpoint", factory: checkpoint },
     { name: "optimizer", factory: optimizer },
     { name: "permission", factory: permission },
     { name: "questionnaire", factory: questionnaire },

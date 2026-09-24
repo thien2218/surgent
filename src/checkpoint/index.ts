@@ -90,7 +90,10 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("tool_result", (event) => {
-    if ((event.toolName === "write" || event.toolName === "edit") && !event.isError) {
+    if (
+      (event.toolName === "write" || event.toolName === "edit" || event.toolName === "subagent") &&
+      !event.isError
+    ) {
       turnChanged = true;
     }
   });

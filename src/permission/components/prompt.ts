@@ -6,7 +6,7 @@ import { SCOPES } from "../constants.js";
 import { Lines } from "../../ui/components/lines.js";
 import { getScopeLabel, mapToRules } from "../helpers.js";
 import { addRules } from "../storage.js";
-import { toPattern } from "../pattern.js";
+import { toPatterns } from "../pattern.js";
 import { unique } from "../../utils.js";
 
 export default class PermissionPrompt extends Frame implements Focusable {
@@ -28,10 +28,8 @@ export default class PermissionPrompt extends Frame implements Focusable {
     private readonly cwd: string,
   ) {
     super(theme);
-    if (!check.uncertainty) {
-      this.patterns = unique(
-        check.unresolved.map((item) => toPattern(check.toolName, item)).filter(Boolean),
-      );
+    if (check.category !== "bash" || !check.uncertainty) {
+      this.patterns = toPatterns(check);
     }
 
     this.setOptions();

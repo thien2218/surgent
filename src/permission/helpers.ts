@@ -6,7 +6,6 @@ import type { AgentMode } from "../agent/types.js";
 import { extractBashCommands } from "./bash.js";
 import { unique } from "../utils.js";
 import { resolvePermissionPath } from "./resolution.js";
-import { relative } from "node:path";
 
 function getRuleValueLabel(value: FileAccess | boolean): string {
   if (typeof value === "boolean") {
@@ -72,22 +71,14 @@ export async function getPermissionCheck(
 ): Promise<PermissionCheck | null> {
   if (!(toolName in PERMISSIVE_TOOLS)) return null;
 
-  let fileOp: FileOp | null = null;
+  let fileOp: FileOp = "read";
   const typedName = toolName as PermissiveToolName;
-  const check: PermissionCheck = {
-    sessionId,
-    toolName: typedName,
-    category: PERMISSIVE_TOOLS[typedName],
-    raw: "",
-    purpose: "",
-    unresolved: [],
-  };
+  const check: any = { sessionId, toolName: typedName, category: PERMISSIVE_TOOLS[typedName] };
 
   switch (typedName) {
     case "read":
       check.raw = input.path as string;
       check.purpose = `Read content from file ${check.raw}`;
-      fileOp = "read";
       break;
     case "write":
     case "edit":
@@ -98,7 +89,6 @@ export async function getPermissionCheck(
     case "grep":
       check.raw = (input.path as string | undefined) || ".";
       check.purpose = `Perform search in path ${check.raw}`;
-      fileOp = "read";
       break;
     case "bash":
       check.raw = input.command as string;
@@ -107,26 +97,26 @@ export async function getPermissionCheck(
     case "web_fetch":
       check.raw = input.url as string;
       check.purpose = `Fetch content from URL ${input.url}`;
-      check.unresolved = [check.raw];
       break;
     case "call_mcp_tool":
       check.raw = `${(input.server as string).trim()}:${(input.tool as string).trim()}`;
       check.purpose = `Call MCP tool ${check.raw}`;
-      check.unresolved = [check.raw];
       break;
   }
 
-  if (typedName === "bash") {
+  if (check.category === "bash") {
     const commands = extractBashCommands(check.raw);
     const uncertainty = commands.map(getBashUncertainty).filter(Boolean);
     check.unresolved = commands.map(({ text }) => text);
     check.uncertainty = unique(uncertainty).join("; ") || undefined;
-  } else if (fileOp) {
-    const path = await resolvePermissionPath(check.raw, cwd);
-    check.unresolved = [`${fileOp}:${relative(cwd, path) || "."}`];
+  } else if (check.category === "file") {
+    const { absolute, relative } = await resolvePermissionPath(check.raw, cwd);
+    check.operation = fileOp;
+    check.absolute = absolute;
+    check.relative = relative;
   }
 
-  return check;
+  return check as PermissionCheck;
 }
 
 export function cycleMode(mode: AgentMode): AgentMode {
@@ -140,12 +130,6 @@ export function cycleMode(mode: AgentMode): AgentMode {
   }
 }
 
-export function extractOpAndPath(input: string): ["read" | "write", string] {
-  const separator = input.indexOf(":");
-  if (separator < 0) return ["read", input];
-  return [input.slice(0, separator) === "write" ? "write" : "read", input.slice(separator + 1)];
-}
-
 export function mapToRules(
   patterns: string[],
   category: Category,
@@ -154,8 +138,9 @@ export function mapToRules(
   const map = new Map<string, FileAccess | boolean>();
   for (const pattern of patterns) {
     if (category === "file") {
-      const [op, path] = extractOpAndPath(pattern);
-      map.set(path, allowed ? op : "deny");
+      const operation = pattern.startsWith("write:") ? "write" : "read";
+      const path = pattern.slice(pattern.indexOf(":") + 1);
+      map.set(path, allowed ? operation : "deny");
     } else {
       map.set(pattern, allowed);
     }

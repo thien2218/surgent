@@ -3,16 +3,14 @@ import type {
   ExtensionContext,
   ToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
-import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { handlePermissionsCommand } from "./command.js";
+import { getState } from "../state.js";
 import { checkAgentRules, resolvePermission } from "./resolution.js";
 import { getPiIgnoreInputs, resolvePiIgnorePathBlock } from "./piignore.js";
-import { readAgentMode, writeAgentMode } from "./storage.js";
-import { loadMainAgent } from "../agent/storage.js";
 import type { PermissionCheck, PromptDecision } from "./types.js";
 import PermissionPrompt from "./components/prompt.js";
-import { getPermissionCheck, cycleMode } from "./helpers.js";
-import type { Agent, AgentMeta, AgentMode } from "../agent/types.js";
+import { getPermissionCheck } from "./helpers.js";
+import type { AgentMeta, AgentMode } from "../agent/types.js";
 
 async function askForPermission(pi: ExtensionAPI, ctx: ExtensionContext, check: PermissionCheck) {
   const decision = await ctx.ui.custom<PromptDecision | undefined>(
@@ -83,64 +81,15 @@ export async function enforceToolPermission(
 }
 
 export default function (pi: ExtensionAPI) {
-  let agent: Agent;
-  let mode: AgentMode;
-  let updateStatus: (() => void) | undefined;
-
-  const updateAgentMode = (ctx: ExtensionContext) => {
-    const modeText =
-      mode === "yolo"
-        ? ctx.ui.theme.fg("warning", "YOLO mode ⚠️")
-        : ctx.ui.theme.fg("dim", `${mode} mode`);
-    const width = (process.stdout.columns ?? 80) - visibleWidth(modeText) + 1;
-    // use ANSI cursor absolute (CHA) to jump to the right edge because spaces
-    // would be collapsed by sanitizeStatusText
-    ctx.ui.setStatus("mode", `\x1b[${width}G` + modeText);
-  };
-
-  pi.registerShortcut(Key.alt("m"), {
-    description: "Cycle assistant, YOLO, and restricted modes",
-    handler: (ctx) => {
-      const nextMode = cycleMode(mode);
-      void writeAgentMode(nextMode)
-        .then(() => {
-          mode = nextMode;
-          updateStatus?.();
-          ctx.ui.notify(`Mode: ${mode}`, "info");
-        })
-        .catch(() => ctx.ui.notify("Failed to change mode, please try again", "error"));
-    },
-  });
-
   pi.registerCommand("permissions", {
     description: "View and manage permissions",
     handler: async (_args, ctx) => await handlePermissionsCommand(ctx),
   });
 
-  pi.on("session_start", async (_event, ctx) => {
-    [agent, mode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode()]);
-    ctx.ui.setStatus("agent", ctx.ui.theme.fg("dim", `agent: ${agent.name}`));
-
-    if (updateStatus) {
-      process.stdout.off("resize", updateStatus);
-    }
-    updateStatus = () => updateAgentMode(ctx);
-    updateStatus();
-    process.stdout.on("resize", updateStatus);
+  pi.on("tool_call", async (event, ctx) => {
+    const state = getState(pi);
+    const { meta } = state.getAgent();
+    const mode = state.getMode();
+    return enforceToolPermission(pi, event, ctx, meta, ctx.sessionManager.getSessionId(), mode);
   });
-
-  pi.on("before_agent_start", (event) => ({
-    systemPrompt: `${agent.body}\n\n${event.systemPrompt}`,
-  }));
-
-  pi.on("session_shutdown", async (_event, _ctx) => {
-    if (updateStatus) {
-      process.stdout.off("resize", updateStatus);
-      updateStatus = undefined;
-    }
-  });
-
-  pi.on("tool_call", async (event, ctx) =>
-    enforceToolPermission(pi, event, ctx, agent.meta, ctx.sessionManager.getSessionId(), mode),
-  );
 }

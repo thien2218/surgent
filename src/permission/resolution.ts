@@ -3,15 +3,14 @@ import { lstat, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import type { AgentMeta, AgentMode } from "../agent/types.js";
 import { readRules } from "./storage.js";
-import type { Category, FileAccess, PermissionRule, PermissionCheck } from "./types.js";
+import type { Category, FileAccess, PermissionRule, PermissionCheck, FileCheck } from "./types.js";
 import { getPiPath } from "../utils.js";
 import { findSubsession } from "../subagent/storage.js";
 import { findScopedPermission, matchesPattern } from "./precedence.js";
-import { extractOpAndPath } from "./helpers.js";
 
 function getSchemaRules(
-  schema: PermissionRule | undefined,
   category: Category,
+  schema?: PermissionRule,
 ): Record<string, FileAccess | boolean> {
   if (!schema) return {};
   if (category === "file") return schema.file ?? {};
@@ -36,18 +35,17 @@ function isAllowedByPattern(raw: string, allowList?: string[], bash?: boolean): 
 }
 
 export function checkAgentRules(meta: AgentMeta, check: PermissionCheck): boolean {
-  const { category, unresolved } = check;
-  if (category === "bash") {
-    return unresolved.every((item) => isAllowedByPattern(item, meta.bash, true));
+  if (check.category === "bash") {
+    return check.unresolved.every((item) => isAllowedByPattern(item, meta.bash, true));
   }
-  if (category === "file") {
-    return unresolved.every((item) => {
-      const [op, path] = extractOpAndPath(item);
-      return isAllowedByPattern(path, meta[`files.${op}`]);
-    });
+  if (check.category === "mcp") {
+    return isAllowedByPattern(check.raw, meta.mcp_tools);
   }
-  if (category === "mcp") {
-    return unresolved.every((item) => isAllowedByPattern(item, meta.mcp_tools));
+  if (check.category === "file") {
+    return (
+      isAllowedByPattern(check.absolute, meta[`files.${check.operation}`]) ||
+      isAllowedByPattern(check.relative, meta[`files.${check.operation}`])
+    );
   }
   return true;
 }
@@ -61,30 +59,31 @@ export function expandFilePath(path: string, cwd: string): string | null {
   return resolve(cwd, path);
 }
 
-export function getRelativePathInRoot(path: string, root: string): string | null {
-  const resolvedPath = expandFilePath(path, root);
-  if (!resolvedPath) return null;
-
-  const relativePath = relative(root, resolvedPath);
+export function isRelativeToRoot(path: string, root: string): boolean {
+  const relativePath = relative(root, path);
   if (
     relativePath !== "" &&
     (relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath))
   ) {
-    return null;
+    return false;
   }
-
-  return relativePath;
+  return true;
 }
 
-export async function resolvePermissionPath(input: string, cwd: string): Promise<string> {
-  const absolute = expandFilePath(input, cwd);
-  if (!absolute) throw new Error("Missing permission path");
+export async function resolvePermissionPath(
+  input: string,
+  cwd: string,
+): Promise<{ absolute: string; relative: string }> {
+  let ancestor = expandFilePath(input, cwd);
+  if (!ancestor) throw new Error("Missing permission path");
 
-  let ancestor = absolute;
   const missing: string[] = [];
   while (true) {
     try {
-      return resolve(await realpath(ancestor), ...missing);
+      const absolute = resolve(await realpath(ancestor), ...missing)
+        .split(sep)
+        .join("/");
+      return { absolute, relative: relative(cwd, absolute).split(sep).join("/") || "." };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       // An existing dangling symlink is not a missing destination we can safely authorize.
@@ -104,7 +103,6 @@ export async function resolvePermissionPath(input: string, cwd: string): Promise
 
 // File inputs must already be physical, project-relative paths.
 export async function resolvePermission(cwd: string, check: PermissionCheck, mode: AgentMode) {
-  const unresolved: string[] = [];
   const { category, sessionId } = check;
   const [local, global, subsession] = await Promise.all([
     readRules(cwd),
@@ -119,29 +117,36 @@ export async function resolvePermission(cwd: string, check: PermissionCheck, mod
   scopes.push(local.project);
   scopes.push(mode === "restricted" ? getDenyRules(global) : global);
 
-  const rules = scopes.map((schema) => getSchemaRules(schema, category));
-  for (const item of check.unresolved) {
-    const [fileOp, normalized] = category === "file" ? extractOpAndPath(item) : [undefined, item];
-    let permission = findScopedPermission(rules, normalized, category === "bash", fileOp);
+  const rules = scopes.map((schema) => getSchemaRules(category, schema));
+  let permission: "deny" | "allowed" | "ask" = "ask";
+
+  if (category === "bash") {
+    const unresolved: string[] = [];
+    for (const item of check.unresolved) {
+      permission = findScopedPermission(rules, item, true);
+      if (permission === "deny") return "deny";
+      if (permission === "ask") unresolved.push(item);
+    }
+    check.unresolved = unresolved;
+    return unresolved.length > 0 ? "ask" : "allowed";
+  }
+  if (category === "file") {
+    const { absolute, relative, operation } = check;
+    permission = findScopedPermission(rules, relative, false, operation);
+    permission =
+      permission === "ask" ? findScopedPermission(rules, absolute, false, operation) : permission;
 
     if (
-      category === "file" &&
       permission === "ask" &&
-      (mode !== "restricted" || fileOp !== "write")
+      (mode !== "restricted" || operation !== "write") &&
+      (isRelativeToRoot(absolute, cwd) ||
+        isRelativeToRoot(absolute, dirname(getPiPath("settings"))))
     ) {
-      const path = resolve(cwd, normalized);
-      if (
-        getRelativePathInRoot(path, cwd) !== null ||
-        getRelativePathInRoot(path, dirname(getPiPath("settings"))) !== null
-      ) {
-        permission = "allowed";
-      }
+      permission = "allowed";
     }
-
-    if (permission === "deny") return "deny";
-    if (permission === "ask") unresolved.push(item);
+  } else {
+    permission = findScopedPermission(rules, check.raw);
   }
 
-  check.unresolved = unresolved;
-  return unresolved.length > 0 ? "ask" : "allowed";
+  return permission;
 }

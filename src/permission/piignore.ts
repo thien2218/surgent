@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { getRelativePathInRoot, resolvePermissionPath } from "./resolution.js";
+import { isRelativeToRoot, resolvePermissionPath } from "./resolution.js";
 import { matchesPattern, specificity } from "./precedence.js";
 import { getPiPath, isMissingFileError } from "../utils.js";
 import type {
@@ -18,17 +18,6 @@ interface PiIgnoreRule {
   suffix: number;
   length: number;
   scope: number;
-}
-
-function normalizePathToRoot(rawPath: string, rootPath: string): string | null {
-  const relativePath = getRelativePathInRoot(rawPath, rootPath);
-  if (relativePath === null) return null;
-
-  const posixPath = (relativePath === "" ? "." : relativePath).replace(/\\/g, "/");
-  if (posixPath === "/") return posixPath;
-
-  const trimmedPath = posixPath.replace(/\/+$/, "");
-  return trimmedPath || ".";
 }
 
 function normalizePiIgnorePattern(pattern: string): string | null {
@@ -89,16 +78,14 @@ async function loadPiIgnoreRules(cwd: string): Promise<PiIgnoreRule[]> {
 
 function findBestPiIgnoreRule(
   rules: PiIgnoreRule[],
-  rawPath: string,
+  path: string,
   cwd: string,
 ): PiIgnoreRule | null {
-  const normalizedPath = normalizePathToRoot(rawPath, cwd);
-  if (!normalizedPath) return null;
+  if (!isRelativeToRoot(path, cwd)) return null;
 
   let best: PiIgnoreRule | null = null;
   for (const rule of rules) {
-    if (!matchesPattern(normalizedPath, rule.pattern)) continue;
-
+    if (!matchesPattern(path, rule.pattern)) continue;
     if (
       best === null ||
       rule.suffix > best.suffix ||
@@ -122,7 +109,7 @@ export async function resolvePiIgnorePathBlock(
   const rules = await loadPiIgnoreRules(cwd);
   if (rules.length === 0) return null;
 
-  const path = glob ? rawPath : await resolvePermissionPath(rawPath, cwd);
+  const path = glob ? rawPath : (await resolvePermissionPath(rawPath, cwd)).relative;
   const matchedRule = findBestPiIgnoreRule(rules, path, cwd);
   return matchedRule && !matchedRule.negated
     ? `Path blocked by .piignore rule "${matchedRule.raw}"`

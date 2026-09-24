@@ -1,6 +1,6 @@
+import { unique } from "../utils.js";
 import { bashToPattern } from "./bash.js";
-import { extractOpAndPath } from "./helpers.js";
-import type { PermissiveToolName } from "./types.js";
+import type { PermissionCheck } from "./types.js";
 
 export function filePathToPattern(path: string): string {
   if (!path || path.endsWith("/")) return path;
@@ -34,21 +34,16 @@ export function urlToPattern(url: string): string {
   }
 }
 
-export function toPattern(toolName: PermissiveToolName, input: string): string {
-  const firstLine = input.replace(/\r\n?/g, "\n").split("\n")[0] ?? "";
-  switch (toolName) {
-    case "read":
-    case "write":
-    case "edit":
-    case "grep": {
-      const [operation, path] = extractOpAndPath(firstLine);
-      return `${operation}:${filePathToPattern(path)}`;
+export function toPatterns(check: PermissionCheck): string[] {
+  switch (check.category) {
+    case "file": {
+      return [`${check.operation}:${filePathToPattern(check.relative)}`];
     }
-    case "web_fetch":
-      return urlToPattern(firstLine);
+    case "web":
+      return [urlToPattern(check.raw)];
     case "bash":
-      return bashToPattern(input);
-    case "call_mcp_tool":
-      return input;
+      return unique(check.unresolved.map((item) => bashToPattern(item)));
+    case "mcp":
+      return [check.raw];
   }
 }

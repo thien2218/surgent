@@ -14,15 +14,35 @@ export interface PermissionRule {
   mcp?: Record<string, boolean>;
 }
 
-export interface PermissionCheck {
+interface CheckBase {
   sessionId: string;
   toolName: PermissiveToolName;
   category: Category;
   raw: string;
-  unresolved: string[];
   purpose: string;
   uncertainty?: string;
 }
+
+export interface FileCheck extends CheckBase {
+  toolName: "read" | "write" | "edit" | "grep";
+  category: "file";
+  operation: FileOp;
+  relative: string;
+  absolute: string;
+}
+
+interface BashCheck extends CheckBase {
+  toolName: "bash";
+  category: "bash";
+  unresolved: string[];
+}
+
+interface OtherCheck extends CheckBase {
+  toolName: "web_fetch" | "call_mcp_tool";
+  category: "web" | "mcp";
+}
+
+export type PermissionCheck = FileCheck | BashCheck | OtherCheck;
 
 export interface PromptDecision {
   allowed: boolean;

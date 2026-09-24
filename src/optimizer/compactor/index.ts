@@ -34,6 +34,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerTool({
     ...grepTool,
+    description: `${grepTool.description} Results remain available throughout the current task and are compacted into summaries only after you finish responding to the user.`,
     parameters: Type.Object({
       ...grepTool.parameters.properties,
       context: Type.Optional(
@@ -47,8 +48,6 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerTool({
     ...bashTool,
-    description:
-      "Execute a bash command in the current working directory. Strips ANSI escapes, collapses carriage-return updates, removes consecutive duplicate lines, then optionally filters lines with a JavaScript regex before truncating to the last 2000 lines or 50KB. Saved full output is compacted.",
     parameters: Type.Object({
       ...bashTool.parameters.properties,
       purpose: Type.String({
@@ -59,15 +58,6 @@ export default function (pi: ExtensionAPI) {
       }),
     }),
     prepareArguments: undefined,
-    execute(toolCallId, params, signal, onUpdate, ctx) {
-      return bashTool.execute(
-        toolCallId,
-        { command: params.command, timeout: params.timeout },
-        signal,
-        onUpdate,
-        ctx,
-      );
-    },
   });
 
   pi.on("agent_start", async (_event, ctx) => {

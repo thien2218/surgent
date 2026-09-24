@@ -1,5 +1,6 @@
 import type { AgentSession, ContextUsage, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AgentMeta } from "../agent/types.js";
+import type { AppState } from "../state.js";
 
 export type SubsessionStatus = "done" | "aborted" | "error";
 export type SubsessionLabel = "plan" | "subagent";
@@ -36,6 +37,7 @@ export interface RuntimeConfig {
 
 export interface SubsessionRequest {
   ctx: ExtensionContext;
+  state: AppState;
   label: SubsessionLabel;
   agent: string;
   id?: string;

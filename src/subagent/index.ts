@@ -2,6 +2,7 @@ import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Container, Text, TruncatedText } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { openSubsession } from "./subsession.js";
+import { getState } from "../state.js";
 import { formatSnapshotText } from "./helpers.js";
 import type { SubsessionRequest, SubsessionSnapshot } from "./types.js";
 import { renderResultText } from "../utils.js";
@@ -24,6 +25,7 @@ export default function (pi: ExtensionAPI) {
       let snapshot: SubsessionSnapshot | undefined;
       const request: SubsessionRequest = {
         ctx,
+        state: getState(pi),
         label: "subagent",
         agent: params.agent,
         signal,

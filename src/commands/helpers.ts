@@ -7,6 +7,7 @@ import type { StoredSubsessions } from "../subagent/types.js";
 import { ExtendedSelectList, type SelectEntry } from "../ui/components/extended-select-list.js";
 import { getPiPath, isMissingFileError, isUuidv7, openInEditor, readJson } from "../utils.js";
 import { openSubsession } from "../subagent/subsession.js";
+import { getState } from "../state.js";
 import { renderSnapshotWidget, showPlanUi } from "./render.js";
 import type { CommandInput } from "./types.js";
 
@@ -173,12 +174,14 @@ async function pickPlanId(ctx: ExtensionContext): Promise<string | null> {
 }
 
 export async function resolvePlan(
+  pi: ExtensionAPI,
   ctx: ExtensionCommandContext,
   input: CommandInput,
 ): Promise<Subsession | null> {
   let prompt = "";
   const request: SubsessionRequest = {
     ctx,
+    state: getState(pi),
     label: "plan",
     agent: "planner",
     onSnapshot: (snapshot) => renderSnapshotWidget(ctx, "planner", snapshot),

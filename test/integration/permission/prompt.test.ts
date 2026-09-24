@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import PermissionPrompt from "../../../src/permission/components/prompt.js";
@@ -20,7 +21,7 @@ describe("permission prompt decisions", () => {
   ])("remembers allowed=$allowed in selected $scope scope", async ({ scope, shifts, allowed }) => {
     const component = new PermissionPrompt(
       { fg: (_color: string, text: string) => text, bold: (text: string) => text } as Theme,
-      { sessionId: "session-1", toolName: "write", category: "file", raw: "config.ts", unresolved: ["write:config.ts"], purpose: "test" },
+      { sessionId: "session-1", toolName: "write", category: "file", raw: "config.ts", operation: "write", relative: "config.ts", absolute: join(workspace.cwd, "config.ts"), purpose: "test" },
       workspace.cwd,
     );
     const done = new Promise<PromptDecision | undefined>((resolve) => { component.onDone = resolve; });
@@ -42,7 +43,7 @@ describe("permission prompt decisions", () => {
   it.each([true, false])("emits a one-time decision without persisting rules: %s", async (allowed) => {
     const component = new PermissionPrompt(
       { fg: (_color: string, text: string) => text, bold: (text: string) => text } as Theme,
-      { sessionId: "session-1", toolName: "read", category: "file", raw: "file.ts", unresolved: ["read:file.ts"], purpose: "test" },
+      { sessionId: "session-1", toolName: "read", category: "file", raw: "file.ts", operation: "read", relative: "file.ts", absolute: join(workspace.cwd, "file.ts"), purpose: "test" },
       workspace.cwd,
     );
     const done = new Promise<PromptDecision | undefined>((resolve) => { component.onDone = resolve; });

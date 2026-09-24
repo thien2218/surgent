@@ -86,10 +86,6 @@ export async function getPermissionCheck(
       check.purpose = `Write content to file ${check.raw}`;
       fileOp = "write";
       break;
-    case "grep":
-      check.raw = (input.path as string | undefined) || ".";
-      check.purpose = `Perform search in path ${check.raw}`;
-      break;
     case "bash":
       check.raw = input.command as string;
       check.purpose = input.purpose as string;

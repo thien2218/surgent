@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentMeta } from "../../../src/agent/types.js";
 import type { PermissionRule } from "../../../src/permission/types.js";
 import { enforceToolPermission } from "../../../src/permission/index.js";
+import { getPermissionCheck } from "../../../src/permission/helpers.js";
 import { resolvePermission } from "../../../src/permission/resolution.js";
 import { readAgentMode, writeAgentMode } from "../../../src/permission/storage.js";
 
@@ -126,12 +127,12 @@ describe("agent mode permission behavior", () => {
 
     const allowedByGlobal = await resolvePermission(
       cwd,
-      permissionCheck("web_fetch", "web", ["https://allowed.example"]),
+      await permissionCheck("web_fetch", "https://allowed.example"),
       "restricted",
     );
     const deniedByGlobal = await resolvePermission(
       cwd,
-      permissionCheck("web_fetch", "web", ["https://denied.example"]),
+      await permissionCheck("web_fetch", "https://denied.example"),
       "restricted",
     );
 
@@ -144,17 +145,17 @@ describe("agent mode permission behavior", () => {
 
     const assistant = await resolvePermission(
       cwd,
-      permissionCheck("write", "file", [`write:${target}`]),
+      await permissionCheck("write", target),
       "assistant",
     );
     const restricted = await resolvePermission(
       cwd,
-      permissionCheck("write", "file", [`write:${target}`]),
+      await permissionCheck("write", target),
       "restricted",
     );
     const restrictedRead = await resolvePermission(
       cwd,
-      permissionCheck("read", "file", [`read:${target}`]),
+      await permissionCheck("read", target),
       "restricted",
     );
 
@@ -172,8 +173,10 @@ async function readJson(path: string) {
   return JSON.parse(await readFile(path, "utf8"));
 }
 
-function permissionCheck(toolName: "read" | "write" | "web_fetch", category: "file" | "web", unresolved: string[]) {
-  return { sessionId: "session-1", toolName, category, raw: unresolved[0]!, unresolved, purpose: "test" };
+async function permissionCheck(toolName: "read" | "write" | "web_fetch", raw: string) {
+  const check = await getPermissionCheck(cwd, "session-1", toolName, toolName === "web_fetch" ? { url: raw } : { path: raw });
+  if (!check) throw new Error("Missing permission check");
+  return check;
 }
 
 function fakePi() {

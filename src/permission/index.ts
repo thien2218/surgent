@@ -6,7 +6,7 @@ import type {
 import { handlePermissionsCommand } from "./command.js";
 import { getState } from "../state.js";
 import { checkAgentRules, resolvePermission } from "./resolution.js";
-import { getPiIgnoreInputs, resolvePiIgnorePathBlock } from "./piignore.js";
+import { resolvePiIgnorePathBlock } from "./piignore.js";
 import type { PermissionCheck, PromptDecision } from "./types.js";
 import PermissionPrompt from "./components/prompt.js";
 import { getPermissionCheck } from "./helpers.js";
@@ -51,15 +51,15 @@ export async function enforceToolPermission(
   mode: AgentMode,
 ) {
   try {
-    for (const input of getPiIgnoreInputs(event)) {
-      const piIgnoreBlock = await resolvePiIgnorePathBlock(ctx.cwd, input.path, input.glob);
+    const check = await getPermissionCheck(ctx.cwd, sessionId, event.toolName, event.input);
+    if (!check) return;
+
+    if (check.category === "file") {
+      const piIgnoreBlock = await resolvePiIgnorePathBlock(ctx.cwd, check.raw);
       if (piIgnoreBlock) {
         return { block: true, reason: piIgnoreBlock };
       }
     }
-
-    const check = await getPermissionCheck(ctx.cwd, sessionId, event.toolName, event.input);
-    if (!check) return;
     if (!checkAgentRules(meta, check)) {
       return { block: true, reason: "Access to this resource is beyond allowed scope" };
     }

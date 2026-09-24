@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
-import { enforceToolPermission } from "../../../src/permission/index.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { makePermissionContext, makePermissionSession, makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
+import permissionExtension from "../../../src/permission/index.js";
 import { writeRules } from "../../../src/permission/storage.js";
 
 let workspace: PermissionWorkspace;
@@ -20,22 +20,17 @@ describe("persisted bash permissions", () => {
   ])("requires a fresh decision despite an allow rule: $allowed", async ({ allowed, blocked }) => {
     const command = "bash -c 'echo ok'";
     await writeRules({ bash: { [command]: true } });
-    const custom = vi.fn().mockResolvedValue({ allowed });
+    const pi = makePermissionSession();
+    const ctx = makePermissionContext(workspace.cwd, true);
+    ctx.ui.custom.mockResolvedValue({ allowed });
+    permissionExtension(pi.api);
 
-    const result = await enforceToolPermission(
-      { sendUserMessage: vi.fn() } as never,
-      { toolName: "bash", input: { command, purpose: "test" } } as never,
-      {
-        cwd: workspace.cwd,
-        hasUI: true,
-        ui: { custom, notify: vi.fn() },
-      } as never,
-      { description: "test" },
-      "session-1",
-      "assistant",
+    const result = await pi.event("tool_call")(
+      { type: "tool_call", toolCallId: "uncertain", toolName: "bash", input: { command, purpose: "test" } },
+      ctx,
     );
 
-    expect(custom).toHaveBeenCalledTimes(1);
+    expect(ctx.ui.custom).toHaveBeenCalledTimes(1);
     if (blocked) {
       expect(result).toEqual({ block: true, reason: expect.stringContaining("User rejected this tool call") });
     } else {

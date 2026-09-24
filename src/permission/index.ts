@@ -1,8 +1,4 @@
-import type {
-  ExtensionAPI,
-  ExtensionContext,
-  ToolCallEvent,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { handlePermissionsCommand } from "./command.js";
 import { getState } from "../state.js";
 import { checkAgentRules, resolvePermission } from "./resolution.js";
@@ -10,7 +6,6 @@ import { resolvePiIgnorePathBlock } from "./piignore.js";
 import type { PermissionCheck, PromptDecision } from "./types.js";
 import PermissionPrompt from "./components/prompt.js";
 import { getPermissionCheck } from "./helpers.js";
-import type { AgentMeta, AgentMode } from "../agent/types.js";
 
 async function askForPermission(pi: ExtensionAPI, ctx: ExtensionContext, check: PermissionCheck) {
   const decision = await ctx.ui.custom<PromptDecision | undefined>(
@@ -42,44 +37,6 @@ async function askForPermission(pi: ExtensionAPI, ctx: ExtensionContext, check: 
   }
 }
 
-export async function enforceToolPermission(
-  pi: ExtensionAPI,
-  event: ToolCallEvent,
-  ctx: ExtensionContext,
-  meta: AgentMeta,
-  sessionId: string,
-  mode: AgentMode,
-) {
-  try {
-    const check = await getPermissionCheck(ctx.cwd, sessionId, event.toolName, event.input);
-    if (!check) return;
-
-    if (check.category === "file") {
-      const piIgnoreBlock = await resolvePiIgnorePathBlock(ctx.cwd, check.raw);
-      if (piIgnoreBlock) {
-        return { block: true, reason: piIgnoreBlock };
-      }
-    }
-    if (!checkAgentRules(meta, check)) {
-      return { block: true, reason: "Access to this resource is beyond allowed scope" };
-    }
-
-    const permission = await resolvePermission(ctx.cwd, check, mode);
-    if (permission === "deny") {
-      return { block: true, reason: "Access to this resource is denied" };
-    }
-    if (mode === "yolo") return;
-    if (permission === "allowed" && !check.uncertainty) return;
-    if (!ctx.hasUI) {
-      return { block: true, reason: "Permission request requires interactive UI" };
-    }
-
-    return await askForPermission(pi, ctx, check);
-  } catch {
-    return { block: true, reason: "Permission check failed" };
-  }
-}
-
 export default function (pi: ExtensionAPI) {
   pi.registerCommand("permissions", {
     description: "View and manage permissions",
@@ -90,6 +47,39 @@ export default function (pi: ExtensionAPI) {
     const state = getState(pi);
     const { meta } = state.getAgent();
     const mode = state.getMode();
-    return enforceToolPermission(pi, event, ctx, meta, ctx.sessionManager.getSessionId(), mode);
+
+    try {
+      const check = await getPermissionCheck(
+        ctx.cwd,
+        ctx.sessionManager.getSessionId(),
+        event.toolName,
+        event.input,
+      );
+      if (!check) return;
+
+      if (check.category === "file") {
+        const piIgnoreBlock = await resolvePiIgnorePathBlock(ctx.cwd, check.raw);
+        if (piIgnoreBlock) {
+          return { block: true, reason: piIgnoreBlock };
+        }
+      }
+      if (!checkAgentRules(meta, check)) {
+        return { block: true, reason: "Access to this resource is beyond allowed scope" };
+      }
+
+      const permission = await resolvePermission(ctx.cwd, check, mode);
+      if (permission === "deny") {
+        return { block: true, reason: "Access to this resource is denied" };
+      }
+      if (mode === "yolo") return;
+      if (permission === "allowed" && !check.uncertainty) return;
+      if (!ctx.hasUI) {
+        return { block: true, reason: "Permission request requires interactive UI" };
+      }
+
+      return await askForPermission(pi, ctx, check);
+    } catch {
+      return { block: true, reason: "Permission check failed" };
+    }
   });
 }

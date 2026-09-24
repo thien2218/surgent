@@ -2,9 +2,9 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentMeta } from "../../../src/agent/types.js";
+import { makePermissionContext, makePermissionSession } from "../../helpers/permission.js";
 import type { PermissionRule } from "../../../src/permission/types.js";
-import { enforceToolPermission } from "../../../src/permission/index.js";
+import permissionExtension from "../../../src/permission/index.js";
 import { getPermissionCheck } from "../../../src/permission/helpers.js";
 import { resolvePermission } from "../../../src/permission/resolution.js";
 import { readAgentMode, writeAgentMode } from "../../../src/permission/storage.js";
@@ -57,24 +57,19 @@ describe("agent mode storage", () => {
 
 describe("agent mode permission behavior", () => {
   it("lets yolo proceed for unresolved permissions but not explicit denies", async () => {
-    const meta: AgentMeta = { description: "test" };
-    const unresolved = await enforceToolPermission(
-      fakePi(),
-      { toolName: "web_fetch", input: { url: "https://example.com" } } as never,
-      fakeContext(false),
-      meta,
-      "session-1",
-      "yolo",
+    const pi = makePermissionSession({ description: "test" }, "yolo");
+    const ctx = makePermissionContext(cwd);
+    permissionExtension(pi.api);
+
+    const unresolved = await pi.event("tool_call")(
+      { type: "tool_call", toolCallId: "unresolved", toolName: "web_fetch", input: { url: "https://example.com" } },
+      ctx,
     );
 
     await writeGlobalRules({ web: { "https://blocked.example": false } });
-    const denied = await enforceToolPermission(
-      fakePi(),
-      { toolName: "web_fetch", input: { url: "https://blocked.example" } } as never,
-      fakeContext(false),
-      meta,
-      "session-1",
-      "yolo",
+    const denied = await pi.event("tool_call")(
+      { type: "tool_call", toolCallId: "denied", toolName: "web_fetch", input: { url: "https://blocked.example" } },
+      ctx,
     );
 
     expect(unresolved).toBeUndefined();
@@ -82,39 +77,27 @@ describe("agent mode permission behavior", () => {
   });
 
   it("keeps agent profile allowlists enforced in yolo mode", async () => {
-    const result = await enforceToolPermission(
-      fakePi(),
-      { toolName: "read", input: { path: join(cwd, "secret.txt") } } as never,
-      fakeContext(false),
-      { description: "test", "files.read": ["allowed/**"] },
-      "session-1",
-      "yolo",
+    const pi = makePermissionSession({ description: "test", "files.read": ["allowed/**"] }, "yolo");
+    permissionExtension(pi.api);
+
+    const result = await pi.event("tool_call")(
+      { type: "tool_call", toolCallId: "scope-denied", toolName: "read", input: { path: join(cwd, "secret.txt") } },
+      makePermissionContext(cwd),
     );
 
     expect(result).toEqual({ block: true, reason: "Access to this resource is beyond allowed scope" });
   });
 
-  it("blocks non-interactive unresolved permissions outside yolo", async () => {
-    const meta: AgentMeta = { description: "test" };
-    const assistant = await enforceToolPermission(
-      fakePi(),
-      { toolName: "web_fetch", input: { url: "https://example.com" } } as never,
-      fakeContext(false),
-      meta,
-      "session-1",
-      "assistant",
-    );
-    const restricted = await enforceToolPermission(
-      fakePi(),
-      { toolName: "web_fetch", input: { url: "https://example.com" } } as never,
-      fakeContext(false),
-      meta,
-      "session-1",
-      "restricted",
+  it.each(["assistant", "restricted"] as const)("blocks non-interactive unresolved permissions in %s mode", async (mode) => {
+    const pi = makePermissionSession({ description: "test" }, mode);
+    permissionExtension(pi.api);
+
+    const result = await pi.event("tool_call")(
+      { type: "tool_call", toolCallId: "unresolved", toolName: "web_fetch", input: { url: "https://example.com" } },
+      makePermissionContext(cwd),
     );
 
-    expect(assistant).toEqual({ block: true, reason: "Permission request requires interactive UI" });
-    expect(restricted).toEqual({ block: true, reason: "Permission request requires interactive UI" });
+    expect(result).toEqual({ block: true, reason: "Permission request requires interactive UI" });
   });
 
   it("ignores global allows but keeps global denies in restricted mode", async () => {
@@ -179,15 +162,3 @@ async function permissionCheck(toolName: "read" | "write" | "web_fetch", raw: st
   return check;
 }
 
-function fakePi() {
-  return { sendUserMessage: vi.fn() } as never;
-}
-
-function fakeContext(hasUI: boolean) {
-  return {
-    cwd,
-    hasUI,
-    ui: { custom: vi.fn(), notify: vi.fn() },
-    sessionManager: { getSessionId: () => "session-1" },
-  } as never;
-}

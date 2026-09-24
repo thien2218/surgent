@@ -24,7 +24,7 @@ interface CheckBase {
 }
 
 export interface FileCheck extends CheckBase {
-  toolName: "read" | "write" | "edit" | "grep";
+  toolName: "read" | "write" | "edit";
   category: "file";
   operation: FileOp;
   relative: string;

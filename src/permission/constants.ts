@@ -5,7 +5,6 @@ export const PERMISSIVE_TOOLS = {
   read: "file",
   write: "file",
   edit: "file",
-  grep: "file",
   bash: "bash",
   web_fetch: "web",
   call_mcp_tool: "mcp",

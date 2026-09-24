@@ -4,37 +4,29 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolvePermission, resolvePermissionPath } from "../../../src/permission/resolution.js";
 import { resolvePiIgnorePathBlock } from "../../../src/permission/piignore.js";
 import { writeRules } from "../../../src/permission/storage.js";
-import type { PermissionCheck } from "../../../src/permission/types.js";
-import { extractOpAndPath, getPermissionCheck } from "../../../src/permission/helpers.js";
+import type { FileOp } from "../../../src/permission/types.js";
+import { getPermissionCheck } from "../../../src/permission/helpers.js";
 import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
 
 let workspace: PermissionWorkspace;
 beforeEach(async () => {
-  workspace = await makePermissionWorkspace();
+  workspace = await makePermissionWorkspace("surgent-paths-", true);
   await mkdir(join(workspace.cwd, "src"));
   await writeFile(join(workspace.cwd, "src", "blocked.ts"), "private");
 });
 afterEach(async () => { await workspace.restore(); });
 
-async function fileCheck(input: string): Promise<PermissionCheck> {
-  const [operation, path] = extractOpAndPath(input);
+async function fileCheck(operation: FileOp, path: string) {
   const check = await getPermissionCheck(workspace.cwd, "session-1", operation, { path });
-  if (!check) throw new Error("Missing file permission check");
+  if (check?.category !== "file") throw new Error("Missing file permission check");
   return check;
 }
 
 describe("permission file identity", () => {
-  it.each([{}, { path: "" }, { path: "." }])("uses cwd for grep input %j", async (input) => {
-    await expect(getPermissionCheck(workspace.cwd, "session-1", "grep", input)).resolves.toMatchObject({
-      raw: ".",
-      unresolved: ["read:."],
-    });
-  });
-
   it("honors an explicit deny for the project root", async () => {
     await writeRules({ project: { file: { ".": "deny" } } }, workspace.cwd);
 
-    await expect(resolvePermission(workspace.cwd, await fileCheck("read:."), "assistant"))
+    await expect(resolvePermission(workspace.cwd, await fileCheck("read", "."), "assistant"))
       .resolves.toBe("deny");
   });
 
@@ -44,7 +36,7 @@ describe("permission file identity", () => {
       await writeRules({ project: { file: { "src/blocked.ts": "deny" } } }, workspace.cwd);
       const path = spelling === "absolute" ? join(workspace.cwd, "src", "blocked.ts") : spelling;
 
-      await expect(resolvePermission(workspace.cwd, await fileCheck(`read:${path}`), "assistant"))
+      await expect(resolvePermission(workspace.cwd, await fileCheck("read", `${path}`), "assistant"))
         .resolves.toBe("deny");
     },
   );
@@ -52,10 +44,10 @@ describe("permission file identity", () => {
   it.each(["./src/blocked.ts", "src/../src/blocked.ts", "absolute"])(
     "offers project-relative rules for unresolved input %s", async (spelling) => {
       const path = spelling === "absolute" ? join(workspace.cwd, "src", "blocked.ts") : spelling;
-      const check = await fileCheck(`write:${path}`);
+      const check = await fileCheck("write", `${path}`);
 
       await expect(resolvePermission(workspace.cwd, check, "restricted")).resolves.toBe("ask");
-      expect(check.unresolved).toEqual(["write:src/blocked.ts"]);
+      expect(check).toMatchObject({ operation: "write", relative: "src/blocked.ts", absolute: join(workspace.cwd, "src", "blocked.ts") });
     },
   );
 
@@ -66,33 +58,33 @@ describe("permission file identity", () => {
       "src/blocked.ts": denied === "target" ? "deny" : "read",
     } } }, workspace.cwd);
 
-    await expect(resolvePermission(workspace.cwd, await fileCheck("read:alias.ts"), "assistant"))
+    await expect(resolvePermission(workspace.cwd, await fileCheck("read", "alias.ts"), "assistant"))
       .resolves.toBe(denied === "target" ? "deny" : "allowed");
   });
 
   it("offers target-relative rules when access through an alias needs approval", async () => {
     await symlink(join(workspace.cwd, "src", "blocked.ts"), join(workspace.cwd, "alias.ts"));
-    const check = await fileCheck("write:alias.ts");
+    const check = await fileCheck("write", "alias.ts");
 
     await expect(resolvePermission(workspace.cwd, check, "restricted")).resolves.toBe("ask");
-    expect(check.unresolved).toEqual(["write:src/blocked.ts"]);
+    expect(check).toMatchObject({ operation: "write", relative: "src/blocked.ts", absolute: join(workspace.cwd, "src", "blocked.ts") });
   });
 
   it("auto-allows an outside alias whose target is inside the project", async () => {
     const path = join(workspace.root, "alias.ts");
     await symlink(join(workspace.cwd, "src", "blocked.ts"), path);
 
-    await expect(resolvePermission(workspace.cwd, await fileCheck(`read:${path}`), "assistant"))
+    await expect(resolvePermission(workspace.cwd, await fileCheck("read", `${path}`), "assistant"))
       .resolves.toBe("allowed");
   });
 
-  it.each(["read:escape/existing.txt", "write:escape/new/nested.txt"])(
-    "does not auto-allow an escaped physical target: %s", async (input) => {
+  it.each([{ operation: "read", path: "escape/existing.txt" }, { operation: "write", path: "escape/new/nested.txt" }] as const)(
+    "does not auto-allow an escaped physical target: $path", async ({ operation, path }) => {
       await mkdir(join(workspace.root, "outside"));
       await writeFile(join(workspace.root, "outside", "existing.txt"), "outside");
       await symlink(join(workspace.root, "outside"), join(workspace.cwd, "escape"));
 
-      await expect(resolvePermission(workspace.cwd, await fileCheck(input), "assistant"))
+      await expect(resolvePermission(workspace.cwd, await fileCheck(operation, path), "assistant"))
         .resolves.toBe("ask");
     },
   );
@@ -102,7 +94,7 @@ describe("permission file identity", () => {
     await symlink(join(workspace.root, "secret.ts"), join(workspace.cwd, "escape.ts"));
     await writeRules({ project: { file: { "../secret.ts": "deny", "escape.ts": "read" } } }, workspace.cwd);
 
-    await expect(resolvePermission(workspace.cwd, await fileCheck("read:escape.ts"), "assistant"))
+    await expect(resolvePermission(workspace.cwd, await fileCheck("read", "escape.ts"), "assistant"))
       .resolves.toBe("deny");
   });
 

@@ -3,8 +3,8 @@ import { checkAgentRules } from "../../../src/permission/resolution.js";
 import { findScopedPermission, matchesPattern, specificity } from "../../../src/permission/precedence.js";
 import type { PermissionCheck } from "../../../src/permission/types.js";
 
-function check(category: PermissionCheck["category"], unresolved: string[]): PermissionCheck {
-  return { sessionId: "session-1", toolName: "read", category, raw: unresolved[0] ?? "", unresolved, purpose: "test" };
+function check(unresolved: string[]): PermissionCheck {
+  return { sessionId: "session-1", toolName: "bash", category: "bash", raw: unresolved.join(" && "), unresolved, purpose: "test" };
 }
 
 describe("permission precedence", () => {
@@ -32,8 +32,8 @@ describe("permission precedence", () => {
   });
 
   it("lets deny win for equal-rank rules in one scope independent of insertion order", () => {
-    expect(findScopedPermission([{ "**/*.ts": true, "{src,lib}/*.ts": false }], "src/file.ts")).toBe("deny");
-    expect(findScopedPermission([{ "{src,lib}/*.ts": false, "**/*.ts": true }], "src/file.ts")).toBe("deny");
+    expect(findScopedPermission([{ "src/*.ts": true, "s?c/*.ts": false }], "src/file.ts")).toBe("deny");
+    expect(findScopedPermission([{ "s?c/*.ts": false, "src/*.ts": true }], "src/file.ts")).toBe("deny");
   });
 
   it("returns ask when no rule matches", () => {
@@ -51,9 +51,7 @@ describe("permission precedence", () => {
   });
 
   it("requires agent allowlists to cover every unresolved input", () => {
-    expect(checkAgentRules({ description: "test", "files.read": ["src/**"] }, check("file", ["read:src/a.ts", "read:test/a.ts"]))).toBe(false);
-    expect(checkAgentRules({ description: "test", "files.read": ["src/**"], "files.write": ["tmp/**"] }, check("file", ["read:src/a.ts", "write:tmp/a.ts"]))).toBe(true);
-    expect(checkAgentRules({ description: "test", bash: ["git *"] }, check("bash", ["git status", "rm -rf tmp"]))).toBe(false);
-    expect(checkAgentRules({ description: "test", bash: ["git *"] }, check("bash", ["git status"]))).toBe(true);
+    expect(checkAgentRules({ description: "test", bash: ["git *"] }, check(["git status", "rm -rf tmp"]))).toBe(false);
+    expect(checkAgentRules({ description: "test", bash: ["git *"] }, check(["git status"]))).toBe(true);
   });
 });

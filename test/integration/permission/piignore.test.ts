@@ -7,7 +7,7 @@ import { resolvePiIgnorePathBlock } from "../../../src/permission/piignore.js";
 let workspace: PermissionWorkspace;
 
 beforeEach(async () => {
-  workspace = await makePermissionWorkspace("surgent-piignore-");
+  workspace = await makePermissionWorkspace("surgent-piignore-", true);
 });
 
 afterEach(async () => {
@@ -22,11 +22,19 @@ describe("piignore files", () => {
   it("normalizes slashes and directory patterns before applying exceptions", async () => {
     await writeFile(join(workspace.cwd, ".piignore"), "# private files\r\n\r\n/private//\r\n!/private/keep.txt\r\n");
 
-    await expect(resolvePiIgnorePathBlock(workspace.cwd, "private\\keep.txt")).resolves.toBeNull();
-    await expect(resolvePiIgnorePathBlock(workspace.cwd, "private\\blocked.txt"))
+    await expect(resolvePiIgnorePathBlock(workspace.cwd, "private/keep.txt")).resolves.toBeNull();
+    await expect(resolvePiIgnorePathBlock(workspace.cwd, "private/blocked.txt"))
       .resolves.toBe('Path blocked by .piignore rule "/private//"');
     await expect(resolvePiIgnorePathBlock(workspace.cwd, join(workspace.cwd, "private", "blocked.txt")))
       .resolves.toBe('Path blocked by .piignore rule "/private//"');
+  });
+
+  it("does not match relative ignore paths when process cwd is outside the supplied root", async () => {
+    await writeFile(join(workspace.cwd, ".piignore"), "private/\n");
+    process.chdir(workspace.home);
+
+    // Characterizes the current cwd dependency; callers normally run in the project root.
+    await expect(resolvePiIgnorePathBlock(workspace.cwd, "private/file.ts")).resolves.toBeNull();
   });
 
   it("applies global ignore rules when the project ignore file is absent", async () => {

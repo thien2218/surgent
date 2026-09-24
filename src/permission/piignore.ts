@@ -3,11 +3,6 @@ import { dirname, resolve } from "node:path";
 import { isRelativeToRoot, resolvePermissionPath } from "./resolution.js";
 import { matchesPattern, specificity } from "./precedence.js";
 import { getPiPath, isMissingFileError } from "../utils.js";
-import type {
-  GrepToolCallEvent,
-  ReadToolCallEvent,
-  ToolCallEvent,
-} from "@earendil-works/pi-coding-agent";
 
 const PI_IGNORE_FILE = ".piignore";
 
@@ -104,32 +99,13 @@ function findBestPiIgnoreRule(
 export async function resolvePiIgnorePathBlock(
   cwd: string,
   rawPath: string,
-  glob = false,
 ): Promise<string | null> {
   const rules = await loadPiIgnoreRules(cwd);
   if (rules.length === 0) return null;
 
-  const path = glob ? rawPath : (await resolvePermissionPath(rawPath, cwd)).relative;
-  const matchedRule = findBestPiIgnoreRule(rules, path, cwd);
+  const { relative } = await resolvePermissionPath(rawPath, cwd);
+  const matchedRule = findBestPiIgnoreRule(rules, relative, cwd);
   return matchedRule && !matchedRule.negated
     ? `Path blocked by .piignore rule "${matchedRule.raw}"`
     : null;
-}
-
-export function getPiIgnoreInputs(event: ToolCallEvent): Array<{ path: string; glob?: boolean }> {
-  switch (event.toolName) {
-    case "read":
-    case "write":
-    case "edit":
-      return [{ path: (event as ReadToolCallEvent).input.path }];
-    case "grep": {
-      const grepEvent = event as GrepToolCallEvent;
-      const inputs: Array<{ path: string; glob?: boolean }> = [];
-      if (grepEvent.input.path) inputs.push({ path: grepEvent.input.path });
-      if (grepEvent.input.glob) inputs.push({ path: grepEvent.input.glob, glob: true });
-      return inputs;
-    }
-    default:
-      return [];
-  }
 }

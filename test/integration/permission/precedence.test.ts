@@ -5,45 +5,48 @@ import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers
 import { resolvePiIgnorePathBlock } from "../../../src/permission/piignore.js";
 import { resolvePermission } from "../../../src/permission/resolution.js";
 import { writeRules } from "../../../src/permission/storage.js";
-import type { PermissionCheck } from "../../../src/permission/types.js";
+import { getPermissionCheck } from "../../../src/permission/helpers.js";
 
 let workspace: PermissionWorkspace;
 
 beforeEach(async () => {
-  workspace = await makePermissionWorkspace("surgent-permission-integration-");
+  workspace = await makePermissionWorkspace("surgent-permission-integration-", true);
 });
 
 afterEach(async () => {
   await workspace.restore();
 });
 
-function permissionCheck(category: PermissionCheck["category"], unresolved: string[]): PermissionCheck {
-  return { sessionId: "session-1", toolName: "read", category, raw: unresolved[0] ?? "", unresolved, purpose: "test" };
+async function permissionCheck(toolName: "read" | "write" | "web_fetch" | "bash", raw: string) {
+  const input = toolName === "web_fetch" ? { url: raw } : toolName === "bash" ? { command: raw, purpose: "test" } : { path: raw };
+  const check = await getPermissionCheck(workspace.cwd, "session-1", toolName, input);
+  if (!check) throw new Error("Missing permission check");
+  return check;
 }
 
 describe("persisted permission precedence", () => {
   it.each(["session-1", "project"])("honors explicit %s write grants in restricted mode", async (scope) => {
     await writeRules({ [scope]: { file: { "src/file.ts": "write" } } }, workspace.cwd);
 
-    await expect(resolvePermission(workspace.cwd, permissionCheck("file", ["write:src/file.ts"]), "restricted"))
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("write", "src/file.ts"), "restricted"))
       .resolves.toBe("allowed");
   });
 
   it("auto-allows reads in the global Pi directory but not restricted writes", async () => {
     const path = relative(workspace.cwd, join(workspace.home, ".pi", "agent", "settings.json"));
 
-    await expect(resolvePermission(workspace.cwd, permissionCheck("file", [`read:${path}`]), "restricted"))
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("read", `${path}`), "restricted"))
       .resolves.toBe("allowed");
-    await expect(resolvePermission(workspace.cwd, permissionCheck("file", [`write:${path}`]), "restricted"))
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("write", `${path}`), "restricted"))
       .resolves.toBe("ask");
   });
 
   it("retains global file denies while ignoring global file grants in restricted mode", async () => {
     await writeRules({ file: { "src/allowed.ts": "write", "src/blocked.ts": "deny" } });
 
-    await expect(resolvePermission(workspace.cwd, permissionCheck("file", ["write:src/allowed.ts"]), "restricted"))
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("write", "src/allowed.ts"), "restricted"))
       .resolves.toBe("ask");
-    await expect(resolvePermission(workspace.cwd, permissionCheck("file", ["read:src/blocked.ts"]), "restricted"))
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("read", "src/blocked.ts"), "restricted"))
       .resolves.toBe("deny");
   });
 
@@ -59,7 +62,7 @@ describe("persisted permission precedence", () => {
     );
     await writeFile(join(workspace.cwd, ".pi", "subsessions.json"), JSON.stringify({ "session-1": { pid: "parent" } }));
 
-    await expect(resolvePermission(workspace.cwd, permissionCheck("web", ["https://example.com"]), "assistant")).resolves.toBe("allowed");
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("web_fetch", "https://example.com"), "assistant")).resolves.toBe("allowed");
 
     await writeRules(
       {
@@ -69,40 +72,41 @@ describe("persisted permission precedence", () => {
       workspace.cwd,
     );
 
-    await expect(resolvePermission(workspace.cwd, permissionCheck("web", ["https://example.com"]), "assistant")).resolves.toBe("deny");
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("web_fetch", "https://example.com"), "assistant")).resolves.toBe("deny");
   });
 
   it("lets more-specific rules override broader rules across scopes", async () => {
     await writeRules({ file: { "**/*.ts": "deny" } });
     await writeRules({ project: { file: { "**/safe.ts": "read" } } }, workspace.cwd);
 
-    await expect(resolvePermission(workspace.cwd, permissionCheck("file", ["read:src/safe.ts"]), "assistant")).resolves.toBe("allowed");
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("read", "src/safe.ts"), "assistant")).resolves.toBe("allowed");
   });
 
   it("passes file operations and bash matching into matcher", async () => {
     await writeRules({ file: { "src/**": "read" }, bash: { "git *": true } });
 
-    await expect(resolvePermission(workspace.cwd, permissionCheck("file", ["write:src/file.ts"]), "assistant")).resolves.toBe("deny");
-    await expect(resolvePermission(workspace.cwd, permissionCheck("bash", ["git status"]), "assistant")).resolves.toBe("allowed");
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("write", "src/file.ts"), "assistant")).resolves.toBe("deny");
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("bash", "git status"), "assistant")).resolves.toBe("allowed");
   });
 
-  it("keeps unresolved items while any denied item denies whole request", async () => {
-    const mixedAsk = permissionCheck("web", ["https://allowed.example", "https://new.example"]);
-    await writeRules({ web: { "https://allowed.example": true } });
+  it("keeps unresolved bash commands while any denied command denies the whole request", async () => {
+    const mixedAsk = await permissionCheck("bash", "git status && pnpm test");
+    await writeRules({ bash: { "git status": true } });
 
     await expect(resolvePermission(workspace.cwd, mixedAsk, "assistant")).resolves.toBe("ask");
-    expect(mixedAsk.unresolved).toEqual(["https://new.example"]);
+    expect(mixedAsk).toMatchObject({ unresolved: ["pnpm test"] });
 
-    await writeRules({ web: { "https://allowed.example": true, "https://denied.example": false } });
-    await expect(resolvePermission(workspace.cwd, permissionCheck("web", ["https://allowed.example", "https://denied.example"]), "assistant")).resolves.toBe("deny");
+    await writeRules({ bash: { "git status": true, "pnpm test": false } });
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("bash", "git status && pnpm test"), "assistant"))
+      .resolves.toBe("deny");
   });
 
   it("honors explicit file denies over in-root auto allow and asks outside root", async () => {
     await writeRules({ project: { file: { "src/blocked.ts": "deny" } } }, workspace.cwd);
 
-    await expect(resolvePermission(workspace.cwd, permissionCheck("file", ["read:src/blocked.ts"]), "assistant")).resolves.toBe("deny");
-    await expect(resolvePermission(workspace.cwd, permissionCheck("file", ["read:src/open.ts"]), "assistant")).resolves.toBe("allowed");
-    await expect(resolvePermission(workspace.cwd, permissionCheck("file", ["read:../outside.ts"]), "assistant")).resolves.toBe("ask");
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("read", "src/blocked.ts"), "assistant")).resolves.toBe("deny");
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("read", "src/open.ts"), "assistant")).resolves.toBe("allowed");
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("read", "../outside.ts"), "assistant")).resolves.toBe("ask");
   });
 });
 

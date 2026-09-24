@@ -20,7 +20,17 @@ const BUILT_IN_META = {
     "files.write": ["**/*.md"],
   },
   planner: {
-    tools: ["read", "grep", "find", "ls", "web_fetch", "web_search", "questionnaire"],
+    tools: [
+      "code_map",
+      "inspect",
+      "read",
+      "grep",
+      "find",
+      "ls",
+      "web_fetch",
+      "web_search",
+      "questionnaire",
+    ],
   },
   scout: {
     tools: ["ls", "find", "grep", "code_map", "inspect", "read", "web_fetch", "web_search"],

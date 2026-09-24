@@ -1,38 +1,35 @@
-import type {
-  AgentSession,
-  ExtensionContext,
-  InlineExtension,
-} from "@earendil-works/pi-coding-agent";
-import type { SubsessionResult, SubsessionSnapshot } from "./types.js";
-import type { AgentMeta } from "../agent/types.js";
-import { createQuestionnaireTool } from "../questionnaire/index.js";
-import { enforceToolPermission } from "../permission/index.js";
-import { readAgentMode } from "../permission/storage.js";
-import webFetchTool from "../web-tools/web-fetch/index.js";
-import webSearchTool from "../web-tools/web-search/index.js";
+import type { AgentSession, InlineExtension } from "@earendil-works/pi-coding-agent";
+import type { RuntimeConfig, SubsessionResult, SubsessionSnapshot } from "./types.js";
+import { STATE_EVENT, type AppState } from "../state.js";
+import type { AgentMode } from "../agent/types.js";
 
 const PATH_TOOLS = new Set(["read", "write", "edit", "grep", "find", "ls"]);
 
-export function createSubsessionBridge(
-  ctx: ExtensionContext,
-  agentMeta: AgentMeta,
-  sessionId: string,
-): InlineExtension {
+export function createSubsessionBridge(runtime: RuntimeConfig, state: AppState): InlineExtension {
   return {
     name: "subsession-bridge",
     factory(pi) {
-      pi.registerTool(createQuestionnaireTool(ctx));
-      pi.registerTool(webFetchTool);
-      pi.registerTool(webSearchTool);
+      const unsubscribe = pi.events.on(STATE_EVENT, (reply) => {
+        if (typeof reply !== "function") return;
+        reply({
+          getAgent: () => ({
+            name: runtime.agent,
+            meta: runtime.meta,
+            body: runtime.systemPrompt,
+            filePath: "", // Runtime profiles do not have a source file.
+          }),
+          getMode: () => state.getMode(),
+          setMode: (mode: AgentMode) => state.setMode(mode),
+          dispose: () => unsubscribe(),
+        } satisfies AppState);
+      });
+      pi.on("session_shutdown", () => unsubscribe());
 
       pi.on("tool_call", async (event) => {
         const path = (event.input as { path?: unknown }).path;
         if (PATH_TOOLS.has(event.toolName) && typeof path !== "string") {
           return { block: true, reason: "Explicit path required in subsession" };
         }
-
-        const agentMode = await readAgentMode();
-        return enforceToolPermission(pi, event, ctx, agentMeta, sessionId, agentMode);
       });
     },
   };

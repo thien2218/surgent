@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { renderSnapshotWidget } from "./render.js";
 import { openSubsession } from "../subagent/subsession.js";
 import { getPlanCompletions, parseCommandInput, resolvePlan, runPlanLoop } from "./helpers.js";
+import { getState } from "../state.js";
 
 const INIT_PROMPT = `Analyze this repository and create or update AGENTS.md in its root. This file gives future coding agents concise, project-specific instructions.
 
@@ -26,6 +27,7 @@ export default function (pi: ExtensionAPI) {
 
       const subsession = await openSubsession({
         ctx,
+        state: getState(pi),
         label: "subagent",
         agent: "documenter",
         onSnapshot: (snapshot) => renderSnapshotWidget(ctx, "documenter", snapshot),
@@ -60,8 +62,7 @@ export default function (pi: ExtensionAPI) {
       }
 
       const parsedInput = parseCommandInput(args);
-      const subsession = await resolvePlan(ctx, parsedInput);
-
+      const subsession = await resolvePlan(pi, ctx, parsedInput);
       if (!subsession) {
         ctx.ui.setWidget("planner", undefined);
         return;

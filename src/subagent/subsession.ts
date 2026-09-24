@@ -1,36 +1,15 @@
-import {
-  createAgentSession,
-  DefaultResourceLoader,
-  getAgentDir,
-  SessionManager,
-  type AgentSession,
-} from "@earendil-works/pi-coding-agent";
-import {
-  createErrorResult,
-  createSubsessionBridge,
-  formatToolUse,
-  getLastAssistantOutput,
-} from "./helpers.js";
+import { createErrorResult, formatToolUse, getLastAssistantOutput } from "./helpers.js";
 import { validateBuiltInOutput } from "./validation.js";
-import {
-  findSubsession,
-  findSubsessionFile,
-  loadSubsessionOutput,
-  resolveRuntime,
-  saveSubsession,
-} from "./storage.js";
+import { findSubsession, loadSubsessionOutput, resolveRuntime, saveSubsession } from "./storage.js";
 import type {
   CreateSubsessionParams,
   ExecuteTurnRequest,
-  RuntimeConfig,
   Subsession,
   SubsessionRequest,
   SubsessionResult,
   SubsessionSnapshot,
 } from "./types.js";
-import { getPiPath } from "../utils.js";
-
-const DISALLOWED_TOOLS = new Set(["subagent", "call_mcp_tool", "list_mcp_tools"]);
+import { createSdkSession } from "./sdk.js";
 
 async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResult> {
   const snapshot: SubsessionSnapshot = {
@@ -113,67 +92,6 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
   };
 }
 
-async function openSessionManager(request: SubsessionRequest): Promise<SessionManager> {
-  if (request.label === "subagent") {
-    return SessionManager.inMemory(request.ctx.cwd);
-  }
-
-  const subsessionsDir = getPiPath("subsessionsDir", request.ctx.cwd);
-  if (!request.id) {
-    const parentSession = request.ctx.sessionManager.getSessionFile();
-    return SessionManager.create(request.ctx.cwd, subsessionsDir, { parentSession });
-  }
-
-  const subsessionFile = await findSubsessionFile(request.ctx.cwd, request.id);
-  if (!subsessionFile) {
-    throw new Error(`Subsession file not found: ${request.id}`);
-  }
-
-  return SessionManager.open(subsessionFile.path, subsessionFile.dir, request.ctx.cwd);
-}
-
-async function createSdkSession(
-  request: SubsessionRequest,
-  runtime: RuntimeConfig,
-): Promise<AgentSession> {
-  const sessionManager = await openSessionManager(request);
-  const modelId = runtime.meta.model;
-  const model = modelId
-    ? request.ctx.modelRegistry.find(
-        modelId.slice(0, modelId.indexOf("/")),
-        modelId.slice(modelId.indexOf("/") + 1),
-      )
-    : request.ctx.model;
-  if (modelId && !model) {
-    throw new Error(`Unknown model "${modelId}" in agent config`);
-  }
-
-  const resourceLoader = new DefaultResourceLoader({
-    cwd: request.ctx.cwd,
-    agentDir: getAgentDir(),
-    noExtensions: true,
-    systemPromptOverride: () => runtime.systemPrompt,
-    extensionFactories: [
-      createSubsessionBridge(request.ctx, runtime.meta, sessionManager.getSessionId()),
-    ],
-  });
-  await resourceLoader.reload();
-
-  const { session } = await createAgentSession({
-    cwd: request.ctx.cwd,
-    model,
-    thinkingLevel:
-      runtime.meta.thinking_level ?? (request.id ? undefined : request.ctx.thinkingLevel),
-    resourceLoader,
-    sessionManager,
-  });
-
-  const availableTools = session.getAllTools().map((tool) => tool.name);
-  const activeTools = runtime.meta.tools ?? availableTools;
-  session.setActiveToolsByName(activeTools.filter((name) => !DISALLOWED_TOOLS.has(name)));
-  return session;
-}
-
 async function createSubsession(params: CreateSubsessionParams): Promise<Subsession> {
   const { cwd, onSnapshot, session, ...rest } = params;
   const subsession: Subsession = {
@@ -214,7 +132,12 @@ async function createSubsession(params: CreateSubsessionParams): Promise<Subsess
       await saveSubsession(cwd, subsession);
     },
     async dispose() {
-      session?.dispose();
+      if (!session) return;
+      try {
+        await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
+      } finally {
+        session.dispose();
+      }
     },
   };
 

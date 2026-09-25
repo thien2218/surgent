@@ -14,26 +14,17 @@ const args = process.argv.slice(2);
 const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT_ENTRY_URL = import.meta.resolve("@earendil-works/pi-coding-agent");
 const LOCAL_PI_SUBDIRS = ["agents", "plans"];
+const BASE_TOOLS = ["ls", "find", "grep", "code_map", "inspect", "read"];
 const BUILT_IN_META = {
   documenter: {
-    tools: ["code_map", "inspect", "read", "find", "grep", "ls", "edit", "write", "questionnaire"],
+    tools: [...BASE_TOOLS, "edit", "write", "questionnaire"],
     "files.write": ["**/*.md"],
   },
   planner: {
-    tools: [
-      "code_map",
-      "inspect",
-      "read",
-      "grep",
-      "find",
-      "ls",
-      "web_fetch",
-      "web_search",
-      "questionnaire",
-    ],
+    tools: [...BASE_TOOLS, "web_fetch", "web_search", "questionnaire"],
   },
   scout: {
-    tools: ["ls", "find", "grep", "code_map", "inspect", "read", "web_fetch", "web_search"],
+    tools: [...BASE_TOOLS, "web_fetch", "web_search"],
   },
 };
 

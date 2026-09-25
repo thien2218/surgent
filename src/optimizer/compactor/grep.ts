@@ -6,6 +6,15 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { stat } from "node:fs/promises";
+import { basename, resolve } from "node:path";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { FileCheck } from "../../permission/types.js";
+import { expandFilePath, resolveGrepGrant } from "../../permission/resolution.js";
+
+const GREP_NOTICE =
+  /^\[(?:\d+ matches limit reached\. Use limit=\d+ for more, or refine pattern(?:\. )?)?(?:[\d.]+KB limit reached(?:\. )?)?(?:Some lines truncated to \d+ chars\. Use read tool to see full lines)?\]$/;
+const GREP_CONTENT = /^\d+[:-] /;
 
 export function extractGrepSummary(contentText: string): string | null {
   if (contentText === "No matches found") return null;
@@ -103,13 +112,14 @@ export function rewriteTailWithSummaries(
   }
 }
 
-export function formatGrepResult(content: string): string {
+export function formatGrepResult(content: string): string[] {
   const formattedLines: string[] = [];
   const formattedIndexes = new Map<string, number>();
   let currentFilePath: string | undefined;
-  let changed = false;
 
   for (const line of content.split("\n")) {
+    if (line.includes("\r")) throw new Error("Cannot authorize malformed grep output");
+
     const matchLine = line.match(/^(.+?):(\d+): (.*)$/);
     const contextLine = matchLine ? null : line.match(/^(.+?)-(\d+)- (.*)$/);
     const filePath = matchLine?.[1] ?? contextLine?.[1];
@@ -134,8 +144,70 @@ export function formatGrepResult(content: string): string {
     }
     formattedIndexes.set(lineKey, formattedLines.length);
     formattedLines.push(`${lineNumber}${matchLine ? ":" : "-"} ${lineText}`);
-    changed = true;
   }
 
-  return changed ? formattedLines.join("\n") : content;
+  return formattedLines;
+}
+
+export async function filterGrepResult(
+  lines: string[],
+  path: string,
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+): Promise<{ text: string; check: FileCheck | undefined }> {
+  if (lines.length === 1 && lines[0] === "No matches found") {
+    return { text: "No matches found", check: undefined };
+  }
+
+  const searchPath = expandFilePath(path, ctx.cwd);
+  if (!searchPath) throw new Error("Missing grep search path");
+
+  let check: FileCheck | undefined;
+  let filePath: string | undefined;
+
+  const denied: string[] = [];
+  const isDirectory = (await stat(searchPath)).isDirectory();
+  const decisions = new Map<string, boolean>();
+  const outsidePaths = new Set<string>();
+  const retainedLines: string[] = [];
+
+  for (const [lineIdx, text] of lines.entries()) {
+    if (text === "" || (lineIdx === lines.length - 1 && GREP_NOTICE.test(text))) {
+      retainedLines.push(text);
+      continue;
+    }
+    if (GREP_CONTENT.test(text)) {
+      if (!filePath) throw new Error("Cannot authorize grep content without a file");
+      if (decisions.get(filePath)) retainedLines.push(text);
+      continue;
+    }
+
+    if (!isDirectory && text !== basename(searchPath)) {
+      throw new Error("Cannot resolve grep result path");
+    }
+
+    filePath = isDirectory ? resolve(searchPath, text) : searchPath;
+    if (!decisions.has(filePath)) {
+      const grant = await resolveGrepGrant(filePath, pi, ctx);
+      if (grant.check) {
+        check ??= grant.check;
+        outsidePaths.add(filePath);
+      }
+      denied.push(...grant.denied);
+      decisions.set(filePath, grant.denied.length === 0);
+    }
+    if (decisions.get(filePath)) retainedLines.push(text);
+  }
+
+  if (denied && denied.length > 0) {
+    retainedLines.push(
+      `[Search results exclude files blocked by permission rules: ${[...new Set(denied)].join(", ")}]`,
+    );
+  }
+
+  if (check) {
+    check.purpose = `Allow this grep result from outside-root files?`;
+    check.raw = [...outsidePaths].join("\n");
+  }
+  return { text: retainedLines.join("\n"), check };
 }

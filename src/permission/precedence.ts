@@ -4,17 +4,26 @@ import type { FileAccess, FileOp } from "./types.js";
 const GLOB_CHARS = /[*?[\]{}()]/;
 
 interface Match {
-  permission: "allowed" | "deny";
+  pattern: string;
+  permission: string;
   suffix: number;
   length: number;
   scope: number;
 }
 
-function getPermission(value: boolean | FileAccess, fileOp?: FileOp) {
-  if (typeof value === "boolean") {
-    return value ? "allowed" : "deny";
+function compareBestMatch(best: Match | null, pattern: string, permission: string, scope: number) {
+  const [suffix, length] = specificity(pattern);
+  if (
+    best === null ||
+    suffix > best.suffix ||
+    (suffix === best.suffix && length > best.length) ||
+    (suffix === best.suffix &&
+      length === best.length &&
+      (scope < best.scope || (scope === best.scope && isDeny(permission))))
+  ) {
+    return { pattern, permission, suffix, length, scope };
   }
-  return value === "write" || value === fileOp ? "allowed" : "deny";
+  return best;
 }
 
 export function specificity(pattern: string): [number, number] {
@@ -34,7 +43,6 @@ export function specificity(pattern: string): [number, number] {
 export function matchesPattern(input: string, pattern: string, bash = false): boolean {
   if (pattern === input) return true;
   if (!GLOB_CHARS.test(pattern)) return false;
-
   try {
     return pm(pattern, { dot: true, bash })(input);
   } catch {
@@ -42,31 +50,40 @@ export function matchesPattern(input: string, pattern: string, bash = false): bo
   }
 }
 
-export function findScopedPermission(
-  scopes: Array<Record<string, FileAccess | boolean>>,
-  input: string,
-  bash = false,
-  fileOp?: FileOp,
-): "allowed" | "deny" | "ask" {
+export function isDeny(permission: string) {
+  return permission !== "ask" && permission !== "allowed";
+}
+
+export function findFilePermission(
+  scopes: Record<string, FileAccess>[],
+  path: { absolute: string; relative: string },
+  operation: FileOp,
+): string {
   let best: Match | null = null;
   for (const [scope, rules] of scopes.entries()) {
     for (const [pattern, value] of Object.entries(rules)) {
-      if (!matchesPattern(input, pattern, bash)) continue;
-
-      const permission = getPermission(value, fileOp);
-      const [suffix, length] = specificity(pattern);
-      if (
-        best === null ||
-        suffix > best.suffix ||
-        (suffix === best.suffix && length > best.length) ||
-        (suffix === best.suffix &&
-          length === best.length &&
-          (scope < best.scope || (scope === best.scope && permission === "deny")))
-      ) {
-        best = { permission, suffix, length, scope };
+      if (!matchesPattern(path.absolute, pattern) && !matchesPattern(path.relative, pattern)) {
+        continue;
       }
+      const permission = value === "write" || value === operation ? "allowed" : pattern;
+      best = compareBestMatch(best, pattern, permission, scope);
     }
   }
+  return best?.permission ?? "ask";
+}
 
+export function findPermission(
+  scopes: Record<string, boolean>[],
+  input: string,
+  bash = false,
+): string {
+  let best: Match | null = null;
+  for (const [scope, rules] of scopes.entries()) {
+    for (const [pattern, permitted] of Object.entries(rules)) {
+      if (!matchesPattern(input, pattern, bash)) continue;
+      const permission = permitted ? "allowed" : pattern;
+      best = compareBestMatch(best, pattern, permission, scope);
+    }
+  }
   return best?.permission ?? "ask";
 }

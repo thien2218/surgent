@@ -6,8 +6,17 @@ import { resolvePiIgnorePathBlock } from "./piignore.js";
 import type { PermissionCheck, PromptDecision } from "./types.js";
 import PermissionPrompt from "./components/prompt.js";
 import { getPermissionCheck } from "./helpers.js";
+import { isDeny } from "./precedence.js";
 
-async function askForPermission(pi: ExtensionAPI, ctx: ExtensionContext, check: PermissionCheck) {
+export async function askForPermission(
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  check: PermissionCheck,
+) {
+  if (!ctx.hasUI) {
+    return { block: true, reason: "Permission request requires interactive UI" };
+  }
+
   const decision = await ctx.ui.custom<PromptDecision | undefined>(
     (_tui, theme, _keybindings, done) => {
       const component = new PermissionPrompt(theme, check, ctx.cwd);
@@ -68,16 +77,16 @@ export default function (pi: ExtensionAPI) {
       }
 
       const permission = await resolvePermission(ctx.cwd, check, mode);
-      if (permission === "deny") {
-        return { block: true, reason: "Access to this resource is denied" };
+      if (isDeny(permission)) {
+        return {
+          block: true,
+          reason: `Access to this resource is denied by policy rule: ${permission}`,
+        };
       }
       if (mode === "yolo") return;
       if (permission === "allowed" && !check.uncertainty) return;
-      if (!ctx.hasUI) {
-        return { block: true, reason: "Permission request requires interactive UI" };
-      }
 
-      return await askForPermission(pi, ctx, check);
+      return askForPermission(pi, ctx, check);
     } catch {
       return { block: true, reason: "Permission check failed" };
     }

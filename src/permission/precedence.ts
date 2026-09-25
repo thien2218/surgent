@@ -4,7 +4,6 @@ import type { FileAccess, FileOp } from "./types.js";
 const GLOB_CHARS = /[*?[\]{}()]/;
 
 interface Match {
-  pattern: string;
   permission: string;
   suffix: number;
   length: number;
@@ -21,7 +20,7 @@ function compareBestMatch(best: Match | null, pattern: string, permission: strin
       length === best.length &&
       (scope < best.scope || (scope === best.scope && isDeny(permission))))
   ) {
-    return { pattern, permission, suffix, length, scope };
+    return { permission, suffix, length, scope };
   }
   return best;
 }

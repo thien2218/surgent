@@ -168,7 +168,6 @@ export async function filterGrepResult(
   const denied: string[] = [];
   const isDirectory = (await stat(searchPath)).isDirectory();
   const decisions = new Map<string, boolean>();
-  const outsidePaths = new Set<string>();
   const retainedLines: string[] = [];
 
   for (const [lineIdx, text] of lines.entries()) {
@@ -191,7 +190,8 @@ export async function filterGrepResult(
       const grant = await resolveGrepGrant(filePath, pi, ctx);
       if (grant.check) {
         check ??= grant.check;
-        outsidePaths.add(filePath);
+        check.purpose = "Allow this grep result from outside-root files?";
+        check.raw += `\n${filePath}`;
       }
       denied.push(...grant.denied);
       decisions.set(filePath, grant.denied.length === 0);
@@ -205,9 +205,5 @@ export async function filterGrepResult(
     );
   }
 
-  if (check) {
-    check.purpose = `Allow this grep result from outside-root files?`;
-    check.raw = [...outsidePaths].join("\n");
-  }
   return { text: retainedLines.join("\n"), check };
 }

@@ -7,13 +7,6 @@ export type Scope = (typeof SCOPES)[number];
 export type Category = (typeof PERMISSIVE_TOOLS)[PermissiveToolName];
 export type FileAccess = FileOp | "deny";
 
-export interface PermissionRule {
-  file?: Record<string, FileAccess>;
-  web?: Record<string, boolean>;
-  bash?: Record<string, boolean>;
-  mcp?: Record<string, boolean>;
-}
-
 interface CheckBase {
   sessionId: string;
   toolName: PermissiveToolName;
@@ -21,14 +14,6 @@ interface CheckBase {
   raw: string;
   purpose: string;
   uncertainty?: string;
-}
-
-export interface FileCheck extends CheckBase {
-  toolName: "read" | "write" | "edit";
-  category: "file";
-  operation: FileOp;
-  relative: string;
-  absolute: string;
 }
 
 interface BashCheck extends CheckBase {
@@ -42,7 +27,22 @@ interface OtherCheck extends CheckBase {
   category: "web" | "mcp";
 }
 
+export interface FileCheck extends CheckBase {
+  toolName: "read" | "write" | "edit";
+  category: "file";
+  operation: FileOp;
+  relative: string;
+  absolute: string;
+}
+
 export type PermissionCheck = FileCheck | BashCheck | OtherCheck;
+
+export interface PermissionRule {
+  file?: Record<string, FileAccess>;
+  web?: Record<string, boolean>;
+  bash?: Record<string, boolean>;
+  mcp?: Record<string, boolean>;
+}
 
 export interface PromptDecision {
   allowed: boolean;

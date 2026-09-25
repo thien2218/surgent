@@ -3,12 +3,18 @@ import {
   createBashToolDefinition,
   createGrepToolDefinition,
   createLocalBashOperations,
-  isGrepToolResult,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
 import { BashResultCompactor } from "./bash.js";
-import { rewriteTailWithSummaries, extractGrepSummary, formatGrepResult } from "./grep.js";
+import {
+  rewriteTailWithSummaries,
+  extractGrepSummary,
+  formatGrepResult,
+  filterGrepResult,
+} from "./grep.js";
 import Type from "typebox";
+import { askForPermission } from "../../permission/index.js";
+import { getState } from "../../state.js";
 
 const localBash = createLocalBashOperations();
 
@@ -44,6 +50,35 @@ export default function (pi: ExtensionAPI) {
         }),
       ),
     }),
+    async execute(toolCallId, params, signal, _onUpdate, ctx) {
+      try {
+        const result = await grepTool.execute(toolCallId, params, signal, undefined, ctx);
+        if (result.content.some((item) => item.type !== "text")) {
+          throw new Error("Unexpected grep result content");
+        }
+
+        const state = getState(pi);
+        const formatted = formatGrepResult(
+          result.content.map((item) => (item.type === "text" ? item.text : "")).join("\n"),
+        );
+        const { text, check } = await filterGrepResult(formatted, params.path || ".", pi, ctx);
+
+        if (state.getMode() !== "yolo" && check) {
+          const decision = await askForPermission(pi, ctx, check);
+          if (decision?.block) throw new Error(decision.reason);
+        }
+        // Truncation contains raw text and pre-filter counts; only search-limit flags remain valid.
+        return {
+          content: [{ type: "text", text }],
+          details: result.details && {
+            matchLimitReached: result.details.matchLimitReached,
+            linesTruncated: result.details.linesTruncated,
+          },
+        };
+      } catch {
+        throw new Error("Grep result unavailable: search failed or permission was denied");
+      }
+    },
   });
 
   pi.registerTool({
@@ -116,22 +151,5 @@ export default function (pi: ExtensionAPI) {
 
     if (!changed) return;
     return { messages: event.messages };
-  });
-
-  pi.on("tool_result", async (event) => {
-    if (!isGrepToolResult(event) || event.isError) return;
-
-    let changed = false;
-    const content = event.content.map((item) => {
-      if (item.type !== "text") return item;
-
-      const text = formatGrepResult(item.text);
-      if (text === item.text) return item;
-
-      changed = true;
-      return { ...item, text };
-    });
-
-    if (changed) return { content };
   });
 }

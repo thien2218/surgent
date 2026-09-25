@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { readFile, rename, rm, writeFile } from "node:fs/promises";
-import { isMissingFileError, isRecord, readJson, writeJson } from "../utils.js";
+import { rename, rm, writeFile } from "node:fs/promises";
+import { isRecord, readJson, writeJson } from "../utils.js";
 import type {
   Category,
   GroupedDisplayRules,
@@ -18,7 +18,7 @@ interface LocalSchema {
   [sessionId: string]: PermissionRule | undefined;
 }
 
-function validateRule(value: unknown): asserts value is PermissionRule {
+function validateRules(value: unknown): asserts value is PermissionRule {
   if (!isRecord(value)) throw new Error("Invalid permission rules");
 
   for (const [category, rules] of Object.entries(value)) {
@@ -51,21 +51,13 @@ export function readRules(cwd: string): Promise<LocalSchema>;
 export function readRules(): Promise<PermissionRule>;
 export async function readRules(cwd: string = ""): Promise<LocalSchema | PermissionRule> {
   const filePath = getPiPath("permissions", cwd);
-  let parsed: unknown;
+  const parsed = await readJson<LocalSchema | PermissionRule>(filePath, {});
 
-  try {
-    parsed = JSON.parse(await readFile(filePath, "utf8"));
-  } catch (error) {
-    if (isMissingFileError(error)) return {};
-    throw error;
-  }
-
-  if (!isRecord(parsed)) throw new Error("Invalid permission rules");
   if (!cwd) {
-    validateRule(parsed);
-    return parsed;
+    validateRules(parsed);
+  } else {
+    for (const rules of Object.values(parsed)) validateRules(rules);
   }
-  for (const rule of Object.values(parsed)) validateRule(rule);
   return parsed;
 }
 

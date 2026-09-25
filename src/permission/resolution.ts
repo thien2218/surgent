@@ -166,7 +166,7 @@ export async function resolveGrepGrant(path: string, pi: ExtensionAPI, ctx: Exte
 
   let check: FileCheck | null = outside
     ? {
-        raw: path,
+        raw: "",
         sessionId,
         toolName: "read",
         category: "file",

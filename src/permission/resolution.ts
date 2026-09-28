@@ -158,28 +158,28 @@ export async function resolveGrepGrant(path: string, pi: ExtensionAPI, ctx: Exte
   const state = getState(pi);
   const { meta } = state.getAgent();
   const sessionId = ctx.sessionManager.getSessionId();
-  const normalized = normalizePath(ctx.cwd, path);
-  const outside = !isInAllowedDir(ctx.cwd, path);
+  const normalized = await resolvePermissionPath(path, ctx.cwd);
+  const outside = !isInAllowedDir(ctx.cwd, normalized.absolute);
   const rules = await loadPermissionRules(ctx.cwd, sessionId, state.getMode(), "file");
   const ignored = await resolvePiIgnorePathBlock(ctx.cwd, path);
   const permission = findFilePermission(rules, normalized, "read");
 
-  let check: FileCheck | null = outside
-    ? {
-        raw: "",
-        sessionId,
-        toolName: "read",
-        category: "file",
-        operation: "read",
-        uncertainty: "Outside-root grep access",
-        purpose: "",
-        ...normalized,
-      }
-    : null;
+  const check: FileCheck = {
+    raw: "",
+    sessionId,
+    toolName: "read",
+    category: "file",
+    operation: "read",
+    uncertainty: "Outside-root grep access",
+    purpose: "",
+    ...normalized,
+  };
 
   if (ignored) denied.push(ignored);
-  if (check && !checkAgentRules(meta, check)) denied.push("agent files.read scope");
+  if (!checkAgentRules(meta, check)) denied.push("agent files.read scope");
   if (isDeny(permission)) denied.push(permission);
-  else if (permission === "allowed") check = null;
-  return { check, denied };
+  return {
+    check: outside && denied.length === 0 && permission !== "allowed" ? check : null,
+    denied,
+  };
 }

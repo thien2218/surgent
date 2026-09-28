@@ -34,6 +34,7 @@ export default function (pi: ExtensionAPI) {
       void getState(pi)
         .setMode(nextMode)
         .then(() => {
+          updateStatus?.();
           ctx.ui.notify(`Mode: ${nextMode}`, "info");
         })
         .catch(() => ctx.ui.notify("Failed to change mode, please try again", "error"));
@@ -43,7 +44,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     state?.dispose();
     const [agent, mode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode()]);
-    state = createState(pi, agent, mode, () => updateStatus?.());
+    state = createState(pi, agent, mode);
     ctx.ui.setStatus("agent", ctx.ui.theme.fg("dim", `agent: ${agent.name}`));
 
     if (updateStatus) {

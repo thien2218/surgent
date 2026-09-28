@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
 import { resolvePiIgnorePathBlock } from "../../../src/permission/piignore.js";
 import { resolvePermission } from "../../../src/permission/resolution.js";
@@ -14,6 +14,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await workspace.restore();
 });
 
@@ -33,6 +34,7 @@ describe("persisted permission precedence", () => {
   });
 
   it("auto-allows reads in the global Pi directory but not restricted writes", async () => {
+    vi.stubEnv("TMPDIR", join(workspace.root, "tmp"));
     const path = relative(workspace.cwd, join(workspace.home, ".pi", "agent", "settings.json"));
 
     await expect(resolvePermission(workspace.cwd, await permissionCheck("read", `${path}`), "restricted"))
@@ -41,13 +43,36 @@ describe("persisted permission precedence", () => {
       .resolves.toBe("ask");
   });
 
+  it.each([
+    { operation: "read", mode: "restricted", expected: "allowed" },
+    { operation: "write", mode: "assistant", expected: "allowed" },
+    { operation: "write", mode: "restricted", expected: "ask" },
+  ] as const)("resolves $mode $operation under the temp root independently of cwd", async ({ operation, mode, expected }) => {
+    vi.stubEnv("TMPDIR", join(workspace.root, "tmp"));
+    process.chdir(workspace.home);
+
+    for (const path of ["../tmp/file.ts", join(workspace.root, "tmp", "file.ts")]) {
+      await expect(resolvePermission(workspace.cwd, await permissionCheck(operation, path), mode))
+        .resolves.toBe(expected);
+    }
+  });
+
+  it.each(["../tmp-other/file.ts", "../home/.pi/agent-other/file.ts"])(
+    "does not auto-allow a sibling of an allowed root: %s", async (path) => {
+      vi.stubEnv("TMPDIR", join(workspace.root, "tmp"));
+
+      await expect(resolvePermission(workspace.cwd, await permissionCheck("read", path), "assistant"))
+        .resolves.toBe("ask");
+    },
+  );
+
   it("retains global file denies while ignoring global file grants in restricted mode", async () => {
     await writeRules({ file: { "src/allowed.ts": "write", "src/blocked.ts": "deny" } });
 
     await expect(resolvePermission(workspace.cwd, await permissionCheck("write", "src/allowed.ts"), "restricted"))
       .resolves.toBe("ask");
     await expect(resolvePermission(workspace.cwd, await permissionCheck("read", "src/blocked.ts"), "restricted"))
-      .resolves.toBe("deny");
+      .resolves.toBe("src/blocked.ts");
   });
 
   it("orders equal-ranked scopes from session to parent session to project to global", async () => {
@@ -72,7 +97,7 @@ describe("persisted permission precedence", () => {
       workspace.cwd,
     );
 
-    await expect(resolvePermission(workspace.cwd, await permissionCheck("web_fetch", "https://example.com"), "assistant")).resolves.toBe("deny");
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("web_fetch", "https://example.com"), "assistant")).resolves.toBe("https://example.com");
   });
 
   it("lets more-specific rules override broader rules across scopes", async () => {
@@ -85,7 +110,7 @@ describe("persisted permission precedence", () => {
   it("passes file operations and bash matching into matcher", async () => {
     await writeRules({ file: { "src/**": "read" }, bash: { "git *": true } });
 
-    await expect(resolvePermission(workspace.cwd, await permissionCheck("write", "src/file.ts"), "assistant")).resolves.toBe("deny");
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("write", "src/file.ts"), "assistant")).resolves.toBe("src/**");
     await expect(resolvePermission(workspace.cwd, await permissionCheck("bash", "git status"), "assistant")).resolves.toBe("allowed");
   });
 
@@ -98,15 +123,14 @@ describe("persisted permission precedence", () => {
 
     await writeRules({ bash: { "git status": true, "pnpm test": false } });
     await expect(resolvePermission(workspace.cwd, await permissionCheck("bash", "git status && pnpm test"), "assistant"))
-      .resolves.toBe("deny");
+      .resolves.toBe("pnpm test");
   });
 
-  it("honors explicit file denies over in-root auto allow and asks outside root", async () => {
+  it("honors explicit file denies over in-root auto allow", async () => {
     await writeRules({ project: { file: { "src/blocked.ts": "deny" } } }, workspace.cwd);
 
-    await expect(resolvePermission(workspace.cwd, await permissionCheck("read", "src/blocked.ts"), "assistant")).resolves.toBe("deny");
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("read", "src/blocked.ts"), "assistant")).resolves.toBe("src/blocked.ts");
     await expect(resolvePermission(workspace.cwd, await permissionCheck("read", "src/open.ts"), "assistant")).resolves.toBe("allowed");
-    await expect(resolvePermission(workspace.cwd, await permissionCheck("read", "../outside.ts"), "assistant")).resolves.toBe("ask");
   });
 });
 

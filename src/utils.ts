@@ -42,9 +42,12 @@ export function getPiPath(key: PathKey, ...full: string[]): string {
 
 export async function readJson<T>(filePath: string, fallback: T): Promise<T> {
   try {
-    return JSON.parse(await readFile(filePath, "utf8")) as T;
-  } catch {
-    return fallback;
+    const parsed: unknown = JSON.parse(await readFile(filePath, "utf8"));
+    if (!isRecord(parsed)) throw new Error(`Expected JSON object in ${filePath}`);
+    return parsed as T;
+  } catch (error) {
+    if (isMissingFileError(error)) return fallback;
+    throw error;
   }
 }
 

@@ -143,7 +143,7 @@ export async function resolvePermission(cwd: string, check: PermissionCheck, mod
     if (
       permission === "ask" &&
       (mode !== "restricted" || operation !== "write") &&
-      isInAllowedDir(cwd, check.relative)
+      isInAllowedDir(cwd, check.absolute)
     ) {
       return "allowed";
     }

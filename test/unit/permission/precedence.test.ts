@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { checkAgentRules } from "../../../src/permission/resolution.js";
-import { findScopedPermission, matchesPattern, specificity } from "../../../src/permission/precedence.js";
+import { findFilePermission, findPermission, matchesPattern, specificity } from "../../../src/permission/precedence.js";
 import type { PermissionCheck } from "../../../src/permission/types.js";
 
 function check(unresolved: string[]): PermissionCheck {
@@ -27,27 +27,36 @@ describe("permission precedence", () => {
   });
 
   it("uses specificity before scope and scope before same-rank allow", () => {
-    expect(findScopedPermission([{ "**/*.ts": false }, { "**/safe.ts": true }], "src/safe.ts")).toBe("allowed");
-    expect(findScopedPermission([{ "**/*.ts": true }, { "**/*.ts": false }], "src/file.ts")).toBe("allowed");
+    expect(findPermission([{ "**/*.ts": false }, { "**/safe.ts": true }], "src/safe.ts")).toBe("allowed");
+    expect(findPermission([{ "**/*.ts": true }, { "**/*.ts": false }], "src/file.ts")).toBe("allowed");
   });
 
   it("lets deny win for equal-rank rules in one scope independent of insertion order", () => {
-    expect(findScopedPermission([{ "src/*.ts": true, "s?c/*.ts": false }], "src/file.ts")).toBe("deny");
-    expect(findScopedPermission([{ "s?c/*.ts": false, "src/*.ts": true }], "src/file.ts")).toBe("deny");
+    expect(findPermission([{ "src/*.ts": true, "s?c/*.ts": false }], "src/file.ts")).toBe("s?c/*.ts");
+    expect(findPermission([{ "s?c/*.ts": false, "src/*.ts": true }], "src/file.ts")).toBe("s?c/*.ts");
   });
 
   it("returns ask when no rule matches", () => {
-    expect(findScopedPermission([], "src/file.ts")).toBe("ask");
-    expect(findScopedPermission([{ "**/*.md": true }], "src/file.ts")).toBe("ask");
+    expect(findPermission([], "src/file.ts")).toBe("ask");
+    expect(findPermission([{ "**/*.md": true }], "src/file.ts")).toBe("ask");
   });
 
-  it("resolves boolean and file operation permissions", () => {
-    expect(findScopedPermission([{ "https://example.com": true }], "https://example.com")).toBe("allowed");
-    expect(findScopedPermission([{ "https://example.com": false }], "https://example.com")).toBe("deny");
-    expect(findScopedPermission([{ "**/*.ts": "read" }], "src/file.ts", false, "read")).toBe("allowed");
-    expect(findScopedPermission([{ "**/*.ts": "read" }], "src/file.ts", false, "write")).toBe("deny");
-    expect(findScopedPermission([{ "**/*.ts": "write" }], "src/file.ts", false, "read")).toBe("allowed");
-    expect(findScopedPermission([{ "**/*.ts": "deny" }], "src/file.ts", false, "read")).toBe("deny");
+  it("returns the denying boolean rule for diagnostics", () => {
+    expect(findPermission([{ "https://example.com": true }], "https://example.com")).toBe("allowed");
+    expect(findPermission([{ "https://example.com": false }], "https://example.com")).toBe("https://example.com");
+  });
+
+  it.each([
+    ["read", "read", "allowed"],
+    ["read", "write", "**/*.ts"],
+    ["write", "read", "allowed"],
+    ["write", "write", "allowed"],
+    ["deny", "read", "**/*.ts"],
+    ["deny", "write", "**/*.ts"],
+  ] as const)("resolves file access %s for %s", (access, operation, expected) => {
+    expect(findFilePermission([{ "**/*.ts": access }], {
+      absolute: "/project/src/file.ts", relative: "src/file.ts",
+    }, operation)).toBe(expected);
   });
 
   it("requires agent allowlists to cover every unresolved input", () => {

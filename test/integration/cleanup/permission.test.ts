@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
 import { cleanupPermissions } from "../../../src/cleanup/permission.js";
-import { findScopedPermission } from "../../../src/permission/precedence.js";
+import { findPermission } from "../../../src/permission/precedence.js";
 import { readRules, writeRules } from "../../../src/permission/storage.js";
 
 let workspace: PermissionWorkspace;
@@ -43,8 +43,8 @@ describe("permission cleanup", () => {
 
     const global = await readRules();
     expect(global.web).toEqual({ "https://example.com/**": true, "https://example.com/private": false });
-    expect(findScopedPermission([global.web ?? {}], "https://example.com/private")).toBe("deny");
-    expect(findScopedPermission([global.web ?? {}], "https://example.com/public")).toBe("allowed");
+    expect(findPermission([global.web ?? {}], "https://example.com/private")).toBe("https://example.com/private");
+    expect(findPermission([global.web ?? {}], "https://example.com/public")).toBe("allowed");
   });
 
   it("uses bash wildcard matching for slash-containing commands", async () => {

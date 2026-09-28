@@ -88,7 +88,7 @@ export async function runCommand(
       });
 
       childProcess.on("error", (error) => {
-        rejectCommand(error);
+        rejectCommand(options?.signal?.aborted ? new Error(abortMessage) : error);
       });
 
       childProcess.on("close", (exitCode) => {

@@ -12,12 +12,7 @@ export interface AppState {
 }
 
 // One owner per Pi runtime; imports across extensions need not share module memory.
-export function createState(
-  pi: ExtensionAPI,
-  agent: Agent,
-  mode: AgentMode,
-  onChange: () => void,
-): AppState {
+export function createState(pi: ExtensionAPI, agent: Agent, mode: AgentMode): AppState {
   let active = true;
   let pending = Promise.resolve();
   const requireActive = () => {
@@ -41,7 +36,6 @@ export function createState(
         await writeAgentMode(nextMode);
         requireActive();
         mode = nextMode;
-        onChange();
       });
       pending = update.catch(() => {});
       return update;

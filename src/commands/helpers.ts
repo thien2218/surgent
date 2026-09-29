@@ -21,7 +21,6 @@ async function savePlanOutput(
   }
 
   const outputPath = getPiPath("plans", ctx.cwd, `${subsession.result.id}.md`);
-
   try {
     await writeFile(outputPath, `${subsession.result.output.trimEnd()}\n`, "utf8");
     return outputPath;
@@ -78,8 +77,8 @@ export async function runPlanLoop(
   subsession: Subsession,
 ) {
   try {
-    const outputPath = await savePlanOutput(ctx, subsession);
     while (true) {
+      const outputPath = await savePlanOutput(ctx, subsession);
       ctx.ui.setWidget("planner", undefined);
       const action = await showPlanUi(ctx, subsession.result.output, outputPath);
 

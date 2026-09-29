@@ -359,15 +359,19 @@ describe("/plan contract", () => {
     expect(createAgentSession).not.toHaveBeenCalled();
   });
 
-  // Known leak: resolvePlan has no disposal guard around its initial exec/save.
-  it.fails("disposes the planner when initial result persistence throws", async () => {
-    const { cwd, run, beforeReply, sessions } = await setup();
+  it("disposes the planner when initial result persistence throws", async () => {
+    const { cwd, run, beforeReply, sessions, ui } = await setup();
     beforeReply.mockImplementationOnce(async () => {
       await mkdir(join(cwd, ".pi", "subsessions.json"));
     });
 
-    await expect(run("plan", "New request")).rejects.toBeInstanceOf(Error);
+    await expect(run("plan", "New request")).rejects.toMatchObject({ code: "EISDIR" });
 
+    expect(sessions[0]?.extensionRunner.emit).toHaveBeenCalledWith({
+      type: "session_shutdown",
+      reason: "quit",
+    });
     expect(sessions[0]?.dispose).toHaveBeenCalledOnce();
+    expect(ui.custom).not.toHaveBeenCalled();
   });
 });

@@ -1,8 +1,6 @@
 import { SECRET_PATTERNS } from "./patterns.js";
 
 const ENTROPY_THRESHOLDS = { hex: 3.2, b64: 4.2, any: 3.8 };
-const ENTROPY_SECRET_PATTERN =
-  /(?:token|secret|key|password|credential|auth|api|private)[_\-]?[a-z]*["']?\s*[:=]\s*["']?([A-Za-z0-9+\/=\-_]{20,120})/gi;
 
 function shannonEntropy(value: string): number {
   const characterFrequencies = new Map<string, number>();
@@ -36,78 +34,36 @@ function isFalsePositive(value: string): boolean {
 }
 
 // Sub-milisecond overhead
-export function containSecrets(input: string): boolean {
+function* secretRanges(input: string): Generator<[number, number]> {
   for (const { pattern, severe } of SECRET_PATTERNS) {
-    const match = pattern.exec(input);
-    if (!match) continue;
-    const value = match[1] ?? match[0];
-    if (value.length < 8 || isFalsePositive(value) || (!severe && !isHighEntropy(value))) continue;
-    return true;
+    const flags = [...new Set(`${pattern.flags}dg`)].join("");
+    for (const match of input.matchAll(new RegExp(pattern.source, flags))) {
+      const value = match[1] ?? match[0];
+      if (!severe && (isFalsePositive(value) || !isHighEntropy(value))) continue;
+      // The d flag provides offsets for the actual capture, even if its text repeats.
+      yield match.indices![match[1] === undefined ? 0 : 1]!;
+    }
   }
+}
 
-  let match: RegExpExecArray | null;
-  ENTROPY_SECRET_PATTERN.lastIndex = 0;
-
-  while ((match = ENTROPY_SECRET_PATTERN.exec(input)) !== null) {
-    const value = match[1] ?? "";
-    if (value && !isFalsePositive(value) && isHighEntropy(value)) return true;
-  }
-
-  return false;
+export function containSecrets(input: string): boolean {
+  return !secretRanges(input).next().done;
 }
 
 export function replaceSecrets(input: string): string {
-  const replacements: Array<{ start: number; end: number }> = [];
-
-  for (const { pattern, severe } of SECRET_PATTERNS) {
-    const globalPattern = new RegExp(
-      pattern.source,
-      pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`,
-    );
-    let match: RegExpExecArray | null;
-
-    while ((match = globalPattern.exec(input)) !== null) {
-      const value = match[1] ?? match[0];
-      if (value.length < 8 || isFalsePositive(value) || (!severe && !isHighEntropy(value)))
-        continue;
-
-      if (match[1]) {
-        const capturedValueOffset = match[0].indexOf(match[1]);
-        if (capturedValueOffset >= 0) {
-          replacements.push({
-            start: match.index + capturedValueOffset,
-            end: match.index + capturedValueOffset + match[1].length,
-          });
-          continue;
-        }
-      }
-
-      replacements.push({ start: match.index, end: match.index + match[0].length });
+  const ranges: Array<[number, number]> = [];
+  for (const [start, end] of [...secretRanges(input)].sort(([first], [second]) => first - second)) {
+    const previous = ranges.at(-1);
+    if (previous && start < previous[1]) {
+      previous[1] = Math.max(previous[1], end);
+    } else {
+      ranges.push([start, end]);
     }
   }
 
-  let entropyMatch: RegExpExecArray | null;
-  ENTROPY_SECRET_PATTERN.lastIndex = 0;
-  while ((entropyMatch = ENTROPY_SECRET_PATTERN.exec(input)) !== null) {
-    const value = entropyMatch[1] ?? "";
-    if (!value || isFalsePositive(value) || !isHighEntropy(value)) continue;
-
-    const capturedValueOffset = entropyMatch[0].indexOf(value);
-    if (capturedValueOffset < 0) continue;
-
-    replacements.push({
-      start: entropyMatch.index + capturedValueOffset,
-      end: entropyMatch.index + capturedValueOffset + value.length,
-    });
-  }
-
   let redacted = input;
-  let nextAppliedStart = input.length + 1;
-  for (const replacement of replacements.sort((first, second) => second.start - first.start)) {
-    if (replacement.end > nextAppliedStart) continue;
-    redacted = `${redacted.slice(0, replacement.start)}(redacted texts)${redacted.slice(replacement.end)}`;
-    nextAppliedStart = replacement.start;
+  for (const [start, end] of ranges.reverse()) {
+    redacted = `${redacted.slice(0, start)}(redacted texts)${redacted.slice(end)}`;
   }
-
   return redacted;
 }

@@ -43,6 +43,7 @@ export default class Questionnaire extends Frame implements Focusable {
       editor.onChange = () => {
         const draft = this.drafts[index]!;
         draft.text = editor.getText();
+        draft.message = undefined;
       };
       this.editors.push(editor);
     });
@@ -177,6 +178,12 @@ export default class Questionnaire extends Frame implements Focusable {
     const currentAnswer = serializeQuestionAnswer(question, draft);
     lines.space();
     lines.add(`${this.theme.fg("success", "Answer:")} ${summarizeAnswer(currentAnswer)}`);
+    if (draft.message) {
+      lines.space();
+      for (const line of wrapTextWithAnsi(this.theme.fg("warning", draft.message), width)) {
+        lines.add(line);
+      }
+    }
 
     return lines.get();
   }
@@ -237,7 +244,11 @@ export default class Questionnaire extends Frame implements Focusable {
     if (!question.multi || draft.editing) return;
 
     const result = toggleSuggestion(question, draft, draft.cursor);
-    this.drafts[this.tab] = { ...draft, selectedIndexes: result.selectedIndexes };
+    this.drafts[this.tab] = {
+      ...draft,
+      selectedIndexes: result.selectedIndexes,
+      message: result.message,
+    };
   }
 
   private handleEnterKey() {
@@ -258,6 +269,10 @@ export default class Questionnaire extends Frame implements Focusable {
     if (this.tab === this.questions.length) {
       if (!this.allQuestionsAnswered()) {
         this.tab = this.firstIncompleteIndex();
+        this.drafts[this.tab]!.message = getValidationMessage(
+          this.questions[this.tab]!,
+          this.drafts[this.tab]!,
+        );
         this.syncInteractionState();
         return;
       }
@@ -275,10 +290,8 @@ export default class Questionnaire extends Frame implements Focusable {
     const draft = this.drafts[this.tab]!;
     ensureSingleSelection(question, this.drafts[this.tab]!);
 
-    const message = getValidationMessage(question, draft);
-    if (message) {
-      return;
-    }
+    draft.message = getValidationMessage(question, draft);
+    if (draft.message) return;
     this.tab += 1;
     this.syncInteractionState();
   }

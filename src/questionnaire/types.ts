@@ -38,6 +38,7 @@ export interface QuestionDraft {
   selectedIndexes: number[];
   cursor: number;
   editing: boolean;
+  message?: string;
 }
 
 export interface ToggleSelectionResult {

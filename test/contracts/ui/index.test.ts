@@ -4,8 +4,8 @@ import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { Key, KeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
 import type { EditorTheme, TUI } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
-import uiExtension from "../../src/ui/index.js";
-import { recordExtension } from "../helpers/extension.js";
+import uiExtension from "../../../src/ui/index.js";
+import { recordExtension } from "../../helpers/extension.js";
 
 function setup() {
   const extension = recordExtension();
@@ -76,7 +76,7 @@ describe("UI extension contract", () => {
 
   it("installs a header showing package and Pi versions", async () => {
     const { ui, tui, start } = setup();
-    const packageJson = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
+    const packageJson = JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf8"));
 
     await start();
     const factory = ui.setHeader.mock.calls.at(-1)?.[0];

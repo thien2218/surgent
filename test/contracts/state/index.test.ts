@@ -2,10 +2,10 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createEventBus } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import type { AgentMode } from "../../src/agent/types.js";
-import { createState, getState, STATE_EVENT } from "../../src/state.js";
-import { recordExtension } from "../helpers/extension.js";
-import { makePermissionSession, makePermissionWorkspace, type PermissionWorkspace } from "../helpers/permission.js";
+import type { AgentMode } from "../../../src/agent/types.js";
+import { createState, getState, STATE_EVENT } from "../../../src/state.js";
+import { recordExtension } from "../../helpers/extension.js";
+import { makePermissionSession, makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const original = await importOriginal<typeof import("node:fs/promises")>();

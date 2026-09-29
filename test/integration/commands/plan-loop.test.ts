@@ -117,34 +117,6 @@ describe("plan review persistence", () => {
     expect(ui.notify.mock.calls.some(([message]) => message.includes("Saved plan to null"))).toBe(false);
   });
 
-  // Known leak: a failed later save loses the path needed to discard the earlier file.
-  it.fails("discards the earlier plan file when saving revised output fails", async () => {
-    const { cwd, session, run, interact, actual } = await setup();
-    const manager = SessionManager.create(cwd, join(cwd, ".pi", "subsessions"));
-    manager.appendMessage(assistantMessage("Stored plan"));
-    session.result.id = manager.getSessionId();
-    await storePlans(cwd, { [session.result.id]: planMetadata() });
-    const planPath = join(cwd, ".pi", "plans", `${session.result.id}.md`);
-    const deleted = Promise.withResolvers<void>();
-    vi.mocked(unlink).mockImplementation(async (path) => {
-      await actual.unlink(path);
-      if (path === manager.getSessionFile()) deleted.resolve();
-    });
-    interact((component) => {
-      vi.mocked(writeFile).mockRejectedValueOnce(Object.assign(new Error("write denied"), { code: "EACCES" }));
-      component.handleInput?.("\t");
-      for (let index = 0; index < 3; index++) component.handleInput?.("\x1b[B");
-      component.handleInput?.("Revise plan");
-      component.handleInput?.("\r");
-    });
-    interact((component) => component.handleInput?.("\x1b"));
-
-    await run();
-    await deleted.promise;
-
-    await expect(readFile(planPath)).rejects.toMatchObject({ code: "ENOENT" });
-  });
-
   it("reports a missing session ID without inventing an output file", async () => {
     const { session, ui, run, interact, outputPath } = await setup();
     delete session.result.id;

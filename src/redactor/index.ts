@@ -4,16 +4,29 @@ import { containSecrets, replaceSecrets } from "./secrets.js";
 
 export default function (pi: ExtensionAPI) {
   pi.on("tool_call", async (event, _ctx) => {
+    if (event.toolName !== "write" && event.toolName !== "edit") return;
+    if (!event.input || typeof event.input !== "object" || Array.isArray(event.input)) {
+      return { block: true, reason: "Invalid input for secret scanning" };
+    }
+
     if (isToolCallEventType("write", event)) {
-      if (containSecrets(event.input.content ?? "")) {
+      if (typeof event.input.content !== "string") {
+        return { block: true, reason: "Invalid write content for secret scanning" };
+      }
+      if (containSecrets(event.input.content)) {
         return { block: true, reason: "Secrets detected in content to be written" };
       }
-    } else if (isToolCallEventType("edit", event)) {
-      const edits: Array<{ oldText?: string; newText?: string }> =
-        (event.input as { edits?: Array<{ oldText?: string; newText?: string }> }).edits ?? [];
-
+    } else {
+      const { edits } = event.input as { edits?: unknown };
+      if (!Array.isArray(edits)) {
+        return { block: true, reason: "Invalid edits for secret scanning" };
+      }
       for (const edit of edits) {
-        if (containSecrets(edit.newText ?? "")) {
+        if (!edit || typeof edit !== "object" || Array.isArray(edit) ||
+          typeof edit.newText !== "string") {
+          return { block: true, reason: "Invalid edit content for secret scanning" };
+        }
+        if (containSecrets(edit.newText)) {
           return { block: true, reason: "Secrets detected in edit content" };
         }
       }

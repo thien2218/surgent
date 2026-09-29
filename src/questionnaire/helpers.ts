@@ -5,19 +5,21 @@ import type {
   Question,
   QuestionDraft,
   QuestionnaireResult,
-  QuestionOption,
   ToggleSelectionResult,
 } from "./types.js";
 
 export function createInitialDraft(question: NormalizedQuestion): QuestionDraft {
   const selectedIndexes = question.multi
-    ? question.options.slice(0, question.recommendedCount).map((_option, index) => index)
+    ? question.options.flatMap((option, index) => (option.recommended ? [index] : []))
     : [];
 
   return {
     text: "",
     selectedIndexes,
-    cursor: selectedIndexes[0] ?? 0,
+    cursor: Math.max(
+      0,
+      question.options.findIndex((option) => option.recommended),
+    ),
     editing: question.options.length === 0,
   };
 }
@@ -143,56 +145,26 @@ export async function askQuestions(questions: Question[], ui: ExtensionUIContext
   });
 }
 
-function normalizeQuestion(question: Question): NormalizedQuestion {
+export function normalizeQuestion(question: Question): NormalizedQuestion {
   const prompt = question.prompt.trim();
-  if (!prompt) {
-    throw new Error("Question prompt must not be empty.");
-  }
-
   const options = question.options ?? [];
   const multi = question.multi === true && options.length > 0;
   const minSelections = multi ? (question.minSelections ?? 1) : 1;
   const maxSelections = multi ? (question.maxSelections ?? options.length) : 1;
-  const recommendedCount = getRecommendedCount({
-    options,
-    multi,
-    minSelections,
-    recommendedCount: question.recommendedCount,
-  });
+  const recommendations = options.filter((option) => option.recommended);
 
-  if (multi && options.length === 0) {
-    throw new Error(`Question "${prompt}" enables multi-select but does not provide any options.`);
-  }
   if (multi && maxSelections < minSelections) {
     throw new Error(`Question "${prompt}" has minSelections greater than maxSelections.`);
   }
   if (multi && maxSelections > options.length) {
     throw new Error(`Question "${prompt}" has maxSelections larger than the number of options.`);
   }
-  if (
-    !multi &&
-    options.length > 0 &&
-    question.recommendedCount !== undefined &&
-    question.recommendedCount !== 1
-  ) {
-    throw new Error(`Question "${prompt}" must use recommendedCount: 1 for single-select options.`);
+  if (recommendations.length > maxSelections) {
+    throw new Error(`Question "${prompt}" has more recommended options than maxSelections.`);
   }
-  if (multi && recommendedCount !== undefined && recommendedCount < minSelections) {
+  if (multi && recommendations.some((option) => option.exclusive)) {
     throw new Error(
-      `Question "${prompt}" must have recommendedCount greater than or equal to minSelections.`,
-    );
-  }
-  if (recommendedCount !== undefined && recommendedCount > options.length) {
-    throw new Error(`Question "${prompt}" has recommendedCount larger than the number of options.`);
-  }
-  if (options.length > 0 && recommendedCount === undefined) {
-    throw new Error(
-      `Question "${prompt}" must provide recommended options at the top of the list.`,
-    );
-  }
-  if (options.length > 0 && recommendedCount !== undefined && recommendedCount < 1) {
-    throw new Error(
-      `Question "${prompt}" must recommend at least one option when options are provided.`,
+      `Question "${prompt}" cannot recommend an exclusive option alongside other options.`,
     );
   }
 
@@ -202,19 +174,7 @@ function normalizeQuestion(question: Question): NormalizedQuestion {
     options,
     placeholder: question.placeholder.trim(),
     multi,
-    recommendedCount,
     minSelections,
     maxSelections,
   };
-}
-
-function getRecommendedCount(question: {
-  options: QuestionOption[];
-  multi: boolean;
-  minSelections: number;
-  recommendedCount?: number;
-}): number | undefined {
-  if (question.options.length === 0) return;
-  if (!question.multi) return 1;
-  return question.recommendedCount ?? question.minSelections;
 }

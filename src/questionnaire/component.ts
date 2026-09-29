@@ -157,10 +157,7 @@ export default class Questionnaire extends Frame implements Focusable {
         const cursor = draft.cursor === index && !draft.editing;
         const marker = question.multi ? (selected ? "[x]" : "[ ]") : selected ? "(*)" : "( )";
         const prefix = cursor ? this.theme.fg("accent", "→") : " ";
-        const recommendation =
-          question.recommendedCount !== undefined && index < question.recommendedCount
-            ? this.theme.fg("success", " [recommended]")
-            : "";
+        const recommendation = option.recommended ? this.theme.fg("success", " [recommended]") : "";
         const exclusive = option.exclusive ? this.theme.fg("dim", " [exclusive]") : "";
         const optionText = `${marker} ${option.text}${recommendation}${exclusive}`;
         lines.add(`${prefix} ${cursor ? this.theme.fg("accent", optionText) : optionText}`);

@@ -1,6 +1,7 @@
 export interface QuestionOption {
   text: string;
   description?: string;
+  recommended?: boolean;
   exclusive?: boolean;
 }
 
@@ -10,8 +11,8 @@ export interface Question {
   options?: QuestionOption[];
 
   placeholder: string;
+  /** Only applies when options exist; otherwise the question is freeform. */
   multi?: boolean;
-  recommendedCount?: number;
 
   minSelections?: number;
   maxSelections?: number;
@@ -29,7 +30,6 @@ export interface NormalizedQuestion {
   options: QuestionOption[];
   placeholder: string;
   multi: boolean;
-  recommendedCount?: number;
   minSelections: number;
   maxSelections: number;
 }

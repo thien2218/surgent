@@ -84,6 +84,7 @@ export async function runPlanLoop(
       const action = await showPlanUi(ctx, subsession.result.output, outputPath);
 
       if (action.kind === "save") {
+        if (!outputPath) continue;
         ctx.ui.notify(
           `Saved plan to ${outputPath}. Resume with '/plan ${subsession.result.id}'`,
           "info",

@@ -23,7 +23,7 @@ import {
 import type { NormalizedQuestion, QuestionDraft, QuestionnaireResult } from "./types.js";
 
 export default class Questionnaire extends Frame implements Focusable {
-  onDone?: (result: QuestionnaireResult) => void;
+  onDone?: (result: QuestionnaireResult | null) => void;
 
   private readonly drafts: QuestionDraft[];
   private readonly editors: Editor[] = [];
@@ -51,7 +51,7 @@ export default class Questionnaire extends Frame implements Focusable {
       {
         key: Key.escape,
         hint: "cancel",
-        handler: () => this.onDone?.({ cancelled: true, questions: [], answers: [] }),
+        handler: () => this.onDone?.(null),
       },
       {
         key: { navigation: "horizontal", metakey: Key.alt },
@@ -263,7 +263,6 @@ export default class Questionnaire extends Frame implements Focusable {
       }
 
       this.onDone?.({
-        cancelled: false,
         questions: this.questions.map((entry) => entry.prompt),
         answers: this.questions.map((entry, index) =>
           serializeQuestionAnswer(entry, this.drafts[index]!),

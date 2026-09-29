@@ -1,10 +1,7 @@
-import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
-import Questionnaire from "./component.js";
 import type {
   NormalizedQuestion,
   Question,
   QuestionDraft,
-  QuestionnaireResult,
   ToggleSelectionResult,
 } from "./types.js";
 
@@ -130,19 +127,6 @@ export function ensureSingleSelection(question: NormalizedQuestion, draft: Quest
 export function moveCursor(question: NormalizedQuestion, draft: QuestionDraft, delta: number) {
   if (question.options.length === 0) return draft;
   draft.cursor = Math.max(0, Math.min(question.options.length - 1, draft.cursor + delta));
-}
-
-export async function askQuestions(questions: Question[], ui: ExtensionUIContext) {
-  if (questions.length === 0) {
-    throw new Error("At least one question is required.");
-  }
-
-  const normalized = questions.map(normalizeQuestion);
-  return ui.custom<QuestionnaireResult>((tui, theme, _keybindings, done) => {
-    const component = new Questionnaire(tui, theme, normalized);
-    component.onDone = done;
-    return component;
-  });
 }
 
 export function normalizeQuestion(question: Question): NormalizedQuestion {

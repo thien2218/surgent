@@ -19,7 +19,6 @@ export interface Question {
 }
 
 export interface QuestionnaireResult {
-  cancelled: boolean;
   questions: string[];
   answers: string[];
 }

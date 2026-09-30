@@ -33,15 +33,15 @@ describe("checkpoint filesystem regressions", () => {
     expect(await createSnapshot(workspace.api, workspace.repo)).toMatch(/^[0-9a-f]{40}$/);
   });
 
-  it.fails("rejects an incomplete snapshot after a file stat permission error", async () => {
+  it.each(["EACCES", "EIO"])("rejects an incomplete snapshot after file stat error %s", async (code) => {
     const workspace = await openCheckpointWorkspace();
     await writeFile(join(workspace.cwd, "unreadable"), "must not silently disappear");
-    vi.mocked(lstat).mockRejectedValueOnce(Object.assign(new Error("denied"), { code: "EACCES" }));
-    const tree = await createSnapshot(workspace.api, workspace.repo).catch(() => undefined);
-    expect(tree).toBeUndefined();
+    vi.mocked(lstat).mockRejectedValueOnce(Object.assign(new Error("stat failed"), { code }));
+    await expect(createSnapshot(workspace.api, workspace.repo)).rejects.toMatchObject({ code });
+    expect(workspace.checkpointGit(["ls-files"])).toBe("");
   });
 
-  it.fails("keeps excluded content out after a transient source-exclude read error", async () => {
+  it.each(["EACCES", "EIO"])("preserves exclusions and rejects opening after source-exclude error %s", async (code) => {
     const workspace = await openCheckpointWorkspace();
     const source = join(workspace.cwd, ".git", "info", "exclude");
     await writeFile(source, "private\n");
@@ -49,17 +49,15 @@ describe("checkpoint filesystem regressions", () => {
     await writeFile(join(workspace.cwd, "private"), "fake private data");
     const filesystem = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
     vi.mocked(readFile).mockImplementation(async (...args) => {
-      if (args[0] === source) throw Object.assign(new Error("denied"), { code: "EACCES" });
+      if (args[0] === source) throw Object.assign(new Error("exclude read failed"), { code });
       return filesystem.readFile(...args);
     });
-    const reopened = await openCheckpointRepo(workspace.api, workspace.cwd).catch(() => undefined);
-    if (!reopened) return; // Failing closed is also a safe outcome.
-    const tree = await createSnapshot(workspace.api, reopened);
-    if (!tree) return;
-    expect(workspace.checkpointGit(["ls-tree", "--name-only", tree])).not.toContain("private");
+    await expect(openCheckpointRepo(workspace.api, workspace.cwd)).rejects.toMatchObject({ code });
+    expect(await readFile(join(workspace.directory, ".git", "info", "exclude"), "utf8")).toBe("private\n");
+    expect(workspace.checkpointGit(["ls-files", "--others", "--exclude-standard"])).toBe("");
   });
 
-  it.fails("repairs failed initialization before capturing tracked oversized files", async () => {
+  it("repairs failed initialization before capturing tracked oversized files", async () => {
     const workspace = await checkpointWorkspace();
     await writeFile(join(workspace.cwd, "tracked"), Buffer.alloc(2 * 1024 * 1024 + 1, 120));
     workspace.git(workspace.cwd, ["add", "tracked"]);

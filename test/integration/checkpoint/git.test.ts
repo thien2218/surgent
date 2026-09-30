@@ -100,7 +100,7 @@ describe("checkpoint repository", () => {
     await expect(readFile(mirror)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it.each(["root", "common", "init", "config", "seed"])("does not expose a usable repo after %s failure", async (failure) => {
+  it.each(["root", "common", "init", "config", "seed", "marker"])("does not expose a usable repo after %s failure", async (failure) => {
     const workspace = await checkpointWorkspace();
     if (failure === "seed") {
       await writeFile(join(workspace.cwd, "tracked"), "committed");
@@ -113,6 +113,7 @@ describe("checkpoint repository", () => {
         : failure === "common" ? args.includes("--git-common-dir")
         : failure === "init" ? args[0] === "init"
         : failure === "seed" ? args.includes("read-tree")
+        : failure === "marker" ? args.includes("surgent.checkpointSource")
         : args.includes("core.autocrlf");
       return rejected ? { code: 1, stdout: "", stderr: "injected Git failure", killed: false } : workspace.exec(command, args, options);
     };

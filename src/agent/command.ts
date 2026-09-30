@@ -1,11 +1,11 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import type { Agent, AgentMeta } from "./types.js";
+import type { Agent, AgentMeta, AgentProfile } from "./types.js";
 import {
   createAgentFile,
   DEFAULT_AGENT,
   deleteAgentFiles,
   isBuiltIn,
-  loadAgents,
+  loadAgentProfiles,
   writeAgentMeta,
 } from "./storage.js";
 import { ExtendedSelectList } from "../ui/components/extended-select-list.js";
@@ -16,39 +16,48 @@ import { openInEditor } from "../utils.js";
 
 async function showAgentPicker(
   ctx: ExtensionCommandContext,
-  agents: Agent[],
-): Promise<string | null> {
-  const items = agents
-    .filter((agent) => agent.name !== DEFAULT_AGENT)
-    .map((agent) => ({
-      value: agent.name,
-      label: isBuiltIn(agent.filePath) ? `${agent.name} (built-in)` : agent.name,
-      description: agent.meta.description,
-      data: agent,
-    }));
+  profiles: AgentProfile[],
+): Promise<AgentProfile | "new" | null> {
+  return ctx.ui.custom<AgentProfile | "new" | null>(
+    (_tui, theme, _keybindings, done) => {
+      const items = profiles
+        .filter((profile) => profile.name !== DEFAULT_AGENT)
+        .map((profile) => ({
+          value: profile.filePath,
+          label: `${profile.name} [${profile.scope}]${profile.error ? ` ${theme.fg("error", "(invalid)")}` : ""}`,
+          description: profile.agent?.meta.description ?? profile.error,
+          data: profile,
+        }));
 
-  return ctx.ui.custom<string | null>((_tui, theme, _keybindings, done) => {
-    const selectList = new ExtendedSelectList(theme, {
-      title: "Agents",
-      addLabel: "Create new agent",
-      items,
-      maxVisibleRows: 12,
-      canDelete: (item) => item.data !== undefined && !isBuiltIn(item.data.filePath),
-    });
+      const selectList = new ExtendedSelectList(theme, {
+        title: "Agents",
+        addLabel: "Create new agent",
+        items,
+        maxVisibleRows: 12,
+        canDelete: (item) => item.data !== undefined && item.data.scope !== "built-in",
+      });
 
-    selectList.onAdd = () => done("__new__");
-    selectList.onSelect = (item) => done(String(item.value));
-    selectList.onCancel = () => done(null);
-    selectList.onDeleteBlocked = () => ctx.ui.notify("Built-in agent cannot be deleted", "error");
-    selectList.onDelete = (item) => {
+      selectList.onAdd = () => done("new");
+      selectList.onSelect = (item) => {
+        if (!item.data) return;
+        if (item.data.error !== undefined) {
+          ctx.ui.notify(`Cannot select agent "${item.data.name}": ${item.data.error}`, "error");
+          return;
+        }
+        done(item.data);
+      };
+      selectList.onCancel = () => done(null);
+      selectList.onDeleteBlocked = () => ctx.ui.notify("Built-in agent cannot be deleted", "error");
+      selectList.onDelete = (item) => {
       const agentName = item.data?.name ?? String(item.value);
       void deleteAgentFiles(agentName, ctx.cwd)
         .then(() => ctx.ui.notify(`Agent "${agentName}" deleted`, "info"))
         .catch(() => ctx.ui.notify(`Failed to delete agent "${agentName}"`, "error"));
     };
 
-    return selectList;
-  });
+      return selectList;
+    },
+  );
 }
 
 async function openAgentConfigEditor(ctx: ExtensionCommandContext, agent: Agent) {
@@ -125,16 +134,15 @@ async function handleNewAgent(ctx: ExtensionCommandContext) {
 
 export async function agentsCommandHandler(ctx: ExtensionCommandContext) {
   while (true) {
-    const agents = await loadAgents(ctx.cwd);
-    const selected = await showAgentPicker(ctx, agents);
+    const profiles = await loadAgentProfiles(ctx.cwd);
+    const selected = await showAgentPicker(ctx, profiles);
     if (!selected) return;
 
-    if (selected === "__new__") {
+    if (selected === "new") {
       await handleNewAgent(ctx);
       return;
     }
 
-    const agent = agents.find((candidate) => candidate.name === selected);
-    if (agent && (await handleExistingAgent(ctx, agent))) return;
+    if (selected.agent && (await handleExistingAgent(ctx, selected.agent))) return;
   }
 }

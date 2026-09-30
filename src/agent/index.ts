@@ -43,16 +43,27 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_start", async (_event, ctx) => {
     state?.dispose();
-    const [agent, mode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode()]);
-    state = createState(pi, agent, mode);
-    ctx.ui.setStatus("agent", ctx.ui.theme.fg("dim", `agent: ${agent.name}`));
-
+    state = undefined;
     if (updateStatus) {
       process.stdout.off("resize", updateStatus);
+      updateStatus = undefined;
     }
-    updateStatus = () => updateAgentMode(ctx);
-    updateStatus();
-    process.stdout.on("resize", updateStatus);
+
+    try {
+      const [agent, mode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode()]);
+      state = createState(pi, agent, mode);
+      ctx.ui.setStatus("agent", ctx.ui.theme.fg("dim", `agent: ${agent.name}`));
+      updateStatus = () => updateAgentMode(ctx);
+      updateStatus();
+      process.stdout.on("resize", updateStatus);
+    } catch (error) {
+      pi.setActiveTools([]);
+      ctx.ui.notify(
+        `Failed to load 'general' agent: ${error instanceof Error ? error.message : String(error)}`,
+        "error",
+      );
+      ctx.shutdown();
+    }
   });
 
   pi.on("before_agent_start", (event) => ({

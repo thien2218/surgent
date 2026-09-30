@@ -177,7 +177,6 @@ export async function writeAgentMeta(agent: Agent, meta: AgentMeta) {
   if (isBuiltIn(agent.filePath)) {
     const settingsPath = getPiPath("settings");
     let settings: SettingsSchema;
-
     try {
       settings = JSON.parse(await readFile(settingsPath, "utf8")) as SettingsSchema;
     } catch (error) {

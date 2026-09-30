@@ -11,7 +11,7 @@ export async function createSnapshot(pi: ExtensionAPI, repo: Repo): Promise<stri
   if (treeResult.code !== 0) return;
 
   const tree = treeResult.stdout.trim();
-  return /^[0-9a-f]{40,64}$/i.test(tree) ? tree : undefined;
+  return /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(tree) ? tree : undefined;
 }
 
 export async function retainSnapshot(pi: ExtensionAPI, repo: Repo, tree: string): Promise<boolean> {

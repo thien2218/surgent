@@ -19,7 +19,7 @@ export async function readCheckpointStore(
     for (const [entryId, tree] of Object.entries(checkpoints)) {
       if (typeof tree !== "string") continue;
       const checkpointTree = tree.trim();
-      if (!/^[0-9a-f]{40,64}$/i.test(checkpointTree)) continue;
+      if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(checkpointTree)) continue;
       sessionCheckpoints[entryId] = checkpointTree;
     }
     store[sessionId] = sessionCheckpoints;

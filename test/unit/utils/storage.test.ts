@@ -1,8 +1,13 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getPiPath, readJson, writeJson } from "../../../src/utils.js";
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const filesystem = await importOriginal<typeof import("node:fs/promises")>();
+  return { ...filesystem, rename: vi.fn(filesystem.rename), writeFile: vi.fn(filesystem.writeFile) };
+});
 
 let root: string;
 
@@ -11,6 +16,9 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  const filesystem = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+  vi.mocked(rename).mockReset().mockImplementation(filesystem.rename);
+  vi.mocked(writeFile).mockReset().mockImplementation(filesystem.writeFile);
   vi.unstubAllEnvs();
   await rm(root, { recursive: true, force: true });
 });
@@ -57,6 +65,50 @@ describe("JSON file writes", () => {
 
     await expect(writeJson(path, { value: 1n })).rejects.toThrow(TypeError);
     await expect(readFile(path, "utf8")).resolves.toBe("preserve");
+  });
+
+  it("preserves previous data and removes the temporary file after a partial write", async () => {
+    const path = join(root, "settings.json");
+    await writeFile(path, '{"saved":true}\n');
+    const before = await readFile(path, "utf8");
+    const filesystem = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    vi.mocked(writeFile).mockImplementationOnce(async (...args) => {
+      await filesystem.writeFile(args[0], "{");
+      throw Object.assign(new Error("disk full after truncation"), { code: "ENOSPC" });
+    });
+
+    await expect(writeJson(path, { saved: false })).rejects.toMatchObject({ code: "ENOSPC" });
+
+    expect(await readFile(path, "utf8")).toBe(before);
+    expect(await readdir(root)).toEqual(["settings.json"]);
+  });
+
+  it("keeps old contents readable until the replacement is complete", async () => {
+    const path = join(root, "settings.json");
+    await writeFile(path, '{"saved":true}\n');
+    const before = await readFile(path, "utf8");
+    const filesystem = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    vi.mocked(writeFile).mockImplementationOnce(async (...args) => {
+      await filesystem.writeFile(...args);
+      expect(await filesystem.readFile(path, "utf8")).toBe(before);
+    });
+
+    await writeJson(path, { saved: false });
+
+    expect(await readJson(path, {})).toEqual({ saved: false });
+    expect(await readdir(root)).toEqual(["settings.json"]);
+  });
+
+  it("preserves old contents and removes the temporary file when rename fails", async () => {
+    const path = join(root, "settings.json");
+    await writeFile(path, '{"saved":true}\n');
+    const before = await readFile(path, "utf8");
+    vi.mocked(rename).mockRejectedValueOnce(Object.assign(new Error("rename denied"), { code: "EACCES" }));
+
+    await expect(writeJson(path, { saved: false })).rejects.toMatchObject({ code: "EACCES" });
+
+    expect(await readFile(path, "utf8")).toBe(before);
+    expect(await readdir(root)).toEqual(["settings.json"]);
   });
 
   it("propagates write failures without creating missing parent directories", async () => {

@@ -1,5 +1,5 @@
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import cleanup from "../../../src/cleanup/index.js";
 import { getPiPath } from "../../../src/utils.js";
@@ -10,11 +10,12 @@ import { makePermissionContext } from "../../helpers/permission.js";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const filesystem = await importOriginal<typeof import("node:fs/promises")>();
-  return { ...filesystem, writeFile: vi.fn(filesystem.writeFile) };
+  return { ...filesystem, rename: vi.fn(filesystem.rename) };
 });
 
-afterEach(() => {
-  vi.mocked(writeFile).mockReset();
+afterEach(async () => {
+  const filesystem = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+  vi.mocked(rename).mockReset().mockImplementation(filesystem.rename);
   vi.restoreAllMocks();
 });
 
@@ -22,9 +23,9 @@ async function observeWrite(path: string) {
   const filesystem = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
   let complete!: () => void;
   const done = new Promise<void>((resolve) => { complete = resolve; });
-  vi.mocked(writeFile).mockImplementation(async (...args) => {
-    await filesystem.writeFile(...args);
-    if (args[0] === path) complete();
+  vi.mocked(rename).mockImplementation(async (...args) => {
+    await filesystem.rename(...args);
+    if (args[1] === path) complete();
   });
   return { done };
 }

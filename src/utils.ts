@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
@@ -52,7 +53,13 @@ export async function readJson<T>(filePath: string, fallback: T): Promise<T> {
 }
 
 export async function writeJson(filePath: string, data: unknown) {
-  await writeFile(filePath, JSON.stringify(data, null, 2) + "\n", "utf8");
+  const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(tempPath, JSON.stringify(data, null, 2) + "\n", "utf8");
+    await rename(tempPath, filePath);
+  } finally {
+    await rm(tempPath, { force: true });
+  }
 }
 
 export async function runCommand(

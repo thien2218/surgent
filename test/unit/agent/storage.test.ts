@@ -16,6 +16,24 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 });
 
 describe("agent discovery", () => {
+  it("lets local general override global and shipped defaults", async () => {
+    const workspace = await agentWorkspace();
+    await writeFile(join(workspace.global, "general.md"), "---\ndescription: Global\n---\nGlobal prompt");
+    await writeFile(join(workspace.local, "general.md"), "---\ndescription: Local\n---\nLocal prompt");
+
+    const profiles = await loadAgentProfiles(workspace.cwd, "general");
+
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0]).toMatchObject({ scope: "local", agent: { name: "general", body: "Local prompt" } });
+  });
+
+  it("uses global general when no local override exists", async () => {
+    const workspace = await agentWorkspace();
+    await writeFile(join(workspace.global, "general.md"), "---\ndescription: Global\n---\nGlobal prompt");
+
+    expect(await loadAgentProfiles(workspace.cwd, "general"))
+      .toMatchObject([{ scope: "global", agent: { body: "Global prompt" } }]);
+  });
 
   it("keeps an invalid local profile visible instead of exposing its global namesake", async () => {
     const workspace = await agentWorkspace();

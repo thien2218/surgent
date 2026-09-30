@@ -35,4 +35,15 @@ describe("agent picker", () => {
 
     await context.run();
   });
+
+  it("shows custom general overrides in the picker", async () => {
+    const context = await setup();
+    await writeFile(join(context.local, "general.md"), "---\ndescription: Custom general\n---\nPrompt");
+    context.interact((component) => {
+      expect(component.render(160).join("\n")).toContain("general [local]");
+      component.handleInput?.("\x1b");
+    });
+
+    await context.run();
+  });
 });

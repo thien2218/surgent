@@ -182,7 +182,6 @@ export async function loadAgentProfiles(cwd: string, name?: string): Promise<Age
 
     try {
       const agent = parseAgentConfig(await readFile(filePath, "utf8"), filePath);
-      if (!isBuiltIn(filePath) && agent.name === DEFAULT_AGENT) continue;
       if (isBuiltIn(filePath)) {
         agent.meta = { ...agent.meta, ...settings.agent?.meta?.[agent.name] };
         validateAgentMeta(agent.meta);

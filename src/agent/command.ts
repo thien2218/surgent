@@ -21,7 +21,7 @@ async function showAgentPicker(
   return ctx.ui.custom<AgentProfile | "new" | null>(
     (_tui, theme, _keybindings, done) => {
       const items = profiles
-        .filter((profile) => profile.name !== DEFAULT_AGENT)
+        .filter((profile) => profile.name !== DEFAULT_AGENT || profile.scope !== "built-in")
         .map((profile) => ({
           value: profile.filePath,
           label: `${profile.name} [${profile.scope}]${profile.error ? ` ${theme.fg("error", "(invalid)")}` : ""}`,

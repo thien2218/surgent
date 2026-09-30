@@ -43,6 +43,16 @@ async function setup() {
 }
 
 describe("agent startup", () => {
+  it("applies the overriding general profile instead of shipped instructions", async () => {
+    const context = await setup();
+    await writeFile(join(context.local, "general.md"), "---\ndescription: Local general\ntools: [read]\n---\nLocal instructions");
+
+    await context.start();
+
+    expect(getState(context.extension.api).getAgent().body).toBe("Local instructions");
+    expect(context.extension.api.getActiveTools()).toEqual(["read"]);
+    expect(context.shutdown).not.toHaveBeenCalled();
+  });
 
   it("requests shutdown for invalid general instead of continuing with global or unrestricted settings", async () => {
     const context = await setup();

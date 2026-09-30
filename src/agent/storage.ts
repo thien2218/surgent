@@ -223,15 +223,29 @@ function serializeMeta(meta: AgentMeta): string[] {
   return lines;
 }
 
-
+export function validateAgentName(name: string) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(name)) {
+    throw new Error(
+      "Agent name must start with a letter or digit and contain only ASCII letters, digits, hyphens, or underscores.",
+    );
+  }
+}
 
 export async function createAgentFile(base: string, name: string): Promise<string> {
+  validateAgentName(name);
   const filePath = join(getPiPath("agents", base), `${name}.md`);
-  await writeFile(
-    filePath,
-    `---\ndescription: Describe what \`${name}\` agent does\n---\n\nWrite \`${name}\` agent's system prompt here`,
-    "utf8",
-  );
+  try {
+    await writeFile(
+      filePath,
+      `---\ndescription: Describe what \`${name}\` agent does\n---\n\nWrite \`${name}\` agent's system prompt here`,
+      { encoding: "utf8", flag: "wx" },
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new Error(`Agent "${name}" already exists in selected scope.`);
+    }
+    throw error;
+  }
   return filePath;
 }
 

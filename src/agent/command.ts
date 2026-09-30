@@ -6,6 +6,7 @@ import {
   deleteAgentFiles,
   isBuiltIn,
   loadAgentProfiles,
+  validateAgentName,
   writeAgentMeta,
 } from "./storage.js";
 import { ExtendedSelectList } from "../ui/components/extended-select-list.js";
@@ -118,15 +119,31 @@ async function handleNewAgent(ctx: ExtensionCommandContext) {
   const result = await ctx.ui.custom<{ name: string; scope: string } | null>(
     (_tui, theme, _kb, done) => {
       const scopedInput = new ScopedInput(theme, "Agent name");
-      scopedInput.onSubmit = ({ scope, value: name }) => done({ name, scope });
+      scopedInput.onSubmit = ({ scope, value: name }) => {
+        try {
+          validateAgentName(name);
+          done({ name, scope });
+        } catch (error) {
+          ctx.ui.notify((error as Error).message, "error");
+        }
+      };
       scopedInput.onCancel = () => done(null);
       return scopedInput;
     },
   );
-
   if (!result) return;
+
   const { name, scope } = result;
-  const filePath = await createAgentFile(scope === "project" ? ctx.cwd : scope, name);
+  let filePath: string;
+  try {
+    filePath = await createAgentFile(scope === "project" ? ctx.cwd : scope, name);
+  } catch (error) {
+    ctx.ui.notify(
+      `Failed to create agent: ${error instanceof Error ? error.message : String(error)}`,
+      "error",
+    );
+    return;
+  }
 
   ctx.ui.notify(`Agent created: ${filePath}`, "info");
   await openInEditor(ctx, filePath);

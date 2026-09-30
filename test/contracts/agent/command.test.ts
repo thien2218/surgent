@@ -46,4 +46,35 @@ describe("agent picker", () => {
 
     await context.run();
   });
+
+  it("reports duplicate creation without changing the existing file", async () => {
+    const context = await setup();
+    const filePath = join(context.local, "Aprobe.md");
+    await writeFile(filePath, "Preserve original");
+    context.interact((component) => component.handleInput?.("\r"));
+    context.interact((component) => {
+      component.handleInput?.("Aprobe");
+      component.handleInput?.("\r");
+    });
+
+    await context.run();
+
+    expect(context.ui.notify).toHaveBeenCalledWith(expect.stringContaining("already exists in selected scope"), "error");
+    expect(await readFile(filePath, "utf8")).toBe("Preserve original");
+  });
+
+  it("rejects unsafe names in the creation input without closing it", async () => {
+    const context = await setup();
+    context.interact((component) => component.handleInput?.("\r"));
+    context.interact((component) => {
+      component.handleInput?.("../victim");
+      component.handleInput?.("\r");
+      expect(context.ui.notify).toHaveBeenCalledWith(expect.stringContaining("Agent name must start"), "error");
+      component.handleInput?.("\x1b");
+    });
+
+    await context.run();
+
+    expect(await readdir(context.local)).toEqual([]);
+  });
 });

@@ -108,3 +108,33 @@ describe("agent discovery", () => {
     await expect(loadAgents(workspace.cwd, "scout")).rejects.toThrow("tools must be an array");
   });
 });
+
+describe("agent file changes", () => {
+  it("creates the same name independently in local and global scopes", async () => {
+    const workspace = await agentWorkspace();
+
+    expect(await createAgentFile(workspace.cwd, "Probe_2-test")).toBe(join(workspace.local, "Probe_2-test.md"));
+    expect(await createAgentFile("global", "Probe_2-test")).toBe(join(workspace.global, "Probe_2-test.md"));
+  });
+
+  it("rejects duplicates without overwriting the existing profile", async () => {
+    const workspace = await agentWorkspace();
+    const filePath = join(workspace.local, "probe.md");
+    await writeFile(filePath, "Preserve even malformed profiles");
+
+    await expect(createAgentFile(workspace.cwd, "probe")).rejects.toThrow("already exists in selected scope");
+    expect(await readFile(filePath, "utf8")).toBe("Preserve even malformed profiles");
+  });
+
+  it.each(["../victim", "nested/probe", "nested\\probe", ".hidden", "_probe", "two words", "café", ""])(
+    "rejects unsafe agent name %j without touching files", async (name) => {
+      const workspace = await agentWorkspace();
+      const filePath = join(workspace.cwd, ".pi", "victim.md");
+      await writeFile(filePath, "Preserve");
+
+      await expect(createAgentFile(workspace.cwd, name)).rejects.toThrow("Agent name");
+      expect(await readdir(workspace.local)).toEqual([]);
+      expect(await readFile(filePath, "utf8")).toBe("Preserve");
+    },
+  );
+});

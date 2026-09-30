@@ -77,4 +77,46 @@ describe("agent picker", () => {
 
     expect(await readdir(context.local)).toEqual([]);
   });
+
+  it("reports deletion errors instead of success", async () => {
+    const context = await setup();
+    const filePath = join(context.local, "Aprobe.md");
+    await writeFile(filePath, "---\ndescription: Probe\n---\nPrompt");
+    context.interact(async (component) => {
+      await rm(filePath);
+      await mkdir(filePath);
+      component.handleInput?.("\x1b[B");
+      component.handleInput?.("\x04");
+      component.handleInput?.("\r");
+    });
+    context.interact((component) => component.handleInput?.("\x1b"));
+
+    await context.run();
+
+    expect(context.ui.notify).toHaveBeenCalledWith(expect.stringContaining('Failed to delete agent "Aprobe"'), "error");
+    expect(context.ui.notify).not.toHaveBeenCalledWith('Agent "Aprobe" deleted', "info");
+    expect(await readdir(context.local)).toEqual(["Aprobe.md"]);
+  });
+
+  it("refreshes scope markers when deleting malformed local profile reveals global profile", async () => {
+    const context = await setup();
+    await writeFile(join(context.local, "Aprobe.md"), "Malformed");
+    await writeFile(join(context.global, "Aprobe.md"), "---\ndescription: Global\n---\nPrompt");
+    context.interact((component) => {
+      component.handleInput?.("\x1b[B");
+      component.handleInput?.("\x04");
+      component.handleInput?.("\r");
+    });
+    context.interact((component) => {
+      const rendered = component.render(160).join("\n");
+      expect(rendered).toContain("Aprobe [global]");
+      expect(rendered).not.toContain("Aprobe [local]");
+      component.handleInput?.("\x1b");
+    });
+
+    await context.run();
+
+    expect(context.ui.notify).toHaveBeenCalledWith('Agent "Aprobe" deleted', "info");
+    expect(await readdir(context.local)).toEqual([]);
+  });
 });

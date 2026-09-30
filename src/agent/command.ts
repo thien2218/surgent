@@ -3,7 +3,7 @@ import type { Agent, AgentMeta, AgentProfile } from "./types.js";
 import {
   createAgentFile,
   DEFAULT_AGENT,
-  deleteAgentFiles,
+  deleteAgentFile,
   isBuiltIn,
   loadAgentProfiles,
   validateAgentName,
@@ -18,8 +18,8 @@ import { openInEditor } from "../utils.js";
 async function showAgentPicker(
   ctx: ExtensionCommandContext,
   profiles: AgentProfile[],
-): Promise<AgentProfile | "new" | null> {
-  return ctx.ui.custom<AgentProfile | "new" | null>(
+): Promise<AgentProfile | "new" | "refresh" | null> {
+  return ctx.ui.custom<AgentProfile | "new" | "refresh" | null>(
     (_tui, theme, _keybindings, done) => {
       const items = profiles
         .filter((profile) => profile.name !== DEFAULT_AGENT || profile.scope !== "built-in")
@@ -50,11 +50,18 @@ async function showAgentPicker(
       selectList.onCancel = () => done(null);
       selectList.onDeleteBlocked = () => ctx.ui.notify("Built-in agent cannot be deleted", "error");
       selectList.onDelete = (item) => {
-      const agentName = item.data?.name ?? String(item.value);
-      void deleteAgentFiles(agentName, ctx.cwd)
-        .then(() => ctx.ui.notify(`Agent "${agentName}" deleted`, "info"))
-        .catch(() => ctx.ui.notify(`Failed to delete agent "${agentName}"`, "error"));
-    };
+        if (!item.data) return;
+        const profile = item.data;
+        void deleteAgentFile(profile.filePath)
+          .then(() => ctx.ui.notify(`Agent "${profile.name}" deleted`, "info"))
+          .catch((error) =>
+            ctx.ui.notify(
+              `Failed to delete agent "${profile.name}": ${error instanceof Error ? error.message : String(error)}`,
+              "error",
+            ),
+          )
+          .finally(() => done("refresh"));
+      };
 
       return selectList;
     },
@@ -154,6 +161,7 @@ export async function agentsCommandHandler(ctx: ExtensionCommandContext) {
     const profiles = await loadAgentProfiles(ctx.cwd);
     const selected = await showAgentPicker(ctx, profiles);
     if (!selected) return;
+    if (selected === "refresh") continue;
 
     if (selected === "new") {
       await handleNewAgent(ctx);

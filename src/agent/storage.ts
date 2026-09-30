@@ -124,11 +124,10 @@ function parseAgentConfig(content: string, filePath: string): Agent {
   return { meta: meta as AgentMeta, body, filePath, name };
 }
 
-async function getAgentFiles(cwd: string, name?: string, skipBuiltIn?: boolean): Promise<string[]> {
+async function getAgentFiles(cwd: string, name?: string): Promise<string[]> {
   const seen = new Set<string>();
-  const dirs = [getPiPath("agents", cwd), getPiPath("agents")];
+  const dirs = [getPiPath("agents", cwd), getPiPath("agents"), BUILT_IN_DIR];
   const files: string[] = [];
-  if (!skipBuiltIn) dirs.push(BUILT_IN_DIR);
 
   for (const dir of dirs) {
     try {
@@ -305,15 +304,9 @@ export async function writeAgentMeta(agent: Agent, meta: AgentMeta) {
   await writeFile(agent.filePath, nextContent, "utf8");
 }
 
-export async function deleteAgentFiles(name: string, cwd: string) {
-  const files = await getAgentFiles(cwd, name, true);
-  for (const file of files) {
-    try {
-      const content = await readFile(file, "utf8");
-      const parsed = parseAgentConfig(content, file);
-      if (parsed?.name === name) await unlink(file);
-    } catch {} // skip
-  }
+export async function deleteAgentFile(filePath: string) {
+  if (isBuiltIn(filePath)) throw new Error("Built-in agent cannot be deleted.");
+  await unlink(filePath);
 }
 
 export function isBuiltIn(filePath: string): boolean {

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   createAgentFile,
+  deleteAgentFile,
   loadAgentProfiles,
   loadAgents,
   writeAgentMeta,
@@ -163,5 +164,25 @@ describe("agent file changes", () => {
     const [agent] = await loadAgents(workspace.cwd, "probe");
 
     expect(agent.meta["files.read"]).toEqual(["C:/repo/**"]);
+  });
+
+  it("deletes malformed local profile while leaving the global profile intact", async () => {
+    const workspace = await agentWorkspace();
+    const filePath = join(workspace.local, "probe.md");
+    await writeFile(filePath, "Malformed");
+    await writeFile(join(workspace.global, "probe.md"), "---\ndescription: Global\n---\nPrompt");
+
+    await deleteAgentFile(filePath);
+
+    expect(await loadAgentProfiles(workspace.cwd, "probe")).toMatchObject([{ scope: "global", agent: { meta: { description: "Global" } } }]);
+  });
+
+  it("propagates deletion failure without claiming success", async () => {
+    const workspace = await agentWorkspace();
+    const filePath = join(workspace.local, "probe.md");
+    await mkdir(filePath);
+
+    await expect(deleteAgentFile(filePath)).rejects.toThrow();
+    expect(await readdir(workspace.local)).toEqual(["probe.md"]);
   });
 });

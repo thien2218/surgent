@@ -1,6 +1,6 @@
 import type { AgentMeta } from "./types.js";
 import type { FormConfig } from "../ui/components/form.js";
-import { META_KEYS, parseAgentList, THINKING_LEVELS } from "./storage.js";
+import { META_KEYS, parseAgentList, THINKING_LEVELS } from "./config.js";
 
 function parseConfigValues(values: Record<string, string>) {
   const description = (values.description ?? "").trim();

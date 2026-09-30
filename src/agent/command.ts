@@ -2,13 +2,12 @@ import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { Agent, AgentMeta, AgentProfile } from "./types.js";
 import {
   createAgentFile,
-  DEFAULT_AGENT,
   deleteAgentFile,
   isBuiltIn,
   loadAgentProfiles,
-  validateAgentName,
   writeAgentMeta,
 } from "./storage.js";
+import { DEFAULT_AGENT, validateAgentName } from "./config.js";
 import { ExtendedSelectList } from "../ui/components/extended-select-list.js";
 import { ScopedInput } from "../ui/components/scoped-input.js";
 import { Form } from "../ui/components/form.js";

@@ -52,6 +52,10 @@ describe("agent discovery", () => {
     ["tools: read", "tools"],
     ["mcp_tools:", "mcp_tools"],
     ["skills: [read,]", "skills"],
+    ["files.read: [src/**]", "double-quoted"],
+    ["files.write: ['src/**']", "double-quoted"],
+    ["bash: [true]", "double-quoted"],
+    ["bash: [\"echo hi\",]", "double-quoted"],
     ["thinking_level: extreme", "Thinking level"],
     ["tools [read]", "Invalid metadata line"],
   ])("reports malformed metadata %s without loading unrestricted agent", async (metadata, reason) => {
@@ -137,4 +141,27 @@ describe("agent file changes", () => {
       expect(await readFile(filePath, "utf8")).toBe("Preserve");
     },
   );
+
+  it("round-trips quoted commas and escapes while normalizing file paths", async () => {
+    const workspace = await agentWorkspace();
+    const filePath = await createAgentFile(workspace.cwd, "probe");
+    const [agent] = await loadAgents(workspace.cwd, "probe");
+    const bash = ['printf "a,b"', "echo \\literal"];
+
+    await writeAgentMeta(agent, { description: "Probe", bash, "files.read": ["C:\\repo\\**", "src/a,b.ts"], "files.write": [] });
+    const [reloaded] = await loadAgents(workspace.cwd, "probe");
+
+    expect(reloaded.meta).toEqual({ description: "Probe", bash, "files.read": ["C:/repo/**", "src/a,b.ts"], "files.write": [] });
+    expect(reloaded.body).toBe(agent.body);
+    expect(await readFile(filePath, "utf8")).toContain('files.read: ["C:/repo/**", "src/a,b.ts"]');
+  });
+
+  it("normalizes backslashes when reading hand-edited quoted file arrays", async () => {
+    const workspace = await agentWorkspace();
+    await writeFile(join(workspace.local, "probe.md"), `---\ndescription: Probe\nfiles.read: ${JSON.stringify(["C:\\repo\\**"])}\n---\nPrompt`);
+
+    const [agent] = await loadAgents(workspace.cwd, "probe");
+
+    expect(agent.meta["files.read"]).toEqual(["C:/repo/**"]);
+  });
 });

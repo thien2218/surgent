@@ -40,10 +40,14 @@ const META_KEY_SET = new Set<string>(META_KEYS);
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
 
 export function parseAgentList(field: keyof AgentMeta, value: string): string[] {
+  const quoted = field === "bash" || field === "files.read" || field === "files.write";
   try {
     const inlineArray = value.match(INLINE_ARRAY);
     if (!inlineArray) throw new Error();
     let entries: unknown;
+    if (quoted) {
+      entries = JSON.parse(value);
+    } else {
       entries = inlineArray[1]!.trim()
         ? inlineArray[1]!.split(",").map((entry) => {
             const trimmed = entry.trim();
@@ -53,13 +57,16 @@ export function parseAgentList(field: keyof AgentMeta, value: string): string[] 
               : trimmed.replace(QUOTED_STRING, "");
           })
         : [];
+    }
     if (!Array.isArray(entries) || !entries.every((entry) => typeof entry === "string")) {
       throw new Error();
     }
-    return entries;
+    return field.startsWith("files.")
+      ? entries.map((entry: string) => entry.replace(/\\/g, "/"))
+      : entries;
   } catch {
     throw new Error(
-      `${field} must be an inline array of strings.`,
+      `${field} must be an inline array${quoted ? " of double-quoted strings" : " of strings"}.`,
     );
   }
 }
@@ -85,7 +92,9 @@ function validateAgentMeta(meta: AgentMeta) {
   if (meta.thinking_level !== undefined && !THINKING_LEVELS.includes(meta.thinking_level)) {
     throw new Error(`Thinking level must be ${THINKING_LEVELS.join(", ")}.`);
   }
-
+  for (const field of ["files.read", "files.write"] as const) {
+    if (meta[field]) meta[field] = meta[field].map((entry) => entry.replace(/\\/g, "/"));
+  }
 }
 
 function parseAgentConfig(content: string, filePath: string): Agent {

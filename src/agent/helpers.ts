@@ -1,6 +1,6 @@
 import type { AgentMeta } from "./types.js";
 import type { FormConfig } from "../ui/components/form.js";
-import { META_KEYS } from "./storage.js";
+import { META_KEYS, parseAgentList, THINKING_LEVELS } from "./storage.js";
 
 function parseConfigValues(values: Record<string, string>) {
   const description = (values.description ?? "").trim();
@@ -22,10 +22,7 @@ function parseConfigValues(values: Record<string, string>) {
     }
     if (field === "thinking_level") {
       const thinkingLevel = rawValue.trim();
-      if (
-        thinkingLevel &&
-        !["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(thinkingLevel)
-      ) {
+      if (thinkingLevel && !THINKING_LEVELS.some((level) => level === thinkingLevel)) {
         throw new Error("Thinking level must be off, minimal, low, medium, high, xhigh, or max.");
       }
       if (thinkingLevel) {
@@ -36,6 +33,11 @@ function parseConfigValues(values: Record<string, string>) {
 
     const normalizedValue = rawValue.trim();
     if (!normalizedValue) continue;
+
+    if (field === "bash" || field === "files.read" || field === "files.write") {
+      updated[field] = parseAgentList(field, normalizedValue);
+      continue;
+    }
 
     const entries =
       normalizedValue === "[]"
@@ -68,6 +70,8 @@ export function getAgentConfigForm(
         placeholder = "AI model to use for this agent (leave blank to inherit)";
       } else if (field === "thinking_level") {
         placeholder = "off, minimal, low, medium, high, xhigh, or max (leave blank to inherit)";
+      } else if (field === "bash" || field === "files.read" || field === "files.write") {
+        placeholder = `JSON array of double-quoted allowed ${field}`;
       } else {
         placeholder = `comma-separated allowed ${field}`;
       }
@@ -80,9 +84,11 @@ export function getAgentConfigForm(
           type: "input",
           placeholder,
           text: Array.isArray(value)
-            ? value.length === 0
-              ? "[]"
-              : value.join(", ")
+            ? field === "bash" || field === "files.read" || field === "files.write"
+              ? JSON.stringify(value)
+              : value.length === 0
+                ? "[]"
+                : value.join(", ")
             : (value ?? ""),
         },
       };

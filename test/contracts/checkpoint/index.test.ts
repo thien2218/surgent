@@ -393,9 +393,77 @@ describe("checkpoint restore hooks", () => {
       ? await fixture.emit(event, { preparation: { targetId: fixture.first, oldLeafId: fixture.second } as Extract<ExtensionEvent, { type: "session_before_tree" }>["preparation"] })
       : await fixture.emit(event, { entryId: fixture.first, position: "at" });
     expect(result).toBeUndefined();
+    if (event === "session_before_tree") {
+      expect(await readFile(join(fixture.cwd, "file"), "utf8")).toBe("later");
+      expect(fixture.ui.notify).not.toHaveBeenCalled();
+      fixture.session.branch(fixture.first);
+      await fixture.emit("session_tree", { oldLeafId: fixture.second, newLeafId: fixture.first });
+    }
     expect(await readFile(join(fixture.cwd, "file"), "utf8")).toBe("base");
     expect(fixture.ui.select).toHaveBeenCalledWith("Restore code state?", ["Yes, restore code to that point", "No, keep current code"]);
     expect(fixture.ui.notify).toHaveBeenCalledWith("Code restored to checkpoint", "info");
+  });
+
+  it("leaves code untouched when navigation never completes and discards its restore on retry", async () => {
+    const fixture = await history();
+    fixture.ui.select.mockResolvedValueOnce("Yes, restore code to that point").mockResolvedValueOnce("No, keep current code");
+    const preparation = { targetId: fixture.first, oldLeafId: fixture.second } as Extract<ExtensionEvent, { type: "session_before_tree" }>["preparation"];
+
+    await fixture.emit("session_before_tree", { preparation });
+    // Pi emits no session_tree when navigation is canceled or summarization fails.
+    expect(fixture.session.getLeafId()).toBe(fixture.second);
+    expect(await readFile(join(fixture.cwd, "file"), "utf8")).toBe("later");
+    expect(fixture.ui.notify).not.toHaveBeenCalled();
+
+    await fixture.emit("session_before_tree", { preparation });
+    fixture.session.branch(fixture.first);
+    await fixture.emit("session_tree", { oldLeafId: fixture.second, newLeafId: fixture.first });
+
+    expect(await readFile(join(fixture.cwd, "file"), "utf8")).toBe("later");
+    expect(fixture.ui.notify).not.toHaveBeenCalled();
+  });
+
+  it("restores the selected user checkpoint even when navigation lands on its parent", async () => {
+    const fixture = await history();
+    fixture.session.branch(fixture.first);
+    const target = fixture.session.appendMessage({ role: "user", content: "continue", timestamp: 0 });
+    await writeFile(join(fixture.cwd, "file"), "prompt");
+    await fixture.emit("before_agent_start");
+    fixture.session.branch(fixture.second);
+    await writeFile(join(fixture.cwd, "file"), "later");
+    fixture.ui.select.mockResolvedValue("Yes, restore code to that point");
+
+    await fixture.emit("session_before_tree", {
+      preparation: { targetId: target, oldLeafId: fixture.second } as Extract<ExtensionEvent, { type: "session_before_tree" }>["preparation"],
+    });
+    fixture.session.branch(fixture.first);
+    await fixture.emit("session_tree", { oldLeafId: fixture.second, newLeafId: fixture.first });
+
+    expect(await readFile(join(fixture.cwd, "file"), "utf8")).toBe("prompt");
+    expect(fixture.session.getLeafId()).toBe(fixture.first);
+  });
+
+  it.each(["exit", "throw"])("reports a restore %s failure after navigation without canceling or retrying", async (failure) => {
+    const fixture = await history();
+    fixture.ui.select.mockResolvedValue("Yes, restore code to that point");
+    await fixture.emit("session_before_tree", {
+      preparation: { targetId: fixture.first, oldLeafId: fixture.second } as Extract<ExtensionEvent, { type: "session_before_tree" }>["preparation"],
+    });
+    fixture.exec.mockImplementation((command, args, options) => {
+      if (!args.includes("read-tree")) return fixture.api.exec(command, args, options);
+      if (failure === "throw") return Promise.reject(new Error("restore denied"));
+      return Promise.resolve({ code: 1, stderr: "restore denied", stdout: "", killed: false });
+    });
+    fixture.session.branch(fixture.first);
+
+    expect(await fixture.emit("session_tree", { oldLeafId: fixture.second, newLeafId: fixture.first })).toBeUndefined();
+
+    expect(fixture.session.getLeafId()).toBe(fixture.first);
+    expect(await readFile(join(fixture.cwd, "file"), "utf8")).toBe("later");
+    expect(fixture.ui.notify).toHaveBeenCalledExactlyOnceWith(expect.stringContaining("restore denied"), "error");
+    fixture.exec.mockClear();
+    await fixture.emit("session_tree", { oldLeafId: fixture.second, newLeafId: fixture.first });
+    expect(fixture.exec).not.toHaveBeenCalled();
   });
 
   it.each(["No, keep current code", undefined])("leaves code unchanged when restore choice is %s", async (choice) => {

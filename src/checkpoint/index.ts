@@ -24,6 +24,7 @@ export default function (pi: ExtensionAPI) {
   const checkpoints = new Map<string, string>();
   let turnChanged = false;
   let repo: Repo | undefined;
+  let restore: { tree: string; oldLeafId: string | null } | undefined;
 
   async function saveCheckpoints(ctx: ExtensionContext) {
     if (!repo) return;
@@ -34,11 +35,11 @@ export default function (pi: ExtensionAPI) {
     );
   }
 
-  async function restoreCheckpoint(
+  async function selectCheckpoint(
     ctx: ExtensionContext,
     targetEntryId: string,
     currentEntryId: string | null,
-  ): Promise<{ cancel: boolean } | void> {
+  ): Promise<string | undefined> {
     if (!ctx.hasUI || !repo) return;
 
     const decision = shouldOfferRestore(targetEntryId, currentEntryId, ctx, checkpoints);
@@ -46,9 +47,15 @@ export default function (pi: ExtensionAPI) {
 
     const options = ["Yes, restore code to that point", "No, keep current code"];
     const choice = await ctx.ui.select("Restore code state?", options);
-    if (choice !== options[0]) return;
+    if (choice === options[0]) return decision.tree;
+  }
 
-    const restoreResult = await restoreSnapshot(pi, repo, decision.tree);
+  async function restoreCheckpoint(
+    ctx: ExtensionContext,
+    tree: string,
+  ): Promise<{ cancel: boolean } | void> {
+    if (!repo) return;
+    const restoreResult = await restoreSnapshot(pi, repo, tree);
     if (restoreResult.code !== 0) {
       const reason = restoreResult.stderr.trim() || restoreResult.stdout.trim();
       ctx.ui.notify(
@@ -144,13 +151,32 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
-  pi.on("session_before_tree", (event, ctx) => {
+  pi.on("session_before_tree", async (event, ctx) => {
+    restore = undefined;
     const { targetId, oldLeafId } = event.preparation;
-    return restoreCheckpoint(ctx, targetId, oldLeafId);
+    const tree = await selectCheckpoint(ctx, targetId, oldLeafId);
+    if (tree) restore = { tree, oldLeafId };
   });
 
-  pi.on("session_before_fork", (event, ctx) => {
-    return restoreCheckpoint(ctx, event.entryId, ctx.sessionManager.getLeafId());
+  pi.on("session_tree", async (event, ctx) => {
+    if (!restore) return;
+    const { tree, oldLeafId } = restore;
+    restore = undefined;
+    if (oldLeafId !== event.oldLeafId) return;
+    // Pi emits this only after navigation succeeds, including any summarization.
+    try {
+      await restoreCheckpoint(ctx, tree);
+    } catch (error) {
+      ctx.ui.notify(
+        `Checkpoint restore failed after navigation: ${error instanceof Error ? error.message : String(error)}`,
+        "error",
+      );
+    }
+  });
+
+  pi.on("session_before_fork", async (event, ctx) => {
+    const tree = await selectCheckpoint(ctx, event.entryId, ctx.sessionManager.getLeafId());
+    if (tree) return restoreCheckpoint(ctx, tree);
   });
 
   pi.on("agent_end", async (_event, ctx) => {
@@ -163,6 +189,7 @@ export default function (pi: ExtensionAPI) {
       if (!repo) return;
       await runCheckpointGit(pi, repo, ["gc", "--auto"]);
     } finally {
+      restore = undefined;
       repo = undefined;
     }
   });

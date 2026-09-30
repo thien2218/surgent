@@ -8,17 +8,23 @@ import { checkpointWorkspace } from "../../helpers/cleanup.js";
 import { assistantMessage } from "../../helpers/commands.js";
 import { recordExtension } from "../../helpers/extension.js";
 
-async function setup() {
+async function setup(persist = false) {
   const workspace = await checkpointWorkspace();
   const exec = vi.fn<ExtensionAPI["exec"]>(workspace.exec);
-  const extension = recordExtension({ exec });
-  const session = SessionManager.inMemory(workspace.cwd);
+  let extension = recordExtension({ exec });
+  const session = persist
+    ? SessionManager.create(workspace.cwd, join(workspace.home, "sessions"))
+    : SessionManager.inMemory(workspace.cwd);
   const ui = {
     select: vi.fn<ExtensionContext["ui"]["select"]>(),
     notify: vi.fn<ExtensionContext["ui"]["notify"]>(),
   };
   const ctx = { cwd: workspace.cwd, hasUI: true, sessionManager: session, ui } as unknown as ExtensionContext;
   checkpoint(extension.api);
+  const replaceExtension = () => {
+    extension = recordExtension({ exec });
+    checkpoint(extension.api);
+  };
   // Supply fields used by each handler; Pi routing and event construction are not simulated.
   const emit = async <Name extends ExtensionEvent["type"]>(name: Name, fields: Partial<Extract<ExtensionEvent, { type: Name }>> = {}) =>
     (extension.event(name) as (
@@ -28,11 +34,11 @@ async function setup() {
     await emit("agent_end");
     return (await readCheckpointStore(workspace.storePath))[ctx.sessionManager.getSessionId()] ?? {};
   };
-  return { ...workspace, exec, extension, session, ui, ctx, emit, saved };
+  return { ...workspace, exec, session, ui, ctx, emit, saved, replaceExtension };
 }
 
-async function history() {
-  const fixture = await setup();
+async function history(persist = false) {
+  const fixture = await setup(persist);
   await writeFile(join(fixture.cwd, "file"), "base");
   await fixture.emit("session_start", { reason: "startup" });
   const first = fixture.session.appendMessage(assistantMessage("first"));
@@ -55,6 +61,8 @@ describe("checkpoint session lifecycle", () => {
     expect(fixture.git(fixture.directory, ["show", `${saved[BASE_CHECKPOINT_KEY]}:file`])).toBe("base");
     expect(fixture.refs()).toContain(saved[BASE_CHECKPOINT_KEY]);
     await writeFile(join(fixture.cwd, "file"), "changed outside agent");
+    await fixture.emit("session_shutdown", { reason: "reload" });
+    fixture.replaceExtension();
     await fixture.emit("session_start", { reason: "reload" });
     expect(await fixture.saved()).toEqual(saved);
   });
@@ -74,14 +82,16 @@ describe("checkpoint session lifecycle", () => {
     expect(fixture.git(fixture.directory, ["show", `${saved[leaf]}:file`])).toBe("external edit");
   });
 
-  it("clears outgoing mappings and turn state when a different session starts", async () => {
+  it("starts replacement sessions without outgoing mappings or pending turn state", async () => {
     const fixture = await history();
     const old = await fixture.saved();
     const oldId = fixture.session.getSessionId();
     await fixture.emit("tool_result", { toolName: "edit", isError: false });
     const next = SessionManager.inMemory(fixture.cwd);
     const leaf = next.appendMessage(assistantMessage("next session"));
+    await fixture.emit("session_shutdown", { reason: "resume" });
     fixture.ctx.sessionManager = next;
+    fixture.replaceExtension();
     await fixture.emit("session_start", { reason: "resume" });
     await fixture.emit("turn_end");
     const saved = await fixture.saved();
@@ -131,7 +141,24 @@ describe("checkpoint session lifecycle", () => {
     await expect(readFile(fixture.storePath)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("saves on shutdown and leaves retained snapshots usable after repeated GC", async () => {
+  it("keeps replacement handlers inactive when startup fails after shutdown", async () => {
+    const fixture = await history();
+    const before = await fixture.saved();
+    await fixture.emit("session_shutdown", { reason: "resume" });
+    fixture.replaceExtension();
+    fixture.exec.mockRejectedValueOnce(Object.assign(new Error("filesystem unavailable"), { code: "EIO" }));
+    await expect(fixture.emit("session_start", { reason: "resume" })).rejects.toMatchObject({ code: "EIO" });
+    fixture.exec.mockClear();
+    await fixture.emit("before_agent_start");
+    await fixture.emit("tool_result", { toolName: "edit", isError: false });
+    await fixture.emit("turn_end");
+    await fixture.emit("agent_end");
+    await fixture.emit("session_shutdown");
+    expect(fixture.exec).not.toHaveBeenCalled();
+    expect((await readCheckpointStore(fixture.storePath))[fixture.session.getSessionId()]).toEqual(before);
+  });
+
+  it("saves on shutdown and skips Git work after repository disposal", async () => {
     const fixture = await history();
     await fixture.emit("session_shutdown");
     const saved = await readCheckpointStore(fixture.storePath);
@@ -140,7 +167,9 @@ describe("checkpoint session lifecycle", () => {
     const tree = checkpoints[fixture.second];
     expect(fixture.git(fixture.directory, ["show", `${tree}:file`])).toBe("later");
     expect(fixture.exec.mock.calls.some(([, args]) => args.includes("gc") && args.includes("--auto"))).toBe(true);
+    fixture.exec.mockClear();
     await fixture.emit("session_shutdown");
+    expect(fixture.exec).not.toHaveBeenCalled();
     expect(await readCheckpointStore(fixture.storePath)).toEqual(saved);
   });
 
@@ -149,7 +178,162 @@ describe("checkpoint session lifecycle", () => {
     await writeFile(fixture.storePath, "broken JSON");
     await expect(fixture.emit("agent_end")).rejects.toThrow();
     await expect(fixture.emit("session_shutdown")).rejects.toThrow();
+    fixture.exec.mockClear();
+    await fixture.emit("before_agent_start");
+    await fixture.emit("agent_end");
+    await expect(fixture.emit("session_shutdown")).resolves.toBeUndefined();
+    expect(fixture.exec).not.toHaveBeenCalled();
     expect(await readFile(fixture.storePath, "utf8")).toBe("broken JSON");
+  });
+
+  it("disposes the repository even when shutdown garbage collection throws", async () => {
+    const fixture = await history();
+    const before = await fixture.saved();
+    fixture.exec.mockImplementation((command, args, options) => args.includes("gc")
+      ? Promise.reject(Object.assign(new Error("garbage collection failed"), { code: "EIO" }))
+      : fixture.api.exec(command, args, options));
+
+    await expect(fixture.emit("session_shutdown")).rejects.toMatchObject({ code: "EIO" });
+
+    fixture.exec.mockClear();
+    await fixture.emit("before_agent_start");
+    await fixture.emit("agent_end");
+    await expect(fixture.emit("session_shutdown")).resolves.toBeUndefined();
+    expect(fixture.exec).not.toHaveBeenCalled();
+    expect((await readCheckpointStore(fixture.storePath))[fixture.session.getSessionId()]).toEqual(before);
+  });
+});
+
+describe("checkpoint fork inheritance", () => {
+  it.each(["at", "before"] as const)("inherits only the retained branch when forking %s a user entry", async (position) => {
+    const fixture = await setup(true);
+    await writeFile(join(fixture.cwd, "file"), "base");
+    await fixture.emit("session_start", { reason: "startup" });
+    const root = fixture.session.appendMessage(assistantMessage("unmapped root"));
+    const first = fixture.session.appendMessage(assistantMessage("first"));
+    await writeFile(join(fixture.cwd, "file"), "first");
+    await fixture.emit("before_agent_start");
+    const target = fixture.session.appendMessage({ role: "user", content: "continue", timestamp: 0 });
+    await writeFile(join(fixture.cwd, "file"), "prompt");
+    await fixture.emit("before_agent_start");
+    fixture.session.appendMessage(assistantMessage("later descendant"));
+    await writeFile(join(fixture.cwd, "file"), "later");
+    await fixture.emit("before_agent_start");
+    fixture.session.branch(first);
+    fixture.session.appendMessage(assistantMessage("sibling"));
+    await writeFile(join(fixture.cwd, "file"), "sibling");
+    await fixture.emit("before_agent_start");
+    await fixture.emit("session_shutdown");
+    const parentId = fixture.session.getSessionId();
+    const parentFile = fixture.session.getSessionFile();
+    const before = await readCheckpointStore(fixture.storePath);
+    const parent = before[parentId];
+    if (!parent) throw new Error("Parent checkpoints were not saved");
+
+    fixture.session.createBranchedSession(position === "at" ? target : first);
+    const child = recordExtension({ exec: fixture.exec });
+    checkpoint(child.api);
+    await child.event("session_start")({ type: "session_start", reason: "fork", previousSessionFile: parentFile }, fixture.ctx);
+
+    const saved = await readCheckpointStore(fixture.storePath);
+    expect(saved[parentId]).toEqual(parent);
+    expect(saved[fixture.session.getSessionId()]).toEqual({
+      [BASE_CHECKPOINT_KEY]: parent[BASE_CHECKPOINT_KEY],
+      [first]: parent[first],
+      ...(position === "at" ? { [target]: parent[target] } : {}),
+    });
+    expect(await readFile(join(fixture.cwd, "file"), "utf8")).toBe("sibling");
+    fixture.ui.select.mockResolvedValue("Yes, restore code to that point");
+    await child.event("session_before_fork")({ type: "session_before_fork", entryId: root, position: "at" }, fixture.ctx);
+    expect(await readFile(join(fixture.cwd, "file"), "utf8")).toBe("base");
+  });
+
+  it("persists inheritance before shutdown and carries child checkpoints into nested forks", async () => {
+    const fixture = await history(true);
+    await fixture.emit("session_shutdown");
+    const parentFile = fixture.session.getSessionFile();
+    fixture.session.createBranchedSession(fixture.second);
+    const childId = fixture.session.getSessionId();
+    const childFile = fixture.session.getSessionFile();
+    if (!childFile) throw new Error("Child session was not persisted");
+    const child = recordExtension({ exec: fixture.exec });
+    checkpoint(child.api);
+    await child.event("session_start")({ type: "session_start", reason: "fork", previousSessionFile: parentFile }, fixture.ctx);
+    const inherited = (await readCheckpointStore(fixture.storePath))[childId];
+    expect(inherited?.[fixture.second]).toBeDefined();
+
+    const reopened = SessionManager.open(childFile);
+    fixture.ctx.sessionManager = reopened;
+    const reload = recordExtension({ exec: fixture.exec });
+    checkpoint(reload.api);
+    await reload.event("session_start")({ type: "session_start", reason: "resume" }, fixture.ctx);
+    const third = reopened.appendMessage(assistantMessage("child turn"));
+    await writeFile(join(fixture.cwd, "file"), "child change");
+    await reload.event("before_agent_start")({ type: "before_agent_start", prompt: "next", systemPrompt: "test" } as Extract<ExtensionEvent, { type: "before_agent_start" }>, fixture.ctx);
+    await reload.event("session_shutdown")({ type: "session_shutdown", reason: "fork" }, fixture.ctx);
+    const childCheckpoints = (await readCheckpointStore(fixture.storePath))[childId];
+    expect(childCheckpoints?.[fixture.first]).toBe(inherited?.[fixture.first]);
+    expect(childCheckpoints?.[third]).toBeDefined();
+
+    reopened.createBranchedSession(third);
+    const nested = recordExtension({ exec: fixture.exec });
+    checkpoint(nested.api);
+    // Header lineage also works when Pi does not supply previousSessionFile.
+    await nested.event("session_start")({ type: "session_start", reason: "fork" }, fixture.ctx);
+    expect((await readCheckpointStore(fixture.storePath))[reopened.getSessionId()]).toEqual(childCheckpoints);
+    fixture.ui.select.mockResolvedValue("Yes, restore code to that point");
+    await nested.event("session_before_fork")({ type: "session_before_fork", entryId: fixture.second, position: "at" }, fixture.ctx);
+    expect(await readFile(join(fixture.cwd, "file"), "utf8")).toBe("later");
+  });
+
+  it("does not replace existing fork checkpoints with a parent's later changes", async () => {
+    const fixture = await history(true);
+    await fixture.emit("session_shutdown");
+    const parentId = fixture.session.getSessionId();
+    const parentFile = fixture.session.getSessionFile();
+    const original = (await readCheckpointStore(fixture.storePath))[parentId];
+    if (!original) throw new Error("Parent checkpoints were not saved");
+    fixture.session.createBranchedSession(fixture.second);
+    const childId = fixture.session.getSessionId();
+    await writeCheckpointStore(fixture.storePath, childId, new Map([[BASE_CHECKPOINT_KEY, original[fixture.second]!]]));
+    const child = recordExtension({ exec: fixture.exec });
+    checkpoint(child.api);
+    await child.event("session_start")({ type: "session_start", reason: "fork", previousSessionFile: parentFile }, fixture.ctx);
+    expect((await readCheckpointStore(fixture.storePath))[childId]).toEqual({ [BASE_CHECKPOINT_KEY]: original[fixture.second] });
+  });
+
+  it("inherits the original base when a fork retains no entries", async () => {
+    const fixture = await history(true);
+    await fixture.emit("session_shutdown");
+    const parentFile = fixture.session.getSessionFile();
+    const parent = (await readCheckpointStore(fixture.storePath))[fixture.session.getSessionId()];
+    const childSession = SessionManager.create(fixture.cwd, fixture.session.getSessionDir(), { parentSession: parentFile });
+    fixture.ctx.sessionManager = childSession;
+    const child = recordExtension({ exec: fixture.exec });
+    checkpoint(child.api);
+    await child.event("session_start")({ type: "session_start", reason: "fork", previousSessionFile: parentFile }, fixture.ctx);
+    expect((await readCheckpointStore(fixture.storePath))[childSession.getSessionId()]).toEqual({ [BASE_CHECKPOINT_KEY]: parent?.[BASE_CHECKPOINT_KEY] });
+    expect(await readFile(join(fixture.cwd, "file"), "utf8")).toBe("later");
+  });
+
+  it("skips initial checkpoint capture and persistence when the fork parent file is missing", async () => {
+    const fixture = await setup();
+    const parentFile = join(fixture.root, "missing-parent.jsonl");
+
+    await fixture.emit("session_start", { reason: "fork", previousSessionFile: parentFile });
+
+    expect(fixture.refs()).toEqual([]);
+    await expect(readFile(fixture.storePath)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(parentFile)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it.each(["broken JSON", "null", '{"type":"session","id":42}', '{"type":"message","id":"wrong"}'])("rejects an invalid parent header instead of guessing lineage: %s", async (contents) => {
+    const fixture = await setup();
+    const parentFile = join(fixture.root, "parent.jsonl");
+    await writeFile(parentFile, contents);
+    await expect(fixture.emit("session_start", { reason: "fork", previousSessionFile: parentFile })).rejects.toThrow("Invalid parent session header");
+    expect(await readFile(parentFile, "utf8")).toBe(contents);
+    await expect(readFile(fixture.storePath)).rejects.toMatchObject({ code: "ENOENT" });
   });
 });
 
@@ -261,6 +445,8 @@ describe("checkpoint restore hooks", () => {
     const fixture = await history();
     const saved = await fixture.saved();
     await writeCheckpointStore(fixture.storePath, "unrelated", new Map([[fixture.first, "f".repeat(40)]]));
+    await fixture.emit("session_shutdown", { reason: "resume" });
+    fixture.replaceExtension();
     await fixture.emit("session_start", { reason: "resume" });
     fixture.ui.select.mockResolvedValue("Yes, restore code to that point");
     expect(await fixture.emit("session_before_fork", { entryId: fixture.first, position: "at" })).toBeUndefined();

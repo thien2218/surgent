@@ -1,5 +1,11 @@
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+  parseSessionEntries,
+  type ExtensionAPI,
+  type ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+import { isMissingFileError } from "../utils.js";
 import { gcCheckpointRepo, openCheckpointRepo } from "./git.js";
 import { createSnapshot, retainSnapshot, restoreSnapshot } from "./snapshot.js";
 import {
@@ -57,23 +63,50 @@ export default function (pi: ExtensionAPI) {
     ctx.ui.notify("Code restored to checkpoint", "info");
   }
 
-  pi.on("session_start", async (_event, ctx) => {
+  pi.on("session_start", async (event, ctx) => {
     checkpoints.clear();
     turnChanged = false;
     repo = await openCheckpointRepo(pi, ctx.cwd);
     if (!repo) return;
 
     const store = await readCheckpointStore(join(repo.directory, "entries.json"));
-    const sessionCheckpoints = store[ctx.sessionManager.getSessionId()] ?? {};
-    for (const [entryId, tree] of Object.entries(sessionCheckpoints)) {
+    const sessionCheckpoints = store[ctx.sessionManager.getSessionId()];
+    for (const [entryId, tree] of Object.entries(sessionCheckpoints ?? {})) {
       checkpoints.set(entryId, tree);
     }
 
-    if (checkpoints.has(BASE_CHECKPOINT_KEY)) return;
-    const tree = await createSnapshot(pi, repo);
-    if (tree && (await retainSnapshot(pi, repo, tree))) {
-      checkpoints.set(BASE_CHECKPOINT_KEY, tree);
+    if (!sessionCheckpoints && event.reason === "fork") {
+      const parentFile = ctx.sessionManager.getHeader()?.parentSession ?? event.previousSessionFile;
+      if (!parentFile) return;
+      // Pi exposes no parent lineage for in-memory forks without a session file.
+      const contents = await readFile(parentFile, "utf8").catch((error) => {
+        if (!isMissingFileError(error)) throw error;
+        return undefined;
+      });
+      if (typeof contents === "undefined") return;
+
+      const header = parseSessionEntries(contents)[0];
+      if (header?.type !== "session" || typeof header.id !== "string") {
+        throw new Error("Invalid parent session header");
+      }
+
+      const parentCheckpoints = store[header.id] ?? {};
+      for (const entryId of [
+        BASE_CHECKPOINT_KEY,
+        ...ctx.sessionManager.getBranch().map((entry) => entry.id),
+      ]) {
+        const tree = parentCheckpoints[entryId];
+        if (tree) checkpoints.set(entryId, tree);
+      }
     }
+
+    if (!checkpoints.has(BASE_CHECKPOINT_KEY)) {
+      const tree = await createSnapshot(pi, repo);
+      if (tree && (await retainSnapshot(pi, repo, tree))) {
+        checkpoints.set(BASE_CHECKPOINT_KEY, tree);
+      }
+    }
+    if (event.reason === "fork") await saveCheckpoints(ctx);
   });
 
   pi.on("before_agent_start", async (_event, ctx) => {
@@ -125,8 +158,12 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_shutdown", async (_event, ctx) => {
-    await saveCheckpoints(ctx);
-    if (!repo) return;
-    await gcCheckpointRepo(pi, repo);
+    try {
+      await saveCheckpoints(ctx);
+      if (!repo) return;
+      await gcCheckpointRepo(pi, repo);
+    } finally {
+      repo = undefined;
+    }
   });
 }

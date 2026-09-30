@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 import { createSnapshot, retainSnapshot, restoreSnapshot } from "../../../src/checkpoint/snapshot.js";
-import { gcCheckpointRepo } from "../../../src/checkpoint/git.js";
+import { runCheckpointGit } from "../../../src/checkpoint/git.js";
 import { recordExtension } from "../../helpers/extension.js";
 
 const repo = { projectRoot: "/workspace", directory: "/checkpoints" };
@@ -42,6 +42,6 @@ describe("snapshot Git boundary", () => {
   });
 
   it("returns garbage collection failures instead of reporting success", async () => {
-    expect(await gcCheckpointRepo(execution("gc"), repo)).toMatchObject({ code: 1, stderr: "git failed" });
+    expect(await runCheckpointGit(execution("gc"), repo, ["gc", "--auto"])).toMatchObject({ code: 1, stderr: "git failed" });
   });
 });

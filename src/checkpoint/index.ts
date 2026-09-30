@@ -6,7 +6,7 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { isMissingFileError } from "../utils.js";
-import { gcCheckpointRepo, openCheckpointRepo } from "./git.js";
+import { openCheckpointRepo, runCheckpointGit } from "./git.js";
 import { createSnapshot, retainSnapshot, restoreSnapshot } from "./snapshot.js";
 import {
   BASE_CHECKPOINT_KEY,
@@ -161,7 +161,7 @@ export default function (pi: ExtensionAPI) {
     try {
       await saveCheckpoints(ctx);
       if (!repo) return;
-      await gcCheckpointRepo(pi, repo);
+      await runCheckpointGit(pi, repo, ["gc", "--auto"]);
     } finally {
       repo = undefined;
     }

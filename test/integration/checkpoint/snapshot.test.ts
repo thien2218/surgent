@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { chmod, lstat, readFile, readlink, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { gcCheckpointRepo, openCheckpointRepo } from "../../../src/checkpoint/git.js";
+import { openCheckpointRepo, runCheckpointGit } from "../../../src/checkpoint/git.js";
 import { createSnapshot, restoreSnapshot, retainSnapshot } from "../../../src/checkpoint/snapshot.js";
 import { openCheckpointWorkspace } from "../../helpers/checkpoint.js";
 import { recordExtension } from "../../helpers/extension.js";
@@ -130,7 +130,7 @@ describe("checkpoint staging and restore", () => {
     await writeFile(join(workspace.cwd, "tracked"), "later");
     await snapshot(workspace);
     workspace.checkpointGit(["gc", "--prune=now"]);
-    expect((await gcCheckpointRepo(workspace.api, workspace.repo)).code).toBe(0);
+    expect((await runCheckpointGit(workspace.api, workspace.repo, ["gc", "--auto"])).code).toBe(0);
     const reopened = await openCheckpointRepo(workspace.api, workspace.cwd);
     expect((await restoreSnapshot(workspace.api, reopened!, before)).code).toBe(0);
     expect(await readFile(join(workspace.cwd, "tracked"), "utf8")).toBe("retained");

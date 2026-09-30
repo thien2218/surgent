@@ -73,10 +73,6 @@ export async function runCheckpointGit(pi: ExtensionAPI, repo: Repo, args: strin
   );
 }
 
-export async function gcCheckpointRepo(pi: ExtensionAPI, repo: Repo) {
-  return runCheckpointGit(pi, repo, ["gc", "--auto"]);
-}
-
 async function initializeCheckpointRepo(
   pi: ExtensionAPI,
   repo: Repo,

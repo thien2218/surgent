@@ -94,3 +94,21 @@ describe("agent startup", () => {
     expect(process.stdout.listenerCount("resize")).toBe(listeners);
   });
 });
+
+describe("generated tool details", () => {
+  it.each(["subagent", "call_mcp_tool", "list_mcp_tools"])(
+    "clears stale details when %s is disabled and no related tool remains", async (tool) => {
+      const context = await setup();
+      const filePath = join(context.local, "general.md");
+      await writeFile(filePath, `---\ndescription: General\ntools: [${tool}]\n---\nInstructions`);
+      await context.start();
+      expect(await readFile(getPiPath("system"), "utf8")).toContain("## Available");
+
+      await writeFile(filePath, "---\ndescription: General\ntools: []\n---\nInstructions");
+      await context.start();
+
+      expect(await readFile(getPiPath("system"), "utf8")).toBe("");
+      expect(context.shutdown).not.toHaveBeenCalled();
+    },
+  );
+});

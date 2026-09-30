@@ -167,9 +167,11 @@ async function appendToolDetails(activeTools: string[], lines: Record<string, st
   if (activeTools.includes("subagent") && lines.subagent) {
     appendContent.push(lines.subagent);
   }
-  if (appendContent.length > 0) {
-    await writeFile(getPiPath("system"), `${appendContent.join("\n")}\n`, "utf8");
-  }
+  await writeFile(
+    getPiPath("system"),
+    appendContent.length ? `${appendContent.join("\n")}\n` : "",
+    "utf8",
+  );
 }
 
 export async function loadAgentProfiles(cwd: string, name?: string): Promise<AgentProfile[]> {

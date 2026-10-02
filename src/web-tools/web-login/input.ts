@@ -11,10 +11,9 @@ export class SecretInput extends Frame implements Focusable {
     private readonly tui: TUI,
     theme: Theme,
     private readonly title: string,
-    placeholder: string,
   ) {
     super(theme);
-    this.input = new Input({ placeholder });
+    this.input = new Input();
     this.input.onSubmit = (value) => this.onDone?.(value);
     this.input.onEscape = () => this.onDone?.(undefined);
     this.registerKeybindings([

@@ -23,7 +23,7 @@ import {
 import type { NormalizedQuestion, QuestionDraft, QuestionnaireResult } from "./types.js";
 
 export default class Questionnaire extends Frame implements Focusable {
-  onDone?: (result: QuestionnaireResult) => void;
+  onDone?: (result: QuestionnaireResult | null) => void;
 
   private readonly drafts: QuestionDraft[];
   private readonly editors: Editor[] = [];
@@ -43,6 +43,7 @@ export default class Questionnaire extends Frame implements Focusable {
       editor.onChange = () => {
         const draft = this.drafts[index]!;
         draft.text = editor.getText();
+        draft.message = undefined;
       };
       this.editors.push(editor);
     });
@@ -51,7 +52,7 @@ export default class Questionnaire extends Frame implements Focusable {
       {
         key: Key.escape,
         hint: "cancel",
-        handler: () => this.onDone?.({ cancelled: true, questions: [], answers: [] }),
+        handler: () => this.onDone?.(null),
       },
       {
         key: { navigation: "horizontal", metakey: Key.alt },
@@ -157,10 +158,7 @@ export default class Questionnaire extends Frame implements Focusable {
         const cursor = draft.cursor === index && !draft.editing;
         const marker = question.multi ? (selected ? "[x]" : "[ ]") : selected ? "(*)" : "( )";
         const prefix = cursor ? this.theme.fg("accent", "→") : " ";
-        const recommendation =
-          question.recommendedCount !== undefined && index < question.recommendedCount
-            ? this.theme.fg("success", " [recommended]")
-            : "";
+        const recommendation = option.recommended ? this.theme.fg("success", " [recommended]") : "";
         const exclusive = option.exclusive ? this.theme.fg("dim", " [exclusive]") : "";
         const optionText = `${marker} ${option.text}${recommendation}${exclusive}`;
         lines.add(`${prefix} ${cursor ? this.theme.fg("accent", optionText) : optionText}`);
@@ -180,6 +178,12 @@ export default class Questionnaire extends Frame implements Focusable {
     const currentAnswer = serializeQuestionAnswer(question, draft);
     lines.space();
     lines.add(`${this.theme.fg("success", "Answer:")} ${summarizeAnswer(currentAnswer)}`);
+    if (draft.message) {
+      lines.space();
+      for (const line of wrapTextWithAnsi(this.theme.fg("warning", draft.message), width)) {
+        lines.add(line);
+      }
+    }
 
     return lines.get();
   }
@@ -240,7 +244,11 @@ export default class Questionnaire extends Frame implements Focusable {
     if (!question.multi || draft.editing) return;
 
     const result = toggleSuggestion(question, draft, draft.cursor);
-    this.drafts[this.tab] = { ...draft, selectedIndexes: result.selectedIndexes };
+    this.drafts[this.tab] = {
+      ...draft,
+      selectedIndexes: result.selectedIndexes,
+      message: result.message,
+    };
   }
 
   private handleEnterKey() {
@@ -261,12 +269,15 @@ export default class Questionnaire extends Frame implements Focusable {
     if (this.tab === this.questions.length) {
       if (!this.allQuestionsAnswered()) {
         this.tab = this.firstIncompleteIndex();
+        this.drafts[this.tab]!.message = getValidationMessage(
+          this.questions[this.tab]!,
+          this.drafts[this.tab]!,
+        );
         this.syncInteractionState();
         return;
       }
 
       this.onDone?.({
-        cancelled: false,
         questions: this.questions.map((entry) => entry.prompt),
         answers: this.questions.map((entry, index) =>
           serializeQuestionAnswer(entry, this.drafts[index]!),
@@ -279,10 +290,8 @@ export default class Questionnaire extends Frame implements Focusable {
     const draft = this.drafts[this.tab]!;
     ensureSingleSelection(question, this.drafts[this.tab]!);
 
-    const message = getValidationMessage(question, draft);
-    if (message) {
-      return;
-    }
+    draft.message = getValidationMessage(question, draft);
+    if (draft.message) return;
     this.tab += 1;
     this.syncInteractionState();
   }

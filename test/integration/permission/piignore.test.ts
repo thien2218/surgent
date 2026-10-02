@@ -29,12 +29,12 @@ describe("piignore files", () => {
       .resolves.toBe('Path blocked by .piignore rule "/private//"');
   });
 
-  it("does not match relative ignore paths when process cwd is outside the supplied root", async () => {
+  it("matches relative ignore paths against the supplied root regardless of process cwd", async () => {
     await writeFile(join(workspace.cwd, ".piignore"), "private/\n");
     process.chdir(workspace.home);
 
-    // Characterizes the current cwd dependency; callers normally run in the project root.
-    await expect(resolvePiIgnorePathBlock(workspace.cwd, "private/file.ts")).resolves.toBeNull();
+    await expect(resolvePiIgnorePathBlock(workspace.cwd, "private/file.ts"))
+      .resolves.toBe('Path blocked by .piignore rule "private/"');
   });
 
   it("applies global ignore rules when the project ignore file is absent", async () => {

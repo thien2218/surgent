@@ -7,7 +7,7 @@ import { onTestFinished, vi } from "vitest";
 import { createState } from "../../src/state.js";
 import type { AgentMeta, AgentMode } from "../../src/agent/types.js";
 import { recordExtension } from "./extension.js";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -22,7 +22,7 @@ export async function makePermissionWorkspace(
   prefix = "surgent-permission-",
   changeCwd = false,
 ): Promise<PermissionWorkspace> {
-  const root = await mkdtemp(join(tmpdir(), prefix));
+  const root = await mkdtemp(join(await realpath(tmpdir()), prefix));
   const home = join(root, "home");
   const cwd = join(root, "work");
   const oldHome = process.env.HOME;

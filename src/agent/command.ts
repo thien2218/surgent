@@ -1,13 +1,13 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import type { Agent, AgentMeta } from "./types.js";
+import type { Agent, AgentMeta, AgentProfile } from "./types.js";
 import {
   createAgentFile,
-  DEFAULT_AGENT,
-  deleteAgentFiles,
+  deleteAgentFile,
   isBuiltIn,
-  loadAgents,
+  loadAgentProfiles,
   writeAgentMeta,
 } from "./storage.js";
+import { DEFAULT_AGENT, validateAgentName } from "./config.js";
 import { ExtendedSelectList } from "../ui/components/extended-select-list.js";
 import { ScopedInput } from "../ui/components/scoped-input.js";
 import { Form } from "../ui/components/form.js";
@@ -16,39 +16,55 @@ import { openInEditor } from "../utils.js";
 
 async function showAgentPicker(
   ctx: ExtensionCommandContext,
-  agents: Agent[],
-): Promise<string | null> {
-  const items = agents
-    .filter((agent) => agent.name !== DEFAULT_AGENT)
-    .map((agent) => ({
-      value: agent.name,
-      label: isBuiltIn(agent.filePath) ? `${agent.name} (built-in)` : agent.name,
-      description: agent.meta.description,
-      data: agent,
-    }));
+  profiles: AgentProfile[],
+): Promise<AgentProfile | "new" | "refresh" | null> {
+  return ctx.ui.custom<AgentProfile | "new" | "refresh" | null>(
+    (_tui, theme, _keybindings, done) => {
+      const items = profiles
+        .filter((profile) => profile.name !== DEFAULT_AGENT || profile.scope !== "built-in")
+        .map((profile) => ({
+          value: profile.filePath,
+          label: `${profile.name} [${profile.scope}]${profile.error ? ` ${theme.fg("error", "(invalid)")}` : ""}`,
+          description: profile.agent?.meta.description ?? profile.error,
+          data: profile,
+        }));
 
-  return ctx.ui.custom<string | null>((_tui, theme, _keybindings, done) => {
-    const selectList = new ExtendedSelectList(theme, {
-      title: "Agents",
-      addLabel: "Create new agent",
-      items,
-      maxVisibleRows: 12,
-      canDelete: (item) => item.data !== undefined && !isBuiltIn(item.data.filePath),
-    });
+      const selectList = new ExtendedSelectList(theme, {
+        title: "Agents",
+        addLabel: "Create new agent",
+        items,
+        maxVisibleRows: 12,
+        canDelete: (item) => item.data !== undefined && item.data.scope !== "built-in",
+      });
 
-    selectList.onAdd = () => done("__new__");
-    selectList.onSelect = (item) => done(String(item.value));
-    selectList.onCancel = () => done(null);
-    selectList.onDeleteBlocked = () => ctx.ui.notify("Built-in agent cannot be deleted", "error");
-    selectList.onDelete = (item) => {
-      const agentName = item.data?.name ?? String(item.value);
-      void deleteAgentFiles(agentName, ctx.cwd)
-        .then(() => ctx.ui.notify(`Agent "${agentName}" deleted`, "info"))
-        .catch(() => ctx.ui.notify(`Failed to delete agent "${agentName}"`, "error"));
-    };
+      selectList.onAdd = () => done("new");
+      selectList.onSelect = (item) => {
+        if (!item.data) return;
+        if (item.data.error !== undefined) {
+          ctx.ui.notify(`Cannot select agent "${item.data.name}": ${item.data.error}`, "error");
+          return;
+        }
+        done(item.data);
+      };
+      selectList.onCancel = () => done(null);
+      selectList.onDeleteBlocked = () => ctx.ui.notify("Built-in agent cannot be deleted", "error");
+      selectList.onDelete = (item) => {
+        if (!item.data) return;
+        const profile = item.data;
+        void deleteAgentFile(profile.filePath)
+          .then(() => ctx.ui.notify(`Agent "${profile.name}" deleted`, "info"))
+          .catch((error) =>
+            ctx.ui.notify(
+              `Failed to delete agent "${profile.name}": ${error instanceof Error ? error.message : String(error)}`,
+              "error",
+            ),
+          )
+          .finally(() => done("refresh"));
+      };
 
-    return selectList;
-  });
+      return selectList;
+    },
+  );
 }
 
 async function openAgentConfigEditor(ctx: ExtensionCommandContext, agent: Agent) {
@@ -109,15 +125,31 @@ async function handleNewAgent(ctx: ExtensionCommandContext) {
   const result = await ctx.ui.custom<{ name: string; scope: string } | null>(
     (_tui, theme, _kb, done) => {
       const scopedInput = new ScopedInput(theme, "Agent name");
-      scopedInput.onSubmit = ({ scope, value: name }) => done({ name, scope });
+      scopedInput.onSubmit = ({ scope, value: name }) => {
+        try {
+          validateAgentName(name);
+          done({ name, scope });
+        } catch (error) {
+          ctx.ui.notify((error as Error).message, "error");
+        }
+      };
       scopedInput.onCancel = () => done(null);
       return scopedInput;
     },
   );
-
   if (!result) return;
+
   const { name, scope } = result;
-  const filePath = await createAgentFile(scope === "project" ? ctx.cwd : scope, name);
+  let filePath: string;
+  try {
+    filePath = await createAgentFile(scope === "project" ? ctx.cwd : scope, name);
+  } catch (error) {
+    ctx.ui.notify(
+      `Failed to create agent: ${error instanceof Error ? error.message : String(error)}`,
+      "error",
+    );
+    return;
+  }
 
   ctx.ui.notify(`Agent created: ${filePath}`, "info");
   await openInEditor(ctx, filePath);
@@ -125,16 +157,16 @@ async function handleNewAgent(ctx: ExtensionCommandContext) {
 
 export async function agentsCommandHandler(ctx: ExtensionCommandContext) {
   while (true) {
-    const agents = await loadAgents(ctx.cwd);
-    const selected = await showAgentPicker(ctx, agents);
+    const profiles = await loadAgentProfiles(ctx.cwd);
+    const selected = await showAgentPicker(ctx, profiles);
     if (!selected) return;
+    if (selected === "refresh") continue;
 
-    if (selected === "__new__") {
+    if (selected === "new") {
       await handleNewAgent(ctx);
       return;
     }
 
-    const agent = agents.find((candidate) => candidate.name === selected);
-    if (agent && (await handleExistingAgent(ctx, agent))) return;
+    if (selected.agent && (await handleExistingAgent(ctx, selected.agent))) return;
   }
 }

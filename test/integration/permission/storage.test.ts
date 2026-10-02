@@ -76,6 +76,18 @@ describe("permission rule storage", () => {
     await expect(readRules(workspace.cwd)).rejects.toMatchObject({ code: "EISDIR" });
   });
 
+  it.each(["global", "project"] as const)("preserves malformed %s JSON when a rule mutation fails", async (scope) => {
+    const directory = scope === "global" ? join(workspace.home, ".pi", "agent") : join(workspace.cwd, ".pi");
+    const path = join(directory, "permissions.json");
+    await writeFile(path, "not-json");
+
+    await expect(addRules(workspace.cwd, "session-1", scope, "web", new Map([["https://example.test", true]])))
+      .rejects.toThrow(SyntaxError);
+
+    await expect(readFile(path, "utf8")).resolves.toBe("not-json");
+    await expect(readdir(directory)).resolves.toEqual(["permissions.json"]);
+  });
+
   it.each([
     { file: { "src/a.ts": true } },
     { web: { "https://example.test": "allow" } },

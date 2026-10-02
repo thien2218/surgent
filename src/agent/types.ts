@@ -19,6 +19,12 @@ export interface Agent {
   filePath: string;
 }
 
+export type AgentProfile = {
+  name: string;
+  filePath: string;
+  scope: "local" | "global" | "built-in";
+} & ({ agent: Agent; error?: never } | { agent?: never; error: string });
+
 export interface SettingsSchema {
   agent?: {
     mode?: AgentMode;

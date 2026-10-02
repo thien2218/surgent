@@ -86,7 +86,7 @@ export default function (pi: ExtensionAPI) {
       if (mode === "yolo") return;
       if (permission === "allowed" && !check.uncertainty) return;
 
-      return askForPermission(pi, ctx, check);
+      return await askForPermission(pi, ctx, check);
     } catch {
       return { block: true, reason: "Permission check failed" };
     }

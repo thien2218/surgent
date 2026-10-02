@@ -1,8 +1,10 @@
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { askQuestions } from "./helpers.js";
+import Questionnaire from "./component.js";
+import { normalizeQuestion } from "./helpers.js";
 import type { Question, QuestionnaireResult } from "./types.js";
 import { renderCallText } from "../utils.js";
 import { QuestionnaireParamsSchema } from "./schemas.js";
+import type { TextContent } from "@earendil-works/pi-ai";
 
 export default function (pi: ExtensionAPI) {
   pi.registerTool(
@@ -22,21 +24,31 @@ export default function (pi: ExtensionAPI) {
         "Do not ask what repo or prior answers already provide.",
       ],
       parameters: QuestionnaireParamsSchema,
-      async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      async execute(_toolCallId, params, signal, _onUpdate, ctx) {
         if (!ctx.hasUI) {
           return {
             content: [{ type: "text", text: "Questionnaire requires an interactive UI." }],
-            details: { cancelled: true, questions: [], answers: [] } satisfies QuestionnaireResult,
+            details: undefined,
           };
         }
 
-        const result = await askQuestions(params.questions, ctx.ui);
-        if (result.cancelled) {
-          return {
-            content: [{ type: "text", text: "User cancelled the questionnaire." }],
-            details: result,
-          };
-        }
+        const refusal = {
+          content: [
+            { type: "text", text: "User refused to answer the questionnaire." },
+          ] as TextContent[],
+          details: undefined,
+        };
+        if (signal?.aborted) return refusal;
+
+        const normalized = params.questions.map(normalizeQuestion);
+        const result = await ctx.ui.custom<QuestionnaireResult | null>(
+          (tui, theme, _keybindings, done) => {
+            const component = new Questionnaire(tui, theme, normalized);
+            component.onDone = done;
+            return component;
+          },
+        );
+        if (!result) return refusal;
 
         const content = result.questions
           .map(
@@ -47,7 +59,7 @@ export default function (pi: ExtensionAPI) {
 
         return {
           content: [{ type: "text", text: content }],
-          details: result,
+          details: undefined,
         };
       },
       renderCall(args, theme, { isPartial }) {

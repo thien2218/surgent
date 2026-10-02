@@ -35,7 +35,7 @@ export function createMcpCallTool(clientManager: McpClientManager) {
       if (!serverConfig) {
         throw new Error(`Unknown MCP server: ${serverName}. Configure it with /mcp.`);
       }
-      if (serverConfig.enabled === false) {
+      if (serverConfig.enabled !== true) {
         throw new Error(`MCP server ${serverName} is disabled.`);
       }
 

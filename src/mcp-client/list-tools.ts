@@ -37,7 +37,7 @@ export function createMcpListToolsTool(clientManager: McpClientManager) {
           sections.push(`### ${serverName}\nError: Unknown MCP server. Configure it with /mcp.`);
           continue;
         }
-        if (serverConfig.enabled === false) {
+        if (serverConfig.enabled !== true) {
           sections.push(`### ${serverName}\nError: MCP server is disabled.`);
           continue;
         }

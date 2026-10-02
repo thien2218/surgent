@@ -48,13 +48,11 @@ async function saveProviderKey(ctx: ExtensionCommandContext, provider: WebToolsP
     if (!replace) return;
   }
 
-  const apiKey = (
-    await inputApiKey(
-      ctx,
-      `${provider.label} API key${note}`,
-      `Paste your ${provider.label} API key`,
-    )
-  )?.trim();
+  const apiKey = await inputApiKey(
+    ctx,
+    `${provider.label} API key${note}`,
+    `Paste your ${provider.label} API key`,
+  );
 
   if (!apiKey) {
     ctx.ui.notify(`No ${provider.label} API key was saved`, "warning");

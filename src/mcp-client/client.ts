@@ -19,7 +19,13 @@ export class McpClientManager {
 
   async listTools(serverConfig: ResolvedMcpServer) {
     const connection = await this.getConnection(serverConfig);
-    return connection.client.listTools();
+    const result = await connection.client.listTools();
+    while (result.nextCursor) {
+      const page = await connection.client.listTools({ cursor: result.nextCursor });
+      result.tools.push(...page.tools);
+      result.nextCursor = page.nextCursor;
+    }
+    return result;
   }
 
   async callTool(serverConfig: ResolvedMcpServer, params: CallToolRequest["params"]) {

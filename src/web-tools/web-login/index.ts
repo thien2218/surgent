@@ -10,6 +10,7 @@ import {
   setApiKey,
 } from "./helpers.js";
 import type { WebToolsProvider } from "./types.js";
+import { inputApiKey } from "./input.js";
 
 async function selectProvider(ctx: ExtensionCommandContext): Promise<WebToolsProvider | undefined> {
   const selected = await ctx.ui.select(
@@ -47,7 +48,8 @@ async function saveProviderKey(ctx: ExtensionCommandContext, provider: WebToolsP
     if (!replace) return;
   }
 
-  const apiKey = await ctx.ui.input(
+  const apiKey = await inputApiKey(
+    ctx,
     `${provider.label} API key${note}`,
     `Paste your ${provider.label} API key`,
   );

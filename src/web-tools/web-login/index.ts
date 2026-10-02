@@ -10,7 +10,7 @@ import {
   setApiKey,
 } from "./helpers.js";
 import type { WebToolsProvider } from "./types.js";
-import { inputApiKey } from "./input.js";
+import { SecretInput } from "./input.js";
 
 async function selectProvider(ctx: ExtensionCommandContext): Promise<WebToolsProvider | undefined> {
   const selected = await ctx.ui.select(
@@ -38,7 +38,7 @@ async function chooseAction(
 }
 
 async function saveProviderKey(ctx: ExtensionCommandContext, provider: WebToolsProvider) {
-  const note = provider.name === "jina" ? ` (${provider.note})` : "";
+  if (!ctx.hasUI) return;
 
   if (await getApiKey(ctx.modelRegistry, provider.name)) {
     const replace = await ctx.ui.confirm(
@@ -48,11 +48,18 @@ async function saveProviderKey(ctx: ExtensionCommandContext, provider: WebToolsP
     if (!replace) return;
   }
 
-  const apiKey = await inputApiKey(
-    ctx,
-    `${provider.label} API key${note}`,
-    `Paste your ${provider.label} API key`,
-  );
+  const note = provider.name === "jina" ? ` (${provider.note})` : "";
+  const input = await ctx.ui.custom<string | undefined>((tui, theme, _keys, done) => {
+    const input = new SecretInput(
+      tui,
+      theme,
+      `${provider.label} API key${note}`,
+      `Paste your ${provider.label} API key`,
+    );
+    input.onDone = done;
+    return input;
+  });
+  const apiKey = input?.trim();
 
   if (!apiKey) {
     ctx.ui.notify(`No ${provider.label} API key was saved`, "warning");

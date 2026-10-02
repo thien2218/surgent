@@ -1,58 +1,56 @@
-import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Input, Text } from "@earendil-works/pi-tui";
+import type { Theme } from "@earendil-works/pi-coding-agent";
+import { Input, Key, type Focusable, type TUI } from "@earendil-works/pi-tui";
+import { Frame } from "../../ui/components/frame.js";
+import { Lines } from "../../ui/components/lines.js";
 
-export class SecretInput extends Input {
-  override render(width: number): string[] {
-    const value = this.getValue();
-    this.setValue("*".repeat(value.length));
-    try {
-      return super.render(width);
-    } finally {
-      this.setValue(value);
-    }
+export class SecretInput extends Frame implements Focusable {
+  private readonly input: Input;
+  onDone?: (value: string | undefined) => void;
+
+  constructor(
+    private readonly tui: TUI,
+    theme: Theme,
+    private readonly title: string,
+    placeholder: string,
+  ) {
+    super(theme);
+    this.input = new Input({ placeholder });
+    this.input.onSubmit = (value) => this.onDone?.(value);
+    this.input.onEscape = () => this.onDone?.(undefined);
+    this.registerKeybindings([
+      { key: Key.enter, hint: "save", handler: () => this.onDone?.(this.input.getValue()) },
+      { key: Key.escape, hint: "cancel", handler: () => this.onDone?.(undefined) },
+    ]);
   }
-}
 
-export async function inputApiKey(
-  ctx: ExtensionCommandContext,
-  title: string,
-  placeholder: string,
-) {
-  if (!ctx.hasUI) return;
-  if (ctx.mode !== "tui") {
-    ctx.ui.notify("Masked API key entry requires the interactive TUI.", "warning");
-    return;
+  get focused() {
+    return this.input.focused;
   }
 
-  const apiKey = await ctx.ui.custom<string | undefined>((tui, theme, _keys, done) => {
-    const input = new SecretInput({ placeholder });
-    const heading = new Text(theme.fg("accent", title), 0, 0);
-    const help = new Text(theme.fg("dim", "enter to save · escape to cancel"), 0, 0);
+  set focused(value: boolean) {
+    this.input.focused = value;
+  }
 
-    input.onSubmit = done;
-    input.onEscape = () => done(undefined);
+  override invalidate() {
+    super.invalidate();
+    this.input.invalidate();
+  }
 
-    return {
-      get focused() {
-        return input.focused;
-      },
-      set focused(value: boolean) {
-        input.focused = value;
-      },
-      render(width: number) {
-        return [...heading.render(width), ...input.render(width), ...help.render(width)];
-      },
-      handleInput(data: string) {
-        input.handleInput(data);
-        tui.requestRender();
-      },
-      invalidate() {
-        input.invalidate();
-        heading.invalidate();
-        help.invalidate();
-      },
-    };
-  });
+  protected override children(width: number): string[] {
+    const lines = new Lines(width);
+    const value = this.input.getValue();
+    this.input.setValue("*".repeat(value.length));
 
-  return apiKey?.trim();
+    lines.add(this.theme.fg("accent", this.title));
+    lines.space();
+    lines.add(this.input.render(width)[0]!);
+
+    this.input.setValue(value);
+    return lines.get();
+  }
+
+  handleInput(data: string) {
+    if (!this.handleKb(data)) this.input.handleInput(data);
+    this.tui.requestRender();
+  }
 }

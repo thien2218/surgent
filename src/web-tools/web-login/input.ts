@@ -27,7 +27,7 @@ export async function inputApiKey(
   return ctx.ui.custom<string | undefined>((tui, theme, _keys, done) => {
     const input = new SecretInput({ placeholder });
     const heading = new Text(theme.fg("accent", title), 0, 0);
-    const help = new Text(theme.fg("dim", "Enter to save · Escape to cancel"), 0, 0);
+    const help = new Text(theme.fg("dim", "enter to save · escape to cancel"), 0, 0);
 
     input.onSubmit = done;
     input.onEscape = () => done(undefined);

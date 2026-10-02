@@ -45,7 +45,14 @@ export function createMcpListToolsTool(clientManager: McpClientManager) {
           throw new Error("list_mcp_tools was cancelled.");
         }
 
-        const toolsResult = await clientManager.listTools(serverConfig);
+        let toolsResult;
+        try {
+          toolsResult = await clientManager.listTools(serverConfig);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          sections.push(`### ${serverName}\nError: ${message}`);
+          continue;
+        }
         const matched = filter
           ? toolsResult.tools.filter(
               (tool) => filter.test(tool.name) || filter.test(tool.description ?? ""),

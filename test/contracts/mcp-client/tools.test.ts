@@ -39,6 +39,25 @@ async function setup(config: Record<string, unknown> = {}) {
   return { recorded, ctx };
 }
 
+describe("MCP discovery failures", () => {
+  it.each([new Error("fixture unavailable"), "fixture unavailable"])("preserves healthy results and continues after a server failure: %s", async (error) => {
+    const config = { transport: "stdio", command: "unused-fixture", enabled: true };
+    const { recorded, ctx } = await setup({ healthy: config, broken: config, later: config });
+    sdk.listTools
+      .mockResolvedValueOnce({ tools: [{ name: "first", inputSchema: { type: "object" } }] })
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce({ tools: [{ name: "last", inputSchema: { type: "object" } }] });
+
+    const result = await recorded.tool("list_mcp_tools").execute("list", {
+      servers: ["healthy", "broken", "later"],
+    }, undefined, undefined, ctx);
+
+    expect(result.content[0]).toMatchObject({ text: expect.stringContaining("**first**") });
+    expect(result.content[0]).toMatchObject({ text: expect.stringContaining("### broken\nError: fixture unavailable") });
+    expect(result.content[0]).toMatchObject({ text: expect.stringContaining("**last**") });
+  });
+});
+
 describe("MCP tool access", () => {
   it.each([undefined, false, null, "true", 1])("blocks discovery and calls when enabled is %s", async (enabled) => {
     const { recorded, ctx } = await setup({

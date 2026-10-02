@@ -121,7 +121,31 @@ describe("permission precedence contract", () => {
     permissionExtension(pi.api);
     const result = await pi.event("tool_call")({ type: "tool_call", toolCallId: "call-1", toolName: "web_fetch", input: { url: "https://example.com" } }, ctx);
 
-    expect(result).toEqual({ block: true, reason: "Access to this resource is denied" });
+    expect(result).toEqual({ block: true, reason: expect.stringContaining("denied by policy rule: https://example.com") });
+  });
+
+  it.each([
+    { tool: "search", prompts: 0, denied: false },
+    { tool: "delete", prompts: 0, denied: true },
+    { tool: "unknown", prompts: 1, denied: false },
+  ])("enforces persisted MCP permissions for $tool", async ({ tool, prompts, denied }) => {
+    await writeRules({ project: { mcp: { "docs:search": true, "docs:delete": false } } }, workspace.cwd);
+    const pi = makePermissionSession(meta);
+    const ctx = makePermissionContext(workspace.cwd, true);
+    ctx.ui.custom.mockResolvedValue({ allowed: true });
+    permissionExtension(pi.api);
+
+    const result = await pi.event("tool_call")({
+      type: "tool_call", toolCallId: "mcp-call", toolName: "call_mcp_tool",
+      input: { server: "docs", tool },
+    }, ctx);
+
+    if (denied) {
+      expect(result).toEqual({ block: true, reason: expect.stringContaining("docs:delete") });
+    } else {
+      expect(result).toBeUndefined();
+    }
+    expect(ctx.ui.custom).toHaveBeenCalledTimes(prompts);
   });
 
   it("asks through UI for unresolved interactive requests", async () => {
@@ -224,6 +248,21 @@ describe("permission precedence contract", () => {
     const result = await pi.event("tool_call")({ type: "tool_call", toolCallId: "call-1", toolName: "read", input: { path: "file.ts" } }, ctx);
 
     expect(result).toEqual({ block: true, reason: "Permission check failed" });
+  });
+
+  it.each(["assistant", "restricted", "yolo"] as const)("blocks malformed project rules before prompting in %s mode", async (mode) => {
+    await writeFile(join(workspace.cwd, ".pi", "permissions.json"), "[]");
+    const pi = makePermissionSession(meta, mode);
+    const ctx = makePermissionContext(workspace.cwd, true);
+    ctx.ui.custom.mockResolvedValue({ allowed: true });
+    permissionExtension(pi.api);
+
+    const result = await pi.event("tool_call")({
+      type: "tool_call", toolCallId: "invalid-policy", toolName: "read", input: { path: "file.ts" },
+    }, ctx);
+
+    expect(result).toEqual({ block: true, reason: "Permission check failed" });
+    expect(ctx.ui.custom).not.toHaveBeenCalled();
   });
 
   it("rejects tool calls when session state is unavailable", async () => {

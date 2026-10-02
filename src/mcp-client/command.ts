@@ -208,6 +208,7 @@ async function handleSaveFlow(ctx: ExtensionCommandContext) {
   }
 
   const transportType = await ctx.ui.select("Server type", ["Remote", "Local"]);
+  if (!transportType) return;
   const transport = transportType === "Remote" ? "http" : "stdio";
 
   const config = await promptServerConfig(ctx, transport, name, scope, configuredServers[name]);

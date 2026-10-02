@@ -2,6 +2,7 @@ import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { runCheckpointGit } from "./git.js";
+import { isMissingFileError } from "../utils.js";
 import type { Repo } from "./index.js";
 
 const UNTRACKED_FILE_LIMIT = 2 * 1024 * 1024;
@@ -37,8 +38,9 @@ export async function stageCheckpoint(pi: ExtensionAPI, repo: Repo): Promise<boo
         const fileStatus = await lstat(join(repo.projectRoot, filePath));
         if (fileStatus.isFile() && fileStatus.size > UNTRACKED_FILE_LIMIT) return;
         filePaths.push(filePath);
-      } catch {
-        return; // file disappeared before staging.
+      } catch (error) {
+        if (isMissingFileError(error)) return; // file disappeared before staging.
+        throw error;
       }
     }),
   );

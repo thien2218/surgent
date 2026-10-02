@@ -8,11 +8,11 @@ import { NativeWebFetchProvider } from "./native.js";
 import { TavilyProvider } from "./tavily.js";
 
 export interface WebSearchProvider {
-  search(query: string, news: boolean, max: number): Promise<WebSearchResult[]>;
+  search(query: string, news: boolean, max: number, signal?: AbortSignal): Promise<WebSearchResult[]>;
 }
 
 export interface WebFetchProvider {
-  fetch(url: string): Promise<WebFetchResponse>;
+  fetch(url: string, signal?: AbortSignal): Promise<WebFetchResponse>;
 }
 
 export class WebToolsFactory {

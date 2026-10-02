@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { access, copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { getPiPath } from "../utils.js";
+import { getPiPath, isMissingFileError } from "../utils.js";
 import type { Repo } from "./index.js";
 
 const CHECKPOINT_SOURCE_KEY = "surgent.checkpointSource";
@@ -73,10 +73,6 @@ export async function runCheckpointGit(pi: ExtensionAPI, repo: Repo, args: strin
   );
 }
 
-export async function gcCheckpointRepo(pi: ExtensionAPI, repo: Repo) {
-  return runCheckpointGit(pi, repo, ["gc", "--auto"]);
-}
-
 async function initializeCheckpointRepo(
   pi: ExtensionAPI,
   repo: Repo,
@@ -99,7 +95,6 @@ async function initializeCheckpointRepo(
     { key: "core.longpaths", value: "true" },
     { key: "core.symlinks", value: "true" },
     { key: "core.fsmonitor", value: "false" },
-    { key: CHECKPOINT_SOURCE_KEY, value: sourceGitDir },
   ]) {
     const configResult = await runCheckpointGit(pi, repo, ["config", config.key, config.value]);
     if (configResult.code !== 0) return false;
@@ -149,7 +144,13 @@ async function initializeCheckpointRepo(
     }
   }
 
-  return true;
+  // The source marker also marks initialization complete; write it last.
+  const sourceResult = await runCheckpointGit(pi, repo, [
+    "config",
+    CHECKPOINT_SOURCE_KEY,
+    sourceGitDir,
+  ]);
+  return sourceResult.code === 0;
 }
 
 async function syncCheckpointIgnore(pi: ExtensionAPI, repo: Repo) {
@@ -162,7 +163,10 @@ async function syncCheckpointIgnore(pi: ExtensionAPI, repo: Repo) {
 
   const checkpointIgnoreFile = join(repo.directory, ".git", "info", "exclude");
   const sourceIgnoreFile = sourceIgnoreResult.stdout.trim();
-  const sourceIgnoreContents = await readFile(sourceIgnoreFile, "utf8").catch(() => undefined);
+  const sourceIgnoreContents = await readFile(sourceIgnoreFile, "utf8").catch((error) => {
+    if (!isMissingFileError(error)) throw error;
+    return undefined;
+  });
   if (sourceIgnoreContents === undefined) {
     await rm(checkpointIgnoreFile, { force: true });
     return;

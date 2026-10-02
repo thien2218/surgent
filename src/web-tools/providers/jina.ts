@@ -5,9 +5,10 @@ import type { WebFetchProvider } from "./index.js";
 export class JinaWebFetchProvider implements WebFetchProvider {
   constructor(private readonly apiKey?: string) {}
 
-  async fetch(url: string): Promise<WebFetchResponse> {
+  async fetch(url: string, signal?: AbortSignal): Promise<WebFetchResponse> {
     try {
       const response = await fetch(this.toJinaUrl(url), {
+        signal,
         headers: {
           Accept: "text/plain, text/markdown;q=0.9",
           ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),

@@ -10,13 +10,13 @@ import {
   setApiKey,
 } from "./helpers.js";
 import type { WebToolsProvider } from "./types.js";
+import { SecretInput } from "./input.js";
 
 async function selectProvider(ctx: ExtensionCommandContext): Promise<WebToolsProvider | undefined> {
   const selected = await ctx.ui.select(
     "Configure web provider authentication",
     getWebToolsProviderOptions(),
   );
-
   if (!selected) return;
   return getWebToolsProviderByLabel(selected);
 }
@@ -37,7 +37,7 @@ async function chooseAction(
 }
 
 async function saveProviderKey(ctx: ExtensionCommandContext, provider: WebToolsProvider) {
-  const note = provider.name === "jina" ? ` (${provider.note})` : "";
+  if (!ctx.hasUI) return;
 
   if (await getApiKey(ctx.modelRegistry, provider.name)) {
     const replace = await ctx.ui.confirm(
@@ -47,17 +47,25 @@ async function saveProviderKey(ctx: ExtensionCommandContext, provider: WebToolsP
     if (!replace) return;
   }
 
-  const apiKey = await ctx.ui.input(
-    `${provider.label} API key${note}`,
-    `Paste your ${provider.label} API key`,
-  );
+  const note = provider.name === "jina" ? ` (${provider.note})` : "";
+  const text = await ctx.ui.custom<string | undefined>((tui, theme, _keys, done) => {
+    const input = new SecretInput(
+      tui,
+      theme,
+      `${provider.label} API key${note}`,
+      `Paste your ${provider.label} API key`,
+    );
+    input.onDone = done;
+    return input;
+  });
 
+  const apiKey = text?.trim();
   if (!apiKey) {
     ctx.ui.notify(`No ${provider.label} API key was saved`, "warning");
     return;
   }
 
-  await setApiKey(ctx.modelRegistry, provider.name, apiKey.trim());
+  await setApiKey(ctx.modelRegistry, provider.name, apiKey);
   ctx.ui.notify(`Saved ${provider.label} API key`, "info");
 }
 
@@ -75,7 +83,6 @@ async function clearProviderKey(ctx: ExtensionCommandContext, provider: WebTools
 export default async function webLoginCommand(args: string, ctx: ExtensionCommandContext) {
   const arg = args.trim();
   const provider = arg ? findWebToolsProvider(arg) : await selectProvider(ctx);
-
   if (!provider) {
     if (arg) {
       ctx.ui.notify(
@@ -89,7 +96,6 @@ export default async function webLoginCommand(args: string, ctx: ExtensionComman
   ctx.ui.notify(await formatProviderStatus(ctx.modelRegistry, provider), "info");
 
   const action = await chooseAction(ctx, provider);
-
   if (!action) return;
   if (action === "clear") {
     await clearProviderKey(ctx, provider);

@@ -73,7 +73,7 @@ describe("agent mode permission behavior", () => {
     );
 
     expect(unresolved).toBeUndefined();
-    expect(denied).toEqual({ block: true, reason: "Access to this resource is denied" });
+    expect(denied).toEqual({ block: true, reason: expect.stringContaining("denied by policy rule: https://blocked.example") });
   });
 
   it("keeps agent profile allowlists enforced in yolo mode", async () => {
@@ -120,7 +120,7 @@ describe("agent mode permission behavior", () => {
     );
 
     expect(allowedByGlobal).toBe("ask");
-    expect(deniedByGlobal).toBe("deny");
+    expect(deniedByGlobal).toBe("https://denied.example");
   });
 
   it("requires explicit permission for restricted writes that assistant auto-allows inside cwd", async () => {

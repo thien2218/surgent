@@ -42,18 +42,17 @@ const webSearchTool = defineTool({
       }
 
       const apiKey = await getApiKey(ctx.modelRegistry, provider.name);
-
+      signal?.throwIfAborted();
       if (!apiKey) {
         attempts.push(`${provider.label}: not configured`);
         continue;
       }
 
       anyConfiguredProvider = true;
-
       try {
         const results = await webToolsFactory
           .createWebSearcher(provider.name, apiKey)
-          .search(trimmed, news, max);
+          .search(trimmed, news, max, signal);
 
         if (results.length === 0) {
           attempts.push(`${provider.label}: returned no results`);
@@ -65,6 +64,7 @@ const webSearchTool = defineTool({
           details: { results } satisfies { results: WebSearchResult[] },
         };
       } catch (error) {
+        signal?.throwIfAborted();
         attempts.push(`${provider.label}: ${formatErrorMessage(error)}`);
       }
     }

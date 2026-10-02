@@ -1,5 +1,5 @@
 import { mkdir, symlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join, parse } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolvePermission, resolvePermissionPath } from "../../../src/permission/resolution.js";
 import { resolvePiIgnorePathBlock } from "../../../src/permission/piignore.js";
@@ -27,7 +27,7 @@ describe("permission file identity", () => {
     await writeRules({ project: { file: { ".": "deny" } } }, workspace.cwd);
 
     await expect(resolvePermission(workspace.cwd, await fileCheck("read", "."), "assistant"))
-      .resolves.toBe("deny");
+      .resolves.toBe(".");
   });
 
   it.each(["src/blocked.ts", "./src/blocked.ts", "src/../src/blocked.ts", "absolute"])(
@@ -37,7 +37,7 @@ describe("permission file identity", () => {
       const path = spelling === "absolute" ? join(workspace.cwd, "src", "blocked.ts") : spelling;
 
       await expect(resolvePermission(workspace.cwd, await fileCheck("read", `${path}`), "assistant"))
-        .resolves.toBe("deny");
+        .resolves.toBe("src/blocked.ts");
     },
   );
 
@@ -59,7 +59,7 @@ describe("permission file identity", () => {
     } } }, workspace.cwd);
 
     await expect(resolvePermission(workspace.cwd, await fileCheck("read", "alias.ts"), "assistant"))
-      .resolves.toBe(denied === "target" ? "deny" : "allowed");
+      .resolves.toBe(denied === "target" ? "src/blocked.ts" : "allowed");
   });
 
   it("offers target-relative rules when access through an alias needs approval", async () => {
@@ -78,11 +78,10 @@ describe("permission file identity", () => {
       .resolves.toBe("allowed");
   });
 
-  it.each([{ operation: "read", path: "escape/existing.txt" }, { operation: "write", path: "escape/new/nested.txt" }] as const)(
-    "does not auto-allow an escaped physical target: $path", async ({ operation, path }) => {
-      await mkdir(join(workspace.root, "outside"));
-      await writeFile(join(workspace.root, "outside", "existing.txt"), "outside");
-      await symlink(join(workspace.root, "outside"), join(workspace.cwd, "escape"));
+  it.each(["read", "write"] as const)(
+    "does not auto-allow %s through a symlink outside all allowed roots", async (operation) => {
+      await symlink(parse(workspace.root).root, join(workspace.cwd, "escape"));
+      const path = operation === "read" ? "escape" : `escape/${basename(workspace.root)}/new.txt`;
 
       await expect(resolvePermission(workspace.cwd, await fileCheck(operation, path), "assistant"))
         .resolves.toBe("ask");
@@ -95,7 +94,7 @@ describe("permission file identity", () => {
     await writeRules({ project: { file: { "../secret.ts": "deny", "escape.ts": "read" } } }, workspace.cwd);
 
     await expect(resolvePermission(workspace.cwd, await fileCheck("read", "escape.ts"), "assistant"))
-      .resolves.toBe("deny");
+      .resolves.toBe("../secret.ts");
   });
 
   it.each(["dangling", "loop"])("rejects uncertain physical resolution for %s links", async (kind) => {

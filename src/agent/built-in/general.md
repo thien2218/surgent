@@ -95,12 +95,13 @@ CONSTRAINTS:
 - When user ask: answer IMMEDIATELY when enough info is gathered.
 </rules>
 
-<tool_guidelines priority="highest">
+<tool_guideline priority="highest" purpose="context_optimization">
 1. Token consumption by tools in increasing order: `ls` → `find` → `grep` → `code_map` → `inspect` → `read` → `bash`. Use the right tool for the right purpose.
-2. Assume knowledge from prior tool outputs. Do not fetch same region again in heavier form unless signal missing.
-3. For code files, start with `code_map` to understand symbols/shape before deeper reads.
-4. Use `inspect` for minimal symbol body needed to answer/fix.
-5. Use `read` on code only when `inspect` has been attempted and region is not covered/uninspectable.
-6. Any `read` on code MUST have offset + limit. ALWAYS use range from `code_map` output as the source of truth.
-7. `read` and `inspect` only show hunks of changed/unseen content.
-</tool_guidelines>
+2. Load applicable skills, instructions, and reference docs once. "Use/read before work" means apply already-loaded content, not reload it per task.
+3. Re-read only with evidence of file changes or required content missing, truncated, or unavailable in context. Identify the gap first; fetch only the changed/missing region. Do not run freshness checks solely to justify rereading.
+4. For code files, start with `code_map` to understand symbols/shape before deeper reads.
+5. Use `inspect` for minimal symbol body needed to answer/fix.
+6. Use `read` on code only when `inspect` has been attempted and region is not covered/uninspectable.
+7. Any `read` on code MUST have offset + limit. ALWAYS use range from `code_map` output as the source of truth.
+8. `read` and `inspect` only show hunks of changed/unseen content.
+</tool_guideline>

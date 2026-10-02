@@ -1,7 +1,7 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { isUuidv7, readJson } from "../utils.js";
+import { isUuidv7, readJson, writeJson } from "../utils.js";
 
 export const BASE_CHECKPOINT_KEY = "__base__";
 
@@ -19,7 +19,7 @@ export async function readCheckpointStore(
     for (const [entryId, tree] of Object.entries(checkpoints)) {
       if (typeof tree !== "string") continue;
       const checkpointTree = tree.trim();
-      if (!/^[0-9a-f]{40,64}$/i.test(checkpointTree)) continue;
+      if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(checkpointTree)) continue;
       sessionCheckpoints[entryId] = checkpointTree;
     }
     store[sessionId] = sessionCheckpoints;
@@ -40,7 +40,8 @@ export async function writeCheckpointStore(
     store[sessionId] = Object.fromEntries(checkpoints);
   }
 
-  await persistCheckpointStore(filePath, store);
+  await mkdir(dirname(filePath), { recursive: true });
+  await writeJson(filePath, store);
 }
 
 export async function pruneCheckpointStore(
@@ -61,20 +62,12 @@ export async function pruneCheckpointStore(
   }
 
   if (!hasChanges) return [];
-  await persistCheckpointStore(filePath, store);
+  await writeJson(filePath, store);
 
   const activeTrees = new Set(
     Object.values(store).flatMap((checkpoints) => Object.values(checkpoints)),
   );
   return [...removedTrees].filter((tree) => !activeTrees.has(tree));
-}
-
-async function persistCheckpointStore(
-  filePath: string,
-  store: Record<string, Record<string, string>>,
-) {
-  await mkdir(dirname(filePath), { recursive: true });
-  await writeFile(filePath, JSON.stringify(store, null, 2) + "\n", "utf8");
 }
 
 export function findCheckpoint(

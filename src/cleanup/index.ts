@@ -1,6 +1,5 @@
 import { SessionManager, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { cleanupCheckpoints } from "./checkpoint.js";
-import { cleanupPermissions } from "./permission.js";
 import { cleanupSubsessions } from "./subsession.js";
 import { getPiPath } from "../utils.js";
 
@@ -12,10 +11,9 @@ export default function (pi: ExtensionAPI) {
     ]);
     const sessionIds = new Set(sessions.map((session) => session.id));
     const allSessionIds = new Set([...sessionIds, ...subsessions.map((session) => session.id)]);
-    sessionIds.add(ctx.sessionManager.getSessionId());
+    sessionIds.add(ctx.sessionManager.getSessionId()); // `/plan` artifact rely on this
 
     cleanupCheckpoints(pi, ctx.cwd, allSessionIds).catch(() => undefined);
-    cleanupPermissions(ctx.cwd, allSessionIds).catch(() => undefined);
     cleanupSubsessions(ctx.cwd, sessionIds).catch(() => undefined);
   });
 }

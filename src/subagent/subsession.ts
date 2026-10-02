@@ -94,6 +94,7 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
 
 async function createSubsession(params: CreateSubsessionParams): Promise<Subsession> {
   const { cwd, onSnapshot, session, ...rest } = params;
+
   const subsession: Subsession = {
     ...rest,
     async exec(input: string, signal?: AbortSignal) {
@@ -128,8 +129,12 @@ async function createSubsession(params: CreateSubsessionParams): Promise<Subsess
         subsession.result.status = "error";
         subsession.result.output = `Output validation failed: ${validationError}`;
       }
-
-      await saveSubsession(cwd, subsession);
+      try {
+        await saveSubsession(cwd, subsession);
+      } catch (error) {
+        await subsession.dispose();
+        throw error;
+      }
     },
     async dispose() {
       if (!session) return;

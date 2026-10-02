@@ -131,7 +131,7 @@ export const SECRET_PATTERNS: SecretPattern[] = [
   {
     name: "Hardcoded Authorization Header",
     pattern:
-      /["']Authorization["']\s*:\s*["'](?:Bearer|Basic|Token)\s+([A-Za-z0-9+\/=_.\-]{20,})["']/,
+      /["']Authorization["']\s*:\s*["'](?:Bearer|Basic|Token)\s+([A-Za-z0-9+\/=_.\-]{20,})["']/i,
     severe: true,
   },
   {
@@ -143,17 +143,17 @@ export const SECRET_PATTERNS: SecretPattern[] = [
   // ── Private Keys ──
   {
     name: "RSA Private Key",
-    pattern: /-----BEGIN RSA PRIVATE KEY-----/,
+    pattern: /-{5}BEGIN RSA PRIVATE KEY-{5}[\s\S]*?(?:-{5}END RSA PRIVATE KEY-{5}|$)/,
     severe: true,
   },
   {
     name: "EC Private Key",
-    pattern: /-----BEGIN EC PRIVATE KEY-----/,
+    pattern: /-{5}BEGIN EC PRIVATE KEY-{5}[\s\S]*?(?:-{5}END EC PRIVATE KEY-{5}|$)/,
     severe: true,
   },
   {
     name: "Private Key (generic)",
-    pattern: /-----BEGIN PRIVATE KEY-----/,
+    pattern: /-{5}BEGIN PRIVATE KEY-{5}[\s\S]*?(?:-{5}END PRIVATE KEY-{5}|$)/,
     severe: true,
   },
 
@@ -215,7 +215,7 @@ export const SECRET_PATTERNS: SecretPattern[] = [
     severe: true,
   },
 
-  // ── Generic secrets (with entropy check) ──
+  // ── Generic cases (with entropy check) ──
   {
     name: "Generic API Key",
     pattern: /(?:api[_\-]?key|apikey)["']?\s*[:=]\s*["']([A-Za-z0-9_\-]{20,60})["']/i,
@@ -223,7 +223,7 @@ export const SECRET_PATTERNS: SecretPattern[] = [
   },
   {
     name: "Generic Secret",
-    pattern: /(?:secret|client_secret)["']?\s*[:=]\s*["']([A-Za-z0-9_\-+\/]{20,80})["']/i,
+    pattern: /(?:token|secret|key|password|credential|auth|api|private)[_\-]?[a-z]*["']?\s*[:=]\s*["']?([A-Za-z0-9+\/=\-_]{20,120})/i,
     severe: false,
   },
   {

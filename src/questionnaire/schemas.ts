@@ -1,8 +1,9 @@
 import Type from "typebox";
 
 export const QuestionOptionSchema = Type.Object({
-  text: Type.String({ description: "Option text" }),
+  text: Type.String({ minLength: 1, pattern: "\\S", description: "Option text" }),
   description: Type.Optional(Type.String({ description: "Option helper text" })),
+  recommended: Type.Optional(Type.Boolean({ description: "Whether this option is recommended" })),
   exclusive: Type.Optional(
     Type.Boolean({
       description: "If selected, clears other options",
@@ -11,22 +12,25 @@ export const QuestionOptionSchema = Type.Object({
 });
 
 export const QuestionSchema = Type.Object({
-  prompt: Type.String({ description: "Question text" }),
+  prompt: Type.String({ minLength: 1, pattern: "\\S", description: "Question text" }),
   reason: Type.Optional(Type.String({ description: "Why answer matters" })),
   options: Type.Optional(Type.Array(QuestionOptionSchema, { description: "Suggested options" })),
   placeholder: Type.String({
+    minLength: 1,
+    pattern: "\\S",
     description: "Freeform input placeholder",
     default: "Type your answer",
   }),
-  multi: Type.Optional(Type.Boolean({ description: "Allow multiple options" })),
-  recommendedCount: Type.Optional(
-    Type.Integer({
-      minimum: 1,
-      description: "Recommended options count",
+  multi: Type.Optional(
+    Type.Boolean({
+      description: "Allow multiple selections when options exist; ignored for freeform questions",
     }),
   ),
   minSelections: Type.Optional(
-    Type.Integer({ minimum: 0, description: "Min options to select (if multi=true)" }),
+    Type.Integer({
+      minimum: 1,
+      description: "Min options to select (if multi=true and options exist)",
+    }),
   ),
   maxSelections: Type.Optional(
     Type.Integer({ minimum: 1, description: "Max options to select (if multi=true)" }),

@@ -35,12 +35,10 @@ const webFetchTool = defineTool({
     const attempts: string[] = [];
     const nativeFetch = { name: "native", label: "Native fetch" } as const;
 
-    pruneExpiredCacheDirs(cacheDate);
-    if (signal?.aborted) {
-      throw new Error("web_fetch was cancelled.");
-    }
-
+    await pruneExpiredCacheDirs(cacheDate);
     const cached = await readCachedContent(url, cacheDate);
+    signal?.throwIfAborted();
+
     if (cached !== undefined) {
       const result: WebFetchResponse = { provider: "native", content: cached, url };
       return {
@@ -50,12 +48,9 @@ const webFetchTool = defineTool({
     }
 
     for (const provider of [nativeFetch, ...WEB_FETCH_PROVIDERS]) {
-      if (signal?.aborted) {
-        throw new Error("web_fetch was cancelled.");
-      }
-
       const apiKey =
         provider.name === "native" ? undefined : await getApiKey(ctx.modelRegistry, provider.name);
+      signal?.throwIfAborted();
 
       if ((provider.name === "firecrawl" || provider.name === "tavily") && !apiKey) {
         attempts.push(`${provider.label}: not configured`);
@@ -63,9 +58,12 @@ const webFetchTool = defineTool({
       }
 
       try {
-        const response = await webToolsFactory.createWebFetcher(provider.name, apiKey).fetch(url);
+        const response = await webToolsFactory
+          .createWebFetcher(provider.name, apiKey)
+          .fetch(url, signal);
+
         if (response.error === undefined) {
-          await writeFetchedResult(url, response.content, cacheDate);
+          await writeFetchedResult(url, response.content, cacheDate, signal);
           return {
             content: [{ type: "text", text: formatFetchResult(response, cacheDate) }],
             details: response satisfies WebFetchResponse,
@@ -74,6 +72,7 @@ const webFetchTool = defineTool({
 
         attempts.push(`${provider.label}: ${response.error}`);
       } catch (error) {
+        signal?.throwIfAborted();
         attempts.push(`${provider.label}: ${formatErrorMessage(error)}`);
       }
     }

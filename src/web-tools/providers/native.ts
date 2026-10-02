@@ -11,9 +11,10 @@ import type { WebFetchProvider } from "./index.js";
 export class NativeWebFetchProvider implements WebFetchProvider {
   private readonly turndown = new TurndownService();
 
-  async fetch(url: string): Promise<WebFetchResponse> {
+  async fetch(url: string, signal?: AbortSignal): Promise<WebFetchResponse> {
     try {
       const response = await fetch(url, {
+        signal,
         headers: {
           Accept: "text/html, text/plain, text/markdown;q=0.9, */*;q=0.1",
         },

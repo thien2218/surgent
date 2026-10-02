@@ -1,5 +1,6 @@
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
+import { renameSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { toCanonicalUrl } from "./helpers.js";
 import { getPiPath } from "../../utils.js";
@@ -49,10 +50,24 @@ export async function writeFetchedResult(
   url: string,
   content: string,
   date = getCurrentCacheDate(),
+  signal?: AbortSignal,
 ) {
+  signal?.throwIfAborted();
   const filePath = getCacheFilePath(url, date);
   await mkdir(dirname(filePath), { recursive: true });
-  await writeFile(filePath, content, "utf8");
+  signal?.throwIfAborted();
+  const pendingPath = `${filePath}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(pendingPath, content, { encoding: "utf8", flag: "wx", signal });
+    signal?.throwIfAborted();
+    // Publish synchronously so cancellation cannot interleave the check and commit.
+    renameSync(pendingPath, filePath);
+  } catch (error) {
+    // Cleanup must not hide the original write or cancellation error.
+    await rm(pendingPath, { force: true }).catch(() => {});
+    signal?.throwIfAborted();
+    throw error;
+  }
 }
 
 function isMissingFileError(error: unknown): boolean {

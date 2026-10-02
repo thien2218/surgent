@@ -20,7 +20,12 @@ interface BraveSearchResponse {
 export class BraveWebSearchProvider implements WebSearchProvider {
   constructor(private readonly apiKey: string) {}
 
-  async search(query: string, news: boolean, max: number): Promise<WebSearchResult[]> {
+  async search(
+    query: string,
+    news: boolean,
+    max: number,
+    signal?: AbortSignal,
+  ): Promise<WebSearchResult[]> {
     const endpoint = news ? "news/search" : "web/search";
     const searchParams = new URLSearchParams({
       count: String(max),
@@ -31,10 +36,10 @@ export class BraveWebSearchProvider implements WebSearchProvider {
     const response = await fetch(
       `https://api.search.brave.com/res/v1/${endpoint}?${searchParams.toString()}`,
       {
+        signal,
         headers: { Accept: "application/json", "X-Subscription-Token": this.apiKey },
       },
     );
-
     if (!response.ok) {
       throw new Error(await getHttpError(response));
     }

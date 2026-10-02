@@ -39,7 +39,7 @@ export class SecretInput extends Frame implements Focusable {
   protected override children(width: number): string[] {
     const lines = new Lines(width);
     const value = this.input.getValue();
-    this.input.setValue("*".repeat(value.length));
+    this.input.setValue(`${value.slice(0, 5)}${"*".repeat(value.length - 5)}`);
 
     lines.add(this.theme.fg("accent", this.title));
     lines.space();

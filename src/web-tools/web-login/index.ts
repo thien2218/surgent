@@ -48,18 +48,20 @@ async function saveProviderKey(ctx: ExtensionCommandContext, provider: WebToolsP
     if (!replace) return;
   }
 
-  const apiKey = await inputApiKey(
-    ctx,
-    `${provider.label} API key${note}`,
-    `Paste your ${provider.label} API key`,
-  );
+  const apiKey = (
+    await inputApiKey(
+      ctx,
+      `${provider.label} API key${note}`,
+      `Paste your ${provider.label} API key`,
+    )
+  )?.trim();
 
   if (!apiKey) {
     ctx.ui.notify(`No ${provider.label} API key was saved`, "warning");
     return;
   }
 
-  await setApiKey(ctx.modelRegistry, provider.name, apiKey.trim());
+  await setApiKey(ctx.modelRegistry, provider.name, apiKey);
   ctx.ui.notify(`Saved ${provider.label} API key`, "info");
 }
 

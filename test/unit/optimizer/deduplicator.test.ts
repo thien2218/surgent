@@ -126,12 +126,13 @@ describe("resource coverage", () => {
     expect(read?.resource).toBe(inspected?.resource);
   });
 
-  it.each([undefined, { path: "source.ts", symbol: "handler", range: [5, 4] }, { path: "source.ts", range: [1, 2] }])(
-    "retains inspect output without valid source metadata %#",
-    (details) => {
-      expect(getResourceCoverage("inspect", { path: "source.ts" }, result("inspect", { details }), workspace())).toBeUndefined();
-    },
-  );
+  it.each<Partial<ToolResultMessage>>([
+    {},
+    { details: { path: "source.ts", symbol: "handler", range: [5, 4] } },
+    { details: { path: "source.ts", range: [1, 2] } },
+  ])("retains inspect output without valid source metadata %#", (overrides) => {
+    expect(getResourceCoverage("inspect", { path: "source.ts" }, result("inspect", overrides), workspace())).toBeUndefined();
+  });
 });
 
 describe("deduplicator state", () => {

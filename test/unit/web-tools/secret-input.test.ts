@@ -8,7 +8,6 @@ function createInput() {
     { requestRender() {} } as unknown as TUI,
     { fg: (_color: string, text: string) => text } as Theme,
     "API key",
-    "Paste API key",
   );
 }
 

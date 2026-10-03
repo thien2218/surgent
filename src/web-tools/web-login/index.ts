@@ -49,12 +49,7 @@ async function saveProviderKey(ctx: ExtensionCommandContext, provider: WebToolsP
 
   const note = provider.name === "jina" ? ` (${provider.note})` : "";
   const text = await ctx.ui.custom<string | undefined>((tui, theme, _keys, done) => {
-    const input = new SecretInput(
-      tui,
-      theme,
-      `${provider.label} API key${note}`,
-      `Paste your ${provider.label} API key`,
-    );
+    const input = new SecretInput(tui, theme, `${provider.label} API key${note}`);
     input.onDone = done;
     return input;
   });

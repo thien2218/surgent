@@ -53,15 +53,11 @@ export default function (pi: ExtensionAPI) {
     async execute(toolCallId, params, signal, _onUpdate, ctx) {
       try {
         const result = await grepTool.execute(toolCallId, params, signal, undefined, ctx);
-        if (result.content.some((item) => item.type !== "text")) {
-          throw new Error("Unexpected grep result content");
-        }
-
         const state = getState(pi);
         const formatted = formatGrepResult(
           result.content.map((item) => (item.type === "text" ? item.text : "")).join("\n"),
         );
-        const { text, check } = await filterGrepResult(formatted, params.path || ".", pi, ctx);
+        const { text, check } = await filterGrepResult(formatted, params.path || ".", state, ctx);
 
         if (state.getMode() !== "yolo" && check) {
           const decision = await askForPermission(pi, ctx, check);

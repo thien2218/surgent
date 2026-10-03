@@ -8,9 +8,10 @@ import {
 } from "node:fs";
 import { stat } from "node:fs/promises";
 import { basename, resolve } from "node:path";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { FileCheck } from "../../permission/types.js";
-import { expandFilePath, resolveGrepGrant } from "../../permission/resolution.js";
+import { expandFilePath, resolveReadGrant } from "../../permission/resolution.js";
+import type { AppState } from "../../state.js";
 
 const GREP_NOTICE =
   /^\[(?:\d+ matches limit reached\. Use limit=\d+ for more, or refine pattern(?:\. )?)?(?:[\d.]+KB limit reached(?:\. )?)?(?:Some lines truncated to \d+ chars\. Use read tool to see full lines)?\]$/;
@@ -152,7 +153,7 @@ export function formatGrepResult(content: string): string[] {
 export async function filterGrepResult(
   lines: string[],
   path: string,
-  pi: ExtensionAPI,
+  state: AppState,
   ctx: ExtensionContext,
 ): Promise<{ text: string; check: FileCheck | undefined }> {
   if (lines.length === 1 && lines[0] === "No matches found") {
@@ -187,10 +188,9 @@ export async function filterGrepResult(
 
     filePath = isDirectory ? resolve(searchPath, text) : searchPath;
     if (!decisions.has(filePath)) {
-      const grant = await resolveGrepGrant(filePath, pi, ctx);
+      const grant = await resolveReadGrant(filePath, state, ctx);
       if (grant.check) {
         check ??= grant.check;
-        check.purpose = "Allow this grep result from outside-root files?";
         check.raw += `\n${filePath}`;
       }
       denied.push(...grant.denied);

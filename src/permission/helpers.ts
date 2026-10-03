@@ -77,6 +77,7 @@ export async function getPermissionCheck(
 
   switch (typedName) {
     case "read":
+    case "inspect":
       check.raw = input.path as string;
       check.purpose = `Read content from file ${check.raw}`;
       break;

@@ -3,6 +3,7 @@ export const CATEGORIES = ["file", "web", "bash", "mcp"] as const;
 
 export const PERMISSIVE_TOOLS = {
   read: "file",
+  inspect: "file",
   write: "file",
   edit: "file",
   bash: "bash",

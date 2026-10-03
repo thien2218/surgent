@@ -3,7 +3,6 @@ import type { AgentMeta } from "../agent/types.js";
 import type { AppState } from "../state.js";
 
 type SubsessionStatus = "done" | "aborted" | "error";
-type SubsessionLabel = "plan" | "subagent";
 
 export interface Cost {
   input: number;
@@ -46,7 +45,7 @@ export interface RuntimeConfig {
 export interface SubsessionRequest {
   ctx: ExtensionContext;
   state: AppState;
-  label: SubsessionLabel;
+  inMemory?: true;
   agent: string;
   id?: string;
   signal?: AbortSignal;
@@ -56,7 +55,7 @@ export interface SubsessionRequest {
 export interface StoredSubsessions {
   [id: string]: {
     agent: string;
-    label: SubsessionLabel;
+    inMemory?: true;
     pid: string;
     title: string;
     usage: SubsessionUsage;
@@ -65,7 +64,7 @@ export interface StoredSubsessions {
 
 export interface Subsession {
   pid: string;
-  label: SubsessionLabel;
+  inMemory?: true;
   title: string;
   result: SubsessionResult;
   runtime: RuntimeConfig;
@@ -85,7 +84,7 @@ export interface CreateSubsessionParams {
   pid: string;
   cwd: string;
   title: string;
-  label: SubsessionLabel;
+  inMemory?: true;
   result: SubsessionResult;
   runtime: RuntimeConfig;
   session?: AgentSession;

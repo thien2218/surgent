@@ -59,13 +59,13 @@ async function forwardAction(
 ) {
   const normalizedOutput = subsession.result.output.trim();
   if (!normalizedOutput) {
-    ctx.ui.notify(`No ${subsession.label} to forward`, "warning");
+    ctx.ui.notify("No plan to forward", "warning");
     return false;
   }
   try {
     pi.sendUserMessage(normalizedOutput);
   } catch {
-    ctx.ui.notify(`Failed to forward ${subsession.label}`, "error");
+    ctx.ui.notify("Failed to forward plan", "error");
   }
   discardSubsession(ctx, subsession, outputPath);
 }
@@ -116,7 +116,7 @@ export async function getPlanPreviews(
   const previews: { subsessionId: string; title: string }[] = [];
 
   for (const [subsessionId, metadata] of Object.entries(store)) {
-    if (metadata.label === "plan" && metadata.pid === sessionId) {
+    if (!metadata.inMemory && metadata.pid === sessionId) {
       previews.push({ subsessionId, title: metadata.title });
     }
   }
@@ -178,7 +178,6 @@ export async function resolvePlan(
   const request: SubsessionRequest = {
     ctx,
     state: getState(pi),
-    label: "plan",
     agent: "planner",
     onSnapshot: (snapshot) => renderSnapshotWidget(ctx, "planner", snapshot),
   };

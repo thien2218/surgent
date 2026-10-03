@@ -34,7 +34,6 @@ async function setup() {
   const extension = recordExtension();
   const session: Subsession = {
     pid: "parent-session",
-    label: "plan",
     title: "Test plan",
     result: {
       id: PLAN_ID, status: "done", output: "  Initial plan  \n\n",

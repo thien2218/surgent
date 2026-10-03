@@ -38,7 +38,7 @@ export default function (pi: ExtensionAPI) {
       const request: SubsessionRequest = {
         ctx,
         state: getState(pi),
-        label: "subagent",
+        inMemory: true,
         agent: params.agent,
         signal,
         onSnapshot: (nextSnapshot) => {

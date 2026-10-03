@@ -22,7 +22,7 @@ export async function storePlans(cwd: string, entries: StoredSubsessions) {
 
 export function planMetadata(title = "Saved plan", pid = "parent-session"): StoredSubsessions[string] {
   return {
-    agent: "planner", label: "plan", pid, title,
+    agent: "planner", pid, title,
     usage: {
       input: 0, output: 0, toolCalls: 0,
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },

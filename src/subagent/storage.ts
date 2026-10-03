@@ -40,7 +40,7 @@ export async function findSubsession(cwd: string, id?: string, pid?: string) {
 }
 
 export async function saveSubsession(cwd: string, subsession: Subsession) {
-  if (!subsession.result.id || subsession.label === "subagent") return;
+  if (!subsession.result.id || subsession.inMemory) return;
   if (subsession.result.status === "done") {
     subsession.title = extractSubsessionTitle(subsession.result.output) ?? "Untitled";
   }
@@ -48,7 +48,6 @@ export async function saveSubsession(cwd: string, subsession: Subsession) {
   const subsessions = await loadStore(cwd);
   subsessions[subsession.result.id] = {
     agent: subsession.runtime.agent,
-    label: subsession.label,
     pid: subsession.pid,
     title: subsession.title,
     usage: subsession.result.usage,

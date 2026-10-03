@@ -28,7 +28,6 @@ async function loadPermissionRules(
   mode: AgentMode,
   category: Category,
 ) {
-  const rules: Record<string, any>[] = [];
   const [local, global, subsession] = await Promise.all([
     readRules(cwd),
     readRules(),
@@ -38,6 +37,7 @@ async function loadPermissionRules(
     ([, access]) => mode !== "restricted" || access === false || access === "deny",
   );
 
+  const rules: Record<string, any>[] = [];
   rules.push(local[sessionId]?.[category] ?? {});
   if (subsession?.pid && subsession.pid !== sessionId) {
     rules.push(local[subsession.pid]?.[category] ?? {});
@@ -121,7 +121,6 @@ export async function resolvePermissionPath(
   }
 }
 
-// File inputs must already be physical, project-relative paths.
 export async function resolvePermission(cwd: string, check: PermissionCheck, mode: AgentMode) {
   const { category, sessionId } = check;
   const rules = await loadPermissionRules(cwd, sessionId, mode, category);
@@ -137,6 +136,7 @@ export async function resolvePermission(cwd: string, check: PermissionCheck, mod
     return unresolved.length > 0 ? "ask" : "allowed";
   }
 
+  // File inputs must already be physical, project-relative paths.
   if (category === "file") {
     const { operation } = check;
     const permission = findFilePermission(rules, check, operation);

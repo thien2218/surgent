@@ -41,8 +41,7 @@ async function discardSubsession(
       await unlink(outputPath);
     } catch (error) {
       if (!isMissingFileError(error)) {
-        const message = error instanceof Error ? error.message : String(error);
-        ctx.ui.notify(`Failed to delete ${subsession.label}: ${message}`, "error");
+        ctx.ui.notify(`Failed to delete plan file ${outputPath}`, "error");
       }
     }
   }
@@ -56,7 +55,8 @@ async function forwardAction(
   pi: ExtensionAPI,
   ctx: ExtensionCommandContext,
   subsession: Subsession,
-): Promise<boolean> {
+  outputPath: string | null,
+) {
   const normalizedOutput = subsession.result.output.trim();
   if (!normalizedOutput) {
     ctx.ui.notify(`No ${subsession.label} to forward`, "warning");
@@ -66,9 +66,8 @@ async function forwardAction(
     pi.sendUserMessage(normalizedOutput);
   } catch {
     ctx.ui.notify(`Failed to forward ${subsession.label}`, "error");
-    return false;
   }
-  return true;
+  discardSubsession(ctx, subsession, outputPath);
 }
 
 export async function runPlanLoop(
@@ -98,10 +97,7 @@ export async function runPlanLoop(
       if (action.kind === "open") {
         if (outputPath) await openInEditor(ctx, outputPath);
       } else if (action.kind === "forward") {
-        if (await forwardAction(pi, ctx, subsession)) {
-          discardSubsession(ctx, subsession, outputPath);
-          return;
-        }
+        await forwardAction(pi, ctx, subsession, outputPath);
       } else {
         await subsession.exec(action.feedback);
       }

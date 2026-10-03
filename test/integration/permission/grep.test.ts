@@ -31,7 +31,7 @@ describe("grep result permissions", () => {
     const result = await filterGrepResult([
       "private.txt", "1: fake private match", "2- fake private context", "",
       "public.txt", "1: public match",
-    ], ".", pi.api, ctx);
+    ], ".", pi.state, ctx);
 
     expect(result.text.split("\n")).not.toContain("private.txt");
     expect(result.text).not.toContain("fake private");
@@ -46,7 +46,7 @@ describe("grep result permissions", () => {
 
     const result = await filterGrepResult([
       "private.txt", "1: fake private match", "public.txt", "1: public match",
-    ], ".", pi.api, makePermissionContext(workspace.cwd));
+    ], ".", pi.state, makePermissionContext(workspace.cwd));
 
     expect(result.text).not.toContain("fake private match");
     expect(result.text).toContain("public.txt\n1: public match");
@@ -63,7 +63,7 @@ describe("grep result permissions", () => {
 
     const result = await filterGrepResult([
       "private.txt", "1: fake private match",
-    ], "../outside", pi.api, makePermissionContext(workspace.cwd));
+    ], "../outside", pi.state, makePermissionContext(workspace.cwd));
 
     expect(result.text).not.toContain("fake private match");
     expect(result.text).toContain(source === "policy" ? "../outside/private.txt" : "agent files.read scope");
@@ -80,7 +80,7 @@ describe("grep result permissions", () => {
     const result = await filterGrepResult([
       "denied.txt", "1: fake private match", "allowed.txt", "1: allowed match",
       "first.txt", "1: first match", "second.txt", "1: second match",
-    ], "../outside", pi.api, makePermissionContext(workspace.cwd));
+    ], "../outside", pi.state, makePermissionContext(workspace.cwd));
 
     expect(result.text).not.toContain("fake private match");
     expect(result.text).toContain("allowed.txt\n1: allowed match");
@@ -104,7 +104,7 @@ describe("grep result permissions", () => {
 
     const result = await filterGrepResult([
       "public.txt", "1: fake private match",
-    ], "public.txt", pi.api, makePermissionContext(workspace.cwd));
+    ], "public.txt", pi.state, makePermissionContext(workspace.cwd));
 
     expect(result.text.split("\n")).not.toContain("public.txt");
     expect(result.text).not.toContain("fake private match");
@@ -120,7 +120,7 @@ describe("grep result permissions", () => {
 
     const result = await filterGrepResult([
       "alias.txt", "1: public match",
-    ], "../alias.txt", pi.api, makePermissionContext(workspace.cwd));
+    ], "../alias.txt", pi.state, makePermissionContext(workspace.cwd));
 
     expect(result).toEqual({ text: "alias.txt\n1: public match", check: undefined });
   });
@@ -131,21 +131,21 @@ describe("grep result permissions", () => {
 
     await expect(filterGrepResult([
       "link.txt", "1: fake private match",
-    ], ".", pi.api, makePermissionContext(workspace.cwd))).rejects.toThrow();
+    ], ".", pi.state, makePermissionContext(workspace.cwd))).rejects.toThrow();
   });
 
   it("rejects results when stored permissions cannot be parsed", async () => {
     await writeFile(join(workspace.cwd, ".pi", "permissions.json"), "not-json");
     const pi = makePermissionSession();
 
-    await expect(filterGrepResult(["private.txt", "1: fake private match"], ".", pi.api, makePermissionContext(workspace.cwd)))
+    await expect(filterGrepResult(["private.txt", "1: fake private match"], ".", pi.state, makePermissionContext(workspace.cwd)))
       .rejects.toThrow(SyntaxError);
   });
 
   it("rejects content without a file header rather than returning unchecked matches", async () => {
     const pi = makePermissionSession();
 
-    await expect(filterGrepResult(["1: fake private match"], ".", pi.api, makePermissionContext(workspace.cwd)))
+    await expect(filterGrepResult(["1: fake private match"], ".", pi.state, makePermissionContext(workspace.cwd)))
       .rejects.toThrow("Cannot authorize grep content without a file");
   });
 });

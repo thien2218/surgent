@@ -129,7 +129,7 @@ async function syncPiIgnore(cwd) {
     return;
   }
 
-  await writeFile(piIgnorePath, gitIgnoreContents);
+  await writeFile(piIgnorePath, `.pi\n\n${gitIgnoreContents}`);
 }
 
 function isJsonModeActive(args) {

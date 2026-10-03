@@ -1,13 +1,25 @@
-import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { Usage } from "@earendil-works/pi-ai";
 import { Container, Text, TruncatedText } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { openSubsession } from "./subsession.js";
 import { getState } from "../state.js";
 import { formatSnapshotText } from "./helpers.js";
-import type { SubsessionRequest, SubsessionSnapshot } from "./types.js";
+import type { Cost, SubsessionRequest, SubsessionSnapshot } from "./types.js";
 import { renderResultText } from "../utils.js";
 
 export default function (pi: ExtensionAPI) {
+  const costs = new Map<string, Cost>();
+
+  pi.on("tool_result", (event) => {
+    if (event.toolName !== "subagent") return;
+    const cost = costs.get(event.toolCallId);
+    costs.delete(event.toolCallId);
+    if (!cost) return;
+    // Parent model usage already accounts for tokens consumed from the result.
+    return { usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost } };
+  });
+
   pi.registerTool({
     name: "subagent",
     label: "Subagent",
@@ -21,7 +33,7 @@ export default function (pi: ExtensionAPI) {
           "Standalone task with outcome, scope, known context, constraints, expected output, and done condition",
       }),
     }),
-    async execute(_toolCallId, params, signal, onUpdate, ctx) {
+    async execute(toolCallId, params, signal, onUpdate, ctx) {
       let snapshot: SubsessionSnapshot | undefined;
       const request: SubsessionRequest = {
         ctx,
@@ -40,11 +52,16 @@ export default function (pi: ExtensionAPI) {
         if (subsession.result.status !== "error") {
           await subsession.exec(params.task, signal);
         }
+        if (subsession.result.status === "error") {
+          throw new Error(subsession.result.output || "Subsession failed");
+        }
         return {
-          content: [{ type: "text", text: subsession.result.output || subsession.result.status }],
+          content: [{ type: "text", text: subsession.result.output }],
           details: snapshot ?? { status: subsession.result.status, usage: subsession.result.usage },
         };
       } finally {
+        // Attach cost on tool_result so failed executions are accounted for too.
+        costs.set(toolCallId, subsession.result.usage.cost);
         await subsession.dispose();
       }
     },
@@ -67,17 +84,17 @@ export default function (pi: ExtensionAPI) {
         return new Text(theme.fg("toolOutput", `Subagent ${context.args.agent}: starting`), 0, 0);
       }
 
+      const output = new Container();
       const lines = [
         theme.bold(`${context.args.agent}: ${snapshot.status}`),
         ...formatSnapshotText(snapshot).map((line) => `  ${line}`),
       ];
-
-      const output = new Container();
       for (const line of lines) {
         output.addChild(new TruncatedText(theme.fg("toolOutput", line), 1, 0));
       }
-
       return output;
     },
   });
+
+  pi.on("session_shutdown", () => costs.clear());
 }

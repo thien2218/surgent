@@ -12,7 +12,7 @@ export function formatSnapshotText(snapshot: SubsessionSnapshot): string[] {
   const context = snapshot.contextUsage?.percent;
   const recentToolCalls = snapshot.toolsUsed.slice(-5);
   const lines = [
-    `tools_used=${snapshot.usage.toolCalls} | in=${formatUsageCount(snapshot.usage.input)} | out=${formatUsageCount(snapshot.usage.output)} | cost=$${snapshot.usage.cost.toFixed(3)} | ctx=${context === null || context === undefined ? "n/a" : `${context.toFixed(1)}%`}`,
+    `tools_used=${snapshot.usage.toolCalls} | in=${formatUsageCount(snapshot.usage.input)} | out=${formatUsageCount(snapshot.usage.output)} | cost=$${snapshot.usage.cost.total.toFixed(3)} | ctx=${context === null || context === undefined ? "n/a" : `${context.toFixed(1)}%`}`,
   ];
 
   for (let toolCallIndex = 0; toolCallIndex < recentToolCalls.length; toolCallIndex += 1) {
@@ -27,7 +27,12 @@ export function createErrorResult(message: string): SubsessionResult {
   return {
     status: "error",
     output: message,
-    usage: { input: 0, output: 0, toolCalls: 0, cost: 0 },
+    usage: {
+      input: 0,
+      output: 0,
+      toolCalls: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
     toolCounts: {},
   };
 }

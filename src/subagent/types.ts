@@ -2,14 +2,22 @@ import type { AgentSession, ContextUsage, ExtensionContext } from "@earendil-wor
 import type { AgentMeta } from "../agent/types.js";
 import type { AppState } from "../state.js";
 
-export type SubsessionStatus = "done" | "aborted" | "error";
-export type SubsessionLabel = "plan" | "subagent";
+type SubsessionStatus = "done" | "aborted" | "error";
+type SubsessionLabel = "plan" | "subagent";
+
+export interface Cost {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  total: number;
+}
 
 export interface SubsessionUsage {
   input: number;
   output: number;
   toolCalls: number;
-  cost: number;
+  cost: Cost;
 }
 
 export interface SubsessionSnapshot {

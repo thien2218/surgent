@@ -38,7 +38,11 @@ async function setup() {
     title: "Test plan",
     result: {
       id: PLAN_ID, status: "done", output: "  Initial plan  \n\n",
-      usage: { input: 0, output: 0, toolCalls: 0, cost: 0 }, toolCounts: {},
+      usage: {
+        input: 0, output: 0, toolCalls: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      toolCounts: {},
     },
     runtime: { agent: "planner", builtIn: false, meta: { description: "Test planner" }, systemPrompt: "" },
     exec: vi.fn<Subsession["exec"]>(),

@@ -94,7 +94,10 @@ describe("progress widget contract", () => {
       id: "test-session",
       status,
       toolsUsed: ["read /src/example.ts", `grep ${"long-pattern".repeat(20)}`],
-      usage: { input: 2000, output: 1000, toolCalls: 2, cost: 0.001 },
+      usage: {
+        input: 2000, output: 1000, toolCalls: 2,
+        cost: { input: 0.001, output: 0, cacheRead: 0, cacheWrite: 0, total: 0.001 },
+      },
     };
   }
 

@@ -7,8 +7,8 @@ import type { Category, PermissionCheck, FileCheck } from "./types.js";
 import { getPiPath } from "../utils.js";
 import { findSubsession } from "../subagent/storage.js";
 import { findFilePermission, findPermission, isDeny, matchesPattern } from "./precedence.js";
-import { getState } from "../state.js";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { AppState } from "../state.js";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { resolvePiIgnorePathBlock } from "./piignore.js";
 
 function isAllowedByPattern(raw: string, allowList?: string[], bash?: boolean): boolean {
@@ -153,9 +153,8 @@ export async function resolvePermission(cwd: string, check: PermissionCheck, mod
   return findPermission(rules, check.raw);
 }
 
-export async function resolveGrepGrant(path: string, pi: ExtensionAPI, ctx: ExtensionContext) {
+export async function resolveReadGrant(path: string, state: AppState, ctx: ExtensionContext) {
   const denied: string[] = [];
-  const state = getState(pi);
   const { meta } = state.getAgent();
   const sessionId = ctx.sessionManager.getSessionId();
   const normalized = await resolvePermissionPath(path, ctx.cwd);
@@ -163,15 +162,14 @@ export async function resolveGrepGrant(path: string, pi: ExtensionAPI, ctx: Exte
   const rules = await loadPermissionRules(ctx.cwd, sessionId, state.getMode(), "file");
   const ignored = await resolvePiIgnorePathBlock(ctx.cwd, path);
   const permission = findFilePermission(rules, normalized, "read");
-
   const check: FileCheck = {
     raw: "",
     sessionId,
     toolName: "read",
     category: "file",
     operation: "read",
-    uncertainty: "Outside-root grep access",
-    purpose: "",
+    uncertainty: "Outside-root read access",
+    purpose: "Allow reading files from outside project directory?",
     ...normalized,
   };
 

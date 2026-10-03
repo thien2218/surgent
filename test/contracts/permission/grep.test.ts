@@ -72,7 +72,12 @@ describe("grep outside-root approval", () => {
     expect(ctx.ui.custom).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["deny", "cancel", "headless", "ui-error"])("never returns outside-root content on %s", async (outcome) => {
+  it.each([
+    { outcome: "deny", error: "User rejected this tool call" },
+    { outcome: "cancel", error: "Permission request was cancelled" },
+    { outcome: "headless", error: "Permission request requires interactive UI" },
+    { outcome: "ui-error", error: "UI unavailable" },
+  ])("never returns outside-root content on $outcome", async ({ outcome, error }) => {
     const pi = makePermissionSession();
     const ctx = makePermissionContext(workspace.cwd, outcome !== "headless");
     if (outcome === "ui-error") ctx.ui.custom.mockRejectedValue(new Error("UI unavailable"));
@@ -80,7 +85,7 @@ describe("grep outside-root approval", () => {
     compactorExtension(pi.api);
 
     await expect(pi.tool("grep").execute("grep-call", { pattern: "match", path: "../outside" }, undefined, undefined, ctx))
-      .rejects.toThrow("Grep result unavailable: search failed or permission was denied");
+      .rejects.toThrow(error);
     expect(ctx.ui.custom).toHaveBeenCalledTimes(outcome === "headless" ? 0 : 1);
   });
 

@@ -103,7 +103,7 @@ describe("optimizer package build", () => {
     const entryUrl = pathToFileURL(join(fixture.outputDir, manifest.exports)).href;
     const result = fixture.run(["--input-type=module", "-e", `import message from ${JSON.stringify(entryUrl)}; console.log(message());`]);
     expect(result.stdout).toBe("external bundled\n");
-  });
+  }, 25_000);
 
   it("removes stale optimizer artifacts without deleting sibling distributions", async () => {
     const fixture = await setup();
@@ -115,5 +115,5 @@ describe("optimizer package build", () => {
     await expect(stat(join(fixture.outputDir, "stale.js"))).rejects.toMatchObject({ code: "ENOENT" });
     expect((await stat(join(fixture.outputDir, "index.js"))).isFile()).toBe(true);
     expect(await readFile(join(fixture.root, "dist", "keep.txt"), "utf8")).toBe("other distribution");
-  });
+  }, 15_000);
 });

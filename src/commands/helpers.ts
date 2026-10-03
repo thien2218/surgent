@@ -55,7 +55,6 @@ async function forwardAction(
   pi: ExtensionAPI,
   ctx: ExtensionCommandContext,
   subsession: Subsession,
-  outputPath: string | null,
 ) {
   const normalizedOutput = subsession.result.output.trim();
   if (!normalizedOutput) {
@@ -66,8 +65,9 @@ async function forwardAction(
     pi.sendUserMessage(normalizedOutput);
   } catch {
     ctx.ui.notify("Failed to forward plan", "error");
+    return false;
   }
-  discardSubsession(ctx, subsession, outputPath);
+  return true;
 }
 
 export async function runPlanLoop(
@@ -97,7 +97,10 @@ export async function runPlanLoop(
       if (action.kind === "open") {
         if (outputPath) await openInEditor(ctx, outputPath);
       } else if (action.kind === "forward") {
-        await forwardAction(pi, ctx, subsession, outputPath);
+        if (await forwardAction(pi, ctx, subsession)) {
+          discardSubsession(ctx, subsession, outputPath);
+          return;
+        }
       } else {
         await subsession.exec(action.feedback);
       }

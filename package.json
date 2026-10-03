@@ -11,7 +11,7 @@
     "src"
   ],
   "scripts": {
-    "build": "node ./scripts/build.mjs",
+    "build": "node ./bin/build.mjs",
     "prepack": "npm run build",
     "test": "vitest run --passWithNoTests"
   },

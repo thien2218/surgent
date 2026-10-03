@@ -13,7 +13,7 @@ You need Node.js, Git, and either pnpm or npm.
 ```bash
 git clone <repository-url>
 cd surgent
-node scripts/build.mjs
+node bin/build.mjs
 ```
 
 The build script installs dependencies (preferring pnpm when available), runs `npm link`, and creates the required `~/.pi/agent/` directories. You can then start the TUI with:

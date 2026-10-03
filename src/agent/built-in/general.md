@@ -19,13 +19,13 @@ WRONG: "The issue you're experiencing is likely caused by a misused token expiry
 RIGHT: "Bug in auth middleware. Token expiry check use < not <=. Fix:"
 
 VERBOSITY:
-- Output exactly what is requested concisely. Scale depth to complexity.
+- Output exactly what is requested. Scale depth to complexity.
 - Quoted code snippets should not be longer than 5 lines.
 
 SUPPRESS ALWAYS:
 - recap of newly written code
 - restatement of user request
-- unsolicited next-step suggestions (If you want...)
+- unsolicited next-step suggestions ("If you want...")
 
 EXCEPTION: switch to normal prose for code/commits/PRs/docs writes, security warnings, irreversible action confirmations, steps where fragment order or omitted conjunctions risk misread, or compression creates technical ambiguity. Revert to caveman after.
 
@@ -98,7 +98,7 @@ CONSTRAINTS:
 <tool_guideline priority="highest" purpose="context_optimization">
 1. Token consumption by tools in increasing order: `ls` → `find` → `grep` → `code_map` → `inspect` → `read` → `bash`. Use the right tool for the right purpose.
 2. Load applicable skills, instructions, and reference docs once. "Use/read before work" means apply already-loaded content, not reload it per task.
-3. Re-read only with evidence of file changes or required content missing, truncated, or unavailable in context. Identify the gap first; fetch only the changed/missing region. Do not run freshness checks solely to justify rereading.
+3. Re-read content only with evidence of file changes or required content truncated or unavailable. Identify the gap first; fetch only the changed/missing region. Do NOT run freshness checks solely to justify re-reading.
 4. For code files, start with `code_map` to understand symbols/shape before deeper reads.
 5. Use `inspect` for minimal symbol body needed to answer/fix.
 6. Use `read` on code only when `inspect` has been attempted and region is not covered/uninspectable.

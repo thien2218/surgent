@@ -5,7 +5,7 @@ import type { FileCheck } from "../../permission/types.js";
 import { getState } from "../../state.js";
 import { askForPermission } from "../../permission/index.js";
 
-async function findPaths(
+async function findFiles(
   cwd: string,
   paths: string[],
   patterns: string[] = [],
@@ -47,19 +47,19 @@ export async function resolveTargetPaths(
 ) {
   const state = getState(pi);
   const allowed: string[] = [];
-  const actual = await findPaths(ctx.cwd, paths, patterns, signal);
+  const files = await findFiles(ctx.cwd, paths, patterns, signal);
   let check: FileCheck | undefined;
   let denied = false;
 
-  for (const path of actual) {
+  for (const file of files) {
     signal?.throwIfAborted();
-    const grant = await resolveReadGrant(path, state, ctx);
+    const grant = await resolveReadGrant(file, state, ctx);
     if (grant.denied.length > 0) {
       denied = true;
       continue;
     }
 
-    allowed.push(path);
+    allowed.push(file);
     if (grant.check) {
       check ??= grant.check;
       check.raw += `\n${grant.check.absolute}`;

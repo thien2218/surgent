@@ -165,23 +165,21 @@ export async function filterGrepResult(
 
   let check: FileCheck | undefined;
   let filePath: string | undefined;
-
   const denied: string[] = [];
   const isDirectory = (await stat(searchPath)).isDirectory();
   const decisions = new Map<string, boolean>();
-  const retainedLines: string[] = [];
+  const retained: string[] = [];
 
   for (const [lineIdx, text] of lines.entries()) {
     if (text === "" || (lineIdx === lines.length - 1 && GREP_NOTICE.test(text))) {
-      retainedLines.push(text);
+      retained.push(text);
       continue;
     }
     if (GREP_CONTENT.test(text)) {
       if (!filePath) throw new Error("Cannot authorize grep content without a file");
-      if (decisions.get(filePath)) retainedLines.push(text);
+      if (decisions.get(filePath)) retained.push(text);
       continue;
     }
-
     if (!isDirectory && text !== basename(searchPath)) {
       throw new Error("Cannot resolve grep result path");
     }
@@ -196,14 +194,15 @@ export async function filterGrepResult(
       denied.push(...grant.denied);
       decisions.set(filePath, grant.denied.length === 0);
     }
-    if (decisions.get(filePath)) retainedLines.push(text);
+    if (decisions.get(filePath)) {
+      retained.push(text);
+    }
   }
 
   if (denied && denied.length > 0) {
-    retainedLines.push(
+    retained.push(
       `[Search results exclude files blocked by permission rules: ${[...new Set(denied)].join(", ")}]`,
     );
   }
-
-  return { text: retainedLines.join("\n"), check };
+  return { text: retained.join("\n"), check };
 }

@@ -51,29 +51,25 @@ export default function (pi: ExtensionAPI) {
       ),
     }),
     async execute(toolCallId, params, signal, _onUpdate, ctx) {
-      try {
-        const result = await grepTool.execute(toolCallId, params, signal, undefined, ctx);
-        const state = getState(pi);
-        const formatted = formatGrepResult(
-          result.content.map((item) => (item.type === "text" ? item.text : "")).join("\n"),
-        );
-        const { text, check } = await filterGrepResult(formatted, params.path || ".", state, ctx);
+      const result = await grepTool.execute(toolCallId, params, signal, undefined, ctx);
+      const state = getState(pi);
+      const formatted = formatGrepResult(
+        result.content.map((item) => (item.type === "text" ? item.text : "")).join("\n"),
+      );
+      const { text, check } = await filterGrepResult(formatted, params.path || ".", state, ctx);
 
-        if (state.getMode() !== "yolo" && check) {
-          const decision = await askForPermission(pi, ctx, check);
-          if (decision?.block) throw new Error(decision.reason);
-        }
-        // Truncation contains raw text and pre-filter counts; only search-limit flags remain valid.
-        return {
-          content: [{ type: "text", text }],
-          details: result.details && {
-            matchLimitReached: result.details.matchLimitReached,
-            linesTruncated: result.details.linesTruncated,
-          },
-        };
-      } catch {
-        throw new Error("Grep result unavailable: search failed or permission was denied");
+      if (state.getMode() !== "yolo" && check) {
+        const decision = await askForPermission(pi, ctx, check);
+        if (decision?.block) throw new Error(decision.reason);
       }
+      // Truncation contains raw text and pre-filter counts; only search-limit flags remain valid.
+      return {
+        content: [{ type: "text", text }],
+        details: result.details && {
+          matchLimitReached: result.details.matchLimitReached,
+          linesTruncated: result.details.linesTruncated,
+        },
+      };
     },
   });
 

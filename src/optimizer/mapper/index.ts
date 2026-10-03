@@ -108,7 +108,7 @@ export default function (pi: ExtensionAPI) {
         const output = truncation.truncated
           ? `${truncation.content}\n\n[Output truncated at 2000 lines or 50KB. Narrow paths, patterns, or kinds.]`
           : truncation.content;
-        return { isError: false, details: undefined, content: [{ type: "text", text: output }] };
+        return { details: undefined, content: [{ type: "text", text: output }] };
       },
       renderCall(args, theme, { isPartial }) {
         const paths = Array.isArray(args.paths) ? args.paths.join(", ") : "";

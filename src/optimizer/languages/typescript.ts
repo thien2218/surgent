@@ -97,6 +97,12 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
     }
   }
 
+  isPublicSymbol(node: SyntaxNode) {
+    return super.isPublicSymbol(
+      node.parent?.type === "variable_declarator" ? node.parent : node,
+    );
+  }
+
   shouldSkipSymbol(node: SyntaxNode) {
     if (node.type === "export_statement") {
       const inlineNode = node.namedChild(0);

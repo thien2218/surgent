@@ -5,7 +5,6 @@ import type { AgentMeta, AgentMode } from "../agent/types.js";
 import { readRules } from "./storage.js";
 import type { Category, PermissionCheck, FileCheck } from "./types.js";
 import { getPiPath } from "../utils.js";
-import { findSubsession } from "../subagent/storage.js";
 import { findFilePermission, findPermission, isDeny, matchesPattern } from "./precedence.js";
 import type { AppState } from "../state.js";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -28,23 +27,15 @@ async function loadPermissionRules(
   mode: AgentMode,
   category: Category,
 ) {
-  const [local, global, subsession] = await Promise.all([
-    readRules(cwd),
-    readRules(),
-    findSubsession(cwd, sessionId),
-  ]);
+  const rules: Record<string, any>[] = [];
+  const [local, global] = await Promise.all([readRules(cwd), readRules()]);
   const restrictedRules = Object.entries(global[category] ?? {}).filter(
     ([, access]) => mode !== "restricted" || access === false || access === "deny",
   );
 
-  const rules: Record<string, any>[] = [];
   rules.push(local[sessionId]?.[category] ?? {});
-  if (subsession?.pid && subsession.pid !== sessionId) {
-    rules.push(local[subsession.pid]?.[category] ?? {});
-  }
   rules.push(local.project?.[category] ?? {});
   rules.push(Object.fromEntries(restrictedRules));
-
   return rules;
 }
 
@@ -156,10 +147,11 @@ export async function resolvePermission(cwd: string, check: PermissionCheck, mod
 export async function resolveReadGrant(path: string, state: AppState, ctx: ExtensionContext) {
   const denied: string[] = [];
   const { meta } = state.getAgent();
-  const sessionId = ctx.sessionManager.getSessionId();
+  const mode = state.getMode();
+  const sessionId = state.pid ?? ctx.sessionManager.getSessionId();
   const normalized = await resolvePermissionPath(path, ctx.cwd);
   const outside = !isInAllowedDir(ctx.cwd, normalized.absolute);
-  const rules = await loadPermissionRules(ctx.cwd, sessionId, state.getMode(), "file");
+  const rules = await loadPermissionRules(ctx.cwd, sessionId, mode, "file");
   const ignored = await resolvePiIgnorePathBlock(ctx.cwd, path);
   const permission = findFilePermission(rules, normalized, "read");
   const check: FileCheck = {

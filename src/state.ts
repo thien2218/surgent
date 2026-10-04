@@ -5,6 +5,7 @@ import { writeAgentMode } from "./permission/storage.js";
 export const STATE_EVENT = "surgent:state";
 
 export interface AppState {
+  pid?: string;
   dispose(): void;
   getAgent(): Agent;
   getMode(): AgentMode;
@@ -12,13 +13,14 @@ export interface AppState {
 }
 
 // One owner per Pi runtime; imports across extensions need not share module memory.
-export function createState(pi: ExtensionAPI, agent: Agent, mode: AgentMode): AppState {
+export function createState(pi: ExtensionAPI, agent: Agent, mode: AgentMode, pid?: string): AppState {
   let active = true;
   let pending = Promise.resolve();
   const requireActive = () => {
     if (!active) throw new Error("Session state is unavailable");
   };
   const state = {
+    pid,
     getAgent() {
       requireActive();
       return agent;

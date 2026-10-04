@@ -75,27 +75,23 @@ describe("persisted permission precedence", () => {
       .resolves.toBe("src/blocked.ts");
   });
 
-  it("orders equal-ranked scopes from session to parent session to project to global", async () => {
+  it("orders equal-ranked scopes from policy session to project to global", async () => {
     await writeRules({ web: { "https://example.com": false } });
     await writeRules(
       {
         project: { web: { "https://example.com": true } },
-        parent: { web: { "https://example.com": false } },
-        "session-1": { web: { "https://example.com": true } },
+        "session-1": { web: { "https://example.com": false } },
       },
       workspace.cwd,
     );
-    await writeFile(join(workspace.cwd, ".pi", "subsessions.json"), JSON.stringify({ "session-1": { pid: "parent" } }));
+
+    await expect(resolvePermission(workspace.cwd, await permissionCheck("web_fetch", "https://example.com"), "assistant")).resolves.toBe("https://example.com");
+
+    await writeRules({ project: { web: { "https://example.com": true } } }, workspace.cwd);
 
     await expect(resolvePermission(workspace.cwd, await permissionCheck("web_fetch", "https://example.com"), "assistant")).resolves.toBe("allowed");
 
-    await writeRules(
-      {
-        project: { web: { "https://example.com": true } },
-        parent: { web: { "https://example.com": false } },
-      },
-      workspace.cwd,
-    );
+    await writeRules({}, workspace.cwd);
 
     await expect(resolvePermission(workspace.cwd, await permissionCheck("web_fetch", "https://example.com"), "assistant")).resolves.toBe("https://example.com");
   });

@@ -5,6 +5,7 @@ import { Type } from "typebox";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import agentExtension from "../../../src/agent/index.js";
 import { getState } from "../../../src/state.js";
+import { resolveReadGrant } from "../../../src/permission/resolution.js";
 import { getPiPath } from "../../../src/utils.js";
 import { agentWorkspace } from "../../helpers/agent.js";
 import { recordExtension } from "../../helpers/extension.js";
@@ -25,7 +26,7 @@ async function setup() {
   const shutdown = vi.fn<ExtensionContext["shutdown"]>();
   const ctx = {
     cwd: workspace.cwd,
-    sessionManager: { getEntries: () => [] },
+    sessionManager: { getEntries: () => [], getSessionId: () => "child-session" },
     ui: { notify, setStatus: vi.fn(), theme: { fg: (_color: string, text: string) => text } },
     shutdown,
   } as unknown as ExtensionContext;
@@ -35,6 +36,7 @@ async function setup() {
   });
   return {
     ...workspace,
+    ctx,
     extension,
     notify,
     shutdown,
@@ -43,6 +45,26 @@ async function setup() {
 }
 
 describe("agent startup", () => {
+  it("enforces only parent policy when a saved subsession starts directly", async () => {
+    const context = await setup();
+    await writeFile(join(context.cwd, "private.txt"), "Harmless fixture");
+    await writeFile(getPiPath("subsessions", context.cwd), JSON.stringify({
+      "child-session": { pid: "parent-session" },
+    }));
+    await writeFile(getPiPath("permissions", context.cwd), JSON.stringify({
+      "parent-session": { file: { "private.txt": "deny" } },
+      "child-session": { file: { "private.txt": "read" } },
+    }));
+
+    await context.start();
+    const grant = await resolveReadGrant(
+      "private.txt", getState(context.extension.api), context.ctx,
+    );
+
+    expect(grant.denied).toContain("private.txt");
+    expect(context.shutdown).not.toHaveBeenCalled();
+  });
+
   it("applies the overriding general profile instead of shipped instructions", async () => {
     const context = await setup();
     await writeFile(join(context.local, "general.md"), "---\ndescription: Local general\ntools: [read]\n---\nLocal instructions");

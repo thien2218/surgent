@@ -5,6 +5,7 @@ import { loadMainAgent } from "./runtime.js";
 import { cycleMode } from "../permission/helpers.js";
 import { readAgentMode } from "../permission/storage.js";
 import { createState, getState, type AppState } from "../state.js";
+import { findSubsession } from "../subagent/storage.js";
 
 export default function (pi: ExtensionAPI) {
   let state: AppState | undefined;
@@ -50,9 +51,14 @@ export default function (pi: ExtensionAPI) {
     }
 
     try {
-      const [agent, mode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode()]);
-      state = createState(pi, agent, mode);
+      const [agent, mode, subsession] = await Promise.all([
+        loadMainAgent(pi, ctx),
+        readAgentMode(),
+        findSubsession(ctx.cwd, ctx.sessionManager.getSessionId()),
+      ]);
+      state = createState(pi, agent, mode, subsession?.pid);
       ctx.ui.setStatus("agent", ctx.ui.theme.fg("dim", `agent: ${agent.name}`));
+
       updateStatus = () => updateAgentMode(ctx);
       updateStatus();
       process.stdout.on("resize", updateStatus);

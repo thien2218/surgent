@@ -33,7 +33,7 @@ describe("saved plan lookup", () => {
     await storePlans(cwd, {
       [PLAN_ID]: planMetadata("Cache strategy"),
       foreign: planMetadata("Other session", "other-parent"),
-      documenter: { ...planMetadata("Documentation"), inMemory: true },
+      documenter: { ...planMetadata("Documentation"), temporary: true },
     });
 
     expect(await getPlanPreviews(cwd, "parent-session")).toEqual([

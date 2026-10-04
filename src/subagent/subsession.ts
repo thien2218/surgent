@@ -173,14 +173,15 @@ async function createSubsession(params: CreateSubsessionParams): Promise<Subsess
 
 export async function openSubsession(request: SubsessionRequest): Promise<Subsession> {
   const pid = request.ctx.sessionManager.getSessionId();
-  const existing =
-    request.inMemory ? null : await findSubsession(request.ctx.cwd, request.id, pid);
+  const existing = request.temporary
+    ? null
+    : await findSubsession(request.ctx.cwd, request.id, pid);
   const agentName = existing?.agent ?? request.agent;
   const runtime = await resolveRuntime(request.ctx.cwd, agentName);
 
   const params: CreateSubsessionParams = {
     cwd: request.ctx.cwd,
-    inMemory: request.inMemory,
+    temporary: request.temporary,
     pid,
     title: "Untitled",
     result: {

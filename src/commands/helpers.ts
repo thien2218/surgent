@@ -119,7 +119,7 @@ export async function getPlanPreviews(
   const previews: { subsessionId: string; title: string }[] = [];
 
   for (const [subsessionId, metadata] of Object.entries(store)) {
-    if (!metadata.inMemory && metadata.pid === sessionId) {
+    if (!metadata.temporary && metadata.pid === sessionId) {
       previews.push({ subsessionId, title: metadata.title });
     }
   }

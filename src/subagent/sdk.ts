@@ -57,7 +57,7 @@ function createSubsessionBridge(runtime: RuntimeConfig, state: AppState): Inline
 }
 
 async function openSessionManager(request: SubsessionRequest): Promise<SessionManager> {
-  if (request.inMemory) {
+  if (request.temporary) {
     return SessionManager.inMemory(request.ctx.cwd);
   }
 

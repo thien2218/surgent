@@ -84,7 +84,7 @@ Place regressions at the lowest layer that reproduces the defect. Add boundary c
 
 ## Run tests
 
-Run the full suite:
+Run the full suite, including E2E tests:
 
 ```bash
 pnpm test
@@ -95,6 +95,34 @@ Run a focused file or directory while iterating:
 ```bash
 pnpm exec vitest run <path>
 ```
+
+### Linux E2E prerequisites
+
+CLI E2E tests require:
+
+- Linux with user and network namespaces permitted for the current user;
+- `unshare` from `util-linux`;
+- Node.js 22.19 or newer;
+- `git`, `npm`, and `tar` on `PATH`; and
+- the repository dependencies already installed.
+
+Verify namespace isolation before running the suite:
+
+```bash
+unshare --user --map-root-user --net -- node --version
+```
+
+The command must print the Node.js version and exit successfully. Restricted containers and CI workers may deny namespace creation; use a compatible Linux runner in that case. Do not disable E2E isolation or apply broad privileged settings to make the check pass.
+
+Run only the E2E suite with:
+
+```bash
+pnpm exec vitest run test/e2e
+```
+
+Every E2E subprocess runs under `unshare --user --map-root-user --net --`. The helper gives it a temporary `HOME` and working directory, passes a credential-free environment allowlist with `PI_OFFLINE=1`, and blocks external network access. No runtime account or provider credential is required. Package tests use the checkout's existing dependencies; they do not perform a fresh registry install. If isolation is unavailable, E2E setup fails rather than skipping tests or falling back to an online process.
+
+Use the [manual test checklist](e2e/manual.md) for interactive TUI behavior and provider-dependent journeys that should not be automated with terminal timing.
 
 Type-check separately from the test run:
 

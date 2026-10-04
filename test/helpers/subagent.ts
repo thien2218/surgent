@@ -8,7 +8,7 @@ import {
   type ExtensionContext,
   type SessionManager,
 } from "@earendil-works/pi-coding-agent";
-import { onTestFinished, vi } from "vitest";
+import { onTestFinished, vi, type Mock } from "vitest";
 import { createState } from "../../src/state.js";
 import type { SubsessionRequest, SubsessionSnapshot } from "../../src/subagent/types.js";
 import { agentWorkspace } from "./agent.js";
@@ -17,7 +17,21 @@ import { recordExtension } from "./extension.js";
 
 export type SessionTurn = (session: ReturnType<typeof sdkSession>) => void | Promise<void>;
 
-export function sdkSession(manager: SessionManager, turns: SessionTurn[]) {
+export function sdkSession(manager: SessionManager, turns: SessionTurn[]): {
+  sessionId: string;
+  messages: AgentSession["messages"];
+  bindExtensions: Mock<AgentSession["bindExtensions"]>;
+  getAllTools: Mock<() => { name: string }[]>;
+  setActiveToolsByName: Mock<AgentSession["setActiveToolsByName"]>;
+  getContextUsage: Mock<AgentSession["getContextUsage"]>;
+  subscribe: Mock<AgentSession["subscribe"]>;
+  emit(event: AgentSessionEvent): void;
+  listenerCount(): number;
+  prompt: Mock<AgentSession["prompt"]>;
+  abort: Mock<AgentSession["abort"]>;
+  extensionRunner: { emit: Mock<(...args: unknown[]) => Promise<void>> };
+  dispose: Mock<AgentSession["dispose"]>;
+} {
   const listeners = new Set<Parameters<AgentSession["subscribe"]>[0]>();
   const session = {
     sessionId: manager.getSessionId(),
@@ -46,7 +60,7 @@ export function sdkSession(manager: SessionManager, turns: SessionTurn[]) {
       else session.emit({ type: "message_end", message: assistantMessage("Complete") });
     }),
     abort: vi.fn<AgentSession["abort"]>().mockResolvedValue(undefined),
-    extensionRunner: { emit: vi.fn().mockResolvedValue(undefined) },
+    extensionRunner: { emit: vi.fn<(...args: unknown[]) => Promise<void>>().mockResolvedValue(undefined) },
     dispose: vi.fn<AgentSession["dispose"]>(),
   };
   return session;

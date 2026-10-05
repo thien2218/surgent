@@ -3,22 +3,22 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import permissionExtension from "../../../src/permission/index.js";
 import { readAgentMode } from "../../../src/permission/storage.js";
-import { makePermissionContext, makePermissionSession, makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
+import { makePermissionContext, makePermissionSession } from "../../helpers/permission.js";
+import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const original = await importOriginal<typeof import("node:fs/promises")>();
   return { ...original, writeFile: vi.fn(original.writeFile) };
 });
 
-let workspace: PermissionWorkspace;
+let workspace: Workspace;
 
 beforeEach(async () => {
   vi.mocked(writeFile).mockImplementation((await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises")).writeFile);
-  workspace = await makePermissionWorkspace("surgent-mode-contract-");
+  workspace = await createWorkspace({ prefix: "surgent-mode-contract-" });
 });
 
-afterEach(async () => {
-  await workspace.restore();
+afterEach(() => {
   vi.restoreAllMocks();
 });
 
@@ -89,5 +89,51 @@ describe("permission extension shared mode contract", () => {
     expect(result).toEqual({ block: true, reason: "Permission request requires interactive UI" });
     expect(JSON.parse(await readFile(join(workspace.home, ".pi", "agent", "settings.json"), "utf8")))
       .toEqual({ agent: { mode: "assistant" } });
+  });
+});
+
+describe("agent mode enforcement contract", () => {
+  it("lets yolo proceed for unresolved permissions but not explicit denies", async () => {
+    const pi = makePermissionSession({ description: "test" }, "yolo");
+    const ctx = makePermissionContext(workspace.cwd);
+    permissionExtension(pi.api);
+
+    const unresolved = await pi.event("tool_call")(
+      { type: "tool_call", toolCallId: "unresolved", toolName: "web_fetch", input: { url: "https://example.com" } },
+      ctx,
+    );
+
+    await writeFile(join(workspace.home, ".pi", "agent", "permissions.json"), JSON.stringify({ web: { "https://blocked.example": false } }));
+    const denied = await pi.event("tool_call")(
+      { type: "tool_call", toolCallId: "denied", toolName: "web_fetch", input: { url: "https://blocked.example" } },
+      ctx,
+    );
+
+    expect(unresolved).toBeUndefined();
+    expect(denied).toEqual({ block: true, reason: expect.stringContaining("denied by policy rule: https://blocked.example") });
+  });
+
+  it("keeps agent profile allowlists enforced in yolo mode", async () => {
+    const pi = makePermissionSession({ description: "test", "files.read": ["allowed/**"] }, "yolo");
+    permissionExtension(pi.api);
+
+    const result = await pi.event("tool_call")(
+      { type: "tool_call", toolCallId: "scope-denied", toolName: "read", input: { path: join(workspace.cwd, "secret.txt") } },
+      makePermissionContext(workspace.cwd),
+    );
+
+    expect(result).toEqual({ block: true, reason: "Access to this resource is beyond allowed scope" });
+  });
+
+  it.each(["assistant", "restricted"] as const)("blocks non-interactive unresolved permissions in %s mode", async (mode) => {
+    const pi = makePermissionSession({ description: "test" }, mode);
+    permissionExtension(pi.api);
+
+    const result = await pi.event("tool_call")(
+      { type: "tool_call", toolCallId: "unresolved", toolName: "web_fetch", input: { url: "https://example.com" } },
+      makePermissionContext(workspace.cwd),
+    );
+
+    expect(result).toEqual({ block: true, reason: "Permission request requires interactive UI" });
   });
 });

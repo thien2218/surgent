@@ -1,16 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { makePermissionContext, makePermissionSession, makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
+import { beforeEach, describe, expect, it } from "vitest";
+import { makePermissionContext, makePermissionSession } from "../../helpers/permission.js";
+import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 import permissionExtension from "../../../src/permission/index.js";
 import { writeRules } from "../../../src/permission/storage.js";
 
-let workspace: PermissionWorkspace;
+let workspace: Workspace;
 
 beforeEach(async () => {
-  workspace = await makePermissionWorkspace("surgent-bash-permission-");
-});
-
-afterEach(async () => {
-  await workspace.restore();
+  workspace = await createWorkspace({ prefix: "surgent-bash-permission-" });
 });
 
 describe("persisted bash permissions", () => {

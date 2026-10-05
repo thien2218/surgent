@@ -24,7 +24,7 @@ The `test/` tree separates suites from reusable assets:
 - **`unit/`** owns deterministic logic and small component suites. Mirror `src/` areas when useful.
 - **`contracts/`** owns Pi-facing registrations, metadata, handlers, event responses, and lifecycle hooks.
 - **`integration/`** owns real local-boundary and multi-module suites.
-- **`e2e/`** owns process-level CLI startup and shutdown suites.
+- **`e2e/`** owns process-level CLI lifecycle and offline agent journeys.
 
 Keep suite-specific setup nearby. Promote only genuinely shared code to `helpers/`.
 
@@ -122,13 +122,48 @@ pnpm exec vitest run test/e2e
 
 Every E2E subprocess runs under `unshare --user --map-root-user --net --`. The helper gives it a temporary `HOME` and working directory, passes a credential-free environment allowlist with `PI_OFFLINE=1`, and blocks external network access. No runtime account or provider credential is required. Package tests use the checkout's existing dependencies; they do not perform a fresh registry install. If isolation is unavailable, E2E setup fails rather than skipping tests or falling back to an online process.
 
-Use the [manual test checklist](e2e/manual.md) for interactive TUI behavior and provider-dependent journeys that should not be automated with terminal timing.
-
 Type-check separately from the test run:
 
 ```bash
 pnpm tsc --noEmit
 ```
+
+### Change-focused UI smoke check
+
+For contributors reviewing a TUI change, check only the affected components, not every feature on every release. This visual pass complements automated tests; it is not a backend regression suite.
+
+> **Warning:** Run only in a disposable Git repository, never in the surgent checkout or a valuable working tree. UI actions can change or remove files.
+
+Use Node.js 22.19 or newer, Git, installed checkout dependencies, and a terminal that supports the relevant modifier keys. Start an allowlisted child shell to exclude inherited provider credentials and Pi auth/session overrides. Replace `/path/to/surgent` with the checkout path:
+
+```bash
+env -i PATH="$PATH" TERM="${TERM:-xterm-256color}" bash --noprofile --norc
+export SURGENT_ROOT=/path/to/surgent
+export SURGENT_SMOKE_ROOT="$(mktemp -d)"
+export HOME="$SURGENT_SMOKE_ROOT/home"
+export XDG_CONFIG_HOME="$HOME/.config"
+export XDG_CACHE_HOME="$HOME/.cache"
+export XDG_DATA_HOME="$HOME/.local/share"
+export GIT_CONFIG_NOSYSTEM=1
+export GIT_CONFIG_GLOBAL="$HOME/.gitconfig"
+export GIT_CEILING_DIRECTORIES="$SURGENT_SMOKE_ROOT"
+mkdir -p "$HOME" "$SURGENT_SMOKE_ROOT/repo"
+cd "$SURGENT_SMOKE_ROOT/repo"
+git init
+node "$SURGENT_ROOT/bin/surgent.js"
+```
+
+Do not reuse real session storage or paste real secrets; use unmistakably fake values. Check the affected dialogs and interactions:
+
+- Navigate with the documented keys; focus should reach the active control and return after closing nested dialogs.
+- Scroll long lists or content; inspect narrow layouts and confirm ANSI styling stays readable without raw escape sequences.
+- Cancel a dialog and confirm no partial configuration or file changes were saved.
+- For a change to the custom permission prompt, try **allow**, **deny**, and **cancel** on a harmless action; denied or cancelled actions should leave the target unchanged.
+- Exit after the affected flow; confirm the CLI shuts down and leaves no child process running. Stop any local fixtures you started.
+
+After exiting surgent, run `cd /`, remove only `$SURGENT_SMOKE_ROOT`, then `exit` the child shell. If provider behavior itself changed, live-provider quality or compatibility checks may be done separately with an explicitly configured account; they are optional and never required by the automated suite.
+
+The offline scripted-provider CLI E2E suite covers write/read with generated history resumed after restart, a policy-denied write leaving its target unchanged, an RPC permission request failing closed when UI is unavailable, read-result redaction before RPC output and the next model request, and parent-generation abort followed by recovery. It does not establish all redaction paths, child cancellation, terminal approval UI, or full code-navigation CLI journeys. Unit, contract, and integration tests own backend guarantees at the lowest sufficient layer; useful remaining deterministic CLI journeys belong in automated tests rather than a mandatory manual checklist.
 
 ## Contributor checklist
 

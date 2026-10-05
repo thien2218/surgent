@@ -1,17 +1,14 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, it, onTestFinished, vi } from "vitest";
+import { expect, it } from "vitest";
 import { saveEditedServer } from "../../../src/mcp-client/helpers.js";
 import { loadMcpConfigs, readConfigFile, resolveServerConfig, updateServerConfig } from "../../../src/mcp-client/storage.js";
 import type { ResolvedMcpServer } from "../../../src/mcp-client/types.js";
 import { commandContext } from "../../helpers/commands.js";
-import { makePermissionWorkspace } from "../../helpers/permission.js";
+import { createWorkspace } from "../../helpers/workspace.js";
 
 async function setup() {
-  const workspace = await makePermissionWorkspace("surgent-mcp-storage-");
-  onTestFinished(workspace.restore);
-  vi.stubEnv("USERPROFILE", workspace.home);
-  onTestFinished(() => { vi.unstubAllEnvs(); });
+  const workspace = await createWorkspace({ prefix: "surgent-mcp-storage-" });
   return { ...workspace, ...commandContext(workspace.cwd) };
 }
 

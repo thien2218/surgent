@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import mcpClient from "../../../src/mcp-client/index.js";
 import { commandContext } from "../../helpers/commands.js";
 import { recordExtension } from "../../helpers/extension.js";
-import { makePermissionWorkspace } from "../../helpers/permission.js";
+import { createWorkspace } from "../../helpers/workspace.js";
 
 const sdk = vi.hoisted(() => ({
   connect: vi.fn(),
@@ -29,10 +29,7 @@ beforeEach(() => {
 async function setup(config: Record<string, unknown> = {
   fixture: { transport: "stdio", command: "unused-fixture", enabled: true },
 }) {
-  const workspace = await makePermissionWorkspace("surgent-mcp-tools-");
-  onTestFinished(workspace.restore);
-  vi.stubEnv("USERPROFILE", workspace.home);
-  onTestFinished(() => { vi.unstubAllEnvs(); });
+  const workspace = await createWorkspace({ prefix: "surgent-mcp-tools-" });
   await writeFile(join(workspace.cwd, ".pi", "mcp.json"), JSON.stringify(config));
   const recorded = recordExtension();
   mcpClient(recorded.api);

@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import compactorExtension from "../../../src/optimizer/compactor/index.js";
 import { writeRules } from "../../../src/permission/storage.js";
-import { makePermissionContext, makePermissionSession, makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
+import { makePermissionContext, makePermissionSession } from "../../helpers/permission.js";
+import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
 const { executeGrep } = vi.hoisted(() => ({ executeGrep: vi.fn() }));
 
@@ -17,10 +18,10 @@ vi.mock("@earendil-works/pi-coding-agent", async (importOriginal) => {
   };
 });
 
-let workspace: PermissionWorkspace;
+let workspace: Workspace;
 
 beforeEach(async () => {
-  workspace = await makePermissionWorkspace("surgent-grep-contract-", true);
+  workspace = await createWorkspace({ prefix: "surgent-grep-contract-", changeCwd: true });
   vi.stubEnv("TMPDIR", join(workspace.root, "tmp"));
   await mkdir(join(workspace.root, "outside"));
   await writeFile(join(workspace.root, "outside", "private.txt"), "fake outside match");
@@ -31,9 +32,8 @@ beforeEach(async () => {
   });
 });
 
-afterEach(async () => {
+afterEach(() => {
   vi.unstubAllEnvs();
-  await workspace.restore();
 });
 
 describe("grep outside-root approval", () => {

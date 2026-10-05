@@ -12,11 +12,11 @@ import {
   type ListToolsRequest,
   type ListToolsResult,
 } from "@modelcontextprotocol/sdk/types.js";
-import { expect, it, onTestFinished, vi } from "vitest";
+import { expect, it, onTestFinished } from "vitest";
 import mcpClient from "../../../src/mcp-client/index.js";
 import { commandContext } from "../../helpers/commands.js";
 import { recordExtension } from "../../helpers/extension.js";
-import { makePermissionWorkspace } from "../../helpers/permission.js";
+import { createWorkspace } from "../../helpers/workspace.js";
 
 async function startServer(
   listTools: (request: ListToolsRequest) => ListToolsResult,
@@ -60,10 +60,7 @@ async function startServer(
 }
 
 async function setup(url: string, headers?: Record<string, string>) {
-  const workspace = await makePermissionWorkspace("surgent-mcp-http-");
-  onTestFinished(workspace.restore);
-  vi.stubEnv("USERPROFILE", workspace.home);
-  onTestFinished(() => { vi.unstubAllEnvs(); });
+  const workspace = await createWorkspace({ prefix: "surgent-mcp-http-" });
   await writeFile(join(workspace.cwd, ".pi", "mcp.json"), JSON.stringify({
     fixture: { transport: "http", url, headers, enabled: true },
   }));

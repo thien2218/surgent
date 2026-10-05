@@ -1,21 +1,20 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
+import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 import { resolvePiIgnorePathBlock } from "../../../src/permission/piignore.js";
 import { resolvePermission } from "../../../src/permission/resolution.js";
 import { writeRules } from "../../../src/permission/storage.js";
 import { getPermissionCheck } from "../../../src/permission/helpers.js";
 
-let workspace: PermissionWorkspace;
+let workspace: Workspace;
 
 beforeEach(async () => {
-  workspace = await makePermissionWorkspace("surgent-permission-integration-", true);
+  workspace = await createWorkspace({ prefix: "surgent-permission-integration-", changeCwd: true });
 });
 
-afterEach(async () => {
+afterEach(() => {
   vi.unstubAllEnvs();
-  await workspace.restore();
 });
 
 async function permissionCheck(toolName: "read" | "write" | "web_fetch" | "bash", raw: string) {

@@ -3,22 +3,15 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import mapperExtension from "../../../src/optimizer/mapper/index.js";
 import { writeRules } from "../../../src/permission/storage.js";
-import {
-  makePermissionContext,
-  makePermissionSession,
-  makePermissionWorkspace,
-  type PermissionWorkspace,
-} from "../../helpers/permission.js";
+import { makePermissionContext, makePermissionSession } from "../../helpers/permission.js";
+import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
-let workspace: PermissionWorkspace;
+let workspace: Workspace;
 let session: ReturnType<typeof makePermissionSession>;
 
 beforeEach(async () => {
-  workspace = await makePermissionWorkspace("surgent-navigation-");
-  onTestFinished(async () => {
-    vi.unstubAllEnvs();
-    await workspace.restore();
-  });
+  workspace = await createWorkspace({ prefix: "surgent-navigation-" });
+  onTestFinished(() => { vi.unstubAllEnvs(); });
   // Production auto-allows tmpdir reads; keep outside-root fixtures outside that grant.
   vi.stubEnv("TMPDIR", join(workspace.root, "tmp"));
   session = makePermissionSession();

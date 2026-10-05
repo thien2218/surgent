@@ -1,17 +1,14 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, it, onTestFinished, vi } from "vitest";
+import { expect, it, onTestFinished } from "vitest";
 import mcpClient from "../../../src/mcp-client/index.js";
 import { commandContext } from "../../helpers/commands.js";
 import { recordExtension } from "../../helpers/extension.js";
-import { makePermissionWorkspace } from "../../helpers/permission.js";
+import { createWorkspace } from "../../helpers/workspace.js";
 
 it("launches stdio with configured args, env and cwd and shuts down its child through the Pi lifecycle", async () => {
-  const workspace = await makePermissionWorkspace("surgent-mcp-stdio-");
-  onTestFinished(workspace.restore);
-  vi.stubEnv("USERPROFILE", workspace.home);
-  onTestFinished(() => { vi.unstubAllEnvs(); });
+  const workspace = await createWorkspace({ prefix: "surgent-mcp-stdio-" });
   await writeFile(join(workspace.cwd, ".pi/mcp.json"), JSON.stringify({
     fixture: {
       transport: "stdio", enabled: true, command: process.execPath,

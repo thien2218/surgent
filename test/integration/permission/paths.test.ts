@@ -1,21 +1,19 @@
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { basename, join, parse } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { resolvePermission, resolvePermissionPath } from "../../../src/permission/resolution.js";
 import { resolvePiIgnorePathBlock } from "../../../src/permission/piignore.js";
 import { writeRules } from "../../../src/permission/storage.js";
 import type { FileOp } from "../../../src/permission/types.js";
 import { getPermissionCheck } from "../../../src/permission/helpers.js";
-import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
+import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
-let workspace: PermissionWorkspace;
+let workspace: Workspace;
 beforeEach(async () => {
-  workspace = await makePermissionWorkspace("surgent-paths-", true);
+  workspace = await createWorkspace({ prefix: "surgent-paths-", changeCwd: true });
   await mkdir(join(workspace.cwd, "src"));
   await writeFile(join(workspace.cwd, "src", "blocked.ts"), "private");
 });
-afterEach(async () => { await workspace.restore(); });
-
 async function fileCheck(operation: FileOp, path: string) {
   const check = await getPermissionCheck(workspace.cwd, "session-1", operation, { path });
   if (check?.category !== "file") throw new Error("Missing file permission check");

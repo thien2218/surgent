@@ -6,15 +6,12 @@ import mcpClient from "../../../src/mcp-client/index.js";
 import { readConfigFile } from "../../../src/mcp-client/storage.js";
 import { commandContext } from "../../helpers/commands.js";
 import { recordExtension } from "../../helpers/extension.js";
-import { makePermissionWorkspace } from "../../helpers/permission.js";
+import { createWorkspace } from "../../helpers/workspace.js";
 
 beforeAll(() => initTheme("dark", false));
 
 async function setup(config: Record<string, unknown> = {}) {
-  const workspace = await makePermissionWorkspace("surgent-mcp-command-");
-  onTestFinished(workspace.restore);
-  vi.stubEnv("USERPROFILE", workspace.home);
-  onTestFinished(() => { vi.unstubAllEnvs(); });
+  const workspace = await createWorkspace({ prefix: "surgent-mcp-command-" });
   await writeFile(join(workspace.cwd, ".pi", "mcp.json"), JSON.stringify(config));
   const recorded = recordExtension();
   mcpClient(recorded.api);

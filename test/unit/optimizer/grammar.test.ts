@@ -1,15 +1,14 @@
 import { access, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { loadGrammarModule } from "../../../src/optimizer/languages/grammar.js";
 import { TypeScriptLanguageProfile } from "../../../src/optimizer/languages/typescript.js";
-import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
+import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
-let workspace: PermissionWorkspace;
+let workspace: Workspace;
 
 beforeEach(async () => {
-  workspace = await makePermissionWorkspace("surgent-grammar-");
-  onTestFinished(() => workspace.restore());
+  workspace = await createWorkspace({ prefix: "surgent-grammar-" });
 });
 
 async function cachePackage(name: string, source: string, type: "module" | "commonjs" = "module") {

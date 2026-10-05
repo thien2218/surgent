@@ -3,18 +3,18 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { filterGrepResult } from "../../../src/optimizer/compactor/grep.js";
 import { writeRules } from "../../../src/permission/storage.js";
-import { makePermissionContext, makePermissionSession, makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
+import { makePermissionContext, makePermissionSession } from "../../helpers/permission.js";
+import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
-let workspace: PermissionWorkspace;
+let workspace: Workspace;
 
 beforeEach(async () => {
-  workspace = await makePermissionWorkspace("surgent-permission-grep-");
+  workspace = await createWorkspace({ prefix: "surgent-permission-grep-" });
   vi.stubEnv("TMPDIR", join(workspace.root, "tmp"));
 });
 
-afterEach(async () => {
+afterEach(() => {
   vi.unstubAllEnvs();
-  await workspace.restore();
 });
 
 describe("grep result permissions", () => {

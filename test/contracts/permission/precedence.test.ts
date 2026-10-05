@@ -2,7 +2,8 @@ import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { createEventBus, type ToolCallEvent } from "@earendil-works/pi-coding-agent";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { makePermissionContext, makePermissionSession, makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
+import { makePermissionContext, makePermissionSession } from "../../helpers/permission.js";
+import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 import { recordExtension } from "../../helpers/extension.js";
 import permissionExtension from "../../../src/permission/index.js";
 import { writeRules } from "../../../src/permission/storage.js";
@@ -10,15 +11,14 @@ import type { AgentMeta } from "../../../src/agent/types.js";
 
 let meta: AgentMeta;
 
-let workspace: PermissionWorkspace;
+let workspace: Workspace;
 
 beforeEach(async () => {
-  workspace = await makePermissionWorkspace("surgent-permission-contract-", true);
+  workspace = await createWorkspace({ prefix: "surgent-permission-contract-", changeCwd: true });
   meta = { description: "test" };
 });
 
-afterEach(async () => {
-  await workspace.restore();
+afterEach(() => {
   vi.restoreAllMocks();
 });
 

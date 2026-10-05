@@ -2,17 +2,16 @@ import { appendFile, copyFile, readFile, readdir, writeFile } from "node:fs/prom
 import { join } from "node:path";
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import type { ContextEvent } from "@earendil-works/pi-coding-agent";
-import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import compactorExtension from "../../../src/optimizer/compactor/index.js";
 import { commandContext } from "../../helpers/commands.js";
 import { recordExtension } from "../../helpers/extension.js";
-import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
+import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
-let workspace: PermissionWorkspace;
+let workspace: Workspace;
 
 beforeEach(async () => {
-  workspace = await makePermissionWorkspace("surgent-compactor-contract-", true);
-  onTestFinished(() => workspace.restore());
+  workspace = await createWorkspace({ prefix: "surgent-compactor-contract-", changeCwd: true });
   vi.stubEnv("PI_OFFLINE", "1");
 });
 

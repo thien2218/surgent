@@ -2,7 +2,6 @@ import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { expect, onTestFinished } from "vitest";
 
@@ -86,47 +85,103 @@ export async function setupCli() {
     return result;
   }
 
-  async function rpc(args: string[] = ["--no-session"], cwd = workspace, entry = cliPath) {
-    const running = start(process.execPath, [entry, "--mode", "rpc", ...modelArgs, ...args], cwd);
+  async function rpc(
+    args: string[] = ["--no-session"],
+    cwd = workspace,
+    entry = cliPath,
+    options: { model?: { provider: string; id: string }; allowGeneration?: boolean } = {},
+  ) {
+    const selectedArgs = options.model
+      ? ["--provider", options.model.provider, "--model", options.model.id]
+      : modelArgs;
+    const running = start(process.execPath, [entry, "--mode", "rpc", ...selectedArgs, ...args], cwd);
     const events: Record<string, unknown>[] = [];
     const pending = new Map<string, {
       resolve: (data: Record<string, unknown>) => void;
       reject: (error: Error) => void;
     }>();
+    const waiting = new Map<(record: Record<string, unknown>, index: number) => void, (error: Error) => void>();
     let sequence = 0;
     let exited = false;
-    const lines = createInterface({ input: running.child.stdout });
-    lines.on("line", (line) => {
+    let failure: Error | undefined;
+    let buffer = "";
+    function fail(error: Error) {
+      failure ??= error;
+      for (const waiter of pending.values()) waiter.reject(error);
+      pending.clear();
+      for (const reject of waiting.values()) reject(error);
+    }
+    function receive(line: string) {
       try {
         const record = JSON.parse(line) as Record<string, unknown>;
         events.push(record);
         if (record.type === "response") {
           const waiter = pending.get(String(record.id));
-          if (!waiter) return;
           pending.delete(String(record.id));
-          if (record.success === true) waiter.resolve((record.data ?? {}) as Record<string, unknown>);
-          else waiter.reject(new Error(String(record.error)));
+          if (record.success === true) waiter?.resolve((record.data ?? {}) as Record<string, unknown>);
+          else waiter?.reject(new Error(String(record.error)));
         }
         if (record.type === "extension_error" ||
           (record.type === "extension_ui_request" && record.notifyType === "error") ||
-          record.type === "agent_start") {
+          (record.type === "agent_start" && !options.allowGeneration)) {
           running.errors.push(line);
+          fail(new Error(line));
         }
         if (record.type === "extension_ui_request" && ["select", "confirm", "input", "editor"].includes(String(record.method))) {
           running.errors.push(`Unexpected interactive request: ${line}`);
           running.child.stdin.write(`${JSON.stringify({ type: "extension_ui_response", id: record.id, cancelled: true })}\n`);
+          fail(new Error(`Unexpected interactive request: ${line}`));
         }
+        for (const accept of waiting.keys()) accept(record, events.length - 1);
       } catch (error) {
         running.errors.push(`Invalid RPC output: ${line}: ${String(error)}`);
+        fail(new Error(running.errors.at(-1)));
+      }
+    }
+    // RPC records split on LF only, including when JSON text contains Unicode separators.
+    running.child.stdout.on("data", (chunk: string) => {
+      buffer += chunk;
+      let boundary: number;
+      while ((boundary = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, boundary).replace(/\r$/, "");
+        buffer = buffer.slice(boundary + 1);
+        receive(line);
       }
     });
     void running.done.then((result) => {
       exited = true;
-      lines.close();
-      for (const waiter of pending.values()) waiter.reject(new Error(`CLI exited before RPC response: ${result.stderr}\n${running.errors.join("\n")}`));
-      pending.clear();
+      if (buffer) running.errors.push(`Incomplete RPC record: ${buffer}`);
+      fail(new Error(`CLI exited before RPC completion: ${result.stderr}\n${running.errors.join("\n")}`));
     });
+    function waitFor(
+      type: string,
+      after = events.length,
+      matches: (record: Record<string, unknown>) => boolean = () => true,
+    ) {
+      if (failure) return Promise.reject(failure);
+      return new Promise<Record<string, unknown>>((resolve, reject) => {
+        function finish(error?: Error, record?: Record<string, unknown>) {
+          clearTimeout(deadline);
+          waiting.delete(accept);
+          if (error) reject(error);
+          else resolve(record!);
+        }
+        function accept(record: Record<string, unknown>, index: number) {
+          try {
+            if (index >= after && record.type === type && matches(record)) finish(undefined, record);
+          } catch (error) {
+            finish(error instanceof Error ? error : new Error(String(error)));
+          }
+        }
+        const deadline = setTimeout(() => {
+          finish(new Error(`Timed out waiting for ${type}: ${JSON.stringify(events.slice(-5))}`));
+        }, 15_000);
+        waiting.set(accept, (error) => finish(error));
+        for (let index = after; index < events.length && waiting.has(accept); index++) accept(events[index]!, index);
+      });
+    }
     function request(type: string, fields: Record<string, unknown> = {}) {
+      if (failure) return Promise.reject(failure);
       if (exited) return Promise.reject(new Error("CLI already exited"));
       const id = String(++sequence);
       return new Promise<Record<string, unknown>>((resolve, reject) => {
@@ -135,14 +190,28 @@ export async function setupCli() {
       });
     }
     const state = await request("get_state");
-    expect(state).toMatchObject({ model: { provider: "openai", id: "gpt-4o-mini" }, isStreaming: false });
+    expect(state).toMatchObject({ model: options.model ?? { provider: "openai", id: "gpt-4o-mini" }, isStreaming: false });
     expect(events).toContainEqual(expect.objectContaining({
       type: "extension_ui_request", method: "setStatus", statusKey: "agent", statusText: expect.stringContaining("agent: general"),
     }));
     expect(running.errors).toEqual([]);
     return {
       state,
+      events,
       request,
+      waitFor,
+      async promptAndWait(message: string) {
+        const after = events.length;
+        await Promise.all([waitFor("agent_settled", after), request("prompt", { message })]);
+        const turn = events.slice(after);
+        for (const record of turn) {
+          const message = record.message as { stopReason?: string; errorMessage?: string } | undefined;
+          if (record.type === "message_end" && message?.stopReason === "error") {
+            throw new Error(message.errorMessage ?? "Provider failed");
+          }
+        }
+        return turn;
+      },
       async close() {
         running.child.stdin.end();
         const result = await running.done;

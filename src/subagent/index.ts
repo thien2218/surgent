@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Text, visibleWidth } from "@earendil-works/pi-tui";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { openSubsession } from "./subsession.js";
 import { getState } from "../state.js";
@@ -74,11 +74,8 @@ export default function (pi: ExtensionAPI) {
     renderCall(args, theme) {
       return {
         render(width: number) {
-          const toolTitle = theme.fg("toolTitle", "subagent");
-          const agent = theme.fg("accent", args.agent);
-          const promptWidth = width * 2 - (visibleWidth(toolTitle) + visibleWidth(agent) + 2);
           return new Text(
-            `${toolTitle} ${agent} ${theme.fg("dim", `"${truncateText(args.task ?? "", promptWidth)}"`)}`,
+            `${theme.fg("toolTitle", "subagent")} ${theme.fg("accent", args.agent)} ${theme.fg("dim", `"${truncateText(args.task ?? "", width * 3 - 50)}"`)}`,
             0,
             0,
           ).render(width);
@@ -100,7 +97,7 @@ export default function (pi: ExtensionAPI) {
 
       return {
         render(width: number) {
-          const heading = new Text(`${ctx.args.agent}: ${snapshot.status}`);
+          const heading = new Text(theme.bold(`${ctx.args.agent}: ${snapshot.status}`), 0, 0);
           const lines = [
             " ".repeat(width),
             ...heading.render(width),

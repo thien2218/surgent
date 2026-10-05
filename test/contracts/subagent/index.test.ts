@@ -175,7 +175,7 @@ describe("subagent rendering", () => {
         const input = foreground.mock.calls.find(([color]) => color === "dim");
         expect(input).toBeDefined();
         const preview = stripTerminalSequences(input![1]);
-        expect(preview.length).toBeLessThanOrEqual(width * 2);
+        expect(preview.length).toBeLessThanOrEqual(width * 3);
         expect(preview).toContain("Inspect files");
         expect(preview).toMatch(/\.\.\."$/);
         expect(preview).not.toContain("Task end");

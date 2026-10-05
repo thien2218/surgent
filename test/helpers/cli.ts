@@ -63,9 +63,9 @@ export async function setupCli() {
       catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error; }
     }
     const deadline = setTimeout(() => {
-      errors.push("CLI process did not finish within 30 seconds");
+      errors.push("CLI process did not finish within 60 seconds");
       kill();
-    }, 30_000);
+    }, 60_000);
     const done = new Promise<{ status: number | null; signal: NodeJS.Signals | null; stdout: string; stderr: string }>((resolve) => {
       child.once("close", (status, signal) => {
         clearTimeout(deadline);

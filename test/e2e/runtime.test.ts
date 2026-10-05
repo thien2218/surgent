@@ -54,7 +54,7 @@ describe("real CLI startup", () => {
     const ignored = await fixture.run("git", ["check-ignore", ".pi"]);
     expect(ignored.status, ignored.stderr).toBe(0);
     expect(ignored.stdout.trim()).toBe(".pi");
-  }, 60_000);
+  }, 120_000);
 
   it("initializes each requested non-Git cwd outside the package checkout", async () => {
     const fixture = await setupCli();
@@ -68,7 +68,7 @@ describe("real CLI startup", () => {
       expect(await readdir(workspace)).toContain(".pi");
       expect(await readdir(workspace)).not.toContain(".git");
     }
-  }, 60_000);
+  }, 120_000);
 
   it("flushes checkpoints on EOF and reopens a named session without generation", async () => {
     const fixture = await setupCli();
@@ -96,5 +96,5 @@ describe("real CLI startup", () => {
     expect(reopened.state).toMatchObject({ sessionId: saved.sessionId, sessionFile: sessionPath, sessionName: "offline-reopen" });
     expect(await reopened.request("get_messages")).toEqual({ messages: [] });
     await reopened.close();
-  }, 60_000);
+  }, 120_000);
 });

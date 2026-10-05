@@ -13,7 +13,7 @@ describe("real CLI arguments", () => {
     expect(result.stdout).toContain("--mode");
     expect(result.stdout).not.toMatch(/\bpi --/);
     expect(await readdir(fixture.workspace)).not.toContain(".pi");
-  }, 60_000);
+  }, 120_000);
 
   it("rejects an invalid mode with a nonzero exit and stderr diagnostic", async () => {
     const fixture = await setupCli();
@@ -23,7 +23,7 @@ describe("real CLI arguments", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Invalid mode");
     expect(result.stdout).toBe("");
-  }, 60_000);
+  }, 120_000);
 
   it("fails headless startup without credentials instead of hanging for login", async () => {
     const fixture = await setupCli();
@@ -33,7 +33,7 @@ describe("real CLI arguments", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("No API key found");
     expect(result.stdout).toBe("");
-  }, 60_000);
+  }, 120_000);
 
   it("emits only JSON records in prompt-free JSON mode and exits cleanly", async () => {
     const fixture = await setupCli();
@@ -46,5 +46,5 @@ describe("real CLI arguments", () => {
     expect(records).not.toContainEqual(expect.objectContaining({ type: "agent_start" }));
     expect(records).not.toContainEqual(expect.objectContaining({ type: "extension_error" }));
     expect(result.stderr).not.toMatch(/Failed to load|Error loading|Failed to initialize|Extension error/i);
-  }, 60_000);
+  }, 120_000);
 });

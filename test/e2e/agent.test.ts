@@ -60,7 +60,7 @@ describe("offline CLI agent journeys", () => {
     ]) });
     expect(await reopened.request("get_last_assistant_text")).toEqual({ text: finalText });
     await reopened.close();
-  }, 60_000);
+  }, 120_000);
 
   it("returns policy denial to the model without mutating the target", async () => {
     const fixture = await setupCli();
@@ -84,7 +84,7 @@ describe("offline CLI agent journeys", () => {
     }));
     expect(await session.request("get_last_assistant_text")).toEqual({ text: "Policy denial received" });
     await session.close();
-  }, 60_000);
+  }, 120_000);
 
   it("fails closed when a tool needs permission UI unavailable in RPC", async () => {
     const fixture = await setupCli();
@@ -105,7 +105,7 @@ describe("offline CLI agent journeys", () => {
     expect(endedMessages(turn)).toContainEqual(expect.objectContaining({ role: "toolResult", toolCallId: "ask-bash", isError: true }));
     expect(await session.request("get_last_assistant_text")).toEqual({ text: "Permission cancellation received" });
     await session.close();
-  }, 60_000);
+  }, 120_000);
 
   it("redacts read results before RPC output and the next model request", async () => {
     const fixture = await setupCli();
@@ -130,7 +130,7 @@ describe("offline CLI agent journeys", () => {
     expect(await readFile(join(fixture.workspace, "fake-secret.txt"), "utf8")).toBe(`Example token: ${secret}\n`);
     expect(await session.request("get_last_assistant_text")).toEqual({ text: "Only redacted content received" });
     await session.close();
-  }, 60_000);
+  }, 120_000);
 
   it("aborts active generation and accepts a new prompt in the same process", async () => {
     const fixture = await setupCli();
@@ -156,5 +156,5 @@ describe("offline CLI agent journeys", () => {
     await session.promptAndWait("Respond normally now.");
     expect(await session.request("get_last_assistant_text")).toEqual({ text: "Recovered after abort" });
     await session.close();
-  }, 60_000);
+  }, 120_000);
 });

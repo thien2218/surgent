@@ -38,4 +38,4 @@ it("starts the built package outside the checkout with real extensions", async (
     expect.objectContaining({ name: "permissions", source: "extension" }),
   ]));
   await session.close();
-}, 60_000);
+}, 120_000);

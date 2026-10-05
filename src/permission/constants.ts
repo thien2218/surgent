@@ -8,7 +8,7 @@ export const PERMISSIVE_TOOLS = {
   edit: "file",
   bash: "bash",
   web_fetch: "web",
-  call_mcp_tool: "mcp",
+  read_mcp_resource: "mcp",
 } as const;
 
 export const SUSPICIOUS_BASH_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [

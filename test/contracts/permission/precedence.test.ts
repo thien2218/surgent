@@ -129,19 +129,19 @@ describe("permission precedence contract", () => {
     { tool: "delete", prompts: 0, denied: true },
     { tool: "unknown", prompts: 1, denied: false },
   ])("enforces persisted MCP permissions for $tool", async ({ tool, prompts, denied }) => {
-    await writeRules({ project: { mcp: { "docs:search": true, "docs:delete": false } } }, workspace.cwd);
+    await writeRules({ project: { mcp: { "mcp__docs__search": true, "mcp__docs__delete": false } } }, workspace.cwd);
     const pi = makePermissionSession(meta);
     const ctx = makePermissionContext(workspace.cwd, true);
     ctx.ui.custom.mockResolvedValue({ allowed: true });
     permissionExtension(pi.api);
 
     const result = await pi.event("tool_call")({
-      type: "tool_call", toolCallId: "mcp-call", toolName: "call_mcp_tool",
-      input: { server: "docs", tool },
+      type: "tool_call", toolCallId: "mcp-call", toolName: `mcp__docs__${tool}`,
+      input: {},
     }, ctx);
 
     if (denied) {
-      expect(result).toEqual({ block: true, reason: expect.stringContaining("docs:delete") });
+      expect(result).toEqual({ block: true, reason: expect.stringContaining("mcp__docs__delete") });
     } else {
       expect(result).toBeUndefined();
     }
@@ -223,7 +223,6 @@ describe("permission precedence contract", () => {
   it.each([
     { toolName: "write", input: null },
     { toolName: "bash", input: { command: 42 } },
-    { toolName: "call_mcp_tool", input: { server: "docs" } },
   ])("fails closed for malformed $toolName input", async (event) => {
     const pi = makePermissionSession(meta);
     const ctx = makePermissionContext(workspace.cwd, true);

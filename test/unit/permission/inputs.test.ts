@@ -3,10 +3,26 @@ import { getPermissionCheck } from "../../../src/permission/helpers.js";
 import { extractBashCommands } from "../../../src/permission/bash.js";
 
 describe("permission inputs", () => {
-  it("trims MCP server and tool identifiers without changing their case", async () => {
-    expect(await getPermissionCheck("/unused", "session-1", "call_mcp_tool", { server: " Docs ", tool: " search " }))
-      .toMatchObject({ raw: "Docs:search", category: "mcp", toolName: "call_mcp_tool" });
+  it("matches the exact native identity, including case and collision suffixes", async () => {
+    const toolName = "mcp__Docs__search_ab12cd34";
+    expect(await getPermissionCheck("/unused", "session-1", toolName, {}))
+      .toMatchObject({ raw: toolName, category: "mcp", toolName });
   });
+
+  it.each(["list_mcp_resources", "list_mcp_resource_templates"])(
+    "leaves %s outside permission checks, including unscoped listing", async (toolName) => {
+      for (const input of [{}, { server: "Docs-api" }]) {
+        expect(await getPermissionCheck("/unused", "session-1", toolName, input)).toBeNull();
+      }
+    },
+  );
+
+  it.each(["read_mcp_resource"])(
+    "scopes %s to an explicit server without rewriting it", async (toolName) => {
+      expect(await getPermissionCheck("/unused", "session-1", toolName, { server: "Docs-api" }))
+        .toMatchObject({ raw: `${toolName}:Docs-api`, category: "mcp" });
+    },
+  );
 
   it("checks every command across chains, pipes, and newlines", async () => {
     const command = "git status && pnpm test\nprintf hello | cat\npwd";

@@ -31,7 +31,7 @@ describe("real CLI startup", () => {
 
     expect(JSON.parse(await readFile(toolsPath, "utf8"))).toEqual(expect.arrayContaining([
       "read", "write", "edit", "bash", "grep", "code_map", "inspect", "subagent", "questionnaire",
-      "list_mcp_tools", "call_mcp_tool", "web_search", "web_fetch",
+      "web_search", "web_fetch",
     ]));
     expect(await readdir(join(fixture.workspace, ".pi"))).toEqual(expect.arrayContaining(["agents"]));
     const settingsPath = join(fixture.home, ".pi", "agent", "settings.json");

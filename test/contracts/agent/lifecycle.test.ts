@@ -12,11 +12,11 @@ import { recordExtension } from "../../helpers/extension.js";
 
 async function setup() {
   const workspace = await agentWorkspace();
-  let activeTools = ["read", "subagent", "call_mcp_tool", "list_mcp_tools"];
+  let activeTools = ["read", "subagent", "codemode", "tool_search"];
   const extension = recordExtension({
     events: createEventBus(),
-    getAllTools: () => ["read", "subagent", "call_mcp_tool", "list_mcp_tools"].map((name) => ({
-      name, description: name, parameters: Type.Object({}), exposure: "direct",
+    getAllTools: () => ["read", "subagent", "codemode", "tool_search", "mcp__docs__search"].map((name) => ({
+      name, description: name, parameters: Type.Object({}), exposure: name.startsWith("mcp__") ? "deferred" : "direct",
       sourceInfo: { path: "test:agent", source: "test", scope: "temporary", origin: "top-level" },
     })),
     getActiveTools: () => activeTools,
@@ -45,6 +45,24 @@ async function setup() {
 }
 
 describe("agent startup", () => {
+  it("preserves native exposure and ignores even malformed legacy MCP config", async () => {
+    const context = await setup();
+    await writeFile(join(context.cwd, ".pi", "mcp.json"), "not-json");
+    await context.start();
+
+    expect(context.shutdown).not.toHaveBeenCalled();
+    expect(context.extension.api.getActiveTools()).toEqual(["read", "subagent", "codemode", "tool_search"]);
+    expect(await readFile(getPiPath("system"), "utf8")).not.toContain("Available MCP servers");
+  });
+
+  it("allows an explicit profile choice to declare a deferred native tool", async () => {
+    const context = await setup();
+    await writeFile(join(context.local, "general.md"), '---\ndescription: General\ntools: [mcp__docs__search]\n---\nInstructions');
+    await context.start();
+
+    expect(context.extension.api.getActiveTools()).toEqual(["mcp__docs__search"]);
+  });
+
   it("enforces only parent policy when a saved subsession starts directly", async () => {
     const context = await setup();
     await writeFile(join(context.cwd, "private.txt"), "Harmless fixture");
@@ -118,7 +136,7 @@ describe("agent startup", () => {
 });
 
 describe("generated tool details", () => {
-  it.each(["subagent", "call_mcp_tool", "list_mcp_tools"])(
+  it.each(["subagent"])(
     "clears stale details when %s is disabled and no related tool remains", async (tool) => {
       const context = await setup();
       const filePath = join(context.local, "general.md");

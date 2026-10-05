@@ -43,7 +43,7 @@ describe("suggested permission patterns", () => {
   });
 
   it("keeps MCP permissions scoped to the exact server and tool", () => {
-    expect(toPatterns({ sessionId: "session-1", toolName: "call_mcp_tool", category: "mcp", raw: "docs:search", purpose: "test" }))
-      .toEqual(["docs:search"]);
+    expect(toPatterns({ sessionId: "session-1", toolName: "mcp__docs__search", category: "mcp", raw: "mcp__docs__search", purpose: "test" }))
+      .toEqual(["mcp__docs__search"]);
   });
 });

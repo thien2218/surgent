@@ -9,7 +9,7 @@ export type FileAccess = FileOp | "deny";
 
 interface CheckBase {
   sessionId: string;
-  toolName: PermissiveToolName;
+  toolName: PermissiveToolName | `mcp__${string}`;
   category: Category;
   raw: string;
   purpose: string;
@@ -23,7 +23,7 @@ interface BashCheck extends CheckBase {
 }
 
 interface OtherCheck extends CheckBase {
-  toolName: "web_fetch" | "call_mcp_tool";
+  toolName: "web_fetch" | `mcp__${string}` | "read_mcp_resource";
   category: "web" | "mcp";
 }
 

@@ -21,7 +21,6 @@
 │   ├── cleanup
 │   ├── code-diff
 │   ├── commands
-│   ├── mcp-client
 │   ├── optimizer
 │   ├── permission
 │   ├── questionnaire

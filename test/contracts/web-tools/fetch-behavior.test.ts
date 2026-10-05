@@ -1,17 +1,17 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, onTestFinished, vi } from "vitest";
 import webTools from "../../../src/web-tools/index.js";
-import { recordExtension } from "../../helpers/extension.js";
+import { recordExtension, toolCapabilities } from "../../helpers/extension.js";
 
 async function setup(configured: string[] = []) {
   const home = await mkdtemp(join(tmpdir(), "surgent-web-contract-"));
   onTestFinished(() => rm(home, { recursive: true, force: true }));
   vi.stubEnv("HOME", home);
   const read = vi.fn(async (provider: string) => configured.includes(provider) ? { type: "api_key", key: "fake-key" } : undefined);
-  const ctx = { modelRegistry: { runtime: { credentials: { read } } } } as unknown as ExtensionContext;
+  const ctx = { ...toolCapabilities(), modelRegistry: { runtime: { credentials: { read } } } } as unknown as ExtensionToolContext;
   const extension = recordExtension();
   webTools(extension.api);
   return { tool: extension.tool("web_fetch"), ctx, read };

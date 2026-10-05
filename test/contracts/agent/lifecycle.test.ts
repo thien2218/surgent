@@ -16,7 +16,7 @@ async function setup() {
   const extension = recordExtension({
     events: createEventBus(),
     getAllTools: () => ["read", "subagent", "call_mcp_tool", "list_mcp_tools"].map((name) => ({
-      name, description: name, parameters: Type.Object({}),
+      name, description: name, parameters: Type.Object({}), exposure: "direct",
       sourceInfo: { path: "test:agent", source: "test", scope: "temporary", origin: "top-level" },
     })),
     getActiveTools: () => activeTools,

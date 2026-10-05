@@ -41,6 +41,11 @@ function sessionEntry(message: ToolResultMessage) {
   return { type: "message", id: message.toolCallId, parentId: "parent", message };
 }
 
+it("advertises bash as text-only because redaction replaces structured results", () => {
+  const { pi } = loadCompactor();
+  expect(pi.tool("bash").outputSchema).toBeUndefined();
+});
+
 describe("compactor lifecycle", () => {
   it("keeps active grep results until agent_end and summarizes only completed grep calls", async () => {
     const { pi, ctx } = loadCompactor();

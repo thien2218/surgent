@@ -2,11 +2,12 @@ import {
   createEventBus,
   type ExtensionCommandContext,
   type ExtensionContext,
+  type ExtensionToolContext,
 } from "@earendil-works/pi-coding-agent";
 import { onTestFinished, vi } from "vitest";
 import { createState } from "../../src/state.js";
 import type { AgentMeta, AgentMode } from "../../src/agent/types.js";
-import { recordExtension } from "./extension.js";
+import { recordExtension, toolCapabilities } from "./extension.js";
 
 export function makePermissionSession(
   meta: AgentMeta = { description: "test" },
@@ -26,6 +27,7 @@ export function makePermissionContext(cwd: string, hasUI = false) {
     theme: { fg: vi.fn<ExtensionContext["ui"]["theme"]["fg"]>((_color, text) => text) },
   };
   const values = {
+    ...toolCapabilities(),
     cwd,
     hasUI,
     ui,
@@ -37,5 +39,5 @@ export function makePermissionContext(cwd: string, hasUI = false) {
         throw new Error(`Unexpected context access: ${String(property)}`);
       return Reflect.get(target, property);
     },
-  }) as unknown as ExtensionCommandContext & { ui: typeof ui };
+  }) as unknown as ExtensionCommandContext & ExtensionToolContext & { ui: typeof ui };
 }

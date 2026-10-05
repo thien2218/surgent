@@ -1,4 +1,4 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { createServer, type RequestListener } from "node:http";
 import { tmpdir } from "node:os";
@@ -7,7 +7,7 @@ import { afterEach, expect, it, onTestFinished, vi } from "vitest";
 import webTools from "../../../src/web-tools/index.js";
 import { getPiPath } from "../../../src/utils.js";
 import { getCacheFilePath, readCachedContent } from "../../../src/web-tools/web-fetch/storage.js";
-import { recordExtension } from "../../helpers/extension.js";
+import { recordExtension, toolCapabilities } from "../../helpers/extension.js";
 
 async function setup(handler: RequestListener) {
   const home = await mkdtemp(join(tmpdir(), "surgent-web-http-"));
@@ -31,7 +31,7 @@ async function setup(handler: RequestListener) {
     return nativeFetch(input, init);
   });
   vi.stubGlobal("fetch", fetch);
-  const ctx = { modelRegistry: { runtime: { credentials: { read: async () => undefined } } } } as unknown as ExtensionContext;
+  const ctx = { ...toolCapabilities(), modelRegistry: { runtime: { credentials: { read: async () => undefined } } } } as unknown as ExtensionToolContext;
   const extension = recordExtension();
   webTools(extension.api);
   return { url, tool: extension.tool("web_fetch"), ctx, fetch };

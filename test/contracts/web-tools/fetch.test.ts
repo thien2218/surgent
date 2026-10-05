@@ -1,11 +1,11 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, onTestFinished, vi } from "vitest";
 import webTools from "../../../src/web-tools/index.js";
 import { readCachedContent } from "../../../src/web-tools/web-fetch/storage.js";
-import { recordExtension } from "../../helpers/extension.js";
+import { recordExtension, toolCapabilities } from "../../helpers/extension.js";
 
 const url = "https://example.invalid/page";
 
@@ -16,7 +16,7 @@ async function setup() {
   const extension = recordExtension();
   webTools(extension.api);
   const read = vi.fn(async () => ({ type: "api_key", key: "fake-key" }));
-  const ctx = { modelRegistry: { runtime: { credentials: { read } } } } as unknown as ExtensionContext;
+  const ctx = { ...toolCapabilities(), modelRegistry: { runtime: { credentials: { read } } } } as unknown as ExtensionToolContext;
   return { tool: extension.tool("web_fetch"), ctx, read };
 }
 

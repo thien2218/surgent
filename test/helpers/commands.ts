@@ -2,10 +2,11 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import type { ExtensionCommandContext, Theme } from "@earendil-works/pi-coding-agent";
+import type { ExtensionCommandContext, ExtensionToolContext, Theme } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager, TUI_KEYBINDINGS, type Component, type TUI } from "@earendil-works/pi-tui";
 import { onTestFinished, vi } from "vitest";
 import type { StoredSubsessions } from "../../src/subagent/types.js";
+import { toolCapabilities } from "./extension.js";
 
 export const PLAN_ID = "01900000-0000-7000-8000-000000000001";
 
@@ -59,6 +60,7 @@ export function commandContext(cwd: string) {
     theme: theme as Theme,
   };
   const values = {
+    ...toolCapabilities(),
     cwd,
     mode: "tui",
     hasUI: true,
@@ -76,7 +78,7 @@ export function commandContext(cwd: string) {
       if (!Reflect.has(target, property)) throw new Error(`Unexpected command context access: ${String(property)}`);
       return Reflect.get(target, property);
     },
-  }) as unknown as ExtensionCommandContext;
+  }) as unknown as ExtensionCommandContext & ExtensionToolContext;
   const tui = { requestRender: vi.fn(), terminal: { rows: 40, columns: 100 } } as unknown as TUI;
   const keybindings = new KeybindingsManager(TUI_KEYBINDINGS) as import("@earendil-works/pi-coding-agent").KeybindingsManager;
 

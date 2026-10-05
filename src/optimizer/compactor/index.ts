@@ -75,6 +75,8 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerTool({
     ...bashTool,
+    // Redaction replaces results with text; codemode must not expect a structured object.
+    outputSchema: undefined,
     parameters: Type.Object({
       ...bashTool.parameters.properties,
       purpose: Type.String({

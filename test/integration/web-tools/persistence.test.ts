@@ -1,11 +1,11 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, onTestFinished, vi } from "vitest";
 import webTools from "../../../src/web-tools/index.js";
 import { readCachedContent } from "../../../src/web-tools/web-fetch/storage.js";
-import { recordExtension } from "../../helpers/extension.js";
+import { recordExtension, toolCapabilities } from "../../helpers/extension.js";
 
 vi.mock("node:fs/promises", async importOriginal => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
@@ -21,7 +21,7 @@ it("continues provider fallback after a cache-write failure and persists the rec
   const fetch = vi.fn().mockResolvedValueOnce(new Response("# Native"))
     .mockResolvedValueOnce(new Response("Markdown Content:\n# Recovered"));
   vi.stubGlobal("fetch", fetch);
-  const ctx = { modelRegistry: { runtime: { credentials: { read: async () => undefined } } } } as unknown as ExtensionContext;
+  const ctx = { ...toolCapabilities(), modelRegistry: { runtime: { credentials: { read: async () => undefined } } } } as unknown as ExtensionToolContext;
   const extension = recordExtension();
   webTools(extension.api);
   const url = "https://example.invalid/page";

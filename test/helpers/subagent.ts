@@ -6,6 +6,7 @@ import {
   type AgentSession,
   type AgentSessionEvent,
   type ExtensionContext,
+  type ExtensionToolContext,
   type SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import { onTestFinished, vi, type Mock } from "vitest";
@@ -76,7 +77,7 @@ export async function subagentSetup() {
   onTestFinished(() => state.dispose());
   const context = commandContext(workspace.cwd);
   const modelRegistry = { find: vi.fn<ExtensionContext["modelRegistry"]["find"]>() };
-  const ctx = { ...context.ctx, modelRegistry } as unknown as ExtensionContext;
+  const ctx = { ...context.ctx, modelRegistry } as unknown as ExtensionToolContext;
   const snapshots: SubsessionSnapshot[] = [];
   const request: SubsessionRequest = {
     ctx, state, agent: "worker", temporary: true,

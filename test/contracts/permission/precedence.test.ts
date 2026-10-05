@@ -98,7 +98,7 @@ describe("permission precedence contract", () => {
     permissionExtension(pi.api);
     const result = await pi.event("tool_call")({ type: "tool_call", toolCallId: "call-1", toolName: "web_fetch", input: { url: "https://example.com" } }, ctx);
 
-    expect(result).toEqual({ block: true, reason: "Permission check failed" });
+    expect(result).toEqual({ block: true, reason: "UI unavailable" });
   });
 
   it("lets a winning allow proceed without prompting", async () => {
@@ -231,7 +231,7 @@ describe("permission precedence contract", () => {
     permissionExtension(pi.api);
     const result = await pi.event("tool_call")({ ...event, type: "tool_call", toolCallId: "call-1" } as ToolCallEvent, ctx);
 
-    expect(result).toEqual({ block: true, reason: "Permission check failed" });
+    expect(result).toEqual({ block: true, reason: expect.any(String) });
     expect(ctx.ui.custom).not.toHaveBeenCalled();
   });
 
@@ -247,7 +247,7 @@ describe("permission precedence contract", () => {
     }
     const result = await pi.event("tool_call")({ type: "tool_call", toolCallId: "call-1", toolName: "read", input: { path: "file.ts" } }, ctx);
 
-    expect(result).toEqual({ block: true, reason: "Permission check failed" });
+    expect(result).toEqual({ block: true, reason: expect.stringMatching(/JSON|Invalid \.piignore rule/) });
   });
 
   it.each(["assistant", "restricted", "yolo"] as const)("blocks malformed project rules before prompting in %s mode", async (mode) => {
@@ -261,7 +261,7 @@ describe("permission precedence contract", () => {
       type: "tool_call", toolCallId: "invalid-policy", toolName: "read", input: { path: "file.ts" },
     }, ctx);
 
-    expect(result).toEqual({ block: true, reason: "Permission check failed" });
+    expect(result).toEqual({ block: true, reason: expect.stringContaining("Expected JSON object") });
     expect(ctx.ui.custom).not.toHaveBeenCalled();
   });
 

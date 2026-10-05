@@ -83,8 +83,11 @@ export default function (pi: ExtensionAPI) {
       if (permission === "allowed" && !check.uncertainty) return;
 
       return await askForPermission(pi, ctx, check);
-    } catch {
-      return { block: true, reason: "Permission check failed" };
+    } catch (error) {
+      return {
+        block: true,
+        reason: error instanceof Error ? error.message : "Permission check failed",
+      };
     }
   });
 }

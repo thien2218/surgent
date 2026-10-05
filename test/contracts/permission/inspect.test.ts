@@ -86,6 +86,6 @@ describe("inspect read permissions", () => {
       input: { path: "source.ts", symbol: "example" },
     }, makePermissionContext(workspace.cwd));
 
-    expect(result).toEqual({ block: true, reason: "Permission check failed" });
+    expect(result).toEqual({ block: true, reason: expect.stringMatching(/JSON/) });
   });
 });

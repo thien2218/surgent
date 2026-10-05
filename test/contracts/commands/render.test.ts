@@ -111,7 +111,7 @@ describe("progress widget contract", () => {
     const widget = factory(tui, ui.theme);
     try {
       const rendered = text(widget);
-      expect(rendered).toContain("documenter (");
+      expect(rendered).toContain("documenter:");
       expect(rendered).toContain("tools_used=2");
       expect(rendered).toContain("in=2.0k | out=1.0k | cost=$0.001");
       expect(rendered).toContain("read /src/example.ts");

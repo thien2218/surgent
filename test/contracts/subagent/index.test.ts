@@ -160,22 +160,28 @@ describe("subagent rendering", () => {
     expect(rendered).toContain('read({"path":"file.ts"})');
   });
 
-  it("caps the dim task preview at 100 characters without shortening the delegated task or context", async () => {
+  it("sizes the dim task preview to render width without shortening the delegated task or context", async () => {
     const { tool, ui, ctx, sessions } = await setup();
     const args = { agent: "worker", task: `${"Inspect files\n".repeat(20)}Task end`, context: "Prior findings\nKeep all context" };
     const context = { args } as Parameters<NonNullable<typeof tool.renderCall>>[2];
     const foreground = vi.spyOn(ui.theme, "fg");
     try {
-      const rendered = tool.renderCall!(args, ui.theme, context).render(300).map(stripTerminalSequences).join("\n").trim();
-      const preview = rendered.match(/^subagent worker "([^"]*)"$/)?.[1];
-      expect(preview).toBeDefined();
-      expect(preview!.length).toBeLessThanOrEqual(100);
-      expect(preview).toContain("Inspect files Inspect files");
-      expect(preview).not.toContain("Task end");
-      expect(foreground).toHaveBeenCalledWith("accent", "worker");
-      const input = foreground.mock.calls.find(([color]) => color === "dim");
-      expect(input).toBeDefined();
-      expect(stripTerminalSequences(input![1])).toBe(`"${preview}"`);
+      const component = tool.renderCall!(args, ui.theme, context);
+      const previews: string[] = [];
+      for (const width of [40, 80]) {
+        foreground.mockClear();
+        component.render(width);
+        expect(foreground).toHaveBeenCalledWith("accent", "worker");
+        const input = foreground.mock.calls.find(([color]) => color === "dim");
+        expect(input).toBeDefined();
+        const preview = stripTerminalSequences(input![1]);
+        expect(preview.length).toBeLessThanOrEqual(width * 2);
+        expect(preview).toContain("Inspect files");
+        expect(preview).toMatch(/\.\.\."$/);
+        expect(preview).not.toContain("Task end");
+        previews.push(preview);
+      }
+      expect(previews[1]!.length).toBeGreaterThan(previews[0]!.length);
     } finally {
       foreground.mockRestore();
     }

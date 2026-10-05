@@ -1,9 +1,9 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Container, Spacer, Text, TruncatedText, truncateToWidth } from "@earendil-works/pi-tui";
+import { Text, visibleWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { openSubsession } from "./subsession.js";
 import { getState } from "../state.js";
-import { formatSnapshotText } from "./helpers.js";
+import { formatSnapshotText, truncateText } from "./helpers.js";
 import type { Cost, SubsessionRequest, SubsessionSnapshot } from "./types.js";
 import { renderResultText } from "../utils.js";
 
@@ -72,12 +72,19 @@ export default function (pi: ExtensionAPI) {
       }
     },
     renderCall(args, theme) {
-      const preview = truncateToWidth((args.task ?? "").replace(/\s+/g, " "), 100);
-      return new Text(
-        `${theme.fg("toolTitle", "subagent")} ${theme.fg("accent", args.agent)} ${theme.fg("dim", `"${preview}"`)}`,
-        0,
-        0,
-      );
+      return {
+        render(width: number) {
+          const toolTitle = theme.fg("toolTitle", "subagent");
+          const agent = theme.fg("accent", args.agent);
+          const promptWidth = width * 2 - (visibleWidth(toolTitle) + visibleWidth(agent) + 2);
+          return new Text(
+            `${toolTitle} ${agent} ${theme.fg("dim", `"${truncateText(args.task ?? "", promptWidth)}"`)}`,
+            0,
+            0,
+          ).render(width);
+        },
+        invalidate() {},
+      };
     },
     renderResult(result, { expanded, isPartial }, theme, ctx) {
       if (!isPartial) {
@@ -91,16 +98,18 @@ export default function (pi: ExtensionAPI) {
         return new Text(theme.fg("toolOutput", `Subagent ${ctx.args.agent}: starting`), 0, 0);
       }
 
-      const output = new Container();
-      output.addChild(new Spacer());
-      const lines = [
-        theme.bold(`${ctx.args.agent}: ${snapshot.status}`),
-        ...formatSnapshotText(snapshot),
-      ];
-      for (const line of lines) {
-        output.addChild(new TruncatedText(theme.fg("toolOutput", line), 1, 0));
-      }
-      return output;
+      return {
+        render(width: number) {
+          const heading = new Text(`${ctx.args.agent}: ${snapshot.status}`);
+          const lines = [
+            " ".repeat(width),
+            ...heading.render(width),
+            ...formatSnapshotText(snapshot, width),
+          ];
+          return lines.map((line) => theme.fg("toolOutput", line));
+        },
+        invalidate() {},
+      };
     },
   });
 

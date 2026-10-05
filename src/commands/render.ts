@@ -6,9 +6,7 @@ import {
 } from "../ui/components/action-select-list.js";
 import { ScrollableView } from "../ui/components/scrollable-view.js";
 import type { LoopAction } from "./types.js";
-import { Container, Loader } from "@earendil-works/pi-tui";
-import { TruncatedText } from "@earendil-works/pi-tui";
-import { Spacer } from "@earendil-works/pi-tui";
+import { Loader } from "@earendil-works/pi-tui";
 import { formatSnapshotText } from "../subagent/helpers.js";
 import type { SubsessionSnapshot } from "../subagent/types.js";
 
@@ -69,27 +67,28 @@ export function renderSnapshotWidget(
   snapshot: SubsessionSnapshot,
 ) {
   const activity = ACTIVITY_LABELS[Math.floor(Math.random() * ACTIVITY_LABELS.length)]!;
-  const snapshotText = formatSnapshotText(snapshot);
-
   ctx.ui.setWidget(label, (tui, theme) => {
-    const widget = new Container() as Container & { dispose?: () => void };
     const loader = new Loader(
       tui,
       (content) => theme.fg("accent", content),
       (content) => theme.fg("muted", content),
-      `${label} (${activity}): ${snapshotText[0]}`,
+      `${label}: ${activity}`,
     );
     if (snapshot.status !== "running") {
       loader.setIndicator({ frames: ["•"] });
     }
 
-    widget.addChild(loader);
-    for (const line of snapshotText.slice(1)) {
-      widget.addChild(new TruncatedText(`  ${line}`, 1, 0));
-    }
-
-    widget.addChild(new Spacer(1));
-    widget.dispose = () => loader.stop();
-    return widget;
+    return {
+      render(width: number) {
+        const snapshotText = formatSnapshotText(snapshot, width);
+        return [...loader.render(width), ...snapshotText, " ".repeat(width)];
+      },
+      invalidate() {
+        loader.invalidate();
+      },
+      dispose() {
+        loader.stop();
+      },
+    };
   });
 }

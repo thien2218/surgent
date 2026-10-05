@@ -56,7 +56,8 @@ describe("subagent output helpers", () => {
       usage.input = count;
       usage.output = count;
       usage.cost.total = 0.12345;
-      expect(formatSnapshotText({ id: "child", status: "running", toolsUsed: [], usage }))
+      expect(formatSnapshotText({ id: "child", status: "running", toolsUsed: [], usage }, 120)
+        .map((line) => line.trimEnd()))
         .toEqual([`  tools_used=0 | in=${formatted} | out=${formatted} | cost=$0.123 | ctx=n/a`]);
     },
   );
@@ -64,14 +65,15 @@ describe("subagent output helpers", () => {
   it.each([undefined, null, 0, 12.34])("formats context percentage %s", (percent) => {
     const lines = formatSnapshotText({ id: "child", status: "running", toolsUsed: [], usage: createErrorResult("").usage,
       contextUsage: percent === undefined ? undefined : { tokens: 0, contextWindow: 100, percent },
-    });
+    }, 120);
     expect(lines[0]).toContain(`ctx=${percent == null ? "n/a" : `${percent.toFixed(1)}%`}`);
   });
 
   it("shows only five latest tool calls in order with a final branch marker", () => {
     const lines = formatSnapshotText({ id: "child", status: "running", usage: createErrorResult("").usage,
       toolsUsed: ["old", "read()", "grep()", "find()", "write()", "edit()"],
-    });
-    expect(lines.slice(1)).toEqual(["  ├─ read()", "  ├─ grep()", "  ├─ find()", "  ├─ write()", "  └─ edit()"]);
+    }, 120);
+    expect(lines.slice(1).map((line) => line.trimEnd()))
+      .toEqual(["  ├─ read()", "  ├─ grep()", "  ├─ find()", "  ├─ write()", "  └─ edit()"]);
   });
 });

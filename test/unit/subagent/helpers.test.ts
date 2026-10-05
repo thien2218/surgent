@@ -57,7 +57,7 @@ describe("subagent output helpers", () => {
       usage.output = count;
       usage.cost.total = 0.12345;
       expect(formatSnapshotText({ id: "child", status: "running", toolsUsed: [], usage }))
-        .toEqual([`tools_used=0 | in=${formatted} | out=${formatted} | cost=$0.123 | ctx=n/a`]);
+        .toEqual([`  tools_used=0 | in=${formatted} | out=${formatted} | cost=$0.123 | ctx=n/a`]);
     },
   );
 
@@ -72,6 +72,6 @@ describe("subagent output helpers", () => {
     const lines = formatSnapshotText({ id: "child", status: "running", usage: createErrorResult("").usage,
       toolsUsed: ["old", "read()", "grep()", "find()", "write()", "edit()"],
     });
-    expect(lines.slice(1)).toEqual(["├─ read()", "├─ grep()", "├─ find()", "├─ write()", "└─ edit()"]);
+    expect(lines.slice(1)).toEqual(["  ├─ read()", "  ├─ grep()", "  ├─ find()", "  ├─ write()", "  └─ edit()"]);
   });
 });

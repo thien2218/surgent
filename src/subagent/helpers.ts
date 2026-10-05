@@ -11,13 +11,14 @@ function formatUsageCount(value: number): string {
 export function formatSnapshotText(snapshot: SubsessionSnapshot): string[] {
   const context = snapshot.contextUsage?.percent;
   const recentToolCalls = snapshot.toolsUsed.slice(-5);
+  const pad = " ".repeat(2);
   const lines = [
-    `tools_used=${snapshot.usage.toolCalls} | in=${formatUsageCount(snapshot.usage.input)} | out=${formatUsageCount(snapshot.usage.output)} | cost=$${snapshot.usage.cost.total.toFixed(3)} | ctx=${context === null || context === undefined ? "n/a" : `${context.toFixed(1)}%`}`,
+    `${pad}tools_used=${snapshot.usage.toolCalls} | in=${formatUsageCount(snapshot.usage.input)} | out=${formatUsageCount(snapshot.usage.output)} | cost=$${snapshot.usage.cost.total.toFixed(3)} | ctx=${context === null || context === undefined ? "n/a" : `${context.toFixed(1)}%`}`,
   ];
 
   for (let toolCallIndex = 0; toolCallIndex < recentToolCalls.length; toolCallIndex += 1) {
     const branchIndicator = toolCallIndex === recentToolCalls.length - 1 ? "└─" : "├─";
-    lines.push(`${branchIndicator} ${recentToolCalls[toolCallIndex]}`);
+    lines.push(`${pad}${branchIndicator} ${recentToolCalls[toolCallIndex]}`);
   }
 
   return lines;

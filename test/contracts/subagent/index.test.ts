@@ -20,7 +20,7 @@ async function setup() {
   subagent(fixture.extension.api);
   const tool = fixture.extension.tool("subagent");
   const run = (id = "call", signal?: AbortSignal, onUpdate = vi.fn()) =>
-    tool.execute(id, { agent: "worker", task: "Bounded task" }, signal, onUpdate, fixture.ctx);
+    tool.execute(id, { agent: "worker", task: "Bounded task", context: "Relevant findings" }, signal, onUpdate, fixture.ctx);
   const report = (id = "call", toolName = "subagent") => fixture.extension.event("tool_result")({
     type: "tool_result", toolName, toolCallId: id, input: {}, content: [], details: undefined, isError: false,
   }, fixture.ctx);
@@ -34,10 +34,10 @@ function text(component: Component) {
 describe("subagent tool contract", () => {
   it("registers delegation parameters and model-facing guidance", async () => {
     const { tool } = await setup();
-    expect(tool.parameters).toMatchObject({ type: "object", required: ["agent", "task"], properties: {
-      agent: { type: "string" }, task: { type: "string" },
+    expect(tool.parameters).toMatchObject({ type: "object", required: ["agent", "task", "context"], properties: {
+      agent: { type: "string" }, task: { type: "string" }, context: { type: "string" },
     } });
-    expect(tool.description).toContain("Delegate bounded");
+    expect(tool.description).toContain("separate session");
     expect(tool.promptSnippet).toContain("configured agents");
   });
 
@@ -47,7 +47,7 @@ describe("subagent tool contract", () => {
     const result = await run("call", undefined, update);
     expect(result).toMatchObject({ content: [{ type: "text", text: "Complete" }], details: { status: "done", usage: { input: 0 } } });
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ content: [], details: expect.objectContaining({ id: sessions[0]!.sessionId }) }));
-    expect(sessions[0]!.prompt).toHaveBeenCalledWith("Bounded task");
+    expect(sessions[0]!.prompt).toHaveBeenCalledWith("Task:\nBounded task\n\nContext:\nRelevant findings");
     expect(sessions[0]!.extensionRunner.emit).toHaveBeenCalledWith({ type: "session_shutdown", reason: "quit" });
     expect(sessions[0]!.dispose).toHaveBeenCalledOnce();
     await expect(readFile(join(cwd, ".pi", "subsessions.json"))).rejects.toMatchObject({ code: "ENOENT" });
@@ -55,7 +55,7 @@ describe("subagent tool contract", () => {
 
   it("works without an update callback", async () => {
     const { tool, ctx } = await setup();
-    const result = await tool.execute("call", { agent: "worker", task: "Task" }, undefined, undefined, ctx);
+    const result = await tool.execute("call", { agent: "worker", task: "Task", context: "" }, undefined, undefined, ctx);
     expect(result.content).toEqual([{ type: "text", text: "Complete" }]);
   });
 
@@ -148,9 +148,9 @@ describe("delegated usage reporting", () => {
 describe("subagent rendering", () => {
   it("renders task, starting state and progress from public tool results", async () => {
     const { tool, ui } = await setup();
-    const args = { agent: "worker", task: "Inspect files" };
+    const args = { agent: "worker", task: "Inspect files", context: "" };
     const context = { args } as Parameters<NonNullable<typeof tool.renderResult>>[3];
-    expect(text(tool.renderCall!(args, ui.theme, context))).toContain('subagent "Inspect files"');
+    expect(text(tool.renderCall!(args, ui.theme, context))).toContain('subagent worker "Inspect files"');
     expect(text(tool.renderResult!({ content: [], details: undefined }, { expanded: false, isPartial: true }, ui.theme, context)))
       .toContain("Subagent worker: starting");
     const details = { id: "child", status: "running", toolsUsed: ['read({"path":"file.ts"})'], usage: createErrorResult("").usage };
@@ -160,10 +160,35 @@ describe("subagent rendering", () => {
     expect(rendered).toContain('read({"path":"file.ts"})');
   });
 
+  it("caps the dim task preview at 100 characters without shortening the delegated task or context", async () => {
+    const { tool, ui, ctx, sessions } = await setup();
+    const args = { agent: "worker", task: `${"Inspect files\n".repeat(20)}Task end`, context: "Prior findings\nKeep all context" };
+    const context = { args } as Parameters<NonNullable<typeof tool.renderCall>>[2];
+    const foreground = vi.spyOn(ui.theme, "fg");
+    try {
+      const rendered = tool.renderCall!(args, ui.theme, context).render(300).map(stripTerminalSequences).join("\n").trim();
+      const preview = rendered.match(/^subagent worker "([^"]*)"$/)?.[1];
+      expect(preview).toBeDefined();
+      expect(preview!.length).toBeLessThanOrEqual(100);
+      expect(preview).toContain("Inspect files Inspect files");
+      expect(preview).not.toContain("Task end");
+      expect(foreground).toHaveBeenCalledWith("accent", "worker");
+      const input = foreground.mock.calls.find(([color]) => color === "dim");
+      expect(input).toBeDefined();
+      expect(stripTerminalSequences(input![1])).toBe(`"${preview}"`);
+    } finally {
+      foreground.mockRestore();
+    }
+
+    await tool.execute("call", args, undefined, undefined, ctx);
+
+    expect(sessions[0]!.prompt).toHaveBeenCalledWith(`Task:\n${args.task}\n\nContext:\n${args.context}`);
+  });
+
   it("truncates collapsed output while expanded output shows every line", async () => {
     const { tool, ui } = await setup();
     const result = { content: [{ type: "text" as const, text: Array.from({ length: 15 }, (_, index) => `Line ${index + 1}`).join("\n") }], details: undefined };
-    const context = { args: { agent: "worker", task: "Task" } } as Parameters<NonNullable<typeof tool.renderResult>>[3];
+    const context = { args: { agent: "worker", task: "Task", context: "" } } as Parameters<NonNullable<typeof tool.renderResult>>[3];
     const collapsed = text(tool.renderResult!(result, { expanded: false, isPartial: false }, ui.theme, context));
     expect(collapsed).toContain("more lines");
     expect(collapsed).not.toMatch(/Line 1\s/);

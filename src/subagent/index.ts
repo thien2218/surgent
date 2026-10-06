@@ -22,6 +22,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "subagent",
     label: "Subagent",
+    exposure: "model-only",
     description: "Run a task in a separate session using a configured agent and return its result.",
     promptSnippet: "Offload bounded, context-heavy work to configured agents",
     promptGuidelines: [

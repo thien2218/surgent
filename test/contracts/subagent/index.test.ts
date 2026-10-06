@@ -37,6 +37,7 @@ describe("subagent tool contract", () => {
     expect(tool.parameters).toMatchObject({ type: "object", required: ["agent", "task", "context"], properties: {
       agent: { type: "string" }, task: { type: "string" }, context: { type: "string" },
     } });
+    expect(tool.exposure).toBe("model-only");
     expect(tool.description).toContain("separate session");
     expect(tool.promptSnippet).toContain("configured agents");
   });

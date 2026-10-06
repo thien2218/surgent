@@ -11,6 +11,10 @@ export class Frame extends Keybound implements Component {
     return [];
   }
 
+  protected get chromeRows(): number {
+    return 4 + (this.hints.length > 0 ? 2 : 0);
+  }
+
   constructor(protected theme: Theme) {
     super();
     this.border = new DynamicBorder((segment) => theme.fg("accent", segment));

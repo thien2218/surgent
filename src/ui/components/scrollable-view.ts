@@ -1,5 +1,6 @@
 import { DynamicBorder, getMarkdownTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import {
+  CURSOR_MARKER,
   Key,
   Markdown,
   isFocusable,
@@ -88,23 +89,38 @@ export class ScrollableView extends Frame implements Focusable {
   }
 
   handleInput(data: string) {
-    if (data === "\n" || this.handleKb(data) || !this.editing) return;
+    if (this.handleKb(data) || !this.editing) return;
     this.input?.handleInput?.(data);
+  }
+
+  private get heightBudget(): number {
+    // Non-overlay custom screens share terminal with Pi's three-row status footer.
+    return Math.max(0, this.tui.terminal.rows - 3);
+  }
+
+  override render(width: number): string[] {
+    // Below frame chrome height, clip decoration rather than overflow terminal.
+    return super.render(width).slice(0, this.heightBudget);
   }
 
   protected override children(width: number): string[] {
     const contentWidth = Math.max(6, width - 1);
-    const childHeightBudget = Math.max(1, this.tui.terminal.rows - 10);
+    const childHeightBudget = Math.max(0, this.heightBudget - this.chromeRows - 2);
 
     const lines = new Lines(contentWidth);
     const border = new DynamicBorder((s) => this.theme.fg(this.editing ? "accent" : "dim", s));
 
     const inputCandidates = this.input ? this.input.render(contentWidth) : [];
-    const maxInputLineCount = inputCandidates.length > 0 ? Math.max(0, childHeightBudget - 1) : 0;
-    const inputLines = inputCandidates.slice(-maxInputLineCount);
-    const inputSectionRows = inputLines.length > 0 ? inputLines.length + 1 : 0;
+    const maxInputLineCount = Math.max(0, childHeightBudget - (childHeightBudget > 1 ? 1 : 0));
+    const cursorIndex = inputCandidates.findIndex((line) => line.includes(CURSOR_MARKER));
+    const inputStart = Math.max(0, Math.min(
+      cursorIndex < 0 ? inputCandidates.length : cursorIndex,
+      inputCandidates.length - maxInputLineCount,
+    ));
+    const inputLines = inputCandidates.slice(inputStart, inputStart + maxInputLineCount);
+    const inputGap = inputLines.length > 0 && inputLines.length < childHeightBudget ? 1 : 0;
 
-    this.lastViewportHeight = Math.max(0, childHeightBudget - inputSectionRows);
+    this.lastViewportHeight = Math.max(0, childHeightBudget - inputLines.length - inputGap);
 
     const markdownLines = this.markdownView.render(contentWidth);
     this.lastMarkdownLineCount = markdownLines.length;
@@ -122,7 +138,7 @@ export class ScrollableView extends Frame implements Focusable {
     lines.add(border.render(contentWidth)[0]!);
 
     if (inputLines.length > 0) {
-      lines.space();
+      if (inputGap) lines.space();
       for (const inputLine of inputLines) {
         lines.add(inputLine);
       }

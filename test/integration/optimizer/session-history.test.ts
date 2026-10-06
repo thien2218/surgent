@@ -1,13 +1,17 @@
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ToolResultMessage } from "@earendil-works/pi-ai";
-import { SessionManager } from "@earendil-works/pi-coding-agent";
+import type { Model } from "@earendil-works/pi-ai";
+import {
+  createAgentSession,
+  DefaultResourceLoader,
+  SessionManager,
+  SettingsManager,
+  type SessionBeforeCompactEvent,
+} from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { readSessionEntries } from "../../../src/optimizer/entries.js";
-import { buildDeduplicatorState } from "../../../src/optimizer/deduplicator/state.js";
-import { rewritePrunedSessionFile } from "../../../src/optimizer/pruner/session.js";
 import { assistantMessage } from "../../helpers/commands.js";
+import { appendTool, settleOptimizer } from "../../helpers/optimizer.js";
 
 function workspace() {
   const root = mkdtempSync(join(tmpdir(), "surgent-history-"));
@@ -21,102 +25,120 @@ function workspace() {
   return root;
 }
 
-function appendRead(manager: SessionManager, toolCallId: string, isError = false) {
-  const assistant = assistantMessage("");
-  assistant.content = [{ type: "toolCall", id: toolCallId, name: "read", arguments: { path: "source.ts" } }];
-  const callId = manager.appendMessage(assistant);
-  const message: ToolResultMessage = {
-    role: "toolResult", toolCallId, toolName: "read", isError, timestamp: 0,
-    content: [{ type: "text", text: isError ? "missing file" : "source line" }],
-  };
-  const resultId = manager.appendMessage(message);
-  return { callId, resultId };
-}
-
-describe("persisted optimizer history", () => {
-  it("reopens repaired Pi history without losing sibling branches or using their coverage", () => {
+describe("canonical optimizer history", () => {
+  it("preserves raw history and branch-local reductions across resume, tree navigation, and fork", async () => {
     const cwd = workspace();
     const sessions = join(cwd, "sessions");
     const manager = SessionManager.create(cwd, sessions);
-    const rootId = manager.appendMessage({ role: "user", content: "request", timestamp: 0 });
-    const failed = appendRead(manager, "failed", true);
-    const old = appendRead(manager, "old");
-    const replyId = manager.appendMessage(assistantMessage("retained reply"));
+    manager.appendMessage({ role: "user", content: "request", timestamp: 0 });
+    const failed = appendTool(manager, "failed", "read", "missing file", { path: "file.ts" }, true);
+    const old = appendTool(manager, "old", "read", "source line", { path: "file.ts" });
+    const sibling = manager.appendMessage(assistantMessage("sibling reply"));
     manager.branch(old.resultId);
-    const newer = appendRead(manager, "newer");
+    appendTool(manager, "new", "read", "source line", { path: "file.ts" });
+    const grep = appendTool(manager, "grep", "grep", "file.ts\n1: source line");
     manager.appendLabelChange(failed.resultId, "bookmark");
+    const beforeEdits = manager.getLeafId()!;
+    const raw = structuredClone(manager.getEntries());
+    const originalContext = manager.buildSessionProjection().messages;
     const file = manager.getSessionFile()!;
+    const prefix = readFileSync(file);
 
-    rewritePrunedSessionFile(file, replyId, false);
+    await settleOptimizer(manager);
+    const optimizedLeaf = manager.getLeafId()!;
+    const optimized = manager.buildSessionProjection().messages;
+
+    expect(readFileSync(file).subarray(0, prefix.length)).toEqual(prefix);
+    expect(manager.getEntries().slice(0, raw.length)).toEqual(raw);
+    expect(optimized.filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["new", "grep"]);
+    expect(optimized).toContainEqual(expect.objectContaining({ toolCallId: "grep", content: [{ type: "text", text: "file.ts: lines_matched=[1]" }] }));
 
     const reopened = SessionManager.open(file, sessions, cwd);
-    expect(reopened.getEntry(failed.callId)).toBeUndefined();
-    expect(reopened.getEntry(failed.resultId)).toBeUndefined();
-    expect(reopened.getBranch(replyId).map((entry) => entry.id)).toEqual([rootId, old.callId, old.resultId, replyId]);
-    expect(reopened.getBranch(newer.resultId).map((entry) => entry.id)).toEqual([
-      rootId, old.callId, old.resultId, newer.callId, newer.resultId,
+    expect(reopened.buildSessionProjection().messages).toEqual(optimized);
+    expect(reopened.getLabel(failed.resultId)).toBe("bookmark");
+    for (const entry of raw) expect(reopened.getEntry(entry.id)).toEqual(entry);
+    expect(await settleOptimizer(reopened)).toBeUndefined();
+
+    reopened.branch(beforeEdits);
+    expect(reopened.buildSessionProjection().messages).toEqual(originalContext);
+    reopened.branch(sibling);
+    expect(reopened.buildSessionProjection().messages.filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["failed", "old"]);
+    reopened.branch(optimizedLeaf);
+    expect(reopened.buildSessionProjection().messages).toEqual(optimized);
+
+    const forkFile = reopened.createBranchedSession(optimizedLeaf)!;
+    const fork = SessionManager.open(forkFile, sessions, cwd);
+    expect(fork.buildSessionProjection().messages).toEqual(optimized);
+    expect(fork.getEntry(grep.resultId)).toEqual(manager.getEntry(grep.resultId));
+    expect(fork.getEntry(old.resultId)).toEqual(manager.getEntry(old.resultId));
+    fork.branch(grep.resultId);
+    expect(fork.buildSessionProjection().messages).toEqual(originalContext);
+  });
+
+  it("keeps compaction boundaries intact when their first retained calls are omitted", async () => {
+    const manager = SessionManager.inMemory(workspace());
+    const hidden = appendTool(manager, "hidden", "read", "source", { path: "file.ts" });
+    const old = appendTool(manager, "old", "read", "source", { path: "file.ts" });
+    const compactId = manager.appendCompaction("previous summary", old.callId, 100);
+    appendTool(manager, "new", "read", "source", { path: "file.ts" });
+    const raw = structuredClone(manager.getEntries());
+
+    const result = await settleOptimizer(manager);
+
+    expect(result?.entries).toEqual([
+      { type: "context_edit", targetId: old.resultId, replacement: null },
+      { type: "context_edit", targetId: old.callId, replacement: null },
     ]);
-    expect(reopened.getLabel(rootId)).toBe("bookmark");
-
-    const persisted = readSessionEntries(file)!;
-    expect(buildDeduplicatorState(persisted, replyId, cwd).replacements.size).toBe(0);
-    expect(buildDeduplicatorState(persisted, newer.resultId, cwd).replacements).toEqual(new Map([["old", [newer.resultId]]]));
-    const rewritten = readFileSync(file, "utf8");
-    rewritePrunedSessionFile(file, replyId, false);
-    expect(readFileSync(file, "utf8")).toBe(rewritten);
-    expect(readdirSync(sessions)).toEqual([file.slice(sessions.length + 1)]);
+    expect(manager.getEntry(compactId)).toMatchObject({ firstKeptEntryId: old.callId, summary: "previous summary" });
+    expect(manager.getEntries().slice(0, raw.length)).toEqual(raw);
+    expect(manager.buildSessionProjection().entries.find((entry) => entry.sourceEntry.id === hidden.resultId)).toBeUndefined();
+    expect(manager.buildSessionProjection().messages.filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["new"]);
+    expect(manager.buildSessionProjection().messages.some((message) => message.role === "compactionSummary")).toBe(true);
   });
 
-  it("rewrites failed turns on inactive branches too, without discarding healthy active history", () => {
+  it("passes paired omissions and grep summaries into native compaction, not raw tool output", async () => {
     const cwd = workspace();
-    const sessions = join(cwd, "sessions");
-    const manager = SessionManager.create(cwd, sessions);
-    const rootId = manager.appendMessage({ role: "user", content: "request", timestamp: 0 });
-    const healthyId = manager.appendMessage(assistantMessage("active response"));
-    manager.branch(rootId);
-    const failed = appendRead(manager, "failed", true);
-    const file = manager.getSessionFile()!;
+    vi.stubGlobal("fetch", vi.fn(() => { throw new Error("Network forbidden in optimizer integration test"); }));
+    onTestFinished(() => { vi.unstubAllGlobals(); });
+    const manager = SessionManager.inMemory(cwd);
+    manager.appendMessage({ role: "user", content: "inspect source", timestamp: 0 });
+    appendTool(manager, "old", "read", "first\nsecond", { path: "file.ts" });
+    appendTool(manager, "new", "read", "first\nsecond", { path: "file.ts" });
+    appendTool(manager, "grep", "grep", "file.ts\n1: long raw grep source");
+    manager.appendMessage(assistantMessage("finished"));
+    manager.appendMessage({ role: "user", content: "next task", timestamp: 0 });
+    const settingsManager = SettingsManager.inMemory({ compaction: { keepRecentTokens: 0 } });
+    const preparations: SessionBeforeCompactEvent["preparation"][] = [];
+    const resourceLoader = new DefaultResourceLoader({
+      cwd, agentDir: cwd, settingsManager,
+      noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
+      extensionFactories: [(pi) => {
+        pi.on("session_before_compact", (event) => {
+          preparations.push(event.preparation);
+          return { cancel: true };
+        });
+      }],
+    });
+    await resourceLoader.reload();
+    const model: Model<"openai-completions"> = {
+      id: "test-model", name: "Test model", api: "openai-completions", provider: "test-provider",
+      baseUrl: "http://127.0.0.1:1", reasoning: false, input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 100000, maxTokens: 1000,
+    };
+    const { session } = await createAgentSession({
+      cwd, agentDir: cwd, model, noTools: "all", sessionManager: manager, settingsManager, resourceLoader,
+    });
+    onTestFinished(() => session.dispose());
+    await expect(session.compact()).rejects.toThrow("Compaction cancelled");
+    await settleOptimizer(manager);
+    await expect(session.compact()).rejects.toThrow("Compaction cancelled");
 
-    rewritePrunedSessionFile(file, healthyId, false);
-
-    const reopened = SessionManager.open(file, sessions, cwd);
-    expect(reopened.getBranch(healthyId).map((entry) => entry.id)).toEqual([rootId, healthyId]);
-    expect(reopened.getEntry(failed.resultId)).toBeUndefined();
-    expect(reopened.getEntry(failed.callId)).toBeUndefined();
-  });
-
-  it.each(["{broken", "null", "[]", "false"])(
-    "leaves malformed persisted file byte-for-byte untouched (%s)",
-    (invalid) => {
-      const root = workspace();
-      const file = join(root, "session.jsonl");
-      const original = [
-        '{"type":"session","version":3}',
-        JSON.stringify({ type: "message", id: "failed", parentId: null, message: {
-          role: "toolResult", toolCallId: "failed", toolName: "read", isError: true,
-          content: [{ type: "text", text: "failure" }], timestamp: 0,
-        } satisfies ToolResultMessage }),
-        invalid,
-        "",
-      ].join("\n");
-      writeFileSync(file, original);
-
-      rewritePrunedSessionFile(file, "failed", true);
-
-      expect(readFileSync(file, "utf8")).toBe(original);
-      expect(readdirSync(root)).toEqual(["session.jsonl"]);
-    },
-  );
-
-  it("does not rewrite healthy history merely to normalize JSON formatting", () => {
-    const root = workspace();
-    const file = join(root, "session.jsonl");
-    const original = '  {"type":"session", "version":3}\n\n{"type":"message", "id":"root", "message":{"role":"user", "content":"keep"}}';
-    writeFileSync(file, original);
-
-    rewritePrunedSessionFile(file, null, true);
-
-    expect(readFileSync(file, "utf8")).toBe(original);
-    expect(readdirSync(root)).toEqual(["session.jsonl"]);
+    expect(preparations).toHaveLength(2);
+    const before = [...preparations[0]!.messagesToSummarize, ...preparations[0]!.turnPrefixMessages];
+    const after = [...preparations[1]!.messagesToSummarize, ...preparations[1]!.turnPrefixMessages];
+    expect(before.filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["old", "new", "grep"]);
+    expect(after.filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["new", "grep"]);
+    expect(after.filter((message) => message.role === "assistant").flatMap((message) => message.content.filter((block) => block.type === "toolCall").map((block) => block.id))).toEqual(["new", "grep"]);
+    expect(after).toContainEqual(expect.objectContaining({ toolCallId: "grep", content: [{ type: "text", text: "file.ts: lines_matched=[1]" }] }));
   });
 });

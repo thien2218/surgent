@@ -1,28 +1,24 @@
-import {
-  getBranchEntries,
-  getEntryId,
-  getLastEntryId,
-  getMessage,
-  getToolResultMessage,
-} from "../entries.js";
-import { isRecord } from "../../utils.js";
+import type { ProjectedSessionEntry } from "@earendil-works/pi-coding-agent";
+import { getEligibleResult } from "../entries.js";
 import { hasFullCoverage } from "./helpers.js";
 import { getResourceCoverage } from "./resources.js";
-import type { DeduplicatorState, ResourceResult } from "./types.js";
+import type { Range } from "../inspector/types.js";
+
+interface ResourceResult {
+  entryId: string;
+  range: Range;
+  resource: string;
+}
 
 function collectToolCallInputs(
-  activeEntries: Record<string, unknown>[],
+  entries: ProjectedSessionEntry[],
 ): Map<string, Record<string, unknown>> {
   const inputsByCallId = new Map<string, Record<string, unknown>>();
 
-  for (const entry of activeEntries) {
-    const message = getMessage(entry);
-    if (message?.role !== "assistant" || !Array.isArray(message.content)) continue;
-
-    for (const block of message.content) {
-      if (!isRecord(block) || block.type !== "toolCall") continue;
-      if (typeof block.id !== "string" || !isRecord(block.arguments)) continue;
-      inputsByCallId.set(block.id, block.arguments);
+  for (const { sourceEntry } of entries) {
+    if (sourceEntry.type !== "message" || sourceEntry.message.role !== "assistant") continue;
+    for (const block of sourceEntry.message.content) {
+      if (block.type === "toolCall") inputsByCallId.set(block.id, block.arguments);
     }
   }
 
@@ -30,45 +26,32 @@ function collectToolCallInputs(
 }
 
 function collectResourceResults(
-  activeEntries: Record<string, unknown>[],
+  entries: ProjectedSessionEntry[],
   inputsByCallId: Map<string, Record<string, unknown>>,
   cwd: string,
 ): ResourceResult[] {
   const results: ResourceResult[] = [];
-  for (const entry of activeEntries) {
-    const entryId = getEntryId(entry);
-    const message = getToolResultMessage(entry);
-    if (
-      !entryId ||
-      !message ||
-      message.isError === true ||
-      typeof message.toolCallId !== "string"
-    ) {
-      continue;
-    }
+  for (const entry of entries) {
+    const message = getEligibleResult(entry);
+    if (!message || message.isError) continue;
 
     const input = inputsByCallId.get(message.toolCallId);
-    if (!input || (message.toolName !== "read" && message.toolName !== "inspect")) continue;
+    if (!input) continue;
 
     const coverage = getResourceCoverage(message.toolName, input, message, cwd);
     if (!coverage) continue;
-    results.push({
-      entryId,
-      range: coverage.range,
-      resource: coverage.resource,
-      toolCallId: message.toolCallId,
-      prunable: true,
-    });
+
+    results.push({ entryId: entry.sourceEntry.id, ...coverage });
   }
   return results;
 }
 
 function collectReplacementsById(results: ResourceResult[]): Map<string, string[]> {
   const retainedByResource = new Map<string, ResourceResult[]>();
-  const replacementsById = new Map<string, string[]>();
+  const replacements = new Map<string, string[]>();
 
-  for (let index = results.length - 1; index >= 0; index -= 1) {
-    const result = results[index]!;
+  for (let idx = results.length - 1; idx >= 0; idx -= 1) {
+    const result = results[idx]!;
     const retained = retainedByResource.get(result.resource) ?? [];
     const covering = retained.filter(
       (candidate) => candidate.range[0] <= result.range[1] && candidate.range[1] >= result.range[0],
@@ -80,40 +63,22 @@ function collectReplacementsById(results: ResourceResult[]): Map<string, string[
         covering.map(({ range }) => range),
       )
     ) {
-      if (result.prunable) {
-        replacementsById.set(result.entryId, [
-          ...new Set(covering.map((candidate) => candidate.entryId)),
-        ]);
-      }
+      replacements.set(
+        result.entryId,
+        covering.map((candidate) => candidate.entryId),
+      );
       continue;
     }
+
     retained.push(result);
     retainedByResource.set(result.resource, retained);
   }
 
-  return replacementsById;
+  return replacements;
 }
 
-export function buildDeduplicatorState(
-  entries: Record<string, unknown>[],
-  leafId: string | null,
-  cwd: string,
-): DeduplicatorState {
-  let activeEntries = getBranchEntries(entries, leafId);
-  if (activeEntries.length === 0 && leafId !== null) {
-    activeEntries = getBranchEntries(entries, getLastEntryId(entries));
-  }
-
-  const results = collectResourceResults(activeEntries, collectToolCallInputs(activeEntries), cwd);
-  const replacementsById = collectReplacementsById(results);
-  const replacements = new Map<string, string[]>();
-
-  for (const result of results) {
-    if (!result.prunable) continue;
-    const replacement = replacementsById.get(result.entryId);
-    if (!replacement) continue;
-    replacements.set(result.toolCallId, replacement);
-  }
-
-  return { replacements, resultEntryIds: new Set(results.map((result) => result.entryId)) };
+export function buildDeduplicatorState(entries: ProjectedSessionEntry[], cwd: string) {
+  return collectReplacementsById(
+    collectResourceResults(entries, collectToolCallInputs(entries), cwd),
+  );
 }

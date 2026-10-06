@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
-import type { ContextEvent, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
+import { buildSessionProjection, type SessionEntry, type SessionMessageEntry } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { filterDeduplicatedMessages, hasFullCoverage, mergeRanges } from "../../../src/optimizer/deduplicator/helpers.js";
+import { hasFullCoverage, mergeRanges } from "../../../src/optimizer/deduplicator/helpers.js";
 import { getResourceCoverage } from "../../../src/optimizer/deduplicator/resources.js";
 import { buildDeduplicatorState } from "../../../src/optimizer/deduplicator/state.js";
 import type { Range } from "../../../src/optimizer/inspector/types.js";
@@ -52,6 +52,10 @@ function exchange(
     }),
   } satisfies SessionMessageEntry;
   return [call, response];
+}
+
+function candidates(entries: SessionEntry[], leafId: string | null, cwd: string) {
+  return buildDeduplicatorState(buildSessionProjection(entries, leafId).entries, cwd);
 }
 
 describe("line coverage", () => {
@@ -142,11 +146,11 @@ describe("deduplicator state", () => {
     const next = exchange("next", "old-result", [1, 2]);
     const last = exchange("last", "next-result", [3, 4]);
 
-    const state = buildDeduplicatorState([...first, ...next, ...last], "last-result", cwd);
+    const state = candidates([...first, ...next, ...last], "last-result", cwd);
 
-    expect([...state.replacements.keys()]).toEqual(["old"]);
-    expect(new Set(state.replacements.get("old"))).toEqual(new Set(["last-result", "next-result"]));
-    expect(buildDeduplicatorState([...first, ...next], "next-result", cwd).replacements.size).toBe(0);
+    expect([...state.keys()]).toEqual(["old-result"]);
+    expect(new Set(state.get("old-result"))).toEqual(new Set(["last-result", "next-result"]));
+    expect(candidates([...first, ...next], "next-result", cwd).size).toBe(0);
   });
 
   it("points replacement chains at retained results, never another removed duplicate", () => {
@@ -156,8 +160,8 @@ describe("deduplicator state", () => {
       ...exchange("last", "second-result", [1, 2]),
     ];
 
-    expect(buildDeduplicatorState(entries, "last-result", workspace()).replacements).toEqual(new Map([
-      ["first", ["last-result"]], ["second", ["last-result"]],
+    expect(candidates(entries, "last-result", workspace())).toEqual(new Map([
+      ["first-result", ["last-result"]], ["second-result", ["last-result"]],
     ]));
   });
 
@@ -169,7 +173,7 @@ describe("deduplicator state", () => {
       }),
     ];
 
-    expect(buildDeduplicatorState(entries, "new-result", workspace()).replacements).toEqual(new Map([["old", ["new-result"]]]));
+    expect(candidates(entries, "new-result", workspace())).toEqual(new Map([["old-result", ["new-result"]]]));
   });
 
   it("retains broad reads when newer inspect only covers one symbol", () => {
@@ -178,7 +182,7 @@ describe("deduplicator state", () => {
       ...exchange("inspect", "read-result", [3, 4], { toolName: "inspect", details: { path: "source.ts", symbol: "handler", range: [3, 4] } }),
     ];
 
-    expect(buildDeduplicatorState(entries, "inspect-result", workspace()).replacements.size).toBe(0);
+    expect(candidates(entries, "inspect-result", workspace()).size).toBe(0);
   });
 
   it("does not use errors, other files or sibling branches as replacement coverage", () => {
@@ -188,60 +192,39 @@ describe("deduplicator state", () => {
       ...exchange("other-file", "failed-result", [1, 2], {}, "other.ts"),
       ...exchange("sibling", "old-result", [1, 2]),
     ];
-    const state = buildDeduplicatorState(entries, "other-file-result", workspace());
+    const state = candidates(entries, "other-file-result", workspace());
 
-    expect(state.replacements.size).toBe(0);
-    expect(state.resultEntryIds).toEqual(new Set(["old-result", "other-file-result"]));
+    expect(state.size).toBe(0);
   });
 
-  it("falls back to last branch for a stale leaf but not an intentionally empty branch", () => {
+  it("does not optimize an intentionally empty branch", () => {
     const entries = [...exchange("old", null, [1, 2]), ...exchange("new", "old-result", [1, 2])];
-    const cwd = workspace();
-
-    expect(buildDeduplicatorState(entries, "stale", cwd).replacements.has("old")).toBe(true);
-    expect(buildDeduplicatorState(entries, null, cwd).resultEntryIds.size).toBe(0);
-  });
-});
-
-describe("deduplicated context", () => {
-  it("removes replaced call/result pairs while preserving assistant text and unrelated calls", () => {
-    const assistant = assistantMessage("keep explanation");
-    assistant.content.push(
-      { type: "toolCall", id: "old", name: "read", arguments: { path: "source.ts" } },
-      { type: "toolCall", id: "keep", name: "read", arguments: { path: "other.ts" } },
-    );
-    const kept = result("keep");
-    const messages: ContextEvent["messages"] = [assistant, result("old"), kept];
-    const original = structuredClone(messages);
-
-    const filtered = filterDeduplicatedMessages(messages, {
-      replacements: new Map([["old", ["new-result"]]]), resultEntryIds: new Set(["new-result"]),
-    });
-
-    expect(filtered.changed).toBe(true);
-    expect(filtered.messages).toEqual([{ ...assistant, content: [assistant.content[0], assistant.content[2]] }, kept]);
-    expect(messages).toEqual(original);
+    expect(candidates(entries, null, workspace()).size).toBe(0);
   });
 
-  it("keeps originals if any replacement result is no longer retained", () => {
-    const messages: ContextEvent["messages"] = [result("old")];
-    const filtered = filterDeduplicatedMessages(messages, {
-      replacements: new Map([["old", ["present", "missing"]]]), resultEntryIds: new Set(["present"]),
-    });
+  it.each([null, { content: "short summary" }])(
+    "retains an old range when a newer covering piece is omitted or replaced (%j)",
+    (replacement) => {
+      const entries: SessionEntry[] = [
+        ...exchange("old", null, [1, 4]),
+        ...exchange("next", "old-result", [1, 2]),
+        ...exchange("last", "next-result", [3, 4]),
+        { type: "context_edit", id: "edit", parentId: "last-result", timestamp: "2025-01-01T00:00:00.000Z",
+          targetId: "last-result", replacement },
+      ];
+      expect(candidates(entries, "edit", workspace()).size).toBe(0);
+    },
+  );
 
-    expect(filtered.changed).toBe(false);
-    expect(filtered.messages).toBe(messages);
-  });
-
-  it("drops assistant turns left with only thinking after call removal", () => {
-    const assistant = assistantMessage("");
-    assistant.content = [
-      { type: "thinking", thinking: "internal" },
-      { type: "toolCall", id: "old", name: "read", arguments: {} },
+  it("does not trust inspect range metadata on a replaced result", () => {
+    const entries: SessionEntry[] = [
+      ...exchange("old", null, [10, 13]),
+      ...exchange("new", "old-result", [10, 13], {
+        toolName: "inspect", details: { path: "source.ts", symbol: "handler", range: [10, 13] },
+      }),
+      { type: "context_edit", id: "edit", parentId: "new-result", timestamp: "2025-01-01T00:00:00.000Z",
+        targetId: "new-result", replacement: { content: "short summary" } },
     ];
-
-    expect(filterDeduplicatedMessages([assistant, result("old")], {
-      replacements: new Map([["old", ["new-result"]]]), resultEntryIds: new Set(["new-result"]),
-    })).toEqual({ changed: true, messages: [] });
+    expect(candidates(entries, "edit", workspace()).size).toBe(0);
   });
 });

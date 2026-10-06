@@ -1,12 +1,8 @@
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it } from "vitest";
 import { BashResultCompactor } from "../../../src/optimizer/compactor/bash.js";
 import {
   extractGrepSummary,
   formatGrepResult,
-  rewriteTailWithSummaries,
 } from "../../../src/optimizer/compactor/grep.js";
 
 function compact(chunks: Buffer[]) {
@@ -117,41 +113,4 @@ describe("grep summaries", () => {
       expect(extractGrepSummary(content)).toBeNull();
     },
   );
-});
-
-describe("session tail rewriting", () => {
-  async function sessionPath() {
-    const root = await mkdtemp(join(tmpdir(), "surgent-compactor-unit-"));
-    onTestFinished(() => rm(root, { recursive: true, force: true }));
-    return { root, path: join(root, "session.jsonl") };
-  }
-
-  it("leaves malformed tails intact instead of partially replacing results", async () => {
-    const { root, path } = await sessionPath();
-    const original = `${JSON.stringify({
-      type: "message",
-      message: { role: "toolResult", toolCallId: "grep-1", content: [{ type: "text", text: "raw" }] },
-    })}\nnot-json\n`;
-    await writeFile(path, original);
-
-    expect(() => rewriteTailWithSummaries(path, 0, new Map([["grep-1", "summary"]]))).toThrow(SyntaxError);
-    expect(await readFile(path, "utf8")).toBe(original);
-    expect(await readdir(root)).toEqual(["session.jsonl"]);
-  });
-
-  it("does not rewrite missing files, unavailable tails, or unmatched entries", async () => {
-    const { root, path } = await sessionPath();
-    const summaries = new Map([["grep-1", "summary"]]);
-    rewriteTailWithSummaries(path, 0, summaries);
-    expect(await readdir(root)).toEqual([]);
-
-    const original = '  {"type":"custom","data":"untouched"}\n\n';
-    await writeFile(path, original);
-    rewriteTailWithSummaries(path, 0, new Map());
-    rewriteTailWithSummaries(path, Buffer.byteLength(original), summaries);
-    rewriteTailWithSummaries(path, Buffer.byteLength(original) + 1, summaries);
-    rewriteTailWithSummaries(path, 0, summaries);
-    expect(await readFile(path, "utf8")).toBe(original);
-    expect(await readdir(root)).toEqual(["session.jsonl"]);
-  });
 });

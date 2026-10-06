@@ -1,4 +1,3 @@
-import { statSync } from "node:fs";
 import {
   createBashToolDefinition,
   createGrepToolDefinition,
@@ -7,8 +6,6 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { BashResultCompactor } from "./bash.js";
 import {
-  rewriteTailWithSummaries,
-  extractGrepSummary,
   formatGrepResult,
   filterGrepResult,
 } from "./grep.js";
@@ -19,8 +16,6 @@ import { getState } from "../../state.js";
 const localBash = createLocalBashOperations();
 
 export default function (pi: ExtensionAPI) {
-  let writeStartOffset = 0;
-  const store = new Map<string, string>();
   const grepTool = createGrepToolDefinition(process.cwd());
   const bashTool = createBashToolDefinition(process.cwd(), {
     operations: {
@@ -89,61 +84,4 @@ export default function (pi: ExtensionAPI) {
     prepareArguments: undefined,
   });
 
-  pi.on("agent_start", async (_event, ctx) => {
-    if (store.size > 0) return;
-
-    const sessionFile = ctx.sessionManager.getSessionFile();
-    if (!sessionFile) {
-      writeStartOffset = 0;
-      return;
-    }
-
-    try {
-      writeStartOffset = statSync(sessionFile).size;
-    } catch {
-      writeStartOffset = 0;
-    }
-  });
-
-  pi.on("agent_end", async (event) => {
-    for (const message of event.messages) {
-      if (message.role !== "toolResult" || message.toolName !== "grep") continue;
-      const text = message.content.find((content) => content.type === "text")?.text;
-      if (text === undefined) continue;
-
-      const summary = extractGrepSummary(text);
-      if (!summary) continue;
-      store.set(message.toolCallId, summary);
-    }
-  });
-
-  pi.on("session_shutdown", (event, ctx) => {
-    if (store.size === 0) return;
-
-    const sessionFile = ctx.sessionManager.getSessionFile();
-    if (sessionFile) {
-      rewriteTailWithSummaries(sessionFile, writeStartOffset, store);
-    }
-    if (event.targetSessionFile && event.targetSessionFile !== sessionFile) {
-      rewriteTailWithSummaries(event.targetSessionFile, writeStartOffset, store);
-    }
-  });
-
-  pi.on("context", async (event) => {
-    if (store.size === 0) return;
-
-    let changed = false;
-    for (const message of event.messages) {
-      if (message.role !== "toolResult" || message.toolName !== "grep") continue;
-
-      const summary = store.get(message.toolCallId);
-      if (summary === undefined) continue;
-
-      message.content = [{ type: "text", text: summary }];
-      changed = true;
-    }
-
-    if (!changed) return;
-    return { messages: event.messages };
-  });
 }

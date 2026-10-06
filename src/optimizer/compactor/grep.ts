@@ -1,11 +1,3 @@
-import {
-  appendFileSync,
-  existsSync,
-  readFileSync,
-  renameSync,
-  unlinkSync,
-  writeFileSync,
-} from "node:fs";
 import { stat } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -57,60 +49,6 @@ export function extractGrepSummary(contentText: string): string | null {
       .map(([filePath, lines]) => `${filePath}: lines_matched=[${Array.from(lines).join(", ")}]`)
       .join("\n") + (notice ? `\n\n${notice}` : "")
   );
-}
-
-export function rewriteTailWithSummaries(
-  sessionFile: string,
-  offset: number,
-  summaries: Map<string, string>,
-) {
-  if (summaries.size === 0 || !existsSync(sessionFile)) return;
-
-  const sessionBuffer = readFileSync(sessionFile);
-  if (offset > sessionBuffer.length) return;
-
-  const prefixBuffer = sessionBuffer.subarray(0, offset);
-  const tailText = sessionBuffer.subarray(offset).toString("utf-8");
-  if (tailText.length === 0) return;
-
-  let changed = false;
-  const rewrittenTail = tailText
-    .split("\n")
-    .filter((line) => line.trim().length > 0)
-    .map((line) => {
-      const entry = JSON.parse(line) as Record<string, unknown>;
-      const message = entry.message as Record<string, unknown> | undefined;
-      if (
-        entry.type === "message" &&
-        message?.role === "toolResult" &&
-        typeof message.toolCallId === "string" &&
-        summaries.has(message.toolCallId)
-      ) {
-        changed = true;
-        return JSON.stringify({
-          ...entry,
-          message: {
-            ...message,
-            content: [{ type: "text", text: summaries.get(message.toolCallId)! }],
-          },
-        });
-      }
-      return line;
-    })
-    .join("\n");
-
-  if (!changed) return;
-  const tempFile = `${sessionFile}.${process.pid}.${Date.now()}.tmp`;
-
-  try {
-    writeFileSync(tempFile, prefixBuffer);
-    appendFileSync(tempFile, `${rewrittenTail}\n`, "utf8");
-    renameSync(tempFile, sessionFile);
-  } finally {
-    if (existsSync(tempFile)) {
-      unlinkSync(tempFile);
-    }
-  }
 }
 
 export function formatGrepResult(content: string): string[] {

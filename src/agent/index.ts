@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { agentsCommandHandler } from "./command.js";
-import { loadMainAgent } from "./runtime.js";
+import { loadMainAgent } from "./storage.js";
 import { cycleMode } from "../permission/helpers.js";
 import { readAgentMode } from "../permission/storage.js";
 import { createState, getState, type AppState } from "../state.js";

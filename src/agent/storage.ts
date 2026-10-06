@@ -1,15 +1,17 @@
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { readdir, unlink, readFile, writeFile } from "node:fs/promises";
 import path, { dirname, join, resolve } from "node:path";
-import { isMissingFileError, readJson, writeJson } from "../utils.js";
 import { fileURLToPath } from "node:url";
-import { getPiPath } from "../utils.js";
+import { isMissingFileError, readJson, writeJson, getPiPath } from "../utils.js";
 import type { AgentMeta, Agent, AgentProfile, SettingsSchema } from "./types.js";
 import {
+  DEFAULT_AGENT,
   parseAgentConfig,
   serializeAgentConfig,
   validateAgentMeta,
   validateAgentName,
 } from "./config.js";
+
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
 
 async function getAgentFiles(cwd: string, name?: string): Promise<string[]> {
@@ -135,4 +137,47 @@ export async function deleteAgentFile(filePath: string) {
 
 export function isBuiltIn(filePath: string): boolean {
   return filePath.startsWith(BUILT_IN_DIR);
+}
+
+export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
+  const selected = ctx.sessionManager
+    .getEntries()
+    .find((entry) => entry.type === "custom" && entry.customType === "agent");
+  const name = selected?.type === "custom" ? (selected.data as string) : DEFAULT_AGENT;
+  const profiles = await loadAgentProfiles(ctx.cwd);
+  const profile = profiles.find((profile) => profile.name === name);
+  if (!profile) throw new Error("Invalid agent name.");
+  if (!profile.agent) throw new Error(`Invalid agent "${name}": ${profile.error}`);
+
+  const agents = profiles.flatMap((profile) => (profile.agent ? [profile.agent] : []));
+  const { meta } = profile.agent;
+  // Registry includes deferred/codemode tools; only explicit choices promote them.
+  if (meta.tools) pi.setActiveTools(meta.tools);
+
+  if (meta.model) {
+    const existing = ctx.modelRegistry.find(
+      meta.model.slice(0, meta.model.indexOf("/")),
+      meta.model.slice(meta.model.indexOf("/") + 1),
+    );
+
+    if (existing) {
+      const ok = await pi.setModel(existing);
+      if (!ok) ctx.ui.notify("Agent model unavailable", "warning");
+    } else {
+      ctx.ui.notify(`Unknown model "${meta.model}" in agent config`, "warning");
+    }
+  }
+  if (meta.thinking_level) {
+    pi.setThinkingLevel(meta.thinking_level);
+  }
+
+  let subagentPrompt = "";
+  if (pi.getActiveTools().includes("subagent")) {
+    subagentPrompt = `## Available agents for 'subagent' tool\n${agents
+      .filter(({ name }) => name !== DEFAULT_AGENT)
+      .map((profile) => `- ${profile.name}: ${profile.meta.description}`)
+      .join("\n")}`;
+  }
+  await writeFile(getPiPath("system"), subagentPrompt, "utf8");
+  return profile.agent;
 }

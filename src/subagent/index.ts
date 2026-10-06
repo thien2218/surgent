@@ -75,7 +75,7 @@ export default function (pi: ExtensionAPI) {
       return {
         render(width: number) {
           return new Text(
-            `${theme.fg("toolTitle", "subagent")} ${theme.fg("accent", args.agent)} ${theme.fg("dim", `"${truncateText(args.task ?? "", width * 3 - 50)}"`)}`,
+            `${theme.fg("toolTitle", "subagent")} ${theme.fg("accent", args.agent)} ${theme.fg("dim", `"${truncateText(args.task ?? "", width * 4 - 50)}"`)}\n`,
             0,
             0,
           ).render(width);
@@ -98,11 +98,7 @@ export default function (pi: ExtensionAPI) {
       return {
         render(width: number) {
           const heading = new Text(theme.bold(`${ctx.args.agent}: ${snapshot.status}`), 0, 0);
-          const lines = [
-            " ".repeat(width),
-            ...heading.render(width),
-            ...formatSnapshotText(snapshot, width),
-          ];
+          const lines = [...heading.render(width), ...formatSnapshotText(snapshot, width)];
           return lines.map((line) => theme.fg("toolOutput", line));
         },
         invalidate() {},

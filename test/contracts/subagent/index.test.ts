@@ -160,30 +160,19 @@ describe("subagent rendering", () => {
     expect(rendered).toContain('read({"path":"file.ts"})');
   });
 
-  it("sizes the dim task preview to render width without shortening the delegated task or context", async () => {
+  it("sizes the task preview to render width without shortening the delegated task or context", async () => {
     const { tool, ui, ctx, sessions } = await setup();
-    const args = { agent: "worker", task: `${"Inspect files\n".repeat(20)}Task end`, context: "Prior findings\nKeep all context" };
+    const args = { agent: "worker", task: `${"Inspect files\n".repeat(60)}Task end`, context: "Prior findings\nKeep all context" };
     const context = { args } as Parameters<NonNullable<typeof tool.renderCall>>[2];
-    const foreground = vi.spyOn(ui.theme, "fg");
-    try {
-      const component = tool.renderCall!(args, ui.theme, context);
-      const previews: string[] = [];
-      for (const width of [40, 80]) {
-        foreground.mockClear();
-        component.render(width);
-        expect(foreground).toHaveBeenCalledWith("accent", "worker");
-        const input = foreground.mock.calls.find(([color]) => color === "dim");
-        expect(input).toBeDefined();
-        const preview = stripTerminalSequences(input![1]);
-        expect(preview.length).toBeLessThanOrEqual(width * 3);
-        expect(preview).toContain("Inspect files");
-        expect(preview).toMatch(/\.\.\."$/);
-        expect(preview).not.toContain("Task end");
-        previews.push(preview);
-      }
-      expect(previews[1]!.length).toBeGreaterThan(previews[0]!.length);
-    } finally {
-      foreground.mockRestore();
+    const component = tool.renderCall!(args, ui.theme, context);
+
+    for (const width of [40, 80]) {
+      const lines = component.render(width).map(stripTerminalSequences);
+      expect(lines.every((line) => line.length <= width)).toBe(true);
+      // Ignore terminal wrapping and padding, not preview content.
+      expect(lines.join("").replace(/\s/g, "")).toBe(
+        `subagent worker "${args.task.slice(0, width * 4 - 50)}..."`.replace(/\s/g, ""),
+      );
     }
 
     await tool.execute("call", args, undefined, undefined, ctx);

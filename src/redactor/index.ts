@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
-import { containSecrets, replaceSecrets } from "./secrets.js";
+import { containSecrets } from "./secrets.js";
+import { sanitizeResult } from "./results.js";
 
 export default function (pi: ExtensionAPI) {
   pi.on("tool_call", async (event, _ctx) => {
@@ -21,9 +22,14 @@ export default function (pi: ExtensionAPI) {
       if (!Array.isArray(edits)) {
         return { block: true, reason: "Invalid edits for secret scanning" };
       }
+
       for (const edit of edits) {
-        if (!edit || typeof edit !== "object" || Array.isArray(edit) ||
-          typeof edit.newText !== "string") {
+        if (
+          !edit ||
+          typeof edit !== "object" ||
+          Array.isArray(edit) ||
+          typeof edit.newText !== "string"
+        ) {
           return { block: true, reason: "Invalid edit content for secret scanning" };
         }
         if (containSecrets(edit.newText)) {
@@ -34,14 +40,10 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("tool_result", async (event, _ctx) => {
-    if (event.toolName !== "read" && event.toolName !== "bash" && event.toolName !== "grep") return;
-
-    const content = event.content.map((block) => {
-      if (block.type !== "text") return block;
-      const redactedText = replaceSecrets(block.text);
-      return { ...block, text: redactedText };
-    });
-
-    return { details: event.details, isError: event.isError, content };
+    if (!["read", "bash", "grep", "powershell", "codemode"].includes(event.toolName)) {
+      return;
+    }
+    // Ancestry changes neither result policy nor authorization.
+    return sanitizeResult(event);
   });
 }

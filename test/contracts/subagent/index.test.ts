@@ -100,12 +100,20 @@ describe("delegated usage reporting", () => {
     message.errorMessage = "provider failed";
     message.usage = { input: 100, output: 50, cacheRead: 20, cacheWrite: 10, totalTokens: 180,
       cost: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, total: 10 } };
-    turns.push((session) => session.emit({ type: "message_end", message }));
+    turns.push((session) => {
+      session.emit({ type: "message_end", message: {
+        role: "toolResult", toolCallId: "codemode", toolName: "codemode", content: [], isError: false, timestamp: 0,
+        usage: { input: 4, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 9,
+          cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, total: 2 } },
+      } });
+      session.emit({ type: "message_end", message });
+    });
     if (stopReason === "error") await expect(run()).rejects.toThrow("provider failed");
     else await run();
     expect(await report("call", "read")).toBeUndefined();
     expect(await report("unknown")).toBeUndefined();
-    expect(await report()).toEqual({ usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: message.usage.cost } });
+    expect(await report()).toEqual({ usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+      cost: { input: 2, output: 3, cacheRead: 3, cacheWrite: 4, total: 12 } } });
     expect(await report()).toBeUndefined();
   });
 

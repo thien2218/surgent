@@ -1,5 +1,5 @@
 import { CustomEditor, type KeybindingsManager } from "@earendil-works/pi-coding-agent";
-import { getKeybindings, matchesKey, type EditorTheme, type TUI } from "@earendil-works/pi-tui";
+import { getKeybindings, setKeybindings, matchesKey, type EditorTheme, type TUI } from "@earendil-works/pi-tui";
 
 export type EditorMode = "prompt" | "bash-included" | "bash-excluded";
 
@@ -15,8 +15,8 @@ export class BashModeEditor extends CustomEditor {
   private externalOnSubmit: ((text: string) => void) | undefined;
   private externalOnChange: ((text: string) => void) | undefined;
 
-  constructor(tui: TUI, editorTheme: EditorTheme, keybindings: KeybindingsManager) {
-    super(tui, editorTheme, keybindings);
+  constructor(tui: TUI, editorTheme: EditorTheme, private readonly bindings: KeybindingsManager) {
+    super(tui, editorTheme, bindings);
 
     this.installWrappedCallbacks();
     const parsed = this.parseActualText(super.getText());
@@ -125,10 +125,9 @@ export class BashModeEditor extends CustomEditor {
   }
 
   private isHistoryNavInput(data: string): boolean {
-    const keybindings = getKeybindings();
     return (
-      keybindings.matches(data, "tui.editor.cursorUp") ||
-      keybindings.matches(data, "tui.editor.cursorDown")
+      this.bindings.matches(data, "tui.editor.cursorUp") ||
+      this.bindings.matches(data, "tui.editor.cursorDown")
     );
   }
 
@@ -137,11 +136,22 @@ export class BashModeEditor extends CustomEditor {
     editorInternals.setTextInternal(displayText);
   }
 
+  private handleInheritedInput(data: string) {
+    // Pi's Editor still reads global bindings; scope inherited handling to this editor.
+    const previous = getKeybindings();
+    setKeybindings(this.bindings);
+    try {
+      super.handleInput(data);
+    } finally {
+      setKeybindings(previous);
+    }
+  }
+
   private handleHistoryNavInput(data: string) {
     const text = this.toActualText(super.getText(), this.mode);
     const rawBeforeNav = super.getText();
 
-    this.withSuppressedChange(() => super.handleInput(data));
+    this.withSuppressedChange(() => this.handleInheritedInput(data));
 
     const rawAfterNav = super.getText();
     if (rawAfterNav === rawBeforeNav) return;
@@ -167,17 +177,15 @@ export class BashModeEditor extends CustomEditor {
   }
 
   private shouldHandleSubmit(data: string): boolean {
-    const keybindings = getKeybindings();
-
     if (
       this.disableSubmit ||
       this.isShowingAutocomplete() ||
-      keybindings.matches(data, "tui.input.newLine") ||
+      this.bindings.matches(data, "tui.input.newLine") ||
       data === "\n"
     ) {
       return false;
     }
-    if (!keybindings.matches(data, "tui.input.submit")) {
+    if (!this.bindings.matches(data, "tui.input.submit")) {
       return false;
     }
 
@@ -248,7 +256,7 @@ export class BashModeEditor extends CustomEditor {
       return;
     }
 
-    super.handleInput(data);
+    this.handleInheritedInput(data);
   }
 
   override getText(): string {

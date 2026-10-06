@@ -72,9 +72,14 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
-  pi.on("before_agent_start", (event) => ({
-    systemPrompt: `${getState(pi).getAgent().body}\n\n${event.systemPrompt}`,
-  }));
+  pi.on("before_agent_start", (event) => {
+    const { body } = getState(pi).getAgent();
+    if (body) {
+      event.systemPromptOptions.sections.agent = body;
+    } else {
+      delete event.systemPromptOptions.sections.agent;
+    }
+  });
 
   pi.on("session_shutdown", async (_event, _ctx) => {
     state?.dispose();

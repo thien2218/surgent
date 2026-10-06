@@ -1,6 +1,6 @@
-// Literal braces are doubled; only generated value lists use single braces.
+// Escape literal braces and preceding backslash runs; leave other backslashes unchanged.
 function escapeLiteral(text: string) {
-  return text.replaceAll("{", "{{").replaceAll("}", "}}");
+  return text.replaceAll("{", "\\{").replaceAll("}", "\\}");
 }
 
 export class BashResultReducer {
@@ -85,7 +85,10 @@ export class BashResultReducer {
       // Exact repeats use the last alphanumeric token and retain every value.
       const varying = this.varying === -1 ? first.length - 2 : this.varying;
       const values = this.lines.map((tokens) => tokens[varying]);
-      const template = first.map((token, index) => index === varying ? `{${values.join(", ")}}` : escapeLiteral(token)).join("");
+      // Backslashes before the generated opening brace must also remain literal.
+      const prefix = escapeLiteral(first.slice(0, varying).join("")).replace(/\\+$/, "$&$&");
+      const suffix = escapeLiteral(first.slice(varying + 1).join(""));
+      const template = `${prefix}{${values.join(", ")}}${suffix}`;
       const compressed = template + this.ending;
       if (compressed.length < original.length) output = compressed;
     }

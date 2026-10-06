@@ -14,11 +14,11 @@ function reduce(chunks: Buffer[]) {
 function expand(output: Buffer) {
   const lines = output.toString("latin1").match(/[^\n]*\n|[^\n]+$/g) ?? [];
   return Buffer.from(lines.map((line) => {
-    const markers = /{{|}}|{([A-Za-z0-9]+(?:, [A-Za-z0-9]+)+)}/g;
+    const markers = /\\[{}]|{([A-Za-z0-9]+(?:, [A-Za-z0-9]+)+)}/g;
     const values = Array.from(line.matchAll(markers)).find((match) => match[1]);
-    if (!values) return line.replace(/{{|}}/g, (marker) => marker[0]!);
+    if (!values) return line.replace(/\\([{}])/g, "$1");
     return values[1]!.split(", ").map((value) =>
-      line.replace(markers, (marker, list) => list ? value : marker.charAt(0)),
+      line.replace(markers, (marker, list) => list ? value : marker.slice(1)),
     ).join("");
   }).join(""), "latin1");
 }
@@ -71,7 +71,7 @@ describe("BashResultReducer", () => {
     const input = "GET /api/{post}/ resolves to {204}\nGET /api/{post}/ resolves to {404}\nGET /api/{post}/ resolves to {500}\nliteral {204, 404}\n100%";
 
     expect(reduce([Buffer.from(input)])).toBe(
-      "GET /api/{{post}}/ resolves to {{{204, 404, 500}}}\nliteral {{204, 404}}\n100%",
+      "GET /api/\\{post\\}/ resolves to \\{{204, 404, 500}\\}\nliteral \\{204, 404\\}\n100%",
     );
   });
 

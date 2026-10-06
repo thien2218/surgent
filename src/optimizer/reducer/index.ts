@@ -67,7 +67,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerTool({
     ...bashTool,
-    description: `${bashTool.description} Output may losslessly group consecutive lines: status {204, 404, 500}. Expand one line per value, preserving order, duplicates, and line endings. Doubled braces ({{, }}) are escaped literals; decode once.`,
+    description: `${bashTool.description} Output losslessly group similar consecutive lines with braces: 'status {200, 404, 500}' represents three lines 'status 200', 'status 404', 'status 500'. Expand one line per value, preserving order, duplicates, and line endings. Literal braces are escaped with backslash. Decode once.`,
     // Redaction replaces results with text; codemode must not expect a structured object.
     outputSchema: undefined,
     parameters: Type.Object({

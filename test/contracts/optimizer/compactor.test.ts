@@ -62,7 +62,13 @@ describe("canonical grep summaries", () => {
     const manager = SessionManager.inMemory(workspace.cwd);
     const grep = appendTool(manager, "grep", "grep", "src/file.ts\n7: full source\n8- context");
     appendTool(manager, "empty", "grep", "No matches found");
-    appendTool(manager, "nested", "codemode", "src/file.ts\n9: nested source");
+    const nestedText = "src/file.ts\n9: nested source\n\n[truncated]";
+    manager.appendMessage({
+      role: "toolResult", toolCallId: "nested", toolName: "codemode", isError: false, timestamp: 0,
+      content: [{ type: "text", text: nestedText }],
+      details: { path: "src/file.ts", symbol: "example", startLine: 1, endLine: 100 },
+      nestedCalls: { complete: false, calls: [{ id: "nested/1", name: "read", status: "ok", durationMs: 1 }] },
+    });
     appendTool(manager, "bash", "bash", "src/file.ts\n10: bash output");
     const raw = structuredClone(manager.getEntries());
 
@@ -77,6 +83,9 @@ describe("canonical grep summaries", () => {
     }] });
     expect(manager.buildSessionProjection().messages).toContainEqual(
       expect.objectContaining({ toolCallId: "grep", content: [{ type: "text", text: "src/file.ts: lines_matched=[7]" }] }),
+    );
+    expect(manager.buildSessionProjection().messages).toContainEqual(
+      expect.objectContaining({ toolCallId: "nested", content: [{ type: "text", text: nestedText }] }),
     );
     expect(manager.getEntries().slice(0, raw.length)).toEqual(raw);
     expect(await settleOptimizer(manager)).toBeUndefined();

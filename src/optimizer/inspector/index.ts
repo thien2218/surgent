@@ -2,7 +2,11 @@ import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { inspectSymbol } from "./inspect.js";
-import type { InspectToolDetails } from "./types.js";
+
+export interface InspectToolDetails {
+  path: string;
+  symbol: string;
+}
 
 const inspect = defineTool({
   name: "inspect",
@@ -49,12 +53,7 @@ const inspect = defineTool({
         };
       }
 
-      const details = {
-        path: inspected.path,
-        symbol: inspected.symbol,
-        range: inspected.range,
-      } satisfies InspectToolDetails;
-
+      const details = { path: inspected.path, symbol: inspected.symbol };
       return { isError: false, details, content: [{ type: "text", text: inspected.text }] };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

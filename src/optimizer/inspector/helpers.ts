@@ -1,30 +1,12 @@
-import type { InspectToolDetails } from "./types.js";
-
 export function parseInspectToolDetails(inspected: unknown) {
   if (!inspected || typeof inspected !== "object") return;
 
   const path = (inspected as { path?: unknown }).path;
   const symbol = (inspected as { symbol?: unknown }).symbol;
-  const range = (inspected as { range?: unknown }).range;
-
   if (typeof path !== "string" || path.length === 0) return;
   if (typeof symbol !== "string" || symbol.length === 0) return;
-  if (!Array.isArray(range) || range.length !== 2) return;
 
-  const start = range[0];
-  const end = range[1];
-  if (
-    typeof start !== "number" ||
-    typeof end !== "number" ||
-    !Number.isInteger(start) ||
-    !Number.isInteger(end) ||
-    start < 1 ||
-    end < start
-  ) {
-    return;
-  }
-
-  return { path, symbol, range: [start, end] } satisfies InspectToolDetails;
+  return { path, symbol } satisfies { path: string; symbol: string };
 }
 
 export function pruneInspectResults(messages: Array<{ role?: string }>) {

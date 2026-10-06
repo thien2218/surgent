@@ -5,54 +5,40 @@ function inspection(path: string, symbol: string, text: string) {
   return {
     role: "toolResult",
     toolName: "inspect",
-    details: { path, symbol, range: [2, 4] },
+    details: { path, symbol },
     content: [{ type: "text", text }],
   };
 }
 
 describe("inspect details", () => {
-  it("accepts one-based inclusive ranges, including a single line", () => {
-    expect(parseInspectToolDetails({ path: "src/task.ts", symbol: "Worker.run~2", range: [1, 1] }))
-      .toEqual({ path: "src/task.ts", symbol: "Worker.run~2", range: [1, 1] });
-    expect(parseInspectToolDetails({ path: "src/task.ts", symbol: "imports~1", range: [2, 8], extra: true }))
-      .toEqual({ path: "src/task.ts", symbol: "imports~1", range: [2, 8] });
+  it("accepts only file and symbol identity and drops extra metadata", () => {
+    expect(parseInspectToolDetails({ path: "src/task.ts", symbol: "Worker.run~2" }))
+      .toEqual({ path: "src/task.ts", symbol: "Worker.run~2" });
+    expect(parseInspectToolDetails({ path: "src/task.ts", symbol: "imports~1", extra: true }))
+      .toEqual({ path: "src/task.ts", symbol: "imports~1" });
   });
 
   it.each([
     ["missing details", undefined],
     ["null details", null],
     ["text details", "src/task.ts"],
-    ["missing path", { symbol: "run", range: [1, 2] }],
-    ["empty path", { path: "", symbol: "run", range: [1, 2] }],
-    ["non-string path", { path: 1, symbol: "run", range: [1, 2] }],
-    ["missing symbol", { path: "task.ts", range: [1, 2] }],
-    ["empty symbol", { path: "task.ts", symbol: "", range: [1, 2] }],
-    ["non-string symbol", { path: "task.ts", symbol: {}, range: [1, 2] }],
-    ["missing range", { path: "task.ts", symbol: "run" }],
-    ["non-array range", { path: "task.ts", symbol: "run", range: "1-2" }],
-    ["short range", { path: "task.ts", symbol: "run", range: [1] }],
-    ["long range", { path: "task.ts", symbol: "run", range: [1, 2, 3] }],
-    ["zero-based range", { path: "task.ts", symbol: "run", range: [0, 2] }],
-    ["negative range", { path: "task.ts", symbol: "run", range: [-1, 2] }],
-    ["reversed range", { path: "task.ts", symbol: "run", range: [3, 2] }],
-    ["fractional start", { path: "task.ts", symbol: "run", range: [1.5, 2] }],
-    ["fractional end", { path: "task.ts", symbol: "run", range: [1, 2.5] }],
-    ["string start", { path: "task.ts", symbol: "run", range: ["1", 2] }],
-    ["string end", { path: "task.ts", symbol: "run", range: [1, "2"] }],
-    ["non-finite start", { path: "task.ts", symbol: "run", range: [NaN, 2] }],
-    ["non-finite end", { path: "task.ts", symbol: "run", range: [1, Infinity] }],
+    ["missing path", { symbol: "run" }],
+    ["empty path", { path: "", symbol: "run" }],
+    ["non-string path", { path: 1, symbol: "run" }],
+    ["missing symbol", { path: "task.ts" }],
+    ["empty symbol", { path: "task.ts", symbol: "" }],
+    ["non-string symbol", { path: "task.ts", symbol: {} }],
   ])("rejects %s rather than authorizing result pruning", (_label, details) => {
     expect(parseInspectToolDetails(details)).toBeUndefined();
   });
 });
 
 describe("inspect result pruning", () => {
-  it("keeps the newest body for each file and exact symbol even when its range changes", () => {
+  it("keeps the newest body for each file and exact symbol", () => {
     const old = inspection("task.ts", "Worker.run", "old body");
     const otherFile = inspection("other.ts", "Worker.run", "other file");
     const overload = inspection("task.ts", "Worker.run~2", "second declaration");
     const latest = inspection("task.ts", "Worker.run", "new body");
-    latest.details.range = [10, 15];
     const user = { role: "user", content: "inspect the updated method" };
     const messages = [old, otherFile, overload, user, latest];
 
@@ -65,7 +51,7 @@ describe("inspect result pruning", () => {
   it("never lets failed or malformed results erase the last valid body", () => {
     const valid = inspection("task.ts", "run", "valid body");
     const failed = { ...inspection("task.ts", "run", "permission denied"), isError: true };
-    const malformed = { ...inspection("task.ts", "run", "invalid range"), details: { path: "task.ts", symbol: "run", range: [0, 2] } };
+    const malformed = { ...inspection("task.ts", "run", "missing symbol"), details: { path: "task.ts" } };
     const messages = [valid, failed, malformed];
 
     expect(pruneInspectResults(messages)).toBe(false);

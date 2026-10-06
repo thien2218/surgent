@@ -16,12 +16,13 @@ export function appendTool(
   text: string,
   args: ToolCall["arguments"] = {},
   isError = false,
+  details?: ToolResultMessage["details"],
 ) {
   const assistant = assistantMessage("");
   assistant.content = [{ type: "toolCall", id: toolCallId, name: toolName, arguments: args }];
   const callId = manager.appendMessage(assistant);
   const message: ToolResultMessage = {
-    role: "toolResult", toolCallId, toolName, isError, timestamp: 0,
+    role: "toolResult", toolCallId, toolName, isError, details, timestamp: 0,
     content: [{ type: "text", text }],
   };
   const resultId = manager.appendMessage(message);

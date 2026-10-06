@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import type { ProjectedSessionEntry } from "@earendil-works/pi-coding-agent";
 
-/** Raw range metadata is valid only while the original result content is visible. */
+/** Optimize only original result content, never omissions or external replacements. */
 export function getEligibleResult(entry: ProjectedSessionEntry): ToolResultMessage | undefined {
   const { sourceEntry, messages } = entry;
   if (sourceEntry.type !== "message" || sourceEntry.message.role !== "toolResult") return;

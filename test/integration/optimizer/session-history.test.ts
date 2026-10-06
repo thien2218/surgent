@@ -32,10 +32,10 @@ describe("canonical optimizer history", () => {
     const manager = SessionManager.create(cwd, sessions);
     manager.appendMessage({ role: "user", content: "request", timestamp: 0 });
     const failed = appendTool(manager, "failed", "read", "missing file", { path: "file.ts" }, true);
-    const old = appendTool(manager, "old", "read", "source line", { path: "file.ts" });
+    const old = appendTool(manager, "old", "inspect", "source line", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
     const sibling = manager.appendMessage(assistantMessage("sibling reply"));
     manager.branch(old.resultId);
-    appendTool(manager, "new", "read", "source line", { path: "file.ts" });
+    appendTool(manager, "new", "inspect", "source line", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
     const grep = appendTool(manager, "grep", "grep", "file.ts\n1: source line");
     manager.appendLabelChange(failed.resultId, "bookmark");
     const beforeEdits = manager.getLeafId()!;
@@ -77,10 +77,10 @@ describe("canonical optimizer history", () => {
 
   it("keeps compaction boundaries intact when their first retained calls are omitted", async () => {
     const manager = SessionManager.inMemory(workspace());
-    const hidden = appendTool(manager, "hidden", "read", "source", { path: "file.ts" });
-    const old = appendTool(manager, "old", "read", "source", { path: "file.ts" });
+    const hidden = appendTool(manager, "hidden", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
+    const old = appendTool(manager, "old", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
     const compactId = manager.appendCompaction("previous summary", old.callId, 100);
-    appendTool(manager, "new", "read", "source", { path: "file.ts" });
+    appendTool(manager, "new", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
     const raw = structuredClone(manager.getEntries());
 
     const result = await settleOptimizer(manager);
@@ -102,8 +102,8 @@ describe("canonical optimizer history", () => {
     onTestFinished(() => { vi.unstubAllGlobals(); });
     const manager = SessionManager.inMemory(cwd);
     manager.appendMessage({ role: "user", content: "inspect source", timestamp: 0 });
-    appendTool(manager, "old", "read", "first\nsecond", { path: "file.ts" });
-    appendTool(manager, "new", "read", "first\nsecond", { path: "file.ts" });
+    appendTool(manager, "old", "inspect", "first\nsecond", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
+    appendTool(manager, "new", "inspect", "first\nsecond", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
     appendTool(manager, "grep", "grep", "file.ts\n1: long raw grep source");
     manager.appendMessage(assistantMessage("finished"));
     manager.appendMessage({ role: "user", content: "next task", timestamp: 0 });

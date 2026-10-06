@@ -4,10 +4,7 @@ import { join } from "node:path";
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import { buildSessionProjection, type SessionEntry, type SessionMessageEntry } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { hasFullCoverage, mergeRanges } from "../../../src/optimizer/deduplicator/helpers.js";
-import { getResourceCoverage } from "../../../src/optimizer/deduplicator/resources.js";
 import { buildDeduplicatorState } from "../../../src/optimizer/deduplicator/state.js";
-import type { Range } from "../../../src/optimizer/inspector/types.js";
 import { assistantMessage } from "../../helpers/commands.js";
 
 function workspace() {
@@ -21,35 +18,23 @@ function workspace() {
   return root;
 }
 
-function result(toolCallId: string, overrides: Partial<ToolResultMessage> = {}): ToolResultMessage {
-  return {
-    role: "toolResult", toolName: "read", toolCallId,
-    content: [{ type: "text", text: "first\nsecond" }], isError: false, timestamp: 0,
-    ...overrides,
-  };
-}
-
-function exchange(
-  id: string,
-  parentId: string | null,
-  range: Range,
-  overrides: Partial<ToolResultMessage> = {},
-  path = "source.ts",
-) {
+function exchange(id: string, parentId: string | null, overrides: Partial<ToolResultMessage> = {}) {
   const message = assistantMessage("");
   message.content = [{
-    type: "toolCall", id, name: overrides.toolName ?? "read",
-    arguments: { path, offset: range[0], limit: range[1] - range[0] + 1 },
+    type: "toolCall", id, name: overrides.toolName ?? "inspect",
+    arguments: { path: "input.ts", symbol: "requested" },
   }];
   const call = {
     type: "message", id: `${id}-call`, parentId, timestamp: "2025-01-01T00:00:00.000Z", message,
   } satisfies SessionMessageEntry;
   const response = {
     type: "message", id: `${id}-result`, parentId: call.id, timestamp: call.timestamp,
-    message: result(id, {
-      content: [{ type: "text", text: Array.from({ length: range[1] - range[0] + 1 }, () => "line").join("\n") }],
+    message: {
+      role: "toolResult", toolName: "inspect", toolCallId: id,
+      content: [{ type: "text", text: "source" }], isError: false, timestamp: 0,
+      details: { path: "source.ts", symbol: "handler" },
       ...overrides,
-    }),
+    },
   } satisfies SessionMessageEntry;
   return [call, response];
 }
@@ -58,106 +43,48 @@ function candidates(entries: SessionEntry[], leafId: string | null, cwd: string)
   return buildDeduplicatorState(buildSessionProjection(entries, leafId).entries, cwd);
 }
 
-describe("line coverage", () => {
-  it("merges overlapping, nested and adjacent ranges without mutating inputs", () => {
-    const ranges: Range[] = [[8, 10], [2, 4], [4, 7], [3, 3], [13, 14]];
-    const original = structuredClone(ranges);
+describe("inspect identity deduplication", () => {
+  it("keeps the newest body for a matching file and symbol", () => {
+    const entries = [
+      ...exchange("old", null),
+      ...exchange("new", "old-result", {
+        content: [{ type: "text", text: "changed source" }],
+      }),
+    ];
 
-    expect(mergeRanges(ranges)).toEqual([[2, 10], [13, 14]]);
-    expect(ranges).toEqual(original);
-    expect(mergeRanges([])).toEqual([]);
+    expect(candidates(entries, "new-result", workspace())).toEqual(new Map([["old-result", ["new-result"]]]));
   });
 
-  it.each<{ name: string; candidates: Range[]; covered: boolean }>([
-    { name: "adjacent pieces", candidates: [[4, 6], [7, 9]], covered: true },
-    { name: "surrounding range", candidates: [[1, 20]], covered: true },
-    { name: "overlaps clipped to requested lines", candidates: [[1, 6], [5, 20]], covered: true },
-    { name: "interior gap", candidates: [[4, 6], [8, 9]], covered: false },
-    { name: "missing first line", candidates: [[5, 9]], covered: false },
-    { name: "missing last line", candidates: [[4, 8]], covered: false },
-    { name: "outside ranges", candidates: [[1, 3], [10, 20]], covered: false },
-    { name: "no ranges", candidates: [], covered: false },
-  ])("recognizes $name", ({ candidates, covered }) => {
-    expect(hasFullCoverage([4, 9], candidates)).toBe(covered);
-  });
-});
-
-describe("resource coverage", () => {
-  it("counts visible read lines rather than requested limit or continuation notice", () => {
-    const cwd = workspace();
-    const coverage = getResourceCoverage("read", { path: "source.ts", offset: 5, limit: 100 }, result("read", {
-      content: [{ type: "text", text: "first\nsecond\n\n[98 more lines. Use offset=7 to continue.]" }],
-    }), cwd);
-
-    expect(coverage).toEqual({ resource: join(cwd, "source.ts"), range: [5, 6] });
+  it.each([
+    { path: "source.ts", symbol: "other" },
+    { path: "source.ts", symbol: "Handler" },
+    { path: "source.ts", symbol: "handler " },
+    { path: "other.ts", symbol: "handler" },
+  ])("keeps distinct returned identities despite matching inputs (%j)", (details) => {
+    const entries = [...exchange("old", null), ...exchange("new", "old-result", { details })];
+    expect(candidates(entries, "new-result", workspace()).size).toBe(0);
   });
 
-  it("uses truncation outputLines so metadata cannot inflate retained coverage", () => {
-    const cwd = workspace();
-    expect(getResourceCoverage("read", { path: "source.ts", offset: 10 }, result("read", {
-      content: [{ type: "text", text: "line\nline\nnotice" }],
-      details: { truncation: { truncated: true, outputLines: 2 } },
-    }), cwd)?.range).toEqual([10, 11]);
-  });
-
-  it.each([0, -1, 1.5, "2", null])("rejects invalid read offset %s", (offset) => {
-    expect(getResourceCoverage("read", { path: "source.ts", offset }, result("read"), workspace())).toBeUndefined();
-  });
-
-  it.each<Partial<ToolResultMessage>>([
-    { details: { truncation: "invalid" } },
-    { details: { truncation: { firstLineExceedsLimit: true } } },
-    { details: { truncation: { truncated: true, outputLines: 0 } } },
-    { details: { truncation: { truncated: true, outputLines: 1.5 } } },
-    { details: { truncation: { truncated: true } } },
-    { content: [{ type: "image", data: "", mimeType: "image/png" }] },
-    { content: [{ type: "text", text: "one" }, { type: "text", text: "two" }] },
-  ])("does not claim coverage for ambiguous or unreadable read output %#", (overrides) => {
-    expect(getResourceCoverage("read", { path: "source.ts" }, result("read", overrides), workspace())).toBeUndefined();
-  });
-
-  it("uses inspect source ranges and resolves symlink aliases to same resource", () => {
+  it("normalizes relative, absolute, and symlink aliases", () => {
     const cwd = workspace();
     writeFileSync(join(cwd, "source.ts"), "source");
     symlinkSync(join(cwd, "source.ts"), join(cwd, "alias.ts"));
-
-    const inspected = getResourceCoverage("inspect", { path: "ignored.ts" }, result("inspect", {
-      details: { path: "alias.ts", symbol: "handler", range: [20, 30] },
-    }), cwd);
-    const read = getResourceCoverage("read", { path: "./source.ts", offset: 20 }, result("read"), cwd);
-
-    expect(inspected).toEqual({ resource: join(cwd, "source.ts"), range: [20, 30] });
-    expect(read?.resource).toBe(inspected?.resource);
-  });
-
-  it.each<Partial<ToolResultMessage>>([
-    {},
-    { details: { path: "source.ts", symbol: "handler", range: [5, 4] } },
-    { details: { path: "source.ts", range: [1, 2] } },
-  ])("retains inspect output without valid source metadata %#", (overrides) => {
-    expect(getResourceCoverage("inspect", { path: "source.ts" }, result("inspect", overrides), workspace())).toBeUndefined();
-  });
-});
-
-describe("deduplicator state", () => {
-  it("replaces an old range with multiple newer pieces only when every line survives", () => {
-    const cwd = workspace();
-    const first = exchange("old", null, [1, 4]);
-    const next = exchange("next", "old-result", [1, 2]);
-    const last = exchange("last", "next-result", [3, 4]);
-
-    const state = candidates([...first, ...next, ...last], "last-result", cwd);
-
-    expect([...state.keys()]).toEqual(["old-result"]);
-    expect(new Set(state.get("old-result"))).toEqual(new Set(["last-result", "next-result"]));
-    expect(candidates([...first, ...next], "next-result", cwd).size).toBe(0);
-  });
-
-  it("points replacement chains at retained results, never another removed duplicate", () => {
     const entries = [
-      ...exchange("first", null, [1, 2]),
-      ...exchange("second", "first-result", [1, 2]),
-      ...exchange("last", "second-result", [1, 2]),
+      ...exchange("first", null),
+      ...exchange("second", "first-result", { details: { path: "./alias.ts", symbol: "handler" } }),
+      ...exchange("last", "second-result", { details: { path: join(cwd, "source.ts"), symbol: "handler" } }),
+    ];
+
+    expect(candidates(entries, "last-result", cwd)).toEqual(new Map([
+      ["first-result", ["last-result"]], ["second-result", ["last-result"]],
+    ]));
+  });
+
+  it("normalizes unavailable paths and points every older duplicate directly to newest", () => {
+    const entries = [
+      ...exchange("first", null),
+      ...exchange("second", "first-result", { details: { path: "./folder/../source.ts", symbol: "handler" } }),
+      ...exchange("last", "second-result"),
     ];
 
     expect(candidates(entries, "last-result", workspace())).toEqual(new Map([
@@ -165,66 +92,77 @@ describe("deduplicator state", () => {
     ]));
   });
 
-  it.each<"read" | "inspect">(["read", "inspect"])("allows newer %s output to replace older inspect coverage", (toolName) => {
+  it("keeps file and symbol boundaries unambiguous", () => {
     const entries = [
-      ...exchange("old", null, [10, 11], { toolName: "inspect", details: { path: "source.ts", symbol: "handler", range: [10, 11] } }),
-      ...exchange("new", "old-result", [10, 11], {
-        toolName, ...(toolName === "inspect" ? { details: { path: "source.ts", symbol: "handler", range: [10, 11] } } : {}),
-      }),
+      ...exchange("old", null, { details: { path: "source.ts:part", symbol: "handler" } }),
+      ...exchange("new", "old-result", { details: { path: "source.ts", symbol: "part:handler" } }),
     ];
-
-    expect(candidates(entries, "new-result", workspace())).toEqual(new Map([["old-result", ["new-result"]]]));
+    expect(candidates(entries, "new-result", workspace()).size).toBe(0);
   });
 
-  it("retains broad reads when newer inspect only covers one symbol", () => {
+  it.each([
+    ["read", "read"], ["read", "inspect"], ["inspect", "read"],
+  ])("never uses reads for deduplication (%s then %s)", (older, newer) => {
     const entries = [
-      ...exchange("read", null, [1, 10]),
-      ...exchange("inspect", "read-result", [3, 4], { toolName: "inspect", details: { path: "source.ts", symbol: "handler", range: [3, 4] } }),
+      ...exchange("old", null, { toolName: older }),
+      ...exchange("new", "old-result", { toolName: newer }),
     ];
-
-    expect(candidates(entries, "inspect-result", workspace()).size).toBe(0);
+    expect(candidates(entries, "new-result", workspace()).size).toBe(0);
   });
 
-  it("does not use errors, other files or sibling branches as replacement coverage", () => {
+  it.each<Partial<ToolResultMessage>>([
+    { isError: true },
+    { details: undefined },
+    { details: null },
+    { details: {} },
+    { details: { path: "", symbol: "handler" } },
+    { details: { path: "source.ts", symbol: "" } },
+    { details: { path: 5, symbol: "handler" } },
+    { details: { path: "source.ts", symbol: 5 } },
+    { details: { path: "source.ts" } },
+    { details: { symbol: "handler" } },
+  ])("does not let ineligible results supersede valid identities (%j)", (overrides) => {
     const entries = [
-      ...exchange("old", null, [1, 2]),
-      ...exchange("failed", "old-result", [1, 2], { isError: true }),
-      ...exchange("other-file", "failed-result", [1, 2], {}, "other.ts"),
-      ...exchange("sibling", "old-result", [1, 2]),
+      ...exchange("first", null),
+      ...exchange("second", "first-result"),
+      ...exchange("invalid", "second-result", overrides),
     ];
-    const state = candidates(entries, "other-file-result", workspace());
-
-    expect(state.size).toBe(0);
-  });
-
-  it("does not optimize an intentionally empty branch", () => {
-    const entries = [...exchange("old", null, [1, 2]), ...exchange("new", "old-result", [1, 2])];
-    expect(candidates(entries, null, workspace()).size).toBe(0);
+    expect(candidates(entries, "invalid-result", workspace())).toEqual(new Map([["first-result", ["second-result"]]]));
   });
 
   it.each([null, { content: "short summary" }])(
-    "retains an old range when a newer covering piece is omitted or replaced (%j)",
+    "does not trust identities on omitted or externally replaced results (%j)",
     (replacement) => {
       const entries: SessionEntry[] = [
-        ...exchange("old", null, [1, 4]),
-        ...exchange("next", "old-result", [1, 2]),
-        ...exchange("last", "next-result", [3, 4]),
+        ...exchange("first", null),
+        ...exchange("second", "first-result"),
+        ...exchange("last", "second-result"),
         { type: "context_edit", id: "edit", parentId: "last-result", timestamp: "2025-01-01T00:00:00.000Z",
           targetId: "last-result", replacement },
       ];
-      expect(candidates(entries, "edit", workspace()).size).toBe(0);
+      expect(candidates(entries, "edit", workspace())).toEqual(new Map([["first-result", ["second-result"]]]));
     },
   );
 
-  it("does not trust inspect range metadata on a replaced result", () => {
+  it("does not remove externally replaced older results", () => {
     const entries: SessionEntry[] = [
-      ...exchange("old", null, [10, 13]),
-      ...exchange("new", "old-result", [10, 13], {
-        toolName: "inspect", details: { path: "source.ts", symbol: "handler", range: [10, 13] },
-      }),
+      ...exchange("old", null),
+      ...exchange("new", "old-result"),
       { type: "context_edit", id: "edit", parentId: "new-result", timestamp: "2025-01-01T00:00:00.000Z",
-        targetId: "new-result", replacement: { content: "short summary" } },
+        targetId: "old-result", replacement: { content: "external summary" } },
     ];
     expect(candidates(entries, "edit", workspace()).size).toBe(0);
+  });
+
+  it("uses only the active branch, including an intentionally empty branch", () => {
+    const entries = [
+      ...exchange("old", null),
+      ...exchange("other", "old-result", { details: { path: "other.ts", symbol: "handler" } }),
+      ...exchange("sibling", "old-result"),
+    ];
+    const cwd = workspace();
+    expect(candidates(entries, "other-result", cwd).size).toBe(0);
+    expect(candidates(entries, "sibling-result", cwd)).toEqual(new Map([["old-result", ["sibling-result"]]]));
+    expect(candidates(entries, null, cwd).size).toBe(0);
   });
 });

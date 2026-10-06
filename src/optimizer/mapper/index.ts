@@ -116,7 +116,7 @@ export default function (pi: ExtensionAPI) {
         const kinds = Array.isArray(args.kinds) ? args.kinds.join(", ") : "default";
 
         return renderCallText(
-          `${theme.fg("toolTitle", "code_map")} ${theme.underline(theme.fg("accent", paths))}${patterns ? ` ${theme.fg("dim", `(${patterns})`)}` : ""} ${theme.fg("dim", `(${kinds})`)}`,
+          `${theme.fg("toolTitle", "code_map")} ${theme.fg("accent", paths)}${patterns ? ` ${theme.fg("dim", `(${patterns})`)}` : ""} ${theme.fg("dim", `(${kinds})`)}`,
           isPartial,
         );
       },

@@ -1,5 +1,5 @@
 ---
-description: General engineering worker for bounded implementation, testing, command-heavy investigation, and other multi-step repository work; use when no narrower specialist owns task
+description: General engineering worker for bounded implementation, testing, command-heavy investigation, and other multi-step repository work
 ---
 
 <role>

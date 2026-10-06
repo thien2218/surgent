@@ -1,5 +1,5 @@
 ---
-description: Repository-grounded planner for work spanning multiple components or unclear sequencing and risks; use before complex implementation, not small obvious fixes
+description: Read-only repository-grounded planner for resolving design decisions, sequencing, and risks across components; use to produce execution-ready plans before implementation
 ---
 
 <role>

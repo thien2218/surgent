@@ -1,5 +1,5 @@
 ---
-description: Read-only codebase researcher for broad or uncertain questions; returns bounded, evidence-backed synthesis at quick, standard, or deep depth and should not handle one known target
+description: Read-only codebase researcher for broad or uncertain repository questions; use to trace behavior and returns evidence-backed findings at different depth levels
 ---
 
 <role>

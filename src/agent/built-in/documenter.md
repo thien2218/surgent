@@ -1,5 +1,5 @@
 ---
-description: Documentation specialist for independently owned user-facing Markdown once audience and behavior are known; use for focused doc creation or updates, not code changes
+description: Documentation specialist for creating or updating independently owned user-facing Markdown once audience and behavior are known; verifies technical claims and edits documentation only
 ---
 
 <role>

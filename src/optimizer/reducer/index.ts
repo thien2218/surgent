@@ -5,10 +5,7 @@ import {
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
 import { BashResultReducer } from "./bash.js";
-import {
-  formatGrepResult,
-  filterGrepResult,
-} from "./grep.js";
+import { formatGrepResult, filterGrepResult } from "./grep.js";
 import Type from "typebox";
 import { askForPermission } from "../../permission/index.js";
 import { getState } from "../../state.js";
@@ -70,6 +67,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerTool({
     ...bashTool,
+    description: `${bashTool.description} Output may losslessly group consecutive lines: status {204, 404, 500}. Expand one line per value, preserving order, duplicates, and line endings. Doubled braces ({{, }}) are escaped literals; decode once.`,
     // Redaction replaces results with text; codemode must not expect a structured object.
     outputSchema: undefined,
     parameters: Type.Object({
@@ -83,5 +81,4 @@ export default function (pi: ExtensionAPI) {
     }),
     prepareArguments: undefined,
   });
-
 }

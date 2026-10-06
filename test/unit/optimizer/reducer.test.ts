@@ -10,58 +10,111 @@ function reduce(chunks: Buffer[]) {
   return Buffer.concat(output).toString("utf8");
 }
 
-describe("BashResultReducer", () => {
-  it("preserves UTF-8 and strips ANSI regardless of stream fragmentation", () => {
-    const input = Buffer.from("\u001b[31mcafé 🦊\u001b[0m\r\nloading 1\rloading 2\r\nend");
-    const expected = "café 🦊\nloading 2\nend";
+// Reference expansion of the public text format, not reducer internals.
+function expand(output: Buffer) {
+  const lines = output.toString("latin1").match(/[^\n]*\n|[^\n]+$/g) ?? [];
+  return Buffer.from(lines.map((line) => {
+    const markers = /{{|}}|{([A-Za-z0-9]+(?:, [A-Za-z0-9]+)+)}/g;
+    const values = Array.from(line.matchAll(markers)).find((match) => match[1]);
+    if (!values) return line.replace(/{{|}}/g, (marker) => marker[0]!);
+    return values[1]!.split(", ").map((value) =>
+      line.replace(markers, (marker, list) => list ? value : marker.charAt(0)),
+    ).join("");
+  }).join(""), "latin1");
+}
 
-    expect(reduce([input])).toBe(expected);
-    expect(reduce(Array.from(input, (byte) => Buffer.from([byte])))).toBe(expected);
+describe("BashResultReducer", () => {
+  it("preserves UTF-8, ANSI, and carriage returns regardless of stream fragmentation", () => {
+    const input = Buffer.from("\u001b[31mcafé 🦊\u001b[0m\r\nloading 1\rloading 2\r\nend");
+
+    expect(reduce([input])).toBe(input.toString());
+    expect(reduce(Array.from(input, (byte) => Buffer.from([byte])))).toBe(input.toString());
     for (let offset = 1; offset < input.length; offset++) {
-      expect(reduce([input.subarray(0, offset), input.subarray(offset)]), `split at byte ${offset}`).toBe(expected);
+      expect(reduce([input.subarray(0, offset), input.subarray(offset)]), `split at byte ${offset}`).toBe(input.toString());
     }
   });
 
-  it.each([
-    ["", ""],
-    ["\n", "\n"],
-    ["last line", "last line"],
-    ["last line\n", "last line\n"],
-    ["old\rnew", "new"],
-    ["progress\r", "progress"],
-    ["progress\r\u001b[0m\r\n", "progress\n"],
-  ])("flushes %j without losing content or inventing a newline", (input, expected) => {
-    expect(reduce([Buffer.from(input)])).toBe(expected);
+  it.each(["", "\n", "last line", "last line\n", "old\rnew", "progress\r", "progress\r\u001b[0m\r\n"])(
+    "preserves content and newline state for %j", (input) => {
+      expect(reduce([Buffer.from(input)])).toBe(input);
+    },
+  );
+
+  it("factors consecutive statuses in order, including duplicates", () => {
+    const input = ["204", "404", "404", "500"].map((status) => `GET /api/post/ resolves to ${status}\n`).join("");
+
+    expect(reduce([Buffer.from(input)])).toBe("GET /api/post/ resolves to {204, 404, 404, 500}\n");
   });
 
-  it("drops consecutive exact repeats but keeps later occurrences", () => {
-    expect(reduce([Buffer.from("same\nsame\nsame\nother\nsame\n")])).toBe("same\nother\nsame\n");
+  it("preserves exact repeat counts and later occurrences", () => {
+    const line = "Downloading package 100\n";
+    const input = line.repeat(3) + "OK\n" + line;
+
+    expect(reduce([Buffer.from(input)])).toBe("Downloading package {100, 100, 100}\nOK\n" + line);
   });
 
-  it("keeps latest similar line and resets repeat notices between groups", () => {
-    const input = "Downloading package 100\nDownloading package 101\nDownloading package 102\nOK\nOK\nUploading artifact 200\nUploading artifact 201";
+  it("ends groups when another token, a separator, or a line ending changes", () => {
+    const input = "GET /api/post/ resolves to 204\nGET /api/post/ resolves to 404\nGET /api/user/ resolves to 500\nGET /api/user/ resolves to 501\r\nGET /api/user/ resolves to 502!\r\n";
 
     expect(reduce([Buffer.from(input)])).toBe(
-      "Downloading package 102 (similar line x2)\nOK\nUploading artifact 201 (similar line x1)",
+      "GET /api/post/ resolves to {204, 404}\nGET /api/user/ resolves to 500\nGET /api/user/ resolves to 501\r\nGET /api/user/ resolves to 502!\r\n",
     );
   });
 
-  it("keeps short changes and dissimilar long lines", () => {
-    const input = "step 1\nstep 2\nabcdefghij\n0123456789\nabcdefghij with much more content\n";
+  it("only factors complete lines when the encoding saves bytes", () => {
+    const input = "1\n2\nsame\nsame\nGET /api/post/ resolves to 204\nGET /api/post/ resolves to 404";
 
     expect(reduce([Buffer.from(input)])).toBe(input);
+  });
+
+  it("distinguishes literal braces from inline value lists", () => {
+    const input = "GET /api/{post}/ resolves to {204}\nGET /api/{post}/ resolves to {404}\nGET /api/{post}/ resolves to {500}\nliteral {204, 404}\n100%";
+
+    expect(reduce([Buffer.from(input)])).toBe(
+      "GET /api/{{post}}/ resolves to {{{204, 404, 500}}}\nliteral {{204, 404}}\n100%",
+    );
+  });
+
+  it("round-trips raw bytes and framed groups across every chunk boundary", () => {
+    const input = Buffer.concat([
+      Buffer.from([0xff, 0x00, 0xc3, 0x0a]),
+      Buffer.from("\ufeffcafé 🦊\r\n\u001b[31m100%\u001b[0m\rloading\n\n"),
+      Buffer.from("GET /api/{{post}}/ resolves to {204}\r\nGET /api/{{post}}/ resolves to {404}\r\nGET /api/{{post}}/ resolves to {404}\r\n"),
+      Buffer.from("literal {204, 404}\nDownloading package 100\n".repeat(2)),
+      Buffer.from("GET /api/post/ resolves to {500}"),
+    ]);
+
+    for (let offset = 0; offset <= input.length; offset++) {
+      const output: Buffer[] = [];
+      const reducer = new BashResultReducer((data) => output.push(data));
+      reducer.append(input.subarray(0, offset));
+      reducer.append(input.subarray(offset));
+      reducer.finish();
+      expect(expand(Buffer.concat(output)), `split at byte ${offset}`).toEqual(input);
+    }
+  });
+
+  it("flushes long matching runs before finish without losing lines", () => {
+    const input = Buffer.from("GET /api/post/ resolves to 204\n".repeat(3000));
+    const output: Buffer[] = [];
+    const reducer = new BashResultReducer((data) => output.push(data));
+    reducer.append(input);
+
+    expect(output.length).toBeGreaterThan(0);
+    reducer.finish();
+    expect(expand(Buffer.concat(output))).toEqual(input);
   });
 
   it("streams settled lines before finish and flushes pending output only once", () => {
     const output: Buffer[] = [];
     const reducer = new BashResultReducer((data) => output.push(data));
-    reducer.append(Buffer.from("first\nsecond\npartial"));
+    reducer.append(Buffer.from("first\nsecond line\npartial"));
 
     expect(Buffer.concat(output).toString()).toBe("first\n");
     reducer.finish();
-    expect(Buffer.concat(output).toString()).toBe("first\nsecond\npartial");
+    expect(Buffer.concat(output).toString()).toBe("first\nsecond line\npartial");
     reducer.finish();
-    expect(Buffer.concat(output).toString()).toBe("first\nsecond\npartial");
+    expect(Buffer.concat(output).toString()).toBe("first\nsecond line\npartial");
   });
 });
 

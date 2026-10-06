@@ -1,141 +1,97 @@
-import { stripVTControlCharacters } from "node:util";
-
-const MIN_SIMILAR_LENGTH = 10;
-const SIMILARITY_THRESHOLD = 0.8;
-
-function isSimilarLine(previousLine: string, nextLine: string) {
-  if (Math.min(previousLine.length, nextLine.length) < MIN_SIMILAR_LENGTH) return false;
-
-  const longestLength = Math.max(previousLine.length, nextLine.length);
-  if (1 - Math.abs(previousLine.length - nextLine.length) / longestLength < SIMILARITY_THRESHOLD) {
-    return false;
-  }
-
-  const distances = new Uint32Array(nextLine.length + 1);
-  for (let nextIndex = 0; nextIndex <= nextLine.length; nextIndex++) {
-    distances[nextIndex] = nextIndex;
-  }
-
-  for (let previousIndex = 1; previousIndex <= previousLine.length; previousIndex++) {
-    let diagonalDistance = distances[0]!;
-    distances[0] = previousIndex;
-
-    for (let nextIndex = 1; nextIndex <= nextLine.length; nextIndex++) {
-      const upperDistance = distances[nextIndex]!;
-      const editCost = previousLine[previousIndex - 1] === nextLine[nextIndex - 1] ? 0 : 1;
-      distances[nextIndex] = Math.min(
-        upperDistance + 1,
-        distances[nextIndex - 1]! + 1,
-        diagonalDistance + editCost,
-      );
-      diagonalDistance = upperDistance;
-    }
-  }
-
-  return 1 - distances[nextLine.length]! / longestLength >= SIMILARITY_THRESHOLD;
+// Literal braces are doubled; only generated value lists use single braces.
+function escapeLiteral(text: string) {
+  return text.replaceAll("{", "{{").replaceAll("}", "}}");
 }
 
 export class BashResultReducer {
-  private readonly decoder = new TextDecoder();
   private readonly onData: (data: Buffer) => void;
-  // Exact regex and carriage-return handling require holding one logical line.
   private currentLine = "";
-  private carriageLine: string | undefined;
-  private hasPendingLine = false;
-  private pendingLine: string | undefined;
-  private pendingTerminated = false;
-  private omittedLines = 0;
-  private hasSimilarLines = false;
+  private lines: string[][] = [];
+  private ending = "\n";
+  private varying = -1;
+  private size = 0;
 
   constructor(onData: (data: Buffer) => void) {
     this.onData = onData;
   }
 
   append(data: Buffer) {
-    this.process(this.decoder.decode(data, { stream: true }));
+    // Latin-1 is a reversible byte mapping, including invalid/split UTF-8.
+    const text = data.toString("latin1");
+    let start = 0;
+    let newline = text.indexOf("\n");
+    while (newline !== -1) {
+      this.emit(this.currentLine + text.slice(start, newline + 1));
+      this.currentLine = "";
+      start = newline + 1;
+      newline = text.indexOf("\n", start);
+    }
+    this.currentLine += text.slice(start);
   }
 
   finish() {
-    this.process(this.decoder.decode());
-    if (this.hasPendingLine) {
-      this.emit(this.getNormalizedLine(), false);
-      this.resetLine();
-    }
     this.flushPending();
+    // Never fold an unterminated final line into a terminated group.
+    if (this.currentLine.length > 0) {
+      this.onData(Buffer.from(escapeLiteral(this.currentLine), "latin1"));
+      this.currentLine = "";
+    }
   }
 
-  private process(text: string) {
-    for (const character of text) {
-      if (character === "\r") {
-        if (
-          this.carriageLine === undefined ||
-          stripVTControlCharacters(this.currentLine).length > 0
-        ) {
-          this.carriageLine = this.currentLine;
+  private emit(line: string) {
+    const ending = line.endsWith("\r\n") ? "\r\n" : "\n";
+    const body = line.slice(0, -ending.length);
+    const tokens = body.split(/([A-Za-z0-9]+)/);
+    // Terminal controls and tokenless lines pass through without factoring.
+    if (/[\x00-\x1f\x7f]/.test(body) || tokens.length < 3) {
+      this.flushPending();
+      this.onData(Buffer.from(escapeLiteral(line), "latin1"));
+      return;
+    }
+
+    const first = this.lines[0];
+    if (first) {
+      let varying = this.varying;
+      let matches = ending === this.ending && tokens.length === first.length;
+      if (matches) {
+        for (let index = 0; index < tokens.length; index++) {
+          if (tokens[index] === first[index]) continue;
+          if (index % 2 === 0 || (varying !== -1 && varying !== index)) {
+            matches = false;
+            break;
+          }
+          varying = index;
         }
-        this.currentLine = "";
-        this.hasPendingLine = true;
-        continue;
       }
-
-      if (character === "\n") {
-        this.emit(this.getNormalizedLine(), true);
-        this.resetLine();
-        continue;
+      // Bound group buffering even for an endless run of matching lines.
+      if (!matches || this.size + line.length > 64 * 1024) {
+        this.flushPending();
+      } else {
+        this.varying = varying;
       }
-
-      this.currentLine += character;
-      this.hasPendingLine = true;
     }
-  }
-
-  private getNormalizedLine() {
-    const normalizedLine = stripVTControlCharacters(this.currentLine);
-    if (this.carriageLine !== undefined && normalizedLine.length === 0) {
-      return stripVTControlCharacters(this.carriageLine);
-    }
-    return normalizedLine;
-  }
-
-  private emit(normalizedLine: string, terminated: boolean) {
-    if (this.pendingLine === undefined) {
-      this.pendingLine = normalizedLine;
-      this.pendingTerminated = terminated;
-      return;
-    }
-
-    if (normalizedLine === this.pendingLine) {
-      this.omittedLines++;
-      return;
-    }
-
-    if (isSimilarLine(this.pendingLine, normalizedLine)) {
-      this.pendingLine = normalizedLine;
-      this.pendingTerminated = terminated;
-      this.omittedLines++;
-      this.hasSimilarLines = true;
-      return;
-    }
-
-    this.flushPending();
-    this.pendingLine = normalizedLine;
-    this.pendingTerminated = terminated;
+    this.lines.push(tokens);
+    this.ending = ending;
+    this.size += line.length;
   }
 
   private flushPending() {
-    if (this.pendingLine === undefined) return;
+    const first = this.lines[0];
+    if (!first) return;
 
-    const suffix = this.hasSimilarLines ? ` (similar line x${this.omittedLines})` : "";
-    this.onData(Buffer.from(`${this.pendingLine}${suffix}${this.pendingTerminated ? "\n" : ""}`));
-    this.pendingLine = undefined;
-    this.pendingTerminated = false;
-    this.omittedLines = 0;
-    this.hasSimilarLines = false;
-  }
-
-  private resetLine() {
-    this.currentLine = "";
-    this.carriageLine = undefined;
-    this.hasPendingLine = false;
+    const original = this.lines.map((tokens) => tokens.join("") + this.ending).join("");
+    let output = escapeLiteral(original);
+    if (this.lines.length > 1) {
+      // Exact repeats use the last alphanumeric token and retain every value.
+      const varying = this.varying === -1 ? first.length - 2 : this.varying;
+      const values = this.lines.map((tokens) => tokens[varying]);
+      const template = first.map((token, index) => index === varying ? `{${values.join(", ")}}` : escapeLiteral(token)).join("");
+      const compressed = template + this.ending;
+      if (compressed.length < original.length) output = compressed;
+    }
+    this.onData(Buffer.from(output, "latin1"));
+    this.lines = [];
+    this.varying = -1;
+    this.size = 0;
   }
 }

@@ -1,7 +1,7 @@
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import compactorExtension from "../../../src/optimizer/compactor/index.js";
+import reducerExtension from "../../../src/optimizer/reducer/index.js";
 import { writeRules } from "../../../src/permission/storage.js";
 import { makePermissionContext, makePermissionSession } from "../../helpers/permission.js";
 import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
@@ -52,7 +52,7 @@ describe("grep outside-root approval", () => {
       path = "alias.txt";
       executeGrep.mockResolvedValue({ content: [{ type: "text", text: "alias.txt:1: fake outside match" }], details: undefined });
     }
-    compactorExtension(pi.api);
+    reducerExtension(pi.api);
     let settled = false;
 
     const pending = pi.tool("grep").execute("grep-call", { pattern: "match", path }, undefined, undefined, ctx)
@@ -82,7 +82,7 @@ describe("grep outside-root approval", () => {
     const ctx = makePermissionContext(workspace.cwd, outcome !== "headless");
     if (outcome === "ui-error") ctx.ui.custom.mockRejectedValue(new Error("UI unavailable"));
     else ctx.ui.custom.mockResolvedValue(outcome === "deny" ? { allowed: false } : undefined);
-    compactorExtension(pi.api);
+    reducerExtension(pi.api);
 
     await expect(pi.tool("grep").execute("grep-call", { pattern: "match", path: "../outside" }, undefined, undefined, ctx))
       .rejects.toThrow(error);
@@ -93,7 +93,7 @@ describe("grep outside-root approval", () => {
     if (source === "stored-grant") await writeRules({ project: { file: { "../outside/private.txt": "read" } } }, workspace.cwd);
     const pi = makePermissionSession({ description: "test" }, source === "yolo" ? "yolo" : "assistant");
     const ctx = makePermissionContext(workspace.cwd);
-    compactorExtension(pi.api);
+    reducerExtension(pi.api);
 
     const result = await pi.tool("grep").execute("grep-call", { pattern: "match", path: "../outside" }, undefined, undefined, ctx);
 
@@ -109,7 +109,7 @@ describe("grep outside-root approval", () => {
     });
     const pi = makePermissionSession({ description: "test" }, "yolo");
     const ctx = makePermissionContext(workspace.cwd);
-    compactorExtension(pi.api);
+    reducerExtension(pi.api);
 
     const result = await pi.tool("grep").execute("grep-call", { pattern: "match", path: "../outside" }, undefined, undefined, ctx);
 

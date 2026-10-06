@@ -1,5 +1,4 @@
 import type { ContextEditEntryDraft, ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { extractGrepSummary } from "./compactor/grep.js";
 import { buildDeduplicatorState } from "./deduplicator/state.js";
 import { getEligibleResult } from "./entries.js";
 import { getRemovedToolCallId } from "./pruner/cleanup.js";
@@ -21,21 +20,7 @@ export default function (pi: ExtensionAPI) {
       if (replacements.has(targetId) || getRemovedToolCallId(message)) {
         edits.set(targetId, { type: "context_edit", targetId, replacement: null });
         removedCalls.add(message.toolCallId);
-        continue;
       }
-      if (message.toolName !== "grep" || message.isError || message.content.length !== 1) continue;
-
-      const content = message.content[0];
-      if (content?.type !== "text") continue;
-
-      const summary = extractGrepSummary(content.text);
-      if (!summary || summary === content.text) continue;
-
-      edits.set(targetId, {
-        type: "context_edit",
-        targetId,
-        replacement: { content: [{ type: "text", text: summary }] },
-      });
     }
 
     for (const { sourceEntry, messages } of entries) {

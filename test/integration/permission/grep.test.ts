@@ -1,7 +1,7 @@
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { filterGrepResult } from "../../../src/optimizer/compactor/grep.js";
+import { filterGrepResult } from "../../../src/optimizer/reducer/grep.js";
 import { writeRules } from "../../../src/permission/storage.js";
 import { makePermissionContext, makePermissionSession } from "../../helpers/permission.js";
 import { createWorkspace, type Workspace } from "../../helpers/workspace.js";

@@ -1,12 +1,17 @@
 import type { ToolCall, ToolResultMessage } from "@earendil-works/pi-ai";
 import {
   convertToLlm,
+  createExtensionRuntime,
+  ExtensionRunner,
+  SessionManager,
   type AgentBeforeSettleEvent,
-  type AgentBeforeSettleEventResult,
-  type SessionManager,
+  type Extension,
+  type ExtensionContext,
+  type ModelRegistry,
 } from "@earendil-works/pi-coding-agent";
 import optimizerContext from "../../src/optimizer/context.js";
-import { assistantMessage, commandContext } from "./commands.js";
+import compactor from "../../src/optimizer/compactor/index.js";
+import { assistantMessage } from "./commands.js";
 import { recordExtension } from "./extension.js";
 
 export function appendTool(
@@ -41,15 +46,41 @@ export function boundaryEvent(manager: SessionManager): AgentBeforeSettleEvent {
 }
 
 export async function settleOptimizer(manager: SessionManager) {
-  const pi = recordExtension();
-  optimizerContext(pi.api);
-  const { ctx } = commandContext(manager.getCwd());
-  const result = await pi.event("agent_before_settle")(
-    boundaryEvent(manager), { ...ctx, sessionManager: manager },
-  ) as AgentBeforeSettleEventResult | undefined;
-  for (const draft of result?.entries ?? []) {
+  const extensions: Extension[] = [compactor, optimizerContext].map((factory) => {
+    const pi = recordExtension();
+    factory(pi.api);
+    return {
+      path: factory.name, resolvedPath: factory.name,
+      sourceInfo: { path: factory.name, source: "test", scope: "temporary", origin: "top-level" },
+      handlers: new Map([["agent_before_settle", [async (...args: unknown[]) =>
+        pi.event("agent_before_settle")(args[0] as AgentBeforeSettleEvent, args[1] as ExtensionContext),
+      ]]]),
+      tools: new Map(), messageRenderers: new Map(), commands: new Map(), flags: new Map(), shortcuts: new Map(),
+    };
+  });
+  const registry = new Proxy({} as ModelRegistry, {
+    get(_target, property) { throw new Error(`Unexpected model registry access: ${String(property)}`); },
+  });
+  const runner = new ExtensionRunner(extensions, createExtensionRuntime(), manager.getCwd(), manager, registry);
+  const errors: string[] = [];
+  runner.onError((error) => { errors.push(error.error); });
+  const result = await runner.emitBoundary({ type: "agent_before_settle", outcome: "completed" }, (drafts) => {
+    const preview = SessionManager.inMemory(manager.getCwd(), undefined, manager.getEntries());
+    const leafId = manager.getLeafId();
+    if (leafId === null) preview.resetLeaf();
+    else preview.branch(leafId);
+    for (const draft of drafts) {
+      if (draft.type !== "context_edit") throw new Error(`Unexpected optimizer draft: ${draft.type}`);
+      preview.appendContextEdit(draft.targetId, draft.replacement);
+    }
+    return boundaryEvent(preview).context;
+  });
+  if (errors.length > 0) throw new Error(errors.join("\n"));
+  if (!result.valid) throw new Error("Invalid optimizer boundary");
+  for (const draft of result.entries) {
     if (draft.type !== "context_edit") throw new Error(`Unexpected optimizer draft: ${draft.type}`);
     manager.appendContextEdit(draft.targetId, draft.replacement);
   }
-  return result;
+  if (result.entries.length === 0) return;
+  return { entries: result.entries, continue: result.continue };
 }

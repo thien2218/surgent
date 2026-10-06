@@ -35,7 +35,7 @@ function isSimilarLine(previousLine: string, nextLine: string) {
   return 1 - distances[nextLine.length]! / longestLength >= SIMILARITY_THRESHOLD;
 }
 
-export class BashResultCompactor {
+export class BashResultReducer {
   private readonly decoder = new TextDecoder();
   private readonly onData: (data: Buffer) => void;
   // Exact regex and carriage-return handling require holding one logical line.

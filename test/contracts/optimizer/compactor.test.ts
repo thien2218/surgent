@@ -1,8 +1,9 @@
-import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { SessionManager, type AgentBeforeSettleEventResult, type ContextEditEntryDraft } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it } from "vitest";
 import compactorExtension from "../../../src/optimizer/compactor/index.js";
 import { recordExtension } from "../../helpers/extension.js";
-import { appendTool, settleOptimizer } from "../../helpers/optimizer.js";
+import { appendTool, boundaryEvent, settleOptimizer } from "../../helpers/optimizer.js";
+import { commandContext } from "../../helpers/commands.js";
 import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
 let workspace: Workspace;
@@ -10,13 +11,53 @@ beforeEach(async () => {
   workspace = await createWorkspace({ prefix: "surgent-compactor-contract-", changeCwd: true });
 });
 
-it("advertises bash as text-only because redaction replaces structured results", () => {
+it("registers only settlement, not execution tools", () => {
   const pi = recordExtension();
   compactorExtension(pi.api);
-  expect(pi.tool("bash").outputSchema).toBeUndefined();
+
+  expect(() => pi.tool("bash")).toThrow("Missing tool registration");
+  expect(() => pi.tool("grep")).toThrow("Missing tool registration");
+  expect(pi.event("agent_before_settle")).toBeTypeOf("function");
 });
 
 describe("canonical grep summaries", () => {
+  it.each(["aborted", "error"] as const)("leaves grep untouched after %s settlement", async (outcome) => {
+    const manager = SessionManager.inMemory(workspace.cwd);
+    appendTool(manager, "grep", "grep", "src/file.ts\n7: full source");
+    const pi = recordExtension();
+    compactorExtension(pi.api);
+    const { ctx } = commandContext(workspace.cwd);
+    const event = { ...boundaryEvent(manager), outcome };
+    const original = structuredClone(event);
+
+    expect(await pi.event("agent_before_settle")(event, ctx)).toBeUndefined();
+    expect(event).toEqual(original);
+  });
+
+  it.each([false, true])("preserves incoming drafts and continue=%s", async (continuation) => {
+    const manager = SessionManager.inMemory(workspace.cwd);
+    const external = appendTool(manager, "external", "grep", "src/external.ts\n1: source");
+    const grep = appendTool(manager, "grep", "grep", "src/file.ts\n7: source");
+    appendTool(manager, "failed", "grep", "src/file.ts\n8: failed source", {}, true);
+    const prior: ContextEditEntryDraft = {
+      type: "context_edit", targetId: external.resultId, replacement: { content: "src/external.ts\n2: external replacement" },
+    };
+    const preview = SessionManager.inMemory(workspace.cwd, undefined, manager.getEntries());
+    preview.appendContextEdit(prior.targetId, prior.replacement);
+    const pi = recordExtension();
+    compactorExtension(pi.api);
+    const { ctx } = commandContext(workspace.cwd);
+    const event = { ...boundaryEvent(preview), entries: [prior], continue: continuation };
+    const original = structuredClone(event);
+
+    const result = await pi.event("agent_before_settle")(event, ctx) as AgentBeforeSettleEventResult;
+
+    expect(result).toEqual({ continue: continuation, entries: [prior, {
+      type: "context_edit", targetId: grep.resultId,
+      replacement: { content: [{ type: "text", text: "src/file.ts: lines_matched=[7]" }] },
+    }] });
+    expect(event).toEqual(original);
+  });
   it("keeps source during the task and summarizes only direct grep results at successful settle", async () => {
     const manager = SessionManager.inMemory(workspace.cwd);
     const grep = appendTool(manager, "grep", "grep", "src/file.ts\n7: full source\n8- context");

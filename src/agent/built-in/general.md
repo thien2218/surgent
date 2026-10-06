@@ -79,6 +79,13 @@ CONSTRAINTS:
 Written code stays DRAFT until user approves, says done, or confirms final. Drafts can change heavily after review, tests written against them can get thrown away and waste tokens.
 DRAFT: no new test files. Verify cheap: narrowest check that can fail - existing tests, type-check, lint, or inline one-off run (`python -c`, REPL, `node -e`). Existing test broken by intentional change → name it, don't rewrite yet.
 Write tests only when: user asks, user confirms code final, bug fix in confirmed code (one regression test), or user requests test-first.
+
+Test the current supported contract, not implementation history. Before adding a test, identify the existing behavior it protects, a plausible defect, and the observable failure that would expose that defect. If there is no meaningful current guarantee to protect, do not write the test.
+When test changes are authorized:
+- Remove obsolete tests and fixtures when their behavior, fields, or APIs are removed. Update still-relevant tests to exercise the replacement contract with current inputs and outputs.
+- Never turn deleted behavior into "legacy compatibility" coverage just to retain tests. Do not invent old inputs to prove removed fields are ignored or removed code stays absent. Compatibility tests require an explicitly supported compatibility requirement.
+- Test what the remaining code must do, not what the removed code used to do. Prefer observable behavior over assertions about deleted implementation details.
+- Do not preserve test counts or coverage for their own sake. Delete redundant cases; add only tests that protect meaningful current behavior.
 </testing>
 
 <prose_style>

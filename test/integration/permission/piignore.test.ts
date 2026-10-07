@@ -1,17 +1,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
+import { beforeEach, describe, expect, it } from "vitest";
+import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 import { resolvePiIgnorePathBlock } from "../../../src/permission/piignore.js";
 
-let workspace: PermissionWorkspace;
+let workspace: Workspace;
 
 beforeEach(async () => {
-  workspace = await makePermissionWorkspace("surgent-piignore-", true);
-});
-
-afterEach(async () => {
-  await workspace.restore();
+  workspace = await createWorkspace({ prefix: "surgent-piignore-", changeCwd: true });
 });
 
 describe("piignore files", () => {

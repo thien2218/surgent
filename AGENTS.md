@@ -21,7 +21,6 @@
 │   ├── cleanup
 │   ├── code-diff
 │   ├── commands
-│   ├── mcp-client
 │   ├── optimizer
 │   ├── permission
 │   ├── questionnaire
@@ -74,3 +73,5 @@ Run this command exactly once, as-is, with no chaining, flags, or extra shell mo
 - Names should use as few words as possible and have no more than 4 words.
 - When asked to commit, split work by independently reviewable behavior. Every commit must leave repository valid; keep coupled contract and runtime changes together, then separate removable transport, optimizer integration, or other cleanup when each can stand alone. Use formats `<type>: <desc>` or `<type>(<scope>): <desc>` for messages.
 - When tasked with researching to implement new feature or update existing one, also look into open source coding harnesses like OpenCode, Codex and Gemini CLI.
+- Avoid nested ternary operators.
+- Always use `npm version` to bump surgent version

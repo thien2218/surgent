@@ -56,14 +56,10 @@ export default function (pi: ExtensionAPI) {
     const state = getState(pi);
     const { meta } = state.getAgent();
     const mode = state.getMode();
+    const sessionId = state.pid ?? ctx.sessionManager.getSessionId();
 
     try {
-      const check = await getPermissionCheck(
-        ctx.cwd,
-        ctx.sessionManager.getSessionId(),
-        event.toolName,
-        event.input,
-      );
+      const check = await getPermissionCheck(ctx.cwd, sessionId, event.toolName, event.input);
       if (!check) return;
 
       if (check.category === "file") {
@@ -87,8 +83,11 @@ export default function (pi: ExtensionAPI) {
       if (permission === "allowed" && !check.uncertainty) return;
 
       return await askForPermission(pi, ctx, check);
-    } catch {
-      return { block: true, reason: "Permission check failed" };
+    } catch (error) {
+      return {
+        block: true,
+        reason: error instanceof Error ? error.message : "Permission check failed",
+      };
     }
   });
 }

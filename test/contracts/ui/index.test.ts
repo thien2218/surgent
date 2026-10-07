@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { VERSION as PI_VERSION } from "@earendil-works/pi-coding-agent";
+import { CustomEditor, VERSION as PI_VERSION } from "@earendil-works/pi-coding-agent";
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { Key, KeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
 import type { EditorTheme, TUI } from "@earendil-works/pi-tui";
@@ -21,11 +21,11 @@ function setup() {
     theme: theme as Theme,
   } satisfies Pick<ExtensionContext["ui"], "setHeader" | "setEditorComponent" | "theme">;
   const context = { hasUI: true, ui } as unknown as ExtensionContext;
-  const tui = { requestRender: vi.fn() } as unknown as TUI;
+  const tui = { requestRender: vi.fn(), terminal: { rows: 40, columns: 100 } } as unknown as TUI;
   const start = () => extension.event("session_start")({ type: "session_start", reason: "startup" }, context);
   const cycle = () => extension.shortcut(Key.ctrlAlt("b")).handler(context);
 
-  function createEditor() {
+  function createEditor(keybindings = new KeybindingsManager(TUI_KEYBINDINGS)) {
     const factory = ui.setEditorComponent.mock.calls.at(-1)?.[0];
     if (!factory) throw new Error("UI session did not install an editor factory");
     const plain = (text: string) => text;
@@ -39,11 +39,13 @@ function setup() {
         noMatch: plain,
       },
     };
-    return factory(
+    const editor = factory(
       tui,
       editorTheme,
-      new KeybindingsManager(TUI_KEYBINDINGS) as import("@earendil-works/pi-coding-agent").KeybindingsManager,
+      keybindings as import("@earendil-works/pi-coding-agent").KeybindingsManager,
     );
+    if (!(editor instanceof CustomEditor)) throw new Error("UI factory did not create a CustomEditor");
+    return editor;
   }
 
   return { extension, ui, context, tui, start, cycle, createEditor };
@@ -104,6 +106,53 @@ describe("UI extension contract", () => {
     expect(editor.getText()).toBe("!!echo hello");
     await cycle();
     expect(editor.getText()).toBe("echo hello");
+  });
+
+  it("uses injected history and submit keys without losing bash mode across entries", async () => {
+    const { start, createEditor } = setup();
+    await start();
+    const editor = createEditor(new KeybindingsManager(TUI_KEYBINDINGS, {
+      "tui.editor.cursorUp": "f6",
+      "tui.editor.cursorDown": "f7",
+      "tui.input.submit": "f8",
+    }));
+    const submit = vi.fn();
+    editor.onSubmit = submit;
+    editor.addToHistory("first");
+    editor.addToHistory("!second");
+    editor.addToHistory("!!third");
+    editor.render(80);
+
+    for (const value of ["!!third", "!second", "first"]) {
+      editor.handleInput("\x1b[17~");
+      expect(editor.getText()).toBe(value);
+    }
+    for (const value of ["!second", "!!third", ""]) {
+      editor.handleInput("\x1b[18~");
+      expect(editor.getText()).toBe(value);
+    }
+    editor.handleInput("\x1b[17~");
+    editor.handleInput("\x1b[19~");
+
+    expect(submit).toHaveBeenCalledExactlyOnceWith("!!third");
+    expect(editor.getText()).toBe("");
+  });
+
+  it("forwards unrelated injected application shortcuts to CustomEditor", async () => {
+    const { start, createEditor } = setup();
+    await start();
+    const editor = createEditor(new KeybindingsManager({
+      ...TUI_KEYBINDINGS,
+      "app.interrupt": { defaultKeys: [], description: "Interrupt" },
+    }, { "app.interrupt": "f9" }));
+    const escape = vi.fn();
+    editor.onEscape = escape;
+    editor.setText("!!keep input");
+
+    editor.handleInput("\x1b[20~");
+
+    expect(escape).toHaveBeenCalledOnce();
+    expect(editor.getText()).toBe("!!keep input");
   });
 
   it("routes the shortcut to the replacement editor when Pi recreates it", async () => {

@@ -90,7 +90,6 @@ export abstract class RuleBasedLanguageProfile implements LanguageProfile {
 
   protected readNodeText(node: SyntaxNode | null | undefined) {
     if (!node) return;
-
     const nodeText = node.text.trim().replaceAll("\n", " ");
     return nodeText.length > 0 ? nodeText : undefined;
   }
@@ -112,18 +111,15 @@ export abstract class RuleBasedLanguageProfile implements LanguageProfile {
       if (symbolKindRule.parent && node.parent?.type !== symbolKindRule.parent) {
         continue;
       }
-
       if (symbolKindRule.container) {
         const containerNode = this.findContainerNode(node);
         if (!containerNode || containerNode.type !== symbolKindRule.container) {
           continue;
         }
       }
-
       if (symbolKindRule.topLevelOnly && !this.matchesTopLevelRule(node)) {
         continue;
       }
-
       return symbolKindRule.kind;
     }
   }

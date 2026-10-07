@@ -1,14 +1,12 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager, TUI_KEYBINDINGS, type TUI } from "@earendil-works/pi-tui";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import PermissionRulesList from "../../../src/permission/components/rules-list.js";
 import { getRulesForDisplay, readRules, writeRules } from "../../../src/permission/storage.js";
-import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
+import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
-let workspace: PermissionWorkspace;
-beforeEach(async () => { workspace = await makePermissionWorkspace(); });
-afterEach(async () => { await workspace.restore(); });
-
+let workspace: Workspace;
+beforeEach(async () => { workspace = await createWorkspace(); });
 describe("permission rule shortcuts", () => {
   it.each([true, false])("edits through public input and saves only committed changes: %s", async (commit) => {
     await writeRules({ "session-1": { file: { "src/file.ts": "read" } } }, workspace.cwd);

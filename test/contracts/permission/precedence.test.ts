@@ -2,7 +2,8 @@ import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { createEventBus, type ToolCallEvent } from "@earendil-works/pi-coding-agent";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { makePermissionContext, makePermissionSession, makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
+import { makePermissionContext, makePermissionSession } from "../../helpers/permission.js";
+import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 import { recordExtension } from "../../helpers/extension.js";
 import permissionExtension from "../../../src/permission/index.js";
 import { writeRules } from "../../../src/permission/storage.js";
@@ -10,15 +11,14 @@ import type { AgentMeta } from "../../../src/agent/types.js";
 
 let meta: AgentMeta;
 
-let workspace: PermissionWorkspace;
+let workspace: Workspace;
 
 beforeEach(async () => {
-  workspace = await makePermissionWorkspace("surgent-permission-contract-", true);
+  workspace = await createWorkspace({ prefix: "surgent-permission-contract-", changeCwd: true });
   meta = { description: "test" };
 });
 
-afterEach(async () => {
-  await workspace.restore();
+afterEach(() => {
   vi.restoreAllMocks();
 });
 
@@ -98,7 +98,7 @@ describe("permission precedence contract", () => {
     permissionExtension(pi.api);
     const result = await pi.event("tool_call")({ type: "tool_call", toolCallId: "call-1", toolName: "web_fetch", input: { url: "https://example.com" } }, ctx);
 
-    expect(result).toEqual({ block: true, reason: "Permission check failed" });
+    expect(result).toEqual({ block: true, reason: "UI unavailable" });
   });
 
   it("lets a winning allow proceed without prompting", async () => {
@@ -129,19 +129,19 @@ describe("permission precedence contract", () => {
     { tool: "delete", prompts: 0, denied: true },
     { tool: "unknown", prompts: 1, denied: false },
   ])("enforces persisted MCP permissions for $tool", async ({ tool, prompts, denied }) => {
-    await writeRules({ project: { mcp: { "docs:search": true, "docs:delete": false } } }, workspace.cwd);
+    await writeRules({ project: { mcp: { "mcp__docs__search": true, "mcp__docs__delete": false } } }, workspace.cwd);
     const pi = makePermissionSession(meta);
     const ctx = makePermissionContext(workspace.cwd, true);
     ctx.ui.custom.mockResolvedValue({ allowed: true });
     permissionExtension(pi.api);
 
     const result = await pi.event("tool_call")({
-      type: "tool_call", toolCallId: "mcp-call", toolName: "call_mcp_tool",
-      input: { server: "docs", tool },
+      type: "tool_call", toolCallId: "mcp-call", toolName: `mcp__docs__${tool}`,
+      input: {},
     }, ctx);
 
     if (denied) {
-      expect(result).toEqual({ block: true, reason: expect.stringContaining("docs:delete") });
+      expect(result).toEqual({ block: true, reason: expect.stringContaining("mcp__docs__delete") });
     } else {
       expect(result).toBeUndefined();
     }
@@ -223,7 +223,6 @@ describe("permission precedence contract", () => {
   it.each([
     { toolName: "write", input: null },
     { toolName: "bash", input: { command: 42 } },
-    { toolName: "call_mcp_tool", input: { server: "docs" } },
   ])("fails closed for malformed $toolName input", async (event) => {
     const pi = makePermissionSession(meta);
     const ctx = makePermissionContext(workspace.cwd, true);
@@ -231,7 +230,7 @@ describe("permission precedence contract", () => {
     permissionExtension(pi.api);
     const result = await pi.event("tool_call")({ ...event, type: "tool_call", toolCallId: "call-1" } as ToolCallEvent, ctx);
 
-    expect(result).toEqual({ block: true, reason: "Permission check failed" });
+    expect(result).toEqual({ block: true, reason: expect.any(String) });
     expect(ctx.ui.custom).not.toHaveBeenCalled();
   });
 
@@ -247,7 +246,7 @@ describe("permission precedence contract", () => {
     }
     const result = await pi.event("tool_call")({ type: "tool_call", toolCallId: "call-1", toolName: "read", input: { path: "file.ts" } }, ctx);
 
-    expect(result).toEqual({ block: true, reason: "Permission check failed" });
+    expect(result).toEqual({ block: true, reason: expect.stringMatching(/JSON|Invalid \.piignore rule/) });
   });
 
   it.each(["assistant", "restricted", "yolo"] as const)("blocks malformed project rules before prompting in %s mode", async (mode) => {
@@ -261,7 +260,7 @@ describe("permission precedence contract", () => {
       type: "tool_call", toolCallId: "invalid-policy", toolName: "read", input: { path: "file.ts" },
     }, ctx);
 
-    expect(result).toEqual({ block: true, reason: "Permission check failed" });
+    expect(result).toEqual({ block: true, reason: expect.stringContaining("Expected JSON object") });
     expect(ctx.ui.custom).not.toHaveBeenCalled();
   });
 

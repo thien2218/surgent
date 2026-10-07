@@ -338,16 +338,22 @@ describe("checkpoint fork inheritance", () => {
 });
 
 describe("checkpoint turn tracking", () => {
-  it.each(["write", "edit", "subagent"])("captures successful %s results at the turn leaf", async (toolName) => {
+  it.each([
+    { toolName: "write" }, { toolName: "edit" }, { toolName: "subagent" },
+    { toolName: "write", parentToolCallId: "parent" }, { toolName: "edit", parentToolCallId: "parent" },
+  ])("captures successful $toolName results with ancestry $parentToolCallId once at the turn leaf", async ({ toolName, parentToolCallId }) => {
     const fixture = await setup();
     await fixture.emit("session_start", { reason: "startup" });
     const leaf = fixture.session.appendMessage(assistantMessage("result"));
     await fixture.emit("turn_start");
+    fixture.exec.mockClear();
+    await writeFile(join(fixture.cwd, "file"), "first mutation");
+    await fixture.emit("tool_result", { toolName, parentToolCallId, toolCallId: "parent/1", isError: false });
     await writeFile(join(fixture.cwd, "file"), toolName);
-    await fixture.emit("tool_result", { toolName, isError: false });
-    await fixture.emit("tool_result", { toolName, isError: false });
+    await fixture.emit("tool_result", { toolName, parentToolCallId, toolCallId: "parent/2", isError: false });
     await fixture.emit("turn_end");
     const saved = await fixture.saved();
+    expect(fixture.exec.mock.calls.filter(([, args]) => args.includes("write-tree"))).toHaveLength(1);
     expect(fixture.git(fixture.directory, ["show", `${saved[leaf]}:file`])).toBe(toolName);
     await writeFile(join(fixture.cwd, "file"), "not another turn");
     await fixture.emit("turn_end");
@@ -358,13 +364,16 @@ describe("checkpoint turn tracking", () => {
     { toolName: "write", isError: true }, { toolName: "edit", isError: true },
     { toolName: "subagent", isError: true }, { toolName: "read", isError: false },
     { toolName: "bash", isError: false },
-  ])("ignores $toolName with isError=$isError", async ({ toolName, isError }) => {
+    { toolName: "write", isError: true, parentToolCallId: "parent" },
+    { toolName: "edit", isError: true, parentToolCallId: "parent" },
+    { toolName: "mcp__fixture__mutate", isError: false, parentToolCallId: "parent" },
+  ])("ignores $toolName with isError=$isError and ancestry $parentToolCallId", async ({ toolName, isError, parentToolCallId }) => {
     const fixture = await setup();
     await fixture.emit("session_start", { reason: "startup" });
     const before = await fixture.saved();
     fixture.session.appendMessage(assistantMessage("result"));
     await writeFile(join(fixture.cwd, "file"), "changed");
-    await fixture.emit("tool_result", { toolName, isError });
+    await fixture.emit("tool_result", { toolName, isError, parentToolCallId });
     await fixture.emit("turn_end");
     expect(await fixture.saved()).toEqual(before);
   });

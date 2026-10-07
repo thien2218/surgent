@@ -1,10 +1,11 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { agentsCommandHandler } from "./command.js";
-import { loadMainAgent } from "./runtime.js";
+import { loadMainAgent } from "./storage.js";
 import { cycleMode } from "../permission/helpers.js";
 import { readAgentMode } from "../permission/storage.js";
 import { createState, getState, type AppState } from "../state.js";
+import { findSubsession } from "../subagent/storage.js";
 
 export default function (pi: ExtensionAPI) {
   let state: AppState | undefined;
@@ -50,9 +51,14 @@ export default function (pi: ExtensionAPI) {
     }
 
     try {
-      const [agent, mode] = await Promise.all([loadMainAgent(pi, ctx), readAgentMode()]);
-      state = createState(pi, agent, mode);
+      const [agent, mode, subsession] = await Promise.all([
+        loadMainAgent(pi, ctx),
+        readAgentMode(),
+        findSubsession(ctx.cwd, ctx.sessionManager.getSessionId()),
+      ]);
+      state = createState(pi, agent, mode, subsession?.pid);
       ctx.ui.setStatus("agent", ctx.ui.theme.fg("dim", `agent: ${agent.name}`));
+
       updateStatus = () => updateAgentMode(ctx);
       updateStatus();
       process.stdout.on("resize", updateStatus);
@@ -66,9 +72,14 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
-  pi.on("before_agent_start", (event) => ({
-    systemPrompt: `${getState(pi).getAgent().body}\n\n${event.systemPrompt}`,
-  }));
+  pi.on("before_agent_start", (event) => {
+    const { body } = getState(pi).getAgent();
+    if (body) {
+      event.systemPromptOptions.sections.agent = body;
+    } else {
+      delete event.systemPromptOptions.sections.agent;
+    }
+  });
 
   pi.on("session_shutdown", async (_event, _ctx) => {
     state?.dispose();

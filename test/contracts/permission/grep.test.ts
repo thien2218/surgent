@@ -1,9 +1,10 @@
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import compactorExtension from "../../../src/optimizer/compactor/index.js";
+import reducerExtension from "../../../src/optimizer/reducer/index.js";
 import { writeRules } from "../../../src/permission/storage.js";
-import { makePermissionContext, makePermissionSession, makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
+import { makePermissionContext, makePermissionSession } from "../../helpers/permission.js";
+import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
 const { executeGrep } = vi.hoisted(() => ({ executeGrep: vi.fn() }));
 
@@ -17,10 +18,10 @@ vi.mock("@earendil-works/pi-coding-agent", async (importOriginal) => {
   };
 });
 
-let workspace: PermissionWorkspace;
+let workspace: Workspace;
 
 beforeEach(async () => {
-  workspace = await makePermissionWorkspace("surgent-grep-contract-", true);
+  workspace = await createWorkspace({ prefix: "surgent-grep-contract-", changeCwd: true });
   vi.stubEnv("TMPDIR", join(workspace.root, "tmp"));
   await mkdir(join(workspace.root, "outside"));
   await writeFile(join(workspace.root, "outside", "private.txt"), "fake outside match");
@@ -31,9 +32,8 @@ beforeEach(async () => {
   });
 });
 
-afterEach(async () => {
+afterEach(() => {
   vi.unstubAllEnvs();
-  await workspace.restore();
 });
 
 describe("grep outside-root approval", () => {
@@ -52,7 +52,7 @@ describe("grep outside-root approval", () => {
       path = "alias.txt";
       executeGrep.mockResolvedValue({ content: [{ type: "text", text: "alias.txt:1: fake outside match" }], details: undefined });
     }
-    compactorExtension(pi.api);
+    reducerExtension(pi.api);
     let settled = false;
 
     const pending = pi.tool("grep").execute("grep-call", { pattern: "match", path }, undefined, undefined, ctx)
@@ -72,15 +72,20 @@ describe("grep outside-root approval", () => {
     expect(ctx.ui.custom).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["deny", "cancel", "headless", "ui-error"])("never returns outside-root content on %s", async (outcome) => {
+  it.each([
+    { outcome: "deny", error: "User rejected this tool call" },
+    { outcome: "cancel", error: "Permission request was cancelled" },
+    { outcome: "headless", error: "Permission request requires interactive UI" },
+    { outcome: "ui-error", error: "UI unavailable" },
+  ])("never returns outside-root content on $outcome", async ({ outcome, error }) => {
     const pi = makePermissionSession();
     const ctx = makePermissionContext(workspace.cwd, outcome !== "headless");
     if (outcome === "ui-error") ctx.ui.custom.mockRejectedValue(new Error("UI unavailable"));
     else ctx.ui.custom.mockResolvedValue(outcome === "deny" ? { allowed: false } : undefined);
-    compactorExtension(pi.api);
+    reducerExtension(pi.api);
 
     await expect(pi.tool("grep").execute("grep-call", { pattern: "match", path: "../outside" }, undefined, undefined, ctx))
-      .rejects.toThrow("Grep result unavailable: search failed or permission was denied");
+      .rejects.toThrow(error);
     expect(ctx.ui.custom).toHaveBeenCalledTimes(outcome === "headless" ? 0 : 1);
   });
 
@@ -88,7 +93,7 @@ describe("grep outside-root approval", () => {
     if (source === "stored-grant") await writeRules({ project: { file: { "../outside/private.txt": "read" } } }, workspace.cwd);
     const pi = makePermissionSession({ description: "test" }, source === "yolo" ? "yolo" : "assistant");
     const ctx = makePermissionContext(workspace.cwd);
-    compactorExtension(pi.api);
+    reducerExtension(pi.api);
 
     const result = await pi.tool("grep").execute("grep-call", { pattern: "match", path: "../outside" }, undefined, undefined, ctx);
 
@@ -104,7 +109,7 @@ describe("grep outside-root approval", () => {
     });
     const pi = makePermissionSession({ description: "test" }, "yolo");
     const ctx = makePermissionContext(workspace.cwd);
-    compactorExtension(pi.api);
+    reducerExtension(pi.api);
 
     const result = await pi.tool("grep").execute("grep-call", { pattern: "match", path: "../outside" }, undefined, undefined, ctx);
 

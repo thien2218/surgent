@@ -19,7 +19,10 @@ import type { AgentMode } from "../agent/types.js";
 
 const PATH_TOOLS = new Set(["read", "write", "edit", "grep", "find", "ls"]);
 
-function createSubsessionBridge(runtime: RuntimeConfig, state: AppState): InlineExtension[] {
+function createSubsessionBridge(
+  runtime: RuntimeConfig,
+  request: SubsessionRequest,
+): InlineExtension[] {
   return [
     {
       name: "subsession-bridge",
@@ -27,14 +30,15 @@ function createSubsessionBridge(runtime: RuntimeConfig, state: AppState): Inline
         const unsubscribe = pi.events.on(STATE_EVENT, (reply) => {
           if (typeof reply !== "function") return;
           reply({
+            pid: request.ctx.sessionManager.getSessionId(),
             getAgent: () => ({
               name: runtime.agent,
               meta: runtime.meta,
               body: runtime.systemPrompt,
               filePath: "", // Runtime profiles do not have a source file.
             }),
-            getMode: () => state.getMode(),
-            setMode: (mode: AgentMode) => state.setMode(mode),
+            getMode: () => request.state.getMode(),
+            setMode: (mode: AgentMode) => request.state.setMode(mode),
             dispose: () => unsubscribe(),
           } satisfies AppState);
         });
@@ -57,7 +61,7 @@ function createSubsessionBridge(runtime: RuntimeConfig, state: AppState): Inline
 }
 
 async function openSessionManager(request: SubsessionRequest): Promise<SessionManager> {
-  if (request.label === "subagent") {
+  if (request.temporary) {
     return SessionManager.inMemory(request.ctx.cwd);
   }
 
@@ -96,7 +100,7 @@ export async function createSdkSession(
     agentDir: getAgentDir(),
     noExtensions: true,
     systemPromptOverride: () => runtime.systemPrompt,
-    extensionFactories: createSubsessionBridge(runtime, request.state),
+    extensionFactories: createSubsessionBridge(runtime, request),
   });
   await resourceLoader.reload();
 

@@ -1,11 +1,11 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { afterEach, expect, it, onTestFinished, vi } from "vitest";
 import webTools from "../../../src/web-tools/index.js";
-import { recordExtension } from "../../helpers/extension.js";
+import { recordExtension, toolCapabilities } from "../../helpers/extension.js";
 
 function setup(configured: string[] = ["tavily", "brave-search", "firecrawl"]) {
   const read = vi.fn(async (provider: string) => configured.includes(provider) ? { type: "api_key", key: "fake-key" } : undefined);
-  const ctx = { modelRegistry: { runtime: { credentials: { read } } } } as unknown as ExtensionContext;
+  const ctx = { ...toolCapabilities(), modelRegistry: { runtime: { credentials: { read } } } } as unknown as ExtensionToolContext;
   const extension = recordExtension();
   webTools(extension.api);
   return { tool: extension.tool("web_search"), ctx, read };

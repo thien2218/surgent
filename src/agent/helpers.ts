@@ -39,13 +39,10 @@ function parseConfigValues(values: Record<string, string>) {
       continue;
     }
 
-    const entries =
-      normalizedValue === "[]"
-        ? []
-        : normalizedValue
-            .split(",")
-            .map((entry) => entry.trim().replace(/^['\"]|['\"]$/g, ""))
-            .filter(Boolean);
+    const entries = normalizedValue
+      .split(",")
+      .map((entry) => entry.trim().replace(/^['\"]|['\"]$/g, ""))
+      .filter(Boolean);
     if (entries.length === 0 && normalizedValue !== "[]") continue;
 
     updated[field] = entries;
@@ -61,38 +58,40 @@ export function getAgentConfigForm(
 ): FormConfig<AgentMeta> {
   return {
     title: `Edit agent config: ${agent}`,
-    fields: META_KEYS.filter((field) => !builtIn || field !== "description").map((field) => {
-      const value = meta[field];
-      let placeholder: string;
-      if (field === "description") {
-        placeholder = "Describe what this agent does (not included in system prompt)";
-      } else if (field === "model") {
-        placeholder = "AI model to use for this agent (leave blank to inherit)";
-      } else if (field === "thinking_level") {
-        placeholder = "off, minimal, low, medium, high, xhigh, or max (leave blank to inherit)";
-      } else if (field === "bash" || field === "files.read" || field === "files.write") {
-        placeholder = `JSON array of double-quoted allowed ${field}`;
-      } else {
-        placeholder = `comma-separated allowed ${field}`;
-      }
+    fields: [...META_KEYS]
+      .filter((field) => !builtIn || field !== "description")
+      .map((field) => {
+        const value = meta[field];
+        let placeholder: string;
+        if (field === "description") {
+          placeholder = "Describe what this agent does (not included in system prompt)";
+        } else if (field === "model") {
+          placeholder = "AI model to use for this agent (leave blank to inherit)";
+        } else if (field === "thinking_level") {
+          placeholder = "off, minimal, low, medium, high, xhigh, or max (leave blank to inherit)";
+        } else if (field === "bash" || field === "files.read" || field === "files.write") {
+          placeholder = `JSON array of double-quoted allowed ${field}`;
+        } else {
+          placeholder = `Comma-separated allowed ${field}`;
+        }
 
-      return {
-        key: field,
-        label: field,
-        labelWidth: 32,
-        mode: {
-          type: "input",
-          placeholder,
-          text: Array.isArray(value)
-            ? field === "bash" || field === "files.read" || field === "files.write"
-              ? JSON.stringify(value)
-              : value.length === 0
-                ? "[]"
-                : value.join(", ")
-            : (value ?? ""),
-        },
-      };
-    }),
+        return {
+          key: field,
+          label: field,
+          labelWidth: 32,
+          mode: {
+            type: "input",
+            placeholder,
+            text: Array.isArray(value)
+              ? field === "bash" || field === "files.read" || field === "files.write"
+                ? JSON.stringify(value)
+                : value.length === 0
+                  ? "[]"
+                  : value.join(", ")
+              : (value ?? ""),
+          },
+        };
+      }),
     emptyMessage: "No metadata fields available for editing.",
     parseOnSave: builtIn
       ? (values) => parseConfigValues({ description: meta.description, ...values })

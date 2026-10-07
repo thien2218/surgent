@@ -13,9 +13,9 @@ Long coding sessions accumulate large tool results, repeated file content, and o
 - Adds `code_map`, which uses Tree-sitter to index symbols and declarations before files are read in full.
 - Adds `inspect`, which returns one selected symbol body for targeted code reading and edits.
 - Supports TypeScript, JavaScript, Python, Go, Java, and Rust code navigation.
-- Compacts Bash output by stripping terminal control sequences and collapsing repeated or similar lines.
-- Formats grep results by grouping matches under file paths and stores smaller summaries in session history.
-- Removes older `read` and `inspect` results when newer results fully cover same content.
+- Losslessly compresses consecutive Bash lines with at most one varying alphanumeric token: `status {204, 404, 500}`. Order, duplicates, and raw bytes remain recoverable; `{{` / `}}` escape literal braces. Compression applies only when shorter. Bash output limits still apply.
+- Reduces grep output during execution by grouping matches under file paths; compacts it into smaller summaries only after successful task completion.
+- Removes older eligible `inspect` results with the same normalized file path and exact returned symbol; never deduplicates `read` results.
 - Prunes empty tool results and superseded tool calls from model context and persisted sessions.
 
 These changes reduce context growth, improve prompt-cache reuse, and leave more room for requirements, code, and reasoning.

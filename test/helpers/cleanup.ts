@@ -5,13 +5,11 @@ import { join } from "node:path";
 import { onTestFinished, vi } from "vitest";
 import { getPiPath } from "../../src/utils.js";
 import { recordExtension } from "./extension.js";
-import { makePermissionWorkspace } from "./permission.js";
+import { createWorkspace } from "./workspace.js";
 
 export async function cleanupWorkspace() {
-  const workspace = await makePermissionWorkspace("surgent-cleanup-");
-  onTestFinished(workspace.restore);
+  const workspace = await createWorkspace({ prefix: "surgent-cleanup-" });
   onTestFinished(() => { vi.unstubAllEnvs(); });
-  vi.stubEnv("USERPROFILE", workspace.home);
   vi.stubEnv("PI_CODING_AGENT_DIR", join(workspace.home, ".pi", "agent"));
   return workspace;
 }

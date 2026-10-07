@@ -1,8 +1,17 @@
 import type {
-  ExtensionAPI, ExtensionEvent, ExtensionHandler, ProjectTrustHandler, RegisteredCommand,
+  ExtensionAPI, ExtensionEvent, ExtensionHandler, ExtensionToolContext, ProjectTrustHandler, RegisteredCommand,
   ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { vi } from "vitest";
+
+export function toolCapabilities(): Pick<ExtensionToolContext, "tools" | "executeTool"> {
+  return {
+    tools: [],
+    executeTool: vi.fn<ExtensionToolContext["executeTool"]>(async (name) => {
+      throw new Error(`Unexpected nested tool call: ${name}`);
+    }),
+  };
+}
 
 export function recordExtension(capabilities: Partial<ExtensionAPI> = {}) {
   const handlers = new Map<string, Array<{ handler: unknown }>>();

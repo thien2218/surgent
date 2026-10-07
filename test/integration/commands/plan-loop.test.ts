@@ -34,11 +34,14 @@ async function setup() {
   const extension = recordExtension();
   const session: Subsession = {
     pid: "parent-session",
-    label: "plan",
     title: "Test plan",
     result: {
       id: PLAN_ID, status: "done", output: "  Initial plan  \n\n",
-      usage: { input: 0, output: 0, toolCalls: 0, cost: 0 }, toolCounts: {},
+      usage: {
+        input: 0, output: 0, toolCalls: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      toolCounts: {},
     },
     runtime: { agent: "planner", builtIn: false, meta: { description: "Test planner" }, systemPrompt: "" },
     exec: vi.fn<Subsession["exec"]>(),
@@ -196,6 +199,7 @@ describe("plan actions", () => {
     );
     expect(await readFile(outputPath, "utf8")).toBe(`${session.result.output.trimEnd()}\n`);
     expect(JSON.parse(await readFile(join(cwd, ".pi", "subsessions.json"), "utf8"))).toHaveProperty(PLAN_ID);
+    expect(unlink).not.toHaveBeenCalledWith(outputPath);
     if (failure === "empty") expect(extension.api.sendUserMessage).not.toHaveBeenCalled();
   });
 
@@ -241,7 +245,13 @@ describe("plan actions", () => {
     await run();
     await removed.promise;
 
-    if (code === "EACCES") expect(ui.notify).toHaveBeenCalledWith(expect.stringContaining("Failed to delete plan:"), "error");
-    else expect(ui.notify).not.toHaveBeenCalledWith(expect.stringContaining("Failed to delete"), "error");
+    if (code === "EACCES") {
+      expect(ui.notify).toHaveBeenCalledWith(
+        `Failed to delete plan file ${join(cwd, ".pi", "plans", `${session.result.id}.md`)}`,
+        "error",
+      );
+    } else {
+      expect(ui.notify).not.toHaveBeenCalledWith(expect.stringContaining("Failed to delete"), "error");
+    }
   });
 });

@@ -19,6 +19,7 @@ describe("questionnaire tool parameters", () => {
     const properties = tool.parameters.properties.questions.items.properties;
 
     expect(tool.label).toBe("Questionnaire");
+    expect(tool.exposure).toBe("model-only");
     expect(tool.description).toContain("clarifying");
     expect(properties).not.toHaveProperty("recommendedCount");
     expect(properties.placeholder.default).toBe("Type your answer");

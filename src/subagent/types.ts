@@ -2,14 +2,21 @@ import type { AgentSession, ContextUsage, ExtensionContext } from "@earendil-wor
 import type { AgentMeta } from "../agent/types.js";
 import type { AppState } from "../state.js";
 
-export type SubsessionStatus = "done" | "aborted" | "error";
-export type SubsessionLabel = "plan" | "subagent";
+type SubsessionStatus = "done" | "aborted" | "error";
+
+export interface Cost {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  total: number;
+}
 
 export interface SubsessionUsage {
   input: number;
   output: number;
   toolCalls: number;
-  cost: number;
+  cost: Cost;
 }
 
 export interface SubsessionSnapshot {
@@ -38,7 +45,7 @@ export interface RuntimeConfig {
 export interface SubsessionRequest {
   ctx: ExtensionContext;
   state: AppState;
-  label: SubsessionLabel;
+  temporary?: boolean;
   agent: string;
   id?: string;
   signal?: AbortSignal;
@@ -48,7 +55,7 @@ export interface SubsessionRequest {
 export interface StoredSubsessions {
   [id: string]: {
     agent: string;
-    label: SubsessionLabel;
+    temporary?: boolean;
     pid: string;
     title: string;
     usage: SubsessionUsage;
@@ -57,7 +64,7 @@ export interface StoredSubsessions {
 
 export interface Subsession {
   pid: string;
-  label: SubsessionLabel;
+  temporary?: boolean;
   title: string;
   result: SubsessionResult;
   runtime: RuntimeConfig;
@@ -77,7 +84,7 @@ export interface CreateSubsessionParams {
   pid: string;
   cwd: string;
   title: string;
-  label: SubsessionLabel;
+  temporary?: boolean;
   result: SubsessionResult;
   runtime: RuntimeConfig;
   session?: AgentSession;

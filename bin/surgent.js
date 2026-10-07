@@ -11,20 +11,22 @@ import { fileURLToPath } from "node:url";
 process.title = "surgent";
 const args = process.argv.slice(2);
 
+const GLOBAL_PI_DIR = resolve(homedir(), ".pi", "agent");
 const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT_ENTRY_URL = import.meta.resolve("@earendil-works/pi-coding-agent");
 const LOCAL_PI_SUBDIRS = ["agents", "plans"];
+const GLOBAL_PI_SUBDIRS = ["agents", "grammars"];
 const BASE_TOOLS = ["ls", "find", "grep", "code_map", "inspect", "read"];
 const BUILT_IN_META = {
   documenter: {
-    tools: [...BASE_TOOLS, "edit", "write", "questionnaire"],
+    tools: BASE_TOOLS.concat(["edit", "write", "questionnaire"]),
     "files.write": ["**/*.md"],
   },
   planner: {
-    tools: [...BASE_TOOLS, "web_fetch", "web_search", "questionnaire"],
+    tools: BASE_TOOLS.concat(["web_fetch", "web_search", "questionnaire"]),
   },
   scout: {
-    tools: [...BASE_TOOLS, "web_fetch", "web_search"],
+    tools: BASE_TOOLS.concat(["web_fetch", "web_search"]),
   },
 };
 
@@ -33,9 +35,8 @@ function isMissingFileError(error) {
 }
 
 async function initBuiltInMeta() {
-  const settingsPath = resolve(homedir(), ".pi", "agent", "settings.json");
+  const settingsPath = resolve(GLOBAL_PI_DIR, "settings.json");
   let settings;
-
   try {
     settings = JSON.parse(await readFile(settingsPath, "utf8"));
   } catch (error) {
@@ -129,7 +130,7 @@ async function syncPiIgnore(cwd) {
     return;
   }
 
-  await writeFile(piIgnorePath, gitIgnoreContents);
+  await writeFile(piIgnorePath, `.pi\n\n${gitIgnoreContents}`);
 }
 
 function isJsonModeActive(args) {
@@ -195,16 +196,16 @@ if (args.includes("--help") || args.includes("-h")) {
   await runRewrittenHelp(args);
 } else {
   const cwd = process.cwd();
-  if (!isJsonModeActive(args)) {
-    await ensurePiExcluded(cwd);
-    await syncPiIgnore(cwd);
-  }
-  for (const localPiSubdir of LOCAL_PI_SUBDIRS) {
-    await mkdir(resolve(cwd, ".pi", localPiSubdir), { recursive: true });
-  }
-
   const srcDir = resolve(PACKAGE_DIR, "src");
-  const entries = await readdir(srcDir, { withFileTypes: true });
+  if (!isJsonModeActive(args)) {
+    await Promise.all([ensurePiExcluded(cwd), syncPiIgnore(cwd)]);
+  }
+  const [entries] = await Promise.all([
+    readdir(srcDir, { withFileTypes: true }),
+    ...LOCAL_PI_SUBDIRS.map((dir) => mkdir(resolve(cwd, ".pi", dir), { recursive: true })),
+    ...GLOBAL_PI_SUBDIRS.map((dir) => mkdir(resolve(GLOBAL_PI_DIR, dir), { recursive: true })),
+  ]);
+
   const extensionArgs = entries
     .filter((entry) => entry.isDirectory())
     .flatMap((entry) => ["--extension", resolve(srcDir, entry.name)]);

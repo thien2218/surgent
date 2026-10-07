@@ -1,15 +1,13 @@
 import { join } from "node:path";
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import PermissionPrompt from "../../../src/permission/components/prompt.js";
 import type { PromptDecision } from "../../../src/permission/types.js";
 import { readRules } from "../../../src/permission/storage.js";
-import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
+import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
-let workspace: PermissionWorkspace;
-beforeEach(async () => { workspace = await makePermissionWorkspace(); });
-afterEach(async () => { await workspace.restore(); });
-
+let workspace: Workspace;
+beforeEach(async () => { workspace = await createWorkspace(); });
 describe("permission prompt decisions", () => {
   it.each([
     { scope: "session", shifts: 0, allowed: true },

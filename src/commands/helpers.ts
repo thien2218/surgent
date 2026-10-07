@@ -41,8 +41,7 @@ async function discardSubsession(
       await unlink(outputPath);
     } catch (error) {
       if (!isMissingFileError(error)) {
-        const message = error instanceof Error ? error.message : String(error);
-        ctx.ui.notify(`Failed to delete ${subsession.label}: ${message}`, "error");
+        ctx.ui.notify(`Failed to delete plan file ${outputPath}`, "error");
       }
     }
   }
@@ -56,16 +55,16 @@ async function forwardAction(
   pi: ExtensionAPI,
   ctx: ExtensionCommandContext,
   subsession: Subsession,
-): Promise<boolean> {
+) {
   const normalizedOutput = subsession.result.output.trim();
   if (!normalizedOutput) {
-    ctx.ui.notify(`No ${subsession.label} to forward`, "warning");
+    ctx.ui.notify("No plan to forward", "warning");
     return false;
   }
   try {
     pi.sendUserMessage(normalizedOutput);
   } catch {
-    ctx.ui.notify(`Failed to forward ${subsession.label}`, "error");
+    ctx.ui.notify("Failed to forward plan", "error");
     return false;
   }
   return true;
@@ -120,7 +119,7 @@ export async function getPlanPreviews(
   const previews: { subsessionId: string; title: string }[] = [];
 
   for (const [subsessionId, metadata] of Object.entries(store)) {
-    if (metadata.label === "plan" && metadata.pid === sessionId) {
+    if (!metadata.temporary && metadata.pid === sessionId) {
       previews.push({ subsessionId, title: metadata.title });
     }
   }
@@ -182,7 +181,6 @@ export async function resolvePlan(
   const request: SubsessionRequest = {
     ctx,
     state: getState(pi),
-    label: "plan",
     agent: "planner",
     onSnapshot: (snapshot) => renderSnapshotWidget(ctx, "planner", snapshot),
   };

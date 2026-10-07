@@ -2,10 +2,11 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import type { ExtensionCommandContext, Theme } from "@earendil-works/pi-coding-agent";
+import type { ExtensionCommandContext, ExtensionToolContext, Theme } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager, TUI_KEYBINDINGS, type Component, type TUI } from "@earendil-works/pi-tui";
 import { onTestFinished, vi } from "vitest";
 import type { StoredSubsessions } from "../../src/subagent/types.js";
+import { toolCapabilities } from "./extension.js";
 
 export const PLAN_ID = "01900000-0000-7000-8000-000000000001";
 
@@ -21,7 +22,13 @@ export async function storePlans(cwd: string, entries: StoredSubsessions) {
 }
 
 export function planMetadata(title = "Saved plan", pid = "parent-session"): StoredSubsessions[string] {
-  return { agent: "planner", label: "plan", pid, title, usage: { input: 0, output: 0, toolCalls: 0, cost: 0 } };
+  return {
+    agent: "planner", pid, title,
+    usage: {
+      input: 0, output: 0, toolCalls: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+  };
 }
 
 export function assistantMessage(text: string): AssistantMessage {
@@ -53,6 +60,7 @@ export function commandContext(cwd: string) {
     theme: theme as Theme,
   };
   const values = {
+    ...toolCapabilities(),
     cwd,
     mode: "tui",
     hasUI: true,
@@ -70,7 +78,7 @@ export function commandContext(cwd: string) {
       if (!Reflect.has(target, property)) throw new Error(`Unexpected command context access: ${String(property)}`);
       return Reflect.get(target, property);
     },
-  }) as unknown as ExtensionCommandContext;
+  }) as unknown as ExtensionCommandContext & ExtensionToolContext;
   const tui = { requestRender: vi.fn(), terminal: { rows: 40, columns: 100 } } as unknown as TUI;
   const keybindings = new KeybindingsManager(TUI_KEYBINDINGS) as import("@earendil-works/pi-coding-agent").KeybindingsManager;
 

@@ -11,6 +11,7 @@ export default function (pi: ExtensionAPI) {
     defineTool({
       name: "questionnaire",
       label: "Questionnaire",
+      exposure: "model-only",
       description:
         "Ask user focused clarifying question(s) when answer changes next step. Prefer over guessing.",
       promptSnippet:

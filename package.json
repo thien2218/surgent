@@ -1,6 +1,6 @@
 {
   "name": "surgent",
-  "version": "0.9.0-alpha.0",
+  "version": "0.10.5-beta.0",
   "description": "A pre-built Pi coding agent built around automatic context optimization to keep your sessions longer than it should be",
   "bin": {
     "surgent": "bin/surgent.js"
@@ -11,7 +11,7 @@
     "src"
   ],
   "scripts": {
-    "build": "node ./scripts/build.mjs",
+    "build": "node ./bin/build.mjs",
     "prepack": "npm run build",
     "test": "vitest run --passWithNoTests"
   },
@@ -23,7 +23,7 @@
   "license": "MIT",
   "type": "module",
   "devDependencies": {
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.9.9",
     "@types/picomatch": "^4.0.3",
     "@types/turndown": "^5.0.6",
     "esbuild": "0.28.1",
@@ -31,16 +31,16 @@
     "vitest": "5.0.1"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "^0.87.1",
-    "@earendil-works/pi-coding-agent": "^0.87.1",
-    "@earendil-works/pi-tui": "^0.87.1",
-    "@mendable/firecrawl-js": "^4.22.2",
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "@tavily/core": "^0.7.3",
-    "picomatch": "^4.0.4",
+    "@earendil-works/pi-ai": "^1.0.4",
+    "@earendil-works/pi-coding-agent": "^1.0.4",
+    "@earendil-works/pi-tui": "^1.0.4",
+    "@mendable/firecrawl-js": "^4.42.4",
+    "@modelcontextprotocol/sdk": "^1.32.0",
+    "@tavily/core": "^0.7.13",
+    "picomatch": "^4.0.7",
     "tree-sitter": "0.25.0",
     "tree-sitter-bash": "0.25.1",
     "turndown": "^7.2.4",
-    "typebox": "^1.0.55"
+    "typebox": "^1.3.34"
   }
 }

@@ -1,13 +1,12 @@
 import type { SyntaxNode } from "tree-sitter";
 import type { LanguageSymbol } from "../languages/index.js";
 import { collectSymbols, SYMBOL_KINDS } from "../languages/index.js";
-import type { Range } from "./types.js";
 
 function inspectGroupedSymbols(
   path: string,
   symbolName: string,
   symbols: LanguageSymbol[],
-): { path: string; symbol: string; range: Range; text: string } | undefined {
+): { path: string; symbol: string; text: string } | undefined {
   const groupedSymbolsMatch = /^(imports|exports)~([1-9]\d*)$/.exec(symbolName);
   if (!groupedSymbolsMatch) return;
 
@@ -43,17 +42,11 @@ function inspectGroupedSymbols(
     groupedNodes.push(groupedNode);
   }
 
-  const firstNode = groupedNodes[0];
-  const lastNode = groupedNodes[groupedNodes.length - 1];
-  if (!firstNode || !lastNode) return;
+  if (groupedNodes.length === 0) return;
   return {
     path,
     symbol: symbolName,
     text: groupedNodes.map((groupedNode) => groupedNode.text).join("\n"),
-    range: [
-      firstNode.startPosition.row + 1,
-      lastNode.endPosition.row + (lastNode.endPosition.column > 0 ? 1 : 0),
-    ],
   };
 }
 
@@ -62,7 +55,7 @@ export async function inspectSymbol(
   path: string,
   symbolName: string,
   signal?: AbortSignal,
-): Promise<{ path: string; symbol: string; range: Range; text: string } | undefined> {
+): Promise<{ path: string; symbol: string; text: string } | undefined> {
   if (signal?.aborted) {
     throw new Error("inspector aborted");
   }
@@ -78,10 +71,6 @@ export async function inspectSymbol(
     return {
       path: symbol.path,
       symbol: symbol.name,
-      range: [
-        symbol.node.startPosition.row + 1,
-        symbol.node.endPosition.row + (symbol.node.endPosition.column > 0 ? 1 : 0),
-      ],
       text: symbol.node.text,
     };
   }

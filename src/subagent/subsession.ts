@@ -1,3 +1,5 @@
+import type { Usage } from "@earendil-works/pi-ai";
+import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { createErrorResult, formatToolUse, getLastAssistantOutput } from "./helpers.js";
 import { validateBuiltInOutput } from "./validation.js";
 import { findSubsession, loadSubsessionOutput, resolveRuntime, saveSubsession } from "./storage.js";
@@ -8,8 +10,31 @@ import type {
   SubsessionRequest,
   SubsessionResult,
   SubsessionSnapshot,
+  SubsessionUsage,
 } from "./types.js";
 import { createSdkSession } from "./sdk.js";
+
+function accumulateUsage(event: AgentSessionEvent, totals: SubsessionUsage): void {
+  let usage: Usage | undefined;
+  if (event.type === "compaction_end") {
+    usage = event.result?.usage;
+  } else if (
+    event.type === "message_end" &&
+    (event.message.role === "assistant" || event.message.role === "toolResult")
+  ) {
+    usage = event.message.usage;
+    if (event.message.role === "assistant") {
+      totals.input += usage?.input ?? 0;
+      totals.output += usage?.output ?? 0;
+    }
+  }
+
+  if (usage) {
+    for (const field of ["input", "output", "cacheRead", "cacheWrite", "total"] as const) {
+      totals.cost[field] += usage.cost[field];
+    }
+  }
+}
 
 async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResult> {
   const snapshot: SubsessionSnapshot = {
@@ -26,12 +51,10 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
 
   request.onSnapshot?.(snapshot);
   const unsubscribe = request.session.subscribe((event) => {
+    accumulateUsage(event, snapshot.usage);
     if (event.type !== "message_end" || event.message.role !== "assistant") return;
 
     const message = event.message;
-    snapshot.usage.input += message.usage?.input ?? 0;
-    snapshot.usage.output += message.usage?.output ?? 0;
-    snapshot.usage.cost += message.usage?.cost.total ?? 0;
     snapshot.contextUsage = request.session.getContextUsage();
 
     if (message.stopReason === "aborted") {
@@ -78,15 +101,13 @@ async function executeTurn(request: ExecuteTurnRequest): Promise<SubsessionResul
 
   const output = lastMessage || getLastAssistantOutput(request.session);
   const errorOutput = errorMessage || output || "Subsession failed";
-  const status = aborted ? "aborted" : stoppedWithError || errorMessage ? "error" : "done";
-
-  snapshot.status = status;
+  snapshot.status = aborted ? "aborted" : stoppedWithError || errorMessage ? "error" : "done";
   request.onSnapshot?.(snapshot);
 
   return {
     id: request.session.sessionId,
-    status,
-    output: status === "error" ? errorOutput : output,
+    status: snapshot.status,
+    output: snapshot.status === "error" ? errorOutput : output,
     usage: snapshot.usage,
     toolCounts,
   };
@@ -152,21 +173,27 @@ async function createSubsession(params: CreateSubsessionParams): Promise<Subsess
 
 export async function openSubsession(request: SubsessionRequest): Promise<Subsession> {
   const pid = request.ctx.sessionManager.getSessionId();
-  const existing =
-    request.label !== "subagent" ? await findSubsession(request.ctx.cwd, request.id, pid) : null;
+  const existing = request.temporary
+    ? null
+    : await findSubsession(request.ctx.cwd, request.id, pid);
   const agentName = existing?.agent ?? request.agent;
   const runtime = await resolveRuntime(request.ctx.cwd, agentName);
 
   const params: CreateSubsessionParams = {
     cwd: request.ctx.cwd,
-    label: request.label,
+    temporary: request.temporary,
     pid,
     title: "Untitled",
     result: {
       status: "done",
       output: "",
-      usage: { input: 0, output: 0, toolCalls: 0, cost: 0 },
       toolCounts: {},
+      usage: {
+        input: 0,
+        output: 0,
+        toolCalls: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
     },
     runtime,
     onSnapshot: request.onSnapshot,

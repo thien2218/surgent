@@ -69,7 +69,16 @@ export async function getPermissionCheck(
   toolName: string,
   input: Record<string, unknown>,
 ): Promise<PermissionCheck | null> {
-  if (!(toolName in PERMISSIVE_TOOLS)) return null;
+  if (!Object.hasOwn(PERMISSIVE_TOOLS, toolName) && !toolName.startsWith("mcp__")) return null;
+  if (toolName.startsWith("mcp__")) {
+    return {
+      sessionId,
+      toolName: toolName as `mcp__${string}`,
+      category: "mcp",
+      raw: toolName,
+      purpose: `Call MCP operation ${toolName}`,
+    };
+  }
 
   let fileOp: FileOp = "read";
   const typedName = toolName as PermissiveToolName;
@@ -77,6 +86,7 @@ export async function getPermissionCheck(
 
   switch (typedName) {
     case "read":
+    case "inspect":
       check.raw = input.path as string;
       check.purpose = `Read content from file ${check.raw}`;
       break;
@@ -94,9 +104,9 @@ export async function getPermissionCheck(
       check.raw = input.url as string;
       check.purpose = `Fetch content from URL ${input.url}`;
       break;
-    case "call_mcp_tool":
-      check.raw = `${(input.server as string).trim()}:${(input.tool as string).trim()}`;
-      check.purpose = `Call MCP tool ${check.raw}`;
+    case "read_mcp_resource":
+      check.raw = `${toolName}:${input.server as string}`;
+      check.purpose = `Call MCP operation ${check.raw}`;
       break;
   }
 

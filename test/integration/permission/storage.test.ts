@@ -1,17 +1,13 @@
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
+import { beforeEach, describe, expect, it } from "vitest";
+import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 import { addRules, getRulesForDisplay, persistRules, readRules, removeRule, toggleRule, writeRules } from "../../../src/permission/storage.js";
 
-let workspace: PermissionWorkspace;
+let workspace: Workspace;
 
 beforeEach(async () => {
-  workspace = await makePermissionWorkspace("surgent-rule-storage-");
-});
-
-afterEach(async () => {
-  await workspace.restore();
+  workspace = await createWorkspace({ prefix: "surgent-rule-storage-" });
 });
 
 describe("permission rule storage", () => {

@@ -3,11 +3,12 @@ export const CATEGORIES = ["file", "web", "bash", "mcp"] as const;
 
 export const PERMISSIVE_TOOLS = {
   read: "file",
+  inspect: "file",
   write: "file",
   edit: "file",
   bash: "bash",
   web_fetch: "web",
-  call_mcp_tool: "mcp",
+  read_mcp_resource: "mcp",
 } as const;
 
 export const SUSPICIOUS_BASH_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [

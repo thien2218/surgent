@@ -5,10 +5,9 @@ import type { AgentMeta, AgentMode } from "../agent/types.js";
 import { readRules } from "./storage.js";
 import type { Category, PermissionCheck, FileCheck } from "./types.js";
 import { getPiPath } from "../utils.js";
-import { findSubsession } from "../subagent/storage.js";
 import { findFilePermission, findPermission, isDeny, matchesPattern } from "./precedence.js";
-import { getState } from "../state.js";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { AppState } from "../state.js";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { resolvePiIgnorePathBlock } from "./piignore.js";
 
 function isAllowedByPattern(raw: string, allowList?: string[], bash?: boolean): boolean {
@@ -29,22 +28,14 @@ async function loadPermissionRules(
   category: Category,
 ) {
   const rules: Record<string, any>[] = [];
-  const [local, global, subsession] = await Promise.all([
-    readRules(cwd),
-    readRules(),
-    findSubsession(cwd, sessionId),
-  ]);
+  const [local, global] = await Promise.all([readRules(cwd), readRules()]);
   const restrictedRules = Object.entries(global[category] ?? {}).filter(
     ([, access]) => mode !== "restricted" || access === false || access === "deny",
   );
 
   rules.push(local[sessionId]?.[category] ?? {});
-  if (subsession?.pid && subsession.pid !== sessionId) {
-    rules.push(local[subsession.pid]?.[category] ?? {});
-  }
   rules.push(local.project?.[category] ?? {});
   rules.push(Object.fromEntries(restrictedRules));
-
   return rules;
 }
 
@@ -121,7 +112,6 @@ export async function resolvePermissionPath(
   }
 }
 
-// File inputs must already be physical, project-relative paths.
 export async function resolvePermission(cwd: string, check: PermissionCheck, mode: AgentMode) {
   const { category, sessionId } = check;
   const rules = await loadPermissionRules(cwd, sessionId, mode, category);
@@ -137,6 +127,7 @@ export async function resolvePermission(cwd: string, check: PermissionCheck, mod
     return unresolved.length > 0 ? "ask" : "allowed";
   }
 
+  // File inputs must already be physical, project-relative paths.
   if (category === "file") {
     const { operation } = check;
     const permission = findFilePermission(rules, check, operation);
@@ -153,25 +144,24 @@ export async function resolvePermission(cwd: string, check: PermissionCheck, mod
   return findPermission(rules, check.raw);
 }
 
-export async function resolveGrepGrant(path: string, pi: ExtensionAPI, ctx: ExtensionContext) {
+export async function resolveReadGrant(path: string, state: AppState, ctx: ExtensionContext) {
   const denied: string[] = [];
-  const state = getState(pi);
   const { meta } = state.getAgent();
-  const sessionId = ctx.sessionManager.getSessionId();
+  const mode = state.getMode();
+  const sessionId = state.pid ?? ctx.sessionManager.getSessionId();
   const normalized = await resolvePermissionPath(path, ctx.cwd);
   const outside = !isInAllowedDir(ctx.cwd, normalized.absolute);
-  const rules = await loadPermissionRules(ctx.cwd, sessionId, state.getMode(), "file");
+  const rules = await loadPermissionRules(ctx.cwd, sessionId, mode, "file");
   const ignored = await resolvePiIgnorePathBlock(ctx.cwd, path);
   const permission = findFilePermission(rules, normalized, "read");
-
   const check: FileCheck = {
     raw: "",
     sessionId,
     toolName: "read",
     category: "file",
     operation: "read",
-    uncertainty: "Outside-root grep access",
-    purpose: "",
+    uncertainty: "Outside-root read access",
+    purpose: "Allow reading files from outside project directory?",
     ...normalized,
   };
 

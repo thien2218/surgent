@@ -1,20 +1,12 @@
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { onTestFinished, vi } from "vitest";
+import { createWorkspace } from "./workspace.js";
 
 export async function agentWorkspace() {
-  const root = await mkdtemp(join(tmpdir(), "surgent-agent-"));
-  onTestFinished(async () => {
-    vi.unstubAllEnvs();
-    await rm(root, { recursive: true, force: true });
-  });
-  const home = join(root, "home");
-  const cwd = join(root, "project");
+  const workspace = await createWorkspace({ prefix: "surgent-agent-" });
+  const cwd = join(workspace.root, "project");
   const local = join(cwd, ".pi", "agents");
-  const global = join(home, ".pi", "agent", "agents");
-  vi.stubEnv("HOME", home);
-  vi.stubEnv("USERPROFILE", home);
+  const global = join(workspace.home, ".pi", "agent", "agents");
   await mkdir(local, { recursive: true });
   await mkdir(global, { recursive: true });
   return { cwd, local, global };

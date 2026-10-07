@@ -30,15 +30,22 @@ describe("permission path boundaries", () => {
 
 describe("agent allowlist boundaries", () => {
   it.each([
-    { raw: "docs:search", allowed: true },
-    { raw: "docs:read", allowed: true },
-    { raw: "admin:delete", allowed: false },
-    { raw: "docs-other:search", allowed: false },
+    { raw: "mcp__docs__search", allowed: true },
+    { raw: "mcp__docs__read", allowed: true },
+    { raw: "mcp__admin__delete", allowed: false },
+    { raw: "mcp__docs_other__search", allowed: false },
   ])("checks MCP resource $raw against the server allowlist", ({ raw, allowed }) => {
     expect(checkAgentRules(
-      { description: "test", mcp_tools: ["docs:*"] },
-      { sessionId: "session-1", toolName: "call_mcp_tool", category: "mcp", raw, purpose: "test" },
+      { description: "test", mcp_tools: ["mcp__docs__*"] },
+      { sessionId: "session-1", toolName: "mcp__docs__search", category: "mcp", raw, purpose: "test" },
     )).toBe(allowed);
+  });
+
+  it.each([{ patterns: ["*"] }, { patterns: ["mcp__docs__*"] }, { patterns: [] }])("keeps universal and empty MCP restrictions: $patterns", ({ patterns }) => {
+    expect(checkAgentRules(
+      { description: "test", mcp_tools: patterns },
+      { sessionId: "session-1", toolName: "read_mcp_resource", category: "mcp", raw: "read_mcp_resource:docs", purpose: "test" },
+    )).toBe(patterns.includes("*"));
   });
 
   it.each(["read", "write"] as const)("uses the %s allowlist for a file operation", (operation) => {

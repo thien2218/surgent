@@ -5,17 +5,18 @@ import { Type } from "typebox";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import agentExtension from "../../../src/agent/index.js";
 import { getState } from "../../../src/state.js";
+import { resolveReadGrant } from "../../../src/permission/resolution.js";
 import { getPiPath } from "../../../src/utils.js";
 import { agentWorkspace } from "../../helpers/agent.js";
 import { recordExtension } from "../../helpers/extension.js";
 
 async function setup() {
   const workspace = await agentWorkspace();
-  let activeTools = ["read", "subagent", "call_mcp_tool", "list_mcp_tools"];
+  let activeTools = ["read", "subagent", "codemode", "tool_search"];
   const extension = recordExtension({
     events: createEventBus(),
-    getAllTools: () => ["read", "subagent", "call_mcp_tool", "list_mcp_tools"].map((name) => ({
-      name, description: name, parameters: Type.Object({}),
+    getAllTools: () => ["read", "subagent", "codemode", "tool_search", "mcp__docs__search"].map((name) => ({
+      name, description: name, parameters: Type.Object({}), exposure: name.startsWith("mcp__") ? "deferred" : "direct",
       sourceInfo: { path: "test:agent", source: "test", scope: "temporary", origin: "top-level" },
     })),
     getActiveTools: () => activeTools,
@@ -25,7 +26,7 @@ async function setup() {
   const shutdown = vi.fn<ExtensionContext["shutdown"]>();
   const ctx = {
     cwd: workspace.cwd,
-    sessionManager: { getEntries: () => [] },
+    sessionManager: { getEntries: () => [], getSessionId: () => "child-session" },
     ui: { notify, setStatus: vi.fn(), theme: { fg: (_color: string, text: string) => text } },
     shutdown,
   } as unknown as ExtensionContext;
@@ -35,6 +36,7 @@ async function setup() {
   });
   return {
     ...workspace,
+    ctx,
     extension,
     notify,
     shutdown,
@@ -43,6 +45,34 @@ async function setup() {
 }
 
 describe("agent startup", () => {
+  it("allows an explicit profile choice to declare a deferred native tool", async () => {
+    const context = await setup();
+    await writeFile(join(context.local, "general.md"), '---\ndescription: General\ntools: [mcp__docs__search]\n---\nInstructions');
+    await context.start();
+
+    expect(context.extension.api.getActiveTools()).toEqual(["mcp__docs__search"]);
+  });
+
+  it("enforces only parent policy when a saved subsession starts directly", async () => {
+    const context = await setup();
+    await writeFile(join(context.cwd, "private.txt"), "Harmless fixture");
+    await writeFile(getPiPath("subsessions", context.cwd), JSON.stringify({
+      "child-session": { pid: "parent-session" },
+    }));
+    await writeFile(getPiPath("permissions", context.cwd), JSON.stringify({
+      "parent-session": { file: { "private.txt": "deny" } },
+      "child-session": { file: { "private.txt": "read" } },
+    }));
+
+    await context.start();
+    const grant = await resolveReadGrant(
+      "private.txt", getState(context.extension.api), context.ctx,
+    );
+
+    expect(grant.denied).toContain("private.txt");
+    expect(context.shutdown).not.toHaveBeenCalled();
+  });
+
   it("applies the overriding general profile instead of shipped instructions", async () => {
     const context = await setup();
     await writeFile(join(context.local, "general.md"), "---\ndescription: Local general\ntools: [read]\n---\nLocal instructions");
@@ -96,19 +126,19 @@ describe("agent startup", () => {
 });
 
 describe("generated tool details", () => {
-  it.each(["subagent", "call_mcp_tool", "list_mcp_tools"])(
-    "clears stale details when %s is disabled and no related tool remains", async (tool) => {
-      const context = await setup();
-      const filePath = join(context.local, "general.md");
-      await writeFile(filePath, `---\ndescription: General\ntools: [${tool}]\n---\nInstructions`);
-      await context.start();
-      expect(await readFile(getPiPath("system"), "utf8")).toContain("## Available");
+  it("retains shared guidance while clearing details when subagent is disabled", async () => {
+    const context = await setup();
+    const filePath = join(context.local, "general.md");
+    await writeFile(filePath, "---\ndescription: General\ntools: [subagent]\n---\nInstructions");
+    await context.start();
+    expect(await readFile(getPiPath("system"), "utf8")).toContain("<subagents>");
 
-      await writeFile(filePath, "---\ndescription: General\ntools: []\n---\nInstructions");
-      await context.start();
+    await writeFile(filePath, "---\ndescription: General\ntools: []\n---\nInstructions");
+    await context.start();
 
-      expect(await readFile(getPiPath("system"), "utf8")).toBe("");
-      expect(context.shutdown).not.toHaveBeenCalled();
-    },
-  );
+    const prompt = await readFile(getPiPath("system"), "utf8");
+    expect(prompt).toContain('<optimization priority="highest" target="token usage">');
+    expect(prompt).not.toContain("<subagents>");
+    expect(context.shutdown).not.toHaveBeenCalled();
+  });
 });

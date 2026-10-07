@@ -241,9 +241,9 @@ describe("/plan contract", () => {
     const store = JSON.parse(await readFile(join(cwd, ".pi", "subsessions.json"), "utf8"));
     expect(store[sessions[0]!.sessionId]).toMatchObject({
       agent: "planner",
-      label: "plan",
       pid: "parent-session",
     });
+    expect(store[sessions[0]!.sessionId]).not.toHaveProperty("inMemory");
     expect(ui.custom).toHaveBeenCalledOnce();
     expect(ui.setWidget).toHaveBeenCalledWith("planner", expect.any(Function));
     expect(ui.setWidget).toHaveBeenLastCalledWith("planner", undefined);

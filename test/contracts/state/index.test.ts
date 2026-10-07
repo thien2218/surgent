@@ -5,23 +5,21 @@ import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { AgentMode } from "../../../src/agent/types.js";
 import { createState, getState, STATE_EVENT } from "../../../src/state.js";
 import { recordExtension } from "../../helpers/extension.js";
-import { makePermissionSession, makePermissionWorkspace, type PermissionWorkspace } from "../../helpers/permission.js";
+import { makePermissionSession } from "../../helpers/permission.js";
+import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const original = await importOriginal<typeof import("node:fs/promises")>();
   return { ...original, writeFile: vi.fn(original.writeFile) };
 });
 
-let workspace: PermissionWorkspace;
+let workspace: Workspace;
 
 beforeEach(async () => {
   const original = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
   vi.mocked(writeFile).mockReset().mockImplementation(original.writeFile);
   onTestFinished(() => { vi.mocked(writeFile).mockReset(); });
-  workspace = await makePermissionWorkspace("surgent-state-contract-");
-  onTestFinished(workspace.restore);
-  vi.stubEnv("USERPROFILE", workspace.home);
-  onTestFinished(() => { vi.unstubAllEnvs(); });
+  workspace = await createWorkspace({ prefix: "surgent-state-contract-" });
 });
 
 describe("shared state event contract", () => {

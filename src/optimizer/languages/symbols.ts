@@ -28,14 +28,7 @@ async function getParserForPath(path: string, parsers: Map<string, Parser>) {
 async function getRootNode(cwd: string, path: string) {
   const parsers = new Map<string, Parser>();
   const absolutePath = resolve(cwd, path);
-
-  let code = "";
-  try {
-    code = await readFile(absolutePath, "utf8");
-  } catch {
-    return;
-  }
-
+  const code = await readFile(absolutePath, "utf8");
   const parser = await getParserForPath(path, parsers);
   const tree = parser.parse(code);
   return tree.rootNode;
@@ -81,8 +74,7 @@ export async function collectSymbols(cwd: string, path: string, kinds: Set<Symbo
     const isAnonymous = symbolName === "anonymous" && !currentNode.childForFieldName("name");
 
     symbols.push({
-      name:
-        isAnonymous || symbolIdCount > 1 ? `${symbolName}~${symbolIdCount}` : symbolName,
+      name: isAnonymous || symbolIdCount > 1 ? `${symbolName}~${symbolIdCount}` : symbolName,
       path,
       kind: symbolKind,
       node: currentNode,

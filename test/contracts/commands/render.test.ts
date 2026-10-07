@@ -1,5 +1,5 @@
 import { initTheme } from "@earendil-works/pi-coding-agent";
-import { stripTerminalSequences, visibleWidth, type Component } from "@earendil-works/pi-tui";
+import { CURSOR_MARKER, stripTerminalSequences, visibleWidth, type Component } from "@earendil-works/pi-tui";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { renderSnapshotWidget, showPlanUi } from "../../../src/commands/render.js";
 import type { SubsessionSnapshot } from "../../../src/subagent/types.js";
@@ -67,14 +67,41 @@ describe("plan review UI contract", () => {
       component.handleInput?.("\t");
       component.handleInput?.("\x1b[B");
       component.handleInput?.("\x1b[B");
-      component.handleInput?.("  Add rollback steps  ");
+      component.handleInput?.("  Add rollback steps");
+      component.handleInput?.("\n");
+      component.handleInput?.("Keep changes reversible  ");
       component.handleInput?.("\r");
     });
 
     expect(await showPlanUi(ctx, "Plan", null)).toEqual({
       kind: "feedback",
-      feedback: "Add rollback steps",
+      feedback: "Add rollback steps\nKeep changes reversible",
     });
+  });
+
+  it("bounds resized plan review and keeps feedback cursor visible when rows permit", async () => {
+    const { ctx, interact, tui } = commandContext("/unused");
+    interact((component) => {
+      component.handleInput?.("\t");
+      component.handleInput?.("\x1b[B");
+      component.handleInput?.("\x1b[B");
+      component.handleInput?.("Feedback line\n".repeat(12));
+
+      for (const height of [40, 14, 11, 8, 5, 0, 12, 40]) {
+        Object.defineProperty(tui.terminal, "rows", { value: height, configurable: true });
+        for (const width of [1, 8, 20, 48]) {
+          const lines = component.render(width);
+          expect(lines.length).toBeLessThanOrEqual(Math.max(0, height - 3));
+          expect(lines.every((line) => visibleWidth(line) <= width)).toBe(true);
+          if (height > 11 && width >= 20) {
+            expect(lines.some((line) => line.includes(CURSOR_MARKER))).toBe(true);
+          }
+        }
+      }
+      component.handleInput?.("\x1b");
+    });
+
+    expect(await showPlanUi(ctx, "Long plan paragraph\n\n".repeat(100), null)).toEqual({ kind: "discard" });
   });
 
   it.each([false, true])("discards on Escape with action focus %j", async (editing) => {
@@ -94,7 +121,10 @@ describe("progress widget contract", () => {
       id: "test-session",
       status,
       toolsUsed: ["read /src/example.ts", `grep ${"long-pattern".repeat(20)}`],
-      usage: { input: 2000, output: 1000, toolCalls: 2, cost: 0.001 },
+      usage: {
+        input: 2000, output: 1000, toolCalls: 2,
+        cost: { input: 0.001, output: 0, cacheRead: 0, cacheWrite: 0, total: 0.001 },
+      },
     };
   }
 
@@ -108,7 +138,7 @@ describe("progress widget contract", () => {
     const widget = factory(tui, ui.theme);
     try {
       const rendered = text(widget);
-      expect(rendered).toContain("documenter (");
+      expect(rendered).toContain("documenter:");
       expect(rendered).toContain("tools_used=2");
       expect(rendered).toContain("in=2.0k | out=1.0k | cost=$0.001");
       expect(rendered).toContain("read /src/example.ts");

@@ -1,85 +1,78 @@
-import picomatch from "picomatch";
-import { runCommand, unique } from "../../utils.js";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { resolveReadGrant } from "../../permission/resolution.js";
+import { runCommand } from "../../utils.js";
+import type { FileCheck } from "../../permission/types.js";
+import { getState } from "../../state.js";
+import { askForPermission } from "../../permission/index.js";
 
-const SKIPPED_DIRECTORIES = new Set([".git", ".pi", "build", "coverage", "dist", "node_modules"]);
+async function findFiles(
+  cwd: string,
+  paths: string[],
+  patterns: string[] = [],
+  signal?: AbortSignal,
+) {
+  // Filenames can also be `find` predicates; keep those paths literal.
+  const args = paths.map((path) =>
+    path.startsWith("-") || ["!", "(", ")", ","].includes(path) ? `./${path}` : path,
+  );
+  args.push("-type", "f");
 
-function normalizePath(pathValue: string) {
-  const normalizedPath = pathValue.replaceAll("\\", "/").replace(/\/+$/, "");
-  return normalizedPath.startsWith("./") ? normalizedPath.slice(2) : normalizedPath;
-}
-
-async function rgFiles(projectPath: string, globTargets: string[], signal?: AbortSignal) {
-  const args = ["--files", "--hidden"];
-  for (const skipped of SKIPPED_DIRECTORIES) {
-    args.push("--glob", `!**/${skipped}/**`);
+  if (patterns.length > 0) {
+    args.push("(");
+    for (const [index, pattern] of patterns.entries()) {
+      if (index > 0) args.push("-o");
+      args.push("-path", pattern);
+    }
+    args.push(")");
   }
-  for (const globTarget of globTargets) {
-    args.push("--glob", globTarget);
-  }
+  args.push("-print0");
 
-  args.push(".");
-  const commandResult = await runCommand(projectPath, "rg", args, {
+  const result = await runCommand(cwd, "find", args, {
     signal,
-    successExitCodes: [0, 1],
-    abortMessage: "mapper aborted",
+    abortMessage: "Tool call aborted",
   });
-  return commandResult.stdout
-    .split("\n")
-    .map((line) => normalizePath(line.trim()))
-    .filter((line) => line.length > 0);
-}
 
-async function grepFiles(projectPath: string, globTargets: string[], signal?: AbortSignal) {
-  const args = ["-r", "-I", "-l"];
-
-  for (const skipped of SKIPPED_DIRECTORIES) {
-    args.push("--exclude-dir", skipped);
-  }
-
-  args.push("-e", "", ".");
-  const commandResult = await runCommand(projectPath, "grep", args, {
-    signal,
-    successExitCodes: [0, 1],
-    abortMessage: "mapper aborted",
-  });
-  const paths = commandResult.stdout
-    .split("\n")
-    .map((line) => normalizePath(line.trim()))
-    .filter((line) => line.length > 0);
-  const matchers = globTargets.map((globTarget) => picomatch(globTarget, { dot: true }));
-  return paths.filter((pathValue) => matchers.some((matcher) => matcher(pathValue)));
+  return result.stdout
+    .split("\0")
+    .filter(Boolean)
+    .map((path) => path.replaceAll("\\", "/").replace(/\/+$/, ""));
 }
 
 export async function resolveTargetPaths(
-  projectPath: string,
-  targets: string[],
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  paths: string[],
+  patterns?: string[],
   signal?: AbortSignal,
 ) {
-  const globTargets = targets.flatMap((target) => {
-    const normalized = normalizePath(target);
-    if (normalized.length === 0) return [];
-    if (normalized === ".") return ["**"];
-    if (/[*?[\]{}]/.test(normalized)) return [normalized];
-    return [normalized, `${normalized}/**`];
-  });
+  const state = getState(pi);
+  const allowed: string[] = [];
+  const files = await findFiles(ctx.cwd, paths, patterns, signal);
+  let check: FileCheck | undefined;
+  let denied = false;
 
-  if (globTargets.length === 0) return [];
-
-  try {
-    const paths = await rgFiles(projectPath, globTargets, signal);
-    return unique(paths).sort();
-  } catch (rgError) {
-    const rgMessage = rgError instanceof Error ? rgError.message : String(rgError);
-    if (rgMessage === "mapper aborted") {
-      throw rgError;
+  for (const file of files) {
+    signal?.throwIfAborted();
+    const grant = await resolveReadGrant(file, state, ctx);
+    if (grant.denied.length > 0) {
+      denied = true;
+      continue;
     }
 
-    try {
-      const paths = await grepFiles(projectPath, globTargets, signal);
-      return unique(paths).sort();
-    } catch (grepError) {
-      const grepMessage = grepError instanceof Error ? grepError.message : String(grepError);
-      throw new Error(`mapper file scan failed: rg=${rgMessage}; grep=${grepMessage}`);
+    allowed.push(file);
+    if (grant.check) {
+      check ??= grant.check;
+      check.raw += `\n${grant.check.absolute}`;
     }
   }
+
+  if (allowed.length === 0) {
+    throw new Error("(no read-authorized files found)");
+  }
+  if (check && getState(pi).getMode() !== "yolo") {
+    const decision = await askForPermission(pi, ctx, check);
+    if (decision?.block) throw new Error(decision.reason);
+  }
+
+  return { files: allowed, denied };
 }

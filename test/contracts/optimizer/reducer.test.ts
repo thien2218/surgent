@@ -82,7 +82,7 @@ it("limits grep context and advertises delayed summaries without settling itself
   const pi = recordExtension();
   reducerExtension(pi.api);
 
-  expect(pi.tool("grep").parameters.properties.context).toMatchObject({ type: "number", maximum: 3 });
+  expect(pi.tool("grep").parameters.properties.context).toMatchObject({ type: "number", maximum: 2 });
   expect(pi.tool("grep").description).toContain("compacted into summaries only after you finish responding");
   expect(() => pi.event("agent_before_settle")).toThrow("Missing event registration");
 });

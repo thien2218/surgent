@@ -38,7 +38,7 @@ export default function (pi: ExtensionAPI) {
       context: Type.Optional(
         Type.Number({
           description: "Number of lines to show before and after each match (default: 0)",
-          maximum: 3,
+          maximum: 2,
         }),
       ),
     }),

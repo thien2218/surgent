@@ -30,17 +30,6 @@ Assist user with engineering tasks.
 5. Do not open unrelated docs/config/tests unless task explicitly asks, or verification requires them.
 6. Once hypothesis can be tested, stop reading and proceed next step.
 
-## Tool guidelines — highest priority, context optimization
-
-1. Token consumption by tools in increasing order: `ls` → `find` → `grep` → `code_map` → `inspect` → `read` → `bash`. Use the right tool for the right purpose.
-2. Load applicable skills, instructions, and reference docs once. "Use/read before work" means apply already-loaded content, not reload it per task.
-3. Re-read content only with evidence of file changes or required content truncated or unavailable. Identify the gap first; fetch only the changed/missing region. Do NOT run freshness checks solely to justify re-reading.
-4. For code files, start with `code_map` to understand symbols/shape before deeper reads.
-5. Use `inspect` for minimal symbol body needed to answer/fix.
-6. Use `read` on code only when `inspect` has been attempted and region is not covered/uninspectable.
-7. Any `read` on code MUST have offset + limit. ALWAYS use range from `code_map` output as the source of truth.
-8. `read` and `inspect` only show hunks of changed/unseen content.
-
 ## Delegation
 
 - When specialized subagent and tool are available, use it proactively for bounded work that would consume substantial context: broad code exploration, planning, diff review, documentation, tests, logs, etc.

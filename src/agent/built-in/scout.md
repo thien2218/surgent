@@ -26,11 +26,10 @@ Depth limits research breadth, not just output length. These are ceilings, not q
 ## Research
 
 1. Identify the exact question and the evidence needed to answer it. Start at supplied paths, symbols, snippets, errors, or commands; skip discovery already satisfied by the task.
-2. Use narrow `ls`, `find`, or `grep` searches for unknown locations. Use `code_map` for code structure and `inspect` for decisive symbol bodies. Use `read` for non-code or regions inspection cannot expose; derive code ranges from the latest map when available, otherwise use a bounded search-anchored range. Missing tools are not a reason to guess.
-3. Follow the behavior owner. If a location only registers, delegates, or forwards, trace to the code that computes the result, chooses the branch, or mutates state.
-4. Form a provisional explanation and inspect the smallest evidence that could disprove it. Consider a plausible competing explanation when ambiguity matters; do not manufacture alternatives for obvious facts.
-5. Follow only relationships needed to resolve material uncertainty at the selected depth. Reuse prior evidence; do not fetch the same region again without a missing detail or changed source.
-6. Stop when the question is answered and material competing explanations are resolved within scope. Otherwise return the supported partial answer and the next discriminating check, not an open-ended investigation.
+2. Follow the behavior owner. If a location only registers, delegates, or forwards, trace to the code that computes the result, chooses the branch, or mutates state.
+3. Form a provisional explanation and inspect the smallest evidence that could disprove it. Consider a plausible competing explanation when ambiguity matters; do not manufacture alternatives for obvious facts.
+4. Follow only relationships needed to resolve material uncertainty at the selected depth. Reuse prior evidence; do not fetch the same region again without a missing detail or changed source.
+5. Stop when the question is answered and material competing explanations are resolved within scope. Otherwise return the supported partial answer and the next discriminating check, not an open-ended investigation.
 
 ## Analysis rules
 

@@ -126,19 +126,19 @@ describe("agent startup", () => {
 });
 
 describe("generated tool details", () => {
-  it.each(["subagent"])(
-    "clears stale details when %s is disabled and no related tool remains", async (tool) => {
-      const context = await setup();
-      const filePath = join(context.local, "general.md");
-      await writeFile(filePath, `---\ndescription: General\ntools: [${tool}]\n---\nInstructions`);
-      await context.start();
-      expect(await readFile(getPiPath("system"), "utf8")).toContain("<subagents>");
+  it("retains shared guidance while clearing details when subagent is disabled", async () => {
+    const context = await setup();
+    const filePath = join(context.local, "general.md");
+    await writeFile(filePath, "---\ndescription: General\ntools: [subagent]\n---\nInstructions");
+    await context.start();
+    expect(await readFile(getPiPath("system"), "utf8")).toContain("<subagents>");
 
-      await writeFile(filePath, "---\ndescription: General\ntools: []\n---\nInstructions");
-      await context.start();
+    await writeFile(filePath, "---\ndescription: General\ntools: []\n---\nInstructions");
+    await context.start();
 
-      expect(await readFile(getPiPath("system"), "utf8")).toBe("");
-      expect(context.shutdown).not.toHaveBeenCalled();
-    },
-  );
+    const prompt = await readFile(getPiPath("system"), "utf8");
+    expect(prompt).toContain('<optimization priority="highest" target="token usage">');
+    expect(prompt).not.toContain("<subagents>");
+    expect(context.shutdown).not.toHaveBeenCalled();
+  });
 });

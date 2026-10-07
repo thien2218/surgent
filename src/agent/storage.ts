@@ -13,6 +13,17 @@ import {
 } from "./config.js";
 
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
+const BASE_PROMPT = `
+<optimization priority="highest" target="token usage">
+1. Token consumption by read-only tools in asc order: 'ls' → 'find' → 'grep' → 'code_map' → 'inspect' → 'read'. Use the right tool for the right purpose.
+2. Load applicable skills, instructions, and reference docs once. "Use/read before work" means apply already-loaded content, not reload it per task.
+3. Re-read content only with evidence of file changes or required content truncated or unavailable. Identify the gap first; fetch only the changed/missing region. Do NOT run freshness checks solely to justify re-reading.
+4. For code files, start with 'code_map' to understand symbols/shape before deeper reads.
+5. Use 'inspect' for minimal symbol body needed to answer/fix.
+6. Use 'read' on code only when region is uninspectable.
+7. 'read' on code MUST have offset + limit. ALWAYS use range from 'code_map' output as the source of truth.
+</optimization>
+`;
 
 async function getAgentFiles(cwd: string, name?: string): Promise<string[]> {
   const seen = new Set<string>();
@@ -171,14 +182,14 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
     pi.setThinkingLevel(meta.thinking_level);
   }
 
-  let subagentsPrompt = "";
+  let systemPrompt = BASE_PROMPT;
   if (pi.getActiveTools().includes("subagent")) {
     const subagentsList = agents
       .filter(({ name }) => name !== DEFAULT_AGENT)
       .map((profile) => `- ${profile.name}: ${profile.meta.description}`)
       .join("\n");
-    subagentsPrompt = `<subagents>\n${subagentsList}\n</subagents>`;
+    systemPrompt += `\n\n<subagents>\n${subagentsList}\n</subagents>`;
   }
-  await writeFile(getPiPath("system"), subagentsPrompt, "utf8");
+  await writeFile(getPiPath("system"), systemPrompt, "utf8");
   return profile.agent;
 }

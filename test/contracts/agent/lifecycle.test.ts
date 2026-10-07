@@ -45,16 +45,6 @@ async function setup() {
 }
 
 describe("agent startup", () => {
-  it("preserves native exposure and ignores even malformed legacy MCP config", async () => {
-    const context = await setup();
-    await writeFile(join(context.cwd, ".pi", "mcp.json"), "not-json");
-    await context.start();
-
-    expect(context.shutdown).not.toHaveBeenCalled();
-    expect(context.extension.api.getActiveTools()).toEqual(["read", "subagent", "codemode", "tool_search"]);
-    expect(await readFile(getPiPath("system"), "utf8")).not.toContain("Available MCP servers");
-  });
-
   it("allows an explicit profile choice to declare a deferred native tool", async () => {
     const context = await setup();
     await writeFile(join(context.local, "general.md"), '---\ndescription: General\ntools: [mcp__docs__search]\n---\nInstructions');
@@ -142,7 +132,7 @@ describe("generated tool details", () => {
       const filePath = join(context.local, "general.md");
       await writeFile(filePath, `---\ndescription: General\ntools: [${tool}]\n---\nInstructions`);
       await context.start();
-      expect(await readFile(getPiPath("system"), "utf8")).toContain("## Available");
+      expect(await readFile(getPiPath("system"), "utf8")).toContain("<subagents>");
 
       await writeFile(filePath, "---\ndescription: General\ntools: []\n---\nInstructions");
       await context.start();

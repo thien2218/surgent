@@ -171,13 +171,14 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
     pi.setThinkingLevel(meta.thinking_level);
   }
 
-  let subagentPrompt = "";
+  let subagentsPrompt = "";
   if (pi.getActiveTools().includes("subagent")) {
-    subagentPrompt = `## Available agents for 'subagent' tool\n${agents
+    const subagentsList = agents
       .filter(({ name }) => name !== DEFAULT_AGENT)
       .map((profile) => `- ${profile.name}: ${profile.meta.description}`)
-      .join("\n")}`;
+      .join("\n");
+    subagentsPrompt = `<subagents>\n${subagentsList}\n</subagents>`;
   }
-  await writeFile(getPiPath("system"), subagentPrompt, "utf8");
+  await writeFile(getPiPath("system"), subagentsPrompt, "utf8");
   return profile.agent;
 }

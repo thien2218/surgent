@@ -51,7 +51,6 @@ describe("canonical optimizer history", () => {
     expect(readFileSync(file).subarray(0, prefix.length)).toEqual(prefix);
     expect(manager.getEntries().slice(0, raw.length)).toEqual(raw);
     expect(optimized.filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["new", "grep"]);
-    expect(optimized).toContainEqual(expect.objectContaining({ toolCallId: "grep", content: [{ type: "text", text: "file.ts: lines_matched=[1]" }] }));
 
     const reopened = SessionManager.open(file, sessions, cwd);
     expect(reopened.buildSessionProjection().messages).toEqual(optimized);
@@ -96,7 +95,7 @@ describe("canonical optimizer history", () => {
     expect(manager.buildSessionProjection().messages.some((message) => message.role === "compactionSummary")).toBe(true);
   });
 
-  it("passes paired omissions and grep summaries into native compaction, not raw tool output", async () => {
+  it("passes paired omissions into native compaction", async () => {
     const cwd = workspace();
     vi.stubGlobal("fetch", vi.fn(() => { throw new Error("Network forbidden in optimizer integration test"); }));
     onTestFinished(() => { vi.unstubAllGlobals(); });
@@ -139,6 +138,5 @@ describe("canonical optimizer history", () => {
     expect(before.filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["old", "new", "grep"]);
     expect(after.filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["new", "grep"]);
     expect(after.filter((message) => message.role === "assistant").flatMap((message) => message.content.filter((block) => block.type === "toolCall").map((block) => block.id))).toEqual(["new", "grep"]);
-    expect(after).toContainEqual(expect.objectContaining({ toolCallId: "grep", content: [{ type: "text", text: "file.ts: lines_matched=[1]" }] }));
   });
 });

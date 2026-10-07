@@ -19,14 +19,14 @@ const GLOBAL_PI_SUBDIRS = ["agents", "grammars"];
 const BASE_TOOLS = ["ls", "find", "grep", "code_map", "inspect", "read"];
 const BUILT_IN_META = {
   documenter: {
-    tools: [...BASE_TOOLS, "edit", "write", "questionnaire"],
+    tools: BASE_TOOLS.concat(["edit", "write", "questionnaire"]),
     "files.write": ["**/*.md"],
   },
   planner: {
-    tools: [...BASE_TOOLS, "web_fetch", "web_search", "questionnaire"],
+    tools: BASE_TOOLS.concat(["web_fetch", "web_search", "questionnaire"]),
   },
   scout: {
-    tools: [...BASE_TOOLS, "web_fetch", "web_search"],
+    tools: BASE_TOOLS.concat(["web_fetch", "web_search"]),
   },
 };
 

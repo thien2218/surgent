@@ -2,10 +2,8 @@ import path from "node:path";
 import type { Agent, AgentMeta } from "./types.js";
 
 export const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
-
 export const DEFAULT_AGENT = "general";
-
-export const META_KEYS: (keyof AgentMeta)[] = [
+export const META_KEYS = new Set<keyof AgentMeta>([
   "description",
   "tools",
   "mcp_tools",
@@ -15,18 +13,14 @@ export const META_KEYS: (keyof AgentMeta)[] = [
   "files.write",
   "model",
   "thinking_level",
-];
+]);
 
 const FRONTMATTER_BLOCK = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
-
 const LINE_ENDING = /\r?\n/;
-
 const KEY_VALUE_PAIR = /^([\w.]+):\s*(.*)$/;
-
 const INLINE_ARRAY = /^\[(.*)\]$/;
-
 const QUOTED_STRING = /^["']|["']$/g;
-
+const STRING_KEYS = new Set<keyof AgentMeta>(["description", "model", "thinking_level"]);
 const ARRAY_KEYS = new Set<keyof AgentMeta>([
   "tools",
   "mcp_tools",
@@ -35,10 +29,6 @@ const ARRAY_KEYS = new Set<keyof AgentMeta>([
   "files.read",
   "files.write",
 ]);
-
-const STRING_KEYS = new Set<keyof AgentMeta>(["description", "model", "thinking_level"]);
-
-const META_KEY_SET = new Set<string>(META_KEYS);
 
 export function parseAgentList(field: keyof AgentMeta, value: string): string[] {
   const quoted = field === "bash" || field === "files.read" || field === "files.write";
@@ -166,7 +156,7 @@ export function serializeAgentConfig(content: string, meta: AgentMeta, filePath:
       if (!pair) {
         return line.trim().length > 0;
       }
-      return !META_KEY_SET.has(pair[1]!);
+      return !META_KEYS.has(pair[1]! as keyof AgentMeta);
     });
 
   const body = match[2] ?? "";

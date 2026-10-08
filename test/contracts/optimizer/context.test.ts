@@ -4,7 +4,7 @@ import {
   type ContextEditEntryDraft,
 } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it } from "vitest";
-import optimizerContext from "../../../src/optimizer/context.js";
+import pruner from "../../../src/optimizer/pruner/index.js";
 import { assistantMessage, commandContext } from "../../helpers/commands.js";
 import { recordExtension } from "../../helpers/extension.js";
 import { appendTool, boundaryEvent, settleOptimizer } from "../../helpers/optimizer.js";
@@ -17,7 +17,7 @@ beforeEach(async () => {
 
 function loadContext(manager: SessionManager) {
   const pi = recordExtension();
-  optimizerContext(pi.api);
+  pruner(pi.api);
   const { ctx } = commandContext(workspace.cwd);
   return { handler: pi.event("agent_before_settle"), ctx: { ...ctx, sessionManager: manager } };
 }

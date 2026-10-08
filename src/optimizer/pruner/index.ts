@@ -1,7 +1,7 @@
 import type { ContextEditEntryDraft, ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { buildDeduplicatorState } from "./deduplicator/state.js";
-import { getEligibleResult } from "./entries.js";
-import { getRemovedToolCallId } from "./pruner/cleanup.js";
+import { filterToolCalls, getEligibleResult } from "../entries.js";
+import { buildDeduplicatorState } from "../deduplicator/state.js";
+import { getRemovedToolCallId } from "./cleanup.js";
 
 export default function (pi: ExtensionAPI) {
   pi.on("agent_before_settle", (event, ctx) => {
@@ -29,18 +29,13 @@ export default function (pi: ExtensionAPI) {
       const message = messages[0];
       if (messages.length !== 1 || message?.role !== "assistant") continue;
 
-      const content = message.content.filter(
-        (block) => block.type !== "toolCall" || !removedCalls.has(block.id),
-      );
-      if (content.length === message.content.length) continue;
+      const filtered = filterToolCalls(message, removedCalls);
+      if (filtered === message) continue;
 
-      const meaningful = content.some(
-        (block) => block.type !== "thinking" && (block.type !== "text" || block.text.trim() !== ""),
-      );
       edits.set(sourceEntry.id, {
         type: "context_edit",
         targetId: sourceEntry.id,
-        replacement: meaningful ? { content } : null,
+        replacement: filtered ? { content: filtered.content } : null,
       });
     }
 

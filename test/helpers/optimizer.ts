@@ -9,7 +9,7 @@ import {
   type ExtensionContext,
   type ModelRegistry,
 } from "@earendil-works/pi-coding-agent";
-import optimizerContext from "../../src/optimizer/context.js";
+import pruner from "../../src/optimizer/pruner/index.js";
 import { assistantMessage } from "./commands.js";
 import { recordExtension } from "./extension.js";
 
@@ -45,7 +45,7 @@ export function boundaryEvent(manager: SessionManager): AgentBeforeSettleEvent {
 }
 
 export async function settleOptimizer(manager: SessionManager) {
-  const extensions: Extension[] = [optimizerContext].map((factory) => {
+  const extensions: Extension[] = [pruner].map((factory) => {
     const pi = recordExtension();
     factory(pi.api);
     return {

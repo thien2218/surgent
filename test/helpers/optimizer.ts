@@ -5,13 +5,16 @@ import {
   ExtensionRunner,
   SessionManager,
   type AgentBeforeSettleEvent,
+  type ContextEvent,
+  type ContextEventResult,
+  type SessionStartEvent,
   type Extension,
   type ExtensionContext,
   type ModelRegistry,
 } from "@earendil-works/pi-coding-agent";
-import optimizerContext from "../../src/optimizer/context.js";
-import compactor from "../../src/optimizer/compactor/index.js";
-import { assistantMessage } from "./commands.js";
+import pruner from "../../src/optimizer/pruner/index.js";
+import deduplicator from "../../src/optimizer/deduplicator/index.js";
+import { assistantMessage, commandContext } from "./commands.js";
 import { recordExtension } from "./extension.js";
 
 export function appendTool(
@@ -45,8 +48,24 @@ export function boundaryEvent(manager: SessionManager): AgentBeforeSettleEvent {
   };
 }
 
+export async function startDeduplicator(manager: SessionManager, reason: SessionStartEvent["reason"] = "startup") {
+  const pi = recordExtension();
+  deduplicator(pi.api);
+  const { ctx } = commandContext(manager.getCwd());
+  const context: ExtensionContext = { ...ctx, sessionManager: manager };
+  await pi.event("session_start")({ type: "session_start", reason }, context);
+  return {
+    pi,
+    ctx: context,
+    async request(messages: ContextEvent["messages"] = manager.buildSessionProjection().messages) {
+      const result = await pi.event("context")({ type: "context", messages }, context) as ContextEventResult | undefined;
+      return result?.messages ?? messages;
+    },
+  };
+}
+
 export async function settleOptimizer(manager: SessionManager) {
-  const extensions: Extension[] = [compactor, optimizerContext].map((factory) => {
+  const extensions: Extension[] = [pruner].map((factory) => {
     const pi = recordExtension();
     factory(pi.api);
     return {

@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import context from "./context.js";
-import compactor from "./compactor/index.js";
+import pruner from "./pruner/index.js";
+import deduplicator from "./deduplicator/index.js";
 import reducer from "./reducer/index.js";
 import mapper from "./mapper/index.js";
 import inspect from "./inspector/index.js";
@@ -8,9 +8,9 @@ import languages from "./languages/index.js";
 
 export default function (pi: ExtensionAPI) {
   reducer(pi);
-  compactor(pi);
   languages(pi);
-  context(pi);
+  pruner(pi);
+  deduplicator(pi);
   mapper(pi);
   pi.registerTool(inspect);
 }

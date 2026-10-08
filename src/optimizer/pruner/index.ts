@@ -1,14 +1,12 @@
 import type { ContextEditEntryDraft, ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { buildDeduplicatorState } from "./deduplicator/state.js";
-import { getEligibleResult } from "./entries.js";
-import { getRemovedToolCallId } from "./pruner/cleanup.js";
+import { filterToolCalls, getEligibleResult } from "../entries.js";
+import { getRemovedToolCallId } from "./cleanup.js";
 
 export default function (pi: ExtensionAPI) {
-  pi.on("agent_before_settle", (event, ctx) => {
+  pi.on("agent_before_settle", (event) => {
     if (event.outcome !== "completed") return;
 
     const entries = event.context.contextEntries;
-    const replacements = buildDeduplicatorState(entries, ctx.cwd);
     const edits = new Map<string, ContextEditEntryDraft>();
     const removedCalls = new Set<string>();
 
@@ -17,9 +15,20 @@ export default function (pi: ExtensionAPI) {
       if (!message) continue;
 
       const targetId = entry.sourceEntry.id;
-      if (replacements.has(targetId) || getRemovedToolCallId(message)) {
+      if (getRemovedToolCallId(message)) {
         edits.set(targetId, { type: "context_edit", targetId, replacement: null });
         removedCalls.add(message.toolCallId);
+        continue;
+      }
+      if (message.toolName !== "grep" || message.isError) continue;
+
+      const content = message.content.map((block) => {
+        if (block.type !== "text") return block;
+        const text = block.text.split("\n").filter((line) => !/^\d+- /.test(line)).join("\n");
+        return text === block.text ? block : { ...block, text };
+      });
+      if (content.some((block, index) => block !== message.content[index])) {
+        edits.set(targetId, { type: "context_edit", targetId, replacement: { content } });
       }
     }
 
@@ -29,18 +38,13 @@ export default function (pi: ExtensionAPI) {
       const message = messages[0];
       if (messages.length !== 1 || message?.role !== "assistant") continue;
 
-      const content = message.content.filter(
-        (block) => block.type !== "toolCall" || !removedCalls.has(block.id),
-      );
-      if (content.length === message.content.length) continue;
+      const filtered = filterToolCalls(message, removedCalls);
+      if (filtered === message) continue;
 
-      const meaningful = content.some(
-        (block) => block.type !== "thinking" && (block.type !== "text" || block.text.trim() !== ""),
-      );
       edits.set(sourceEntry.id, {
         type: "context_edit",
         targetId: sourceEntry.id,
-        replacement: meaningful ? { content } : null,
+        replacement: filtered ? { content: filtered.content } : null,
       });
     }
 

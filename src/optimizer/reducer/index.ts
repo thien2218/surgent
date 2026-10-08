@@ -32,7 +32,6 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerTool({
     ...grepTool,
-    description: `${grepTool.description} Results remain available throughout the current task and are compacted into summaries only after you finish responding to the user.`,
     parameters: Type.Object({
       ...grepTool.parameters.properties,
       context: Type.Optional(

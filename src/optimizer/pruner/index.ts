@@ -18,6 +18,17 @@ export default function (pi: ExtensionAPI) {
       if (getRemovedToolCallId(message)) {
         edits.set(targetId, { type: "context_edit", targetId, replacement: null });
         removedCalls.add(message.toolCallId);
+        continue;
+      }
+      if (message.toolName !== "grep" || message.isError) continue;
+
+      const content = message.content.map((block) => {
+        if (block.type !== "text") return block;
+        const text = block.text.split("\n").filter((line) => !/^\d+- /.test(line)).join("\n");
+        return text === block.text ? block : { ...block, text };
+      });
+      if (content.some((block, index) => block !== message.content[index])) {
+        edits.set(targetId, { type: "context_edit", targetId, replacement: { content } });
       }
     }
 

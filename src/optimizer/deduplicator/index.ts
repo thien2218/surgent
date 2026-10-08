@@ -8,7 +8,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", (_event, ctx) => {
     hiddenCalls.clear();
     const branch = ctx.sessionManager.getBranch();
-    const candidates = buildDeduplicatorState(ctx.sessionManager.buildSessionProjection().entries, ctx.cwd);
+    const candidates = buildDeduplicatorState(ctx.sessionManager.buildSessionProjection().entries, branch, ctx.cwd);
     for (const entry of branch) {
       if (entry.type === "message" && entry.message.role === "toolResult" && candidates.has(entry.id)) {
         hiddenCalls.add(entry.message.toolCallId);

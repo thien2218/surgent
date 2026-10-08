@@ -26,7 +26,7 @@ describe("session-start request filtering", () => {
     expect(pi.event("context")).toBeTypeOf("function");
   });
 
-  it("freezes duplicates across requests until another start", async () => {
+  it("freezes duplicates and writes across requests until another start", async () => {
     const manager = await session();
     inspect(manager, "old");
     inspect(manager, "new");
@@ -35,11 +35,13 @@ describe("session-start request filtering", () => {
     const projection = vi.spyOn(manager, "buildSessionProjection");
 
     inspect(manager, "appended");
+    appendTool(manager, "write", "write", "saved", { path: "file.ts", content: "changed" });
+    inspect(manager, "fresh");
     const canonical = manager.buildSessionProjection().messages;
     const raw = structuredClone(manager.getEntries());
     projection.mockClear();
     for (let request = 0; request < 2; request++) {
-      expect(resultIds(await loaded.request(canonical))).toEqual(["new", "appended"]);
+      expect(resultIds(await loaded.request(canonical))).toEqual(["new", "appended", "write", "fresh"]);
     }
     expect(branch).not.toHaveBeenCalled();
     expect(projection).not.toHaveBeenCalled();
@@ -48,7 +50,7 @@ describe("session-start request filtering", () => {
     expect(manager.buildSessionProjection().messages).toEqual(canonical);
 
     await loaded.pi.event("session_start")({ type: "session_start", reason: "reload" }, loaded.ctx);
-    expect(resultIds(await loaded.request())).toEqual(["appended"]);
+    expect(resultIds(await loaded.request())).toEqual(["write", "fresh"]);
   });
 
   it("filters incoming exchanges in pairs without losing other transformations or assistant metadata", async () => {

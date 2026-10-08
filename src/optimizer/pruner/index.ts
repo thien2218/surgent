@@ -1,14 +1,12 @@
 import type { ContextEditEntryDraft, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { filterToolCalls, getEligibleResult } from "../entries.js";
-import { buildDeduplicatorState } from "../deduplicator/state.js";
 import { getRemovedToolCallId } from "./cleanup.js";
 
 export default function (pi: ExtensionAPI) {
-  pi.on("agent_before_settle", (event, ctx) => {
+  pi.on("agent_before_settle", (event) => {
     if (event.outcome !== "completed") return;
 
     const entries = event.context.contextEntries;
-    const replacements = buildDeduplicatorState(entries, ctx.cwd);
     const edits = new Map<string, ContextEditEntryDraft>();
     const removedCalls = new Set<string>();
 
@@ -17,7 +15,7 @@ export default function (pi: ExtensionAPI) {
       if (!message) continue;
 
       const targetId = entry.sourceEntry.id;
-      if (replacements.has(targetId) || getRemovedToolCallId(message)) {
+      if (getRemovedToolCallId(message)) {
         edits.set(targetId, { type: "context_edit", targetId, replacement: null });
         removedCalls.add(message.toolCallId);
       }

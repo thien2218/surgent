@@ -52,7 +52,7 @@ describe("inspect identity deduplication", () => {
       }),
     ];
 
-    expect(candidates(entries, "new-result", workspace())).toEqual(new Map([["old-result", ["new-result"]]]));
+    expect(candidates(entries, "new-result", workspace())).toEqual(new Set(["old-result"]));
   });
 
   it.each([
@@ -75,21 +75,17 @@ describe("inspect identity deduplication", () => {
       ...exchange("last", "second-result", { details: { path: join(cwd, "source.ts"), symbol: "handler" } }),
     ];
 
-    expect(candidates(entries, "last-result", cwd)).toEqual(new Map([
-      ["first-result", ["last-result"]], ["second-result", ["last-result"]],
-    ]));
+    expect(candidates(entries, "last-result", cwd)).toEqual(new Set(["first-result", "second-result"]));
   });
 
-  it("normalizes unavailable paths and points every older duplicate directly to newest", () => {
+  it("normalizes unavailable paths when hiding older duplicates", () => {
     const entries = [
       ...exchange("first", null),
       ...exchange("second", "first-result", { details: { path: "./folder/../source.ts", symbol: "handler" } }),
       ...exchange("last", "second-result"),
     ];
 
-    expect(candidates(entries, "last-result", workspace())).toEqual(new Map([
-      ["first-result", ["last-result"]], ["second-result", ["last-result"]],
-    ]));
+    expect(candidates(entries, "last-result", workspace())).toEqual(new Set(["first-result", "second-result"]));
   });
 
   it("keeps file and symbol boundaries unambiguous", () => {
@@ -127,7 +123,7 @@ describe("inspect identity deduplication", () => {
       ...exchange("second", "first-result"),
       ...exchange("invalid", "second-result", overrides),
     ];
-    expect(candidates(entries, "invalid-result", workspace())).toEqual(new Map([["first-result", ["second-result"]]]));
+    expect(candidates(entries, "invalid-result", workspace())).toEqual(new Set(["first-result"]));
   });
 
   it.each([null, { content: "short summary" }])(
@@ -140,7 +136,7 @@ describe("inspect identity deduplication", () => {
         { type: "context_edit", id: "edit", parentId: "last-result", timestamp: "2025-01-01T00:00:00.000Z",
           targetId: "last-result", replacement },
       ];
-      expect(candidates(entries, "edit", workspace())).toEqual(new Map([["first-result", ["second-result"]]]));
+      expect(candidates(entries, "edit", workspace())).toEqual(new Set(["first-result"]));
     },
   );
 
@@ -162,7 +158,7 @@ describe("inspect identity deduplication", () => {
     ];
     const cwd = workspace();
     expect(candidates(entries, "other-result", cwd).size).toBe(0);
-    expect(candidates(entries, "sibling-result", cwd)).toEqual(new Map([["old-result", ["sibling-result"]]]));
+    expect(candidates(entries, "sibling-result", cwd)).toEqual(new Set(["old-result"]));
     expect(candidates(entries, null, cwd).size).toBe(0);
   });
 });

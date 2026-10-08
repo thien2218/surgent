@@ -2,9 +2,9 @@ import type { ProjectedSessionEntry } from "@earendil-works/pi-coding-agent";
 import { getEligibleResult } from "../entries.js";
 import { getInspectIdentity } from "./resources.js";
 
-export function buildDeduplicatorState(entries: ProjectedSessionEntry[], cwd: string): Map<string, string[]> {
-  const retained = new Map<string, string>();
-  const replacements = new Map<string, string[]>();
+export function buildDeduplicatorState(entries: ProjectedSessionEntry[], cwd: string): Set<string> {
+  const retained = new Set<string>();
+  const hidden = new Set<string>();
 
   for (let index = entries.length - 1; index >= 0; index--) {
     const entry = entries[index]!;
@@ -13,14 +13,9 @@ export function buildDeduplicatorState(entries: ProjectedSessionEntry[], cwd: st
 
     const identity = getInspectIdentity(message.details, cwd);
     if (!identity) continue;
-
-    const newest = retained.get(identity);
-    if (newest) {
-      replacements.set(entry.sourceEntry.id, [newest]);
-    } else {
-      retained.set(identity, entry.sourceEntry.id);
-    }
+    if (retained.has(identity)) hidden.add(entry.sourceEntry.id);
+    retained.add(identity);
   }
 
-  return replacements;
+  return hidden;
 }

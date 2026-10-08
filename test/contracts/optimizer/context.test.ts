@@ -39,13 +39,12 @@ describe("optimizer settle boundary", () => {
 
   it.each([false, true])("preserves earlier drafts, projected assistant content, and continue=%s", async (continuation) => {
     const manager = SessionManager.inMemory(workspace.cwd);
-    const old = appendTool(manager, "old", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
-    appendTool(manager, "new", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
+    const old = appendTool(manager, "old", "find", "No files found matching pattern");
     const { handler, ctx } = loadContext(manager);
     const preview = SessionManager.inMemory(workspace.cwd, undefined, manager.getEntries());
     const content = [
       { type: "text" as const, text: "external explanation" },
-      { type: "toolCall" as const, id: "old", name: "inspect", arguments: { path: "file.ts", symbol: "handler" } },
+      { type: "toolCall" as const, id: "old", name: "find", arguments: {} },
     ];
     const prior: ContextEditEntryDraft = {
       type: "context_edit", targetId: old.callId, replacement: { content },
@@ -70,19 +69,20 @@ describe("optimizer settle boundary", () => {
     expect(manager.getEntries().some((entry) => entry.type === "context_edit")).toBe(false);
   });
 
-  it("does not use an inspect identity omitted by an earlier handler's draft", async () => {
+  it("leaves duplicate inspections unchanged at settle even with earlier omissions", async () => {
     const manager = SessionManager.inMemory(workspace.cwd);
     appendTool(manager, "old", "inspect", "first\nsecond", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
     const newer = appendTool(manager, "new", "inspect", "first\nsecond", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
     const { handler, ctx } = loadContext(manager);
     const preview = SessionManager.inMemory(workspace.cwd, undefined, manager.getEntries());
     const prior: ContextEditEntryDraft = { type: "context_edit", targetId: newer.resultId, replacement: null };
+    expect(await handler(boundaryEvent(manager), ctx)).toBeUndefined();
     preview.appendContextEdit(prior.targetId, prior.replacement);
 
     expect(await handler({ ...boundaryEvent(preview), entries: [prior] }, ctx)).toBeUndefined();
   });
 
-  it("composes pruning and dedup removals on one assistant without losing other content", async () => {
+  it("prunes paired empty results while preserving duplicate inspections and other assistant content", async () => {
     const manager = SessionManager.inMemory(workspace.cwd);
     const assistant = assistantMessage("keep explanation");
     assistant.content.unshift({ type: "thinking", thinking: "valid reasoning", thinkingSignature: "signature" });
@@ -92,7 +92,7 @@ describe("optimizer settle boundary", () => {
       { type: "toolCall", id: "keep", name: "bash", arguments: {} },
     );
     const callId = manager.appendMessage(assistant);
-    const oldId = manager.appendMessage({ role: "toolResult", toolCallId: "old", toolName: "inspect", details: { path: "file.ts", symbol: "handler" }, content: [{ type: "text", text: "source" }], isError: false, timestamp: 0 });
+    manager.appendMessage({ role: "toolResult", toolCallId: "old", toolName: "inspect", details: { path: "file.ts", symbol: "handler" }, content: [{ type: "text", text: "source" }], isError: false, timestamp: 0 });
     const emptyId = manager.appendMessage({ role: "toolResult", toolCallId: "empty", toolName: "find", content: [{ type: "text", text: "No files found matching pattern" }], isError: false, timestamp: 0 });
     manager.appendMessage({ role: "toolResult", toolCallId: "keep", toolName: "bash", content: [{ type: "text", text: "exit 1" }], isError: true, timestamp: 0 });
     appendTool(manager, "new", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
@@ -100,12 +100,11 @@ describe("optimizer settle boundary", () => {
     const result = await settleOptimizer(manager);
 
     expect(result?.entries).toEqual([
-      { type: "context_edit", targetId: oldId, replacement: null },
       { type: "context_edit", targetId: emptyId, replacement: null },
-      { type: "context_edit", targetId: callId, replacement: { content: [assistant.content[0], assistant.content[1], assistant.content[4]] } },
+      { type: "context_edit", targetId: callId, replacement: { content: [assistant.content[0], assistant.content[1], assistant.content[2], assistant.content[4]] } },
     ]);
     const messages = manager.buildSessionProjection().messages;
-    expect(messages.filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["keep", "new"]);
+    expect(messages.filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["old", "keep", "new"]);
   });
 
   it.each([false, true])("omits assistants left without meaningful content (thinking=%s)", async (thinking) => {

@@ -5,12 +5,16 @@ import {
   ExtensionRunner,
   SessionManager,
   type AgentBeforeSettleEvent,
+  type ContextEvent,
+  type ContextEventResult,
+  type SessionStartEvent,
   type Extension,
   type ExtensionContext,
   type ModelRegistry,
 } from "@earendil-works/pi-coding-agent";
 import pruner from "../../src/optimizer/pruner/index.js";
-import { assistantMessage } from "./commands.js";
+import deduplicator from "../../src/optimizer/deduplicator/index.js";
+import { assistantMessage, commandContext } from "./commands.js";
 import { recordExtension } from "./extension.js";
 
 export function appendTool(
@@ -40,6 +44,22 @@ export function boundaryEvent(manager: SessionManager): AgentBeforeSettleEvent {
     context: {
       contextEntries: projection.entries, contextMessages: projection.messages,
       llmMessages: convertToLlm(projection.messages), pendingMessages: [], canContinue: true,
+    },
+  };
+}
+
+export async function startDeduplicator(manager: SessionManager, reason: SessionStartEvent["reason"] = "startup") {
+  const pi = recordExtension();
+  deduplicator(pi.api);
+  const { ctx } = commandContext(manager.getCwd());
+  const context: ExtensionContext = { ...ctx, sessionManager: manager };
+  await pi.event("session_start")({ type: "session_start", reason }, context);
+  return {
+    pi,
+    ctx: context,
+    async request(messages: ContextEvent["messages"] = manager.buildSessionProjection().messages) {
+      const result = await pi.event("context")({ type: "context", messages }, context) as ContextEventResult | undefined;
+      return result?.messages ?? messages;
     },
   };
 }

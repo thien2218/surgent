@@ -78,10 +78,13 @@ it("preserves native cancellation instead of fabricating structured success", as
     AbortSignal.abort(), undefined, ctx)).rejects.toThrow("Command aborted");
 });
 
-it("limits grep context without settling itself", () => {
+it("allows up to three grep context lines without settling itself", () => {
   const pi = recordExtension();
   reducerExtension(pi.api);
+  const grep = pi.tool("grep");
 
-  expect(pi.tool("grep").parameters.properties.context).toMatchObject({ type: "number", maximum: 2 });
+  expect(grep.parameters.properties.context).toMatchObject({ type: "number", maximum: 3 });
+  expect(Check(grep.parameters, { pattern: "match", context: 3 })).toBe(true);
+  expect(Check(grep.parameters, { pattern: "match", context: 4 })).toBe(false);
   expect(() => pi.event("agent_before_settle")).toThrow("Missing event registration");
 });

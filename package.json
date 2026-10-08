@@ -13,7 +13,7 @@
   "scripts": {
     "build": "node ./bin/build.mjs",
     "prepack": "npm run build",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests --maxWorkers=8"
   },
   "engines": {
     "node": ">=22.19"

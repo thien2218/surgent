@@ -36,6 +36,39 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+describe("grep result formatting", () => {
+  it("merges overlapping context without losing match priority or file ownership", async () => {
+    executeGrep.mockResolvedValue({
+      content: [{ type: "text", text: [
+        "src/first.ts-9- before", "src/first.ts-10- hit", "src/first.ts:10: hit", "src/first.ts-10- hit",
+        "src/first.ts:11: next hit", "src/second.ts:10: other hit", "src/first.ts:10: hit", "src/first.ts:20: later hit",
+      ].join("\n") }], details: undefined,
+    });
+    const pi = makePermissionSession();
+    reducerExtension(pi.api);
+
+    const result = await pi.tool("grep").execute("format", { pattern: "hit", path: "." }, undefined, undefined, makePermissionContext(workspace.cwd));
+
+    expect(result.content).toEqual([{ type: "text", text: [
+      "src/first.ts", "9- before", "10: hit", "11: next hit",
+      "src/second.ts", "10: other hit", "src/first.ts", "20: later hit",
+    ].join("\n") }]);
+  });
+
+  it.each([
+    "src/a:b.ts:4: \n\n[100 matches limit reached. Use limit=200 for more]",
+    "No matches found",
+  ])("preserves blank matches, colon-bearing paths, and native notices (%j)", async (text) => {
+    executeGrep.mockResolvedValue({ content: [{ type: "text", text }], details: undefined });
+    const pi = makePermissionSession();
+    reducerExtension(pi.api);
+
+    const result = await pi.tool("grep").execute("format", { pattern: "match", path: "." }, undefined, undefined, makePermissionContext(workspace.cwd));
+
+    expect(result.content).toEqual([{ type: "text", text: text.replace("src/a:b.ts:4:", "src/a:b.ts\n4:") }]);
+  });
+});
+
 describe("grep outside-root approval", () => {
   it.each(["direct", "symlink"])("withholds %s results until the user approves", async (spelling) => {
     const pi = makePermissionSession();

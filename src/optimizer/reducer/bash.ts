@@ -1,9 +1,18 @@
+import {
+  createBashToolDefinition,
+  createLocalBashOperations,
+  type ExtensionAPI,
+} from "@earendil-works/pi-coding-agent";
+import Type from "typebox";
+
+const localBash = createLocalBashOperations();
+
 // Escape literal braces and preceding backslash runs; leave other backslashes unchanged.
 function escapeLiteral(text: string) {
   return text.replaceAll("{", "\\{").replaceAll("}", "\\}");
 }
 
-export class BashResultReducer {
+class BashResultReducer {
   private readonly onData: (data: Buffer) => void;
   private currentLine = "";
   private lines: string[][] = [];
@@ -97,4 +106,37 @@ export class BashResultReducer {
     this.varying = -1;
     this.size = 0;
   }
+}
+
+export default function bash(pi: ExtensionAPI) {
+  const bashTool = createBashToolDefinition(process.cwd(), {
+    operations: {
+      async exec(command, cwd, options) {
+        const reducer = new BashResultReducer(options.onData);
+        try {
+          return await localBash.exec(command, cwd, {
+            ...options,
+            onData: (data) => reducer.append(data),
+          });
+        } finally {
+          reducer.finish();
+        }
+      },
+    },
+  });
+
+  pi.registerTool({
+    ...bashTool,
+    prepareArguments: undefined,
+    description: `${bashTool.description} Output losslessly group similar consecutive lines with braces: 'status {200, 404, 500}' represents three lines 'status 200', 'status 404', 'status 500'. Expand one line per value, preserving order, duplicates, and line endings. Literal braces are escaped with backslash. Decode once.`,
+    parameters: Type.Object({
+      ...bashTool.parameters.properties,
+      purpose: Type.String({
+        description: "Briefly explain what this command will do and why before running it",
+        minLength: 1,
+        maxLength: 256,
+        pattern: "\\S",
+      }),
+    }),
+  });
 }

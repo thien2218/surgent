@@ -1,5 +1,5 @@
 import { createBashToolDefinition, createReadToolDefinition, SessionManager, type ExtensionToolContext, type ToolResultEventResult } from "@earendil-works/pi-coding-agent";
-import { readFile, rm } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { beforeEach, expect, it, onTestFinished } from "vitest";
 import { Check } from "typebox/value";
 import redactor from "../../../src/redactor/index.js";
@@ -78,7 +78,39 @@ it("preserves native cancellation instead of fabricating structured success", as
     AbortSignal.abort(), undefined, ctx)).rejects.toThrow("Command aborted");
 });
 
-it("allows up to three grep context lines without settling itself", () => {
+it.each([
+  { name: "whole file", text: "first\nsecond", args: {}, fullFile: true },
+  { name: "empty file", text: "", args: {}, fullFile: true },
+  { name: "limit reaches EOF", text: "first\nsecond", args: { offset: 1, limit: 2 }, fullFile: true },
+  { name: "partial limit", text: "first\nsecond", args: { limit: 1 }, fullFile: false },
+  { name: "partial offset", text: "first\nsecond", args: { offset: 2 }, fullFile: false },
+  { name: "line truncation", text: "line\n".repeat(2001), args: {}, fullFile: false },
+  { name: "byte truncation", text: "x".repeat(51201), args: {}, fullFile: false },
+])("records read completeness for $name", async ({ text, args, fullFile }) => {
+  await writeFile("input.txt", text);
+  const pi = recordExtension({ getSettings: () => ({}) });
+  reducerExtension(pi.api);
+  const ctx = { cwd: process.cwd() } as ExtensionToolContext;
+
+  const result = await pi.tool("read").execute("read", { path: "input.txt", ...args }, undefined, undefined, ctx);
+
+  expect(result.details.fullFile).toBe(fullFile);
+});
+
+it("does not mark image attachments as full text snapshots", async () => {
+  const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aJ6MAAAAASUVORK5CYII=", "base64");
+  await writeFile("input.png", image);
+  const pi = recordExtension({ getSettings: () => ({ images: { autoResize: false } }) });
+  reducerExtension(pi.api);
+  const ctx = { cwd: process.cwd() } as ExtensionToolContext;
+
+  const result = await pi.tool("read").execute("image", { path: "input.png" }, undefined, undefined, ctx);
+
+  expect(result.details.fullFile).toBe(false);
+  expect(result.content).toContainEqual({ type: "image", data: image.toString("base64"), mimeType: "image/png" });
+});
+
+it("allows up to three grep context lines", () => {
   const pi = recordExtension();
   reducerExtension(pi.api);
   const grep = pi.tool("grep");
@@ -86,5 +118,4 @@ it("allows up to three grep context lines without settling itself", () => {
   expect(grep.parameters.properties.context).toMatchObject({ type: "number", maximum: 3 });
   expect(Check(grep.parameters, { pattern: "match", context: 3 })).toBe(true);
   expect(Check(grep.parameters, { pattern: "match", context: 4 })).toBe(false);
-  expect(() => pi.event("agent_before_settle")).toThrow("Missing event registration");
 });

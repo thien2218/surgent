@@ -76,6 +76,7 @@ export function commandContext(cwd: string) {
     sessionManager: {
       getSessionId: () => "parent-session",
       getSessionFile: () => undefined,
+      buildSessionProjection: () => ({ messages: [], entries: [], thinkingLevel: "off", model: null }),
     },
   };
   const ctx = new Proxy(values, {

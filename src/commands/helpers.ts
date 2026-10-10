@@ -1,5 +1,7 @@
 import { readdir, unlink, writeFile } from "node:fs/promises";
 import {
+  convertToLlm,
+  serializeConversation,
   type ExtensionAPI,
   type ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
@@ -137,8 +139,8 @@ export async function runPlanLoop(
 ) {
   try {
     while (true) {
-      const outputPath = await savePlanOutput(ctx, subsession);
       ctx.ui.setWidget("planner", undefined);
+      const outputPath = await savePlanOutput(ctx, subsession);
       const action = await showPlanUi(ctx, subsession.result.output, outputPath);
 
       if (action.kind === "save") {
@@ -195,7 +197,17 @@ export async function resolvePlan(
   };
 
   if (input.kind === "prompt") {
-    prompt = input.prompt;
+    const messages = convertToLlm(ctx.sessionManager.buildSessionProjection().messages).map(
+      (message) => {
+        if (message.role !== "assistant") return message;
+        return { ...message, content: message.content.filter((part) => part.type !== "thinking") };
+      },
+    );
+    const context = serializeConversation(messages);
+    const prefix = context
+      ? `Conversation context (background):\n${context}\n\nUse this discussion to inform the plan. Distinguish confirmed requirements from suggestions and rejected options. The latest planning request controls scope.\n\nPlanning request:\n`
+      : "";
+    prompt = `${prefix}${input.prompt}`;
   } else if (input.kind === "resume") {
     request.id = input.subsessionId;
   } else {

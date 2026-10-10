@@ -28,7 +28,6 @@ export default function (pi: ExtensionAPI) {
       const subsession = await openSubsession({
         ctx,
         state: getState(pi),
-        temporary: true,
         agent: "documenter",
         onSnapshot: (snapshot) => renderSnapshotWidget(ctx, "documenter", snapshot),
       });

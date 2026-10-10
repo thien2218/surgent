@@ -67,9 +67,8 @@ describe("subsession metadata", () => {
     expect(await findSubsession(cwd)).toBeNull();
   });
 
-  it("does not persist temporary or unidentified sessions", async () => {
+  it("does not persist unidentified sessions", async () => {
     const { cwd, store } = await setup();
-    await saveSubsession(cwd, subsession({ temporary: true }));
     const unidentified = subsession();
     delete unidentified.result.id;
     await saveSubsession(cwd, unidentified);

@@ -147,21 +147,23 @@ async function createSubsession(params: CreateSubsessionParams): Promise<Subsess
     },
   };
 
-  await saveSubsession(cwd, subsession);
+  try {
+    await saveSubsession(cwd, subsession);
+  } catch (error) {
+    await subsession.dispose();
+    throw error;
+  }
   return subsession;
 }
 
 export async function openSubsession(request: SubsessionRequest): Promise<Subsession> {
   const pid = request.ctx.sessionManager.getSessionId();
-  const existing = request.temporary
-    ? null
-    : await findSubsession(request.ctx.cwd, request.id, pid);
+  const existing = await findSubsession(request.ctx.cwd, request.id, pid);
   const agentName = existing?.agent ?? request.agent;
   const runtime = await resolveRuntime(request.ctx.cwd, agentName);
 
   const params: CreateSubsessionParams = {
     cwd: request.ctx.cwd,
-    temporary: request.temporary,
     pid,
     title: "Untitled",
     result: {
@@ -184,9 +186,9 @@ export async function openSubsession(request: SubsessionRequest): Promise<Subses
       throw Error(`Subsession not found: ${request.id}`);
     }
     params.session = await createSdkSession(request, runtime);
+    params.result.id = params.session.sessionId;
     if (existing && request.id) {
       params.title = existing.title;
-      params.result.id = request.id;
       params.result.usage = existing.usage;
       params.result.output = await loadSubsessionOutput(request.ctx.cwd, request.id);
     }

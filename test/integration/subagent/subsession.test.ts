@@ -154,7 +154,6 @@ describe("subsession turns", () => {
 describe("persistent session lifecycle", () => {
   it("persists and resumes output, title, profile and cumulative usage under the same parent", async () => {
     const fixture = await subagentSetup();
-    fixture.request.temporary = false;
     fixture.turns.push((session) => {
       const message = assistantMessage("# Plan: Saved task");
       message.usage.input = 9;
@@ -171,16 +170,8 @@ describe("persistent session lifecycle", () => {
     expect(resumed.result).toMatchObject({ id: child.result.id, output: "# Plan: Saved task", usage: { input: 9 } });
   });
 
-  it("keeps temporary session output off disk", async () => {
-    const { child, cwd } = await setup();
-    await child.exec("Task");
-    await expect(readFile(join(cwd, ".pi", "subsessions.json"))).rejects.toMatchObject({ code: "ENOENT" });
-    expect(await findSubsession(cwd, child.result.id)).toBeNull();
-  });
-
   it("rejects foreign-parent and unknown session IDs without creating SDK sessions", async () => {
     const fixture = await subagentSetup();
-    fixture.request.temporary = false;
     const child = await openSubsession(fixture.request);
     onTestFinished(() => child.dispose());
     await child.exec("Task");
@@ -212,7 +203,6 @@ describe("persistent session lifecycle", () => {
 
   it("disposes session when saving completed output fails", async () => {
     const fixture = await subagentSetup();
-    fixture.request.temporary = false;
     const child = await openSubsession(fixture.request);
     await writeFile(join(fixture.cwd, ".pi", "subsessions.json"), "broken JSON");
     await expect(child.exec("Task")).rejects.toThrow();

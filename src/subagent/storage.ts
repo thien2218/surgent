@@ -1,4 +1,4 @@
-import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { SessionManager, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { loadAgents } from "../agent/storage.js";
 import { getPiPath, readJson, writeJson } from "../utils.js";
 import type { StoredSubsessions, RuntimeConfig, Subsession } from "./types.js";
@@ -40,19 +40,23 @@ export async function findSubsession(cwd: string, id?: string, pid?: string) {
 }
 
 export async function saveSubsession(cwd: string, subsession: Subsession) {
-  if (!subsession.result.id || subsession.temporary) return;
+  if (!subsession.result.id) return;
   if (subsession.result.status === "done") {
     subsession.title = extractSubsessionTitle(subsession.result.output) ?? "Untitled";
   }
 
-  const subsessions = await loadStore(cwd);
-  subsessions[subsession.result.id] = {
-    agent: subsession.runtime.agent,
-    pid: subsession.pid,
-    title: subsession.title,
-    usage: subsession.result.usage,
-  };
-  await writeJson(getPiPath("subsessions", cwd), subsessions);
+  const id = subsession.result.id;
+  const storePath = getPiPath("subsessions", cwd);
+  await withFileMutationQueue(storePath, async () => {
+    const subsessions = await loadStore(cwd);
+    subsessions[id] = {
+      agent: subsession.runtime.agent,
+      pid: subsession.pid,
+      title: subsession.title,
+      usage: subsession.result.usage,
+    };
+    await writeJson(storePath, subsessions);
+  });
 }
 
 export async function loadSubsessionOutput(cwd: string, id: string): Promise<string> {
@@ -84,13 +88,16 @@ export async function loadSubsessionOutput(cwd: string, id: string): Promise<str
 }
 
 export async function terminateSubsession(cwd: string, id: string) {
-  const subsessions = await loadStore(cwd);
-  delete subsessions[id];
-  await writeJson(getPiPath("subsessions", cwd), subsessions);
+  const storePath = getPiPath("subsessions", cwd);
+  await withFileMutationQueue(storePath, async () => {
+    const subsessions = await loadStore(cwd);
+    delete subsessions[id];
+    await writeJson(storePath, subsessions);
 
-  const file = await findSubsessionFile(cwd, id);
-  if (!file) return;
-  await unlink(file.path);
+    const file = await findSubsessionFile(cwd, id);
+    if (!file) return;
+    await unlink(file.path);
+  });
 }
 
 export async function resolveRuntime(cwd: string, agent: string): Promise<RuntimeConfig> {

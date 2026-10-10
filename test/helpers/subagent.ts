@@ -80,7 +80,7 @@ export async function subagentSetup() {
   const ctx = { ...context.ctx, modelRegistry } as unknown as ExtensionToolContext;
   const snapshots: SubsessionSnapshot[] = [];
   const request: SubsessionRequest = {
-    ctx, state, agent: "worker", temporary: true,
+    ctx, state, agent: "worker",
     onSnapshot: (snapshot) => { snapshots.push(structuredClone(snapshot)); },
   };
   const turns: SessionTurn[] = [];

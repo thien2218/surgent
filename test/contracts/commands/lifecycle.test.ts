@@ -243,7 +243,6 @@ describe("/plan contract", () => {
       agent: "planner",
       pid: "parent-session",
     });
-    expect(store[sessions[0]!.sessionId]).not.toHaveProperty("inMemory");
     expect(ui.custom).toHaveBeenCalledOnce();
     expect(ui.setWidget).toHaveBeenCalledWith("planner", expect.any(Function));
     expect(ui.setWidget).toHaveBeenLastCalledWith("planner", undefined);
@@ -362,10 +361,10 @@ describe("/plan contract", () => {
   it("disposes the planner when initial result persistence throws", async () => {
     const { cwd, run, beforeReply, sessions, ui } = await setup();
     beforeReply.mockImplementationOnce(async () => {
-      await mkdir(join(cwd, ".pi", "subsessions.json"));
+      await writeFile(join(cwd, ".pi", "subsessions.json"), "{broken");
     });
 
-    await expect(run("plan", "New request")).rejects.toMatchObject({ code: "EISDIR" });
+    await expect(run("plan", "New request")).rejects.toThrow();
 
     expect(sessions[0]?.extensionRunner.emit).toHaveBeenCalledWith({
       type: "session_shutdown",

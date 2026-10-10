@@ -44,7 +44,6 @@ export interface RuntimeConfig {
 export interface SubsessionRequest {
   ctx: ExtensionContext;
   state: AppState;
-  temporary?: boolean;
   agent: string;
   id?: string;
   signal?: AbortSignal;
@@ -54,7 +53,6 @@ export interface SubsessionRequest {
 export interface StoredSubsessions {
   [id: string]: {
     agent: string;
-    temporary?: boolean;
     pid: string;
     title: string;
     usage: SubsessionUsage;
@@ -63,7 +61,6 @@ export interface StoredSubsessions {
 
 export interface Subsession {
   pid: string;
-  temporary?: boolean;
   title: string;
   result: SubsessionResult;
   runtime: RuntimeConfig;
@@ -83,7 +80,6 @@ export interface CreateSubsessionParams {
   pid: string;
   cwd: string;
   title: string;
-  temporary?: boolean;
   result: SubsessionResult;
   runtime: RuntimeConfig;
   session?: AgentSession;

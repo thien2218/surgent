@@ -1,5 +1,5 @@
 import { unlink } from "node:fs/promises";
-import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { SessionManager, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import type { StoredSubsessions } from "../subagent/types.js";
 import { getPiPath, isMissingFileError, readJson, writeJson } from "../utils.js";
 
@@ -32,15 +32,15 @@ async function deleteSessionFilesByIds(cwd: string, sessionIds: Set<string>): Pr
 
 export async function cleanupSubsessions(cwd: string, pids: Set<string>): Promise<void> {
   const storeFilePath = getPiPath("subsessions", cwd);
-  const store = await readJson<StoredSubsessions>(storeFilePath, {});
+  await withFileMutationQueue(storeFilePath, async () => {
+    const store = await readJson<StoredSubsessions>(storeFilePath, {});
+    const orphanedIds = collectOrphanedSubsessionIds(store, pids);
+    if (orphanedIds.size === 0) return;
 
-  const orphanedIds = collectOrphanedSubsessionIds(store, pids);
-  if (orphanedIds.size === 0) return;
-  await deleteSessionFilesByIds(cwd, orphanedIds);
-
-  for (const subsessionId of orphanedIds) {
-    delete store[subsessionId];
-  }
-
-  await writeJson(storeFilePath, store);
+    await deleteSessionFilesByIds(cwd, orphanedIds);
+    for (const subsessionId of orphanedIds) {
+      delete store[subsessionId];
+    }
+    await writeJson(storeFilePath, store);
+  });
 }

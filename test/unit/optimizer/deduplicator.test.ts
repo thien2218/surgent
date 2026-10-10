@@ -172,6 +172,29 @@ describe("inspect identity deduplication", () => {
   });
 });
 
+describe("compaction boundary", () => {
+  it.each(["inspect", "write"])(
+    "protects kept pre-compaction results from later %s while deduplicating newer results",
+    (toolName) => {
+      const entries: SessionEntry[] = [
+        ...exchange("kept-read", null, { toolName: "read" }, { path: "source.ts" }),
+        ...exchange("kept-inspect", "kept-read-result"),
+        ...exchange("kept-duplicate", "kept-inspect-result"),
+        { type: "compaction", id: "compaction", parentId: "kept-duplicate-result",
+          timestamp: "2025-01-01T00:00:00.000Z", summary: "Earlier context",
+          firstKeptEntryId: "kept-read-call", tokensBefore: 1000 },
+        ...exchange("active-read", "compaction", { toolName: "read" }, { path: "source.ts" }),
+        ...exchange("active-inspect", "active-read-result"),
+        ...exchange("latest", "active-inspect-result", { toolName }, { path: "source.ts", symbol: "handler" }),
+      ];
+
+      expect(candidates(entries, "latest-result", workspace())).toEqual(new Set(
+        toolName === "write" ? ["active-read-result", "active-inspect-result"] : ["active-inspect-result"],
+      ));
+    },
+  );
+});
+
 describe("successful write invalidation", () => {
   it("skips historical assistants with missing content without losing valid candidates", () => {
     const [broken] = exchange("broken", null);

@@ -99,7 +99,7 @@ describe("canonical optimizer history", () => {
     expect((await branchStart.request()).filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["failed", "old"]);
   });
 
-  it("keeps canonical compaction boundaries and retained calls intact while hiding them in requests", async () => {
+  it("preserves canonical compaction boundaries and retained calls in requests", async () => {
     const manager = SessionManager.inMemory(workspace());
     const hidden = appendTool(manager, "hidden", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
     const old = appendTool(manager, "old", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
@@ -112,7 +112,7 @@ describe("canonical optimizer history", () => {
     const filtered = await snapshot.request();
 
     expect(await settleOptimizer(manager)).toBeUndefined();
-    expect(filtered.filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["new"]);
+    expect(filtered.filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["old", "new"]);
     expect(manager.buildSessionProjection()).toEqual(canonical);
     expect(manager.getEntry(compactId)).toMatchObject({ firstKeptEntryId: old.callId, summary: "previous summary" });
     expect(manager.getEntries()).toEqual(raw);

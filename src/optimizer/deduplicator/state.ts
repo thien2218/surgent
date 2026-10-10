@@ -24,6 +24,7 @@ export function buildDeduplicatorState(
 
   for (let index = branch.length - 1; index >= 0; index--) {
     const entry = branch[index]!;
+    if (entry.type === "compaction") break;
     if (entry.type !== "message" || entry.message.role !== "toolResult") continue;
     const raw = entry.message;
     if (raw.isError !== false) continue;

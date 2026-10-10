@@ -19,6 +19,11 @@ export async function commandWorkspace() {
 
 export async function storePlans(cwd: string, entries: StoredSubsessions) {
   await writeFile(join(cwd, ".pi", "subsessions.json"), JSON.stringify(entries));
+  const directory = join(cwd, ".pi", "plans");
+  await mkdir(directory, { recursive: true });
+  await Promise.all(Object.entries(entries).map(([id, metadata]) =>
+    writeFile(join(directory, `${id}.md`), `# Plan: ${metadata.title}\n`),
+  ));
 }
 
 export function planMetadata(title = "Saved plan", pid = "parent-session"): StoredSubsessions[string] {

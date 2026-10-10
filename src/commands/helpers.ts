@@ -1,5 +1,8 @@
-import { unlink, writeFile } from "node:fs/promises";
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { readdir, unlink, writeFile } from "node:fs/promises";
+import {
+  type ExtensionAPI,
+  type ExtensionCommandContext,
+} from "@earendil-works/pi-coding-agent";
 import type { Subsession, SubsessionRequest } from "../subagent/types.js";
 import { terminateSubsession } from "../subagent/storage.js";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -70,72 +73,27 @@ async function forwardAction(
   return true;
 }
 
-export async function runPlanLoop(
-  pi: ExtensionAPI,
-  ctx: ExtensionCommandContext,
-  subsession: Subsession,
-) {
-  try {
-    while (true) {
-      const outputPath = await savePlanOutput(ctx, subsession);
-      ctx.ui.setWidget("planner", undefined);
-      const action = await showPlanUi(ctx, subsession.result.output, outputPath);
-
-      if (action.kind === "save") {
-        if (!outputPath) continue;
-        ctx.ui.notify(
-          `Saved plan to ${outputPath}. Resume with '/plan ${subsession.result.id}'`,
-          "info",
-        );
-        return;
-      }
-      if (action.kind === "discard") {
-        discardSubsession(ctx, subsession, outputPath);
-        return;
-      }
-
-      if (action.kind === "open") {
-        if (outputPath) await openInEditor(ctx, outputPath);
-      } else if (action.kind === "forward") {
-        if (await forwardAction(pi, ctx, subsession)) {
-          discardSubsession(ctx, subsession, outputPath);
-          return;
-        }
-      } else {
-        await subsession.exec(action.feedback);
-      }
-    }
-  } finally {
-    await subsession.dispose();
-    ctx.ui.setWidget("planner", undefined);
-  }
-}
-
-export async function getPlanPreviews(
+async function getPlanPreviews(
   cwd: string,
   sessionId: string,
 ): Promise<{ subsessionId: string; title: string }[]> {
-  const store = await readJson<StoredSubsessions>(getPiPath("subsessions", cwd), {});
+  const [store, files] = await Promise.all([
+    readJson<StoredSubsessions>(getPiPath("subsessions", cwd), {}),
+    readdir(getPiPath("plans", cwd), { withFileTypes: true }).catch((error) => {
+      if (isMissingFileError(error)) return [];
+      throw error;
+    }),
+  ]);
+  const plans = new Set(files.filter((file) => file.isFile()).map((file) => file.name));
   const previews: { subsessionId: string; title: string }[] = [];
 
   for (const [subsessionId, metadata] of Object.entries(store)) {
-    if (!metadata.temporary && metadata.pid === sessionId) {
+    if (metadata.pid === sessionId && plans.has(`${subsessionId}.md`)) {
       previews.push({ subsessionId, title: metadata.title });
     }
   }
 
   return previews;
-}
-
-export async function getPlanCompletions(cwd: string, sessionId: string, prefix: string) {
-  const normalizedPrefix = prefix.trim().toLowerCase();
-  const items = (await getPlanPreviews(cwd, sessionId))
-    .filter(
-      ({ subsessionId, title }) =>
-        subsessionId.startsWith(normalizedPrefix) || title.toLowerCase().includes(normalizedPrefix),
-    )
-    .map(({ subsessionId, title }) => ({ value: subsessionId, label: title }));
-  return items.length > 0 ? items : null;
 }
 
 async function pickPlanId(ctx: ExtensionContext): Promise<string | null> {
@@ -170,6 +128,57 @@ async function pickPlanId(ctx: ExtensionContext): Promise<string | null> {
 
     return selectList;
   });
+}
+
+export async function runPlanLoop(
+  pi: ExtensionAPI,
+  ctx: ExtensionCommandContext,
+  subsession: Subsession,
+) {
+  try {
+    while (true) {
+      const outputPath = await savePlanOutput(ctx, subsession);
+      ctx.ui.setWidget("planner", undefined);
+      const action = await showPlanUi(ctx, subsession.result.output, outputPath);
+
+      if (action.kind === "save") {
+        if (!outputPath) continue;
+        ctx.ui.notify(
+          `Plan saved to ${outputPath}. Resume with '/plan ${subsession.result.id}'`,
+          "info",
+        );
+        return;
+      }
+      if (action.kind === "discard") {
+        discardSubsession(ctx, subsession, outputPath);
+        return;
+      }
+      if (action.kind === "open") {
+        if (outputPath) await openInEditor(ctx, outputPath);
+      } else if (action.kind === "forward") {
+        if (await forwardAction(pi, ctx, subsession)) {
+          discardSubsession(ctx, subsession, outputPath);
+          return;
+        }
+      } else {
+        await subsession.exec(action.feedback);
+      }
+    }
+  } finally {
+    await subsession.dispose();
+    ctx.ui.setWidget("planner", undefined);
+  }
+}
+
+export async function getPlanCompletions(cwd: string, sessionId: string, prefix: string) {
+  const normalizedPrefix = prefix.trim().toLowerCase();
+  const items = (await getPlanPreviews(cwd, sessionId))
+    .filter(
+      ({ subsessionId, title }) =>
+        subsessionId.startsWith(normalizedPrefix) || title.toLowerCase().includes(normalizedPrefix),
+    )
+    .map(({ subsessionId, title }) => ({ value: subsessionId, label: title }));
+  return items.length > 0 ? items : null;
 }
 
 export async function resolvePlan(

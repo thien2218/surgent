@@ -49,6 +49,7 @@ async function setup() {
   };
   await storePlans(cwd, { [PLAN_ID]: planMetadata() });
   const outputPath = join(cwd, ".pi", "plans", `${PLAN_ID}.md`);
+  await rm(outputPath, { force: true });
   const run = () => runPlanLoop(extension.api, context.ctx, session);
   const action = (kind: "save" | "forward" | "open", hasPath = true) => {
     context.interact((component) => {

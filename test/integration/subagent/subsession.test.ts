@@ -20,8 +20,6 @@ async function setup() {
   return { ...fixture, child, session: fixture.sessions[0]! };
 }
 
-const quickReport = "## Answer\nAnswer\n## Evidence\nfile.ts:1\n## Gaps\nNone";
-const validPlan = "# Plan: Work\n## Objective\nGoal\n## Out of scope\nNone\n## Steps\nWork\n## Risks & Mitigations\nNone\n## Handoff Packet\nReady";
 
 describe("subsession turns", () => {
   it("publishes progress, final text, tool counts, and context usage", async () => {
@@ -150,61 +148,6 @@ describe("subsession turns", () => {
     expect(session.listenerCount()).toBe(0);
     expect(remove).toHaveBeenCalledWith("abort", expect.any(Function));
     remove.mockRestore();
-  });
-});
-
-describe("built-in output repair", () => {
-  it.each([["planner", validPlan, "Task"], ["scout", quickReport, "Depth: quick\nTask"]])(
-    "accepts valid %s output without another turn", async (agent, output, input) => {
-      const fixture = await subagentSetup();
-      fixture.request.agent = agent;
-      fixture.turns.push((session) => session.emit({ type: "message_end", message: assistantMessage(output) }));
-      const child = await openSubsession(fixture.request);
-      onTestFinished(() => child.dispose());
-      await child.exec(input);
-      expect(child.result).toMatchObject({ status: "done", output });
-      expect(fixture.sessions[0]!.prompt).toHaveBeenCalledOnce();
-    },
-  );
-
-  it("repairs invalid scout output once using original requested depth and counts both attempts", async () => {
-    const fixture = await subagentSetup();
-    fixture.request.agent = "scout";
-    fixture.turns.push(...["invalid", quickReport].map((output) => (session: typeof fixture.sessions[number]) => {
-      const message = assistantMessage(output);
-      message.usage.input = 5;
-      session.emit({ type: "message_end", message });
-    }));
-    const child = await openSubsession(fixture.request);
-    onTestFinished(() => child.dispose());
-    await child.exec("Depth: quick\nTask");
-    expect(child.result).toMatchObject({ status: "done", output: quickReport, usage: { input: 10 } });
-    expect(fixture.sessions[0]!.prompt).toHaveBeenNthCalledWith(2, expect.stringContaining("Output failed validation:"));
-  });
-
-  it("fails after two invalid replies without an unbounded retry", async () => {
-    const fixture = await subagentSetup();
-    fixture.request.agent = "planner";
-    const child = await openSubsession(fixture.request);
-    onTestFinished(() => child.dispose());
-    await child.exec("Task");
-    expect(child.result.status).toBe("error");
-    expect(child.result.output).toContain("Output validation failed:");
-    expect(fixture.sessions[0]!.prompt).toHaveBeenCalledTimes(2);
-  });
-
-  it.each(["error", "aborted"] as const)("preserves %s from corrective turn instead of reporting a validation failure", async (stopReason) => {
-    const fixture = await subagentSetup();
-    fixture.request.agent = "planner";
-    fixture.turns.push(
-      (session) => session.emit({ type: "message_end", message: assistantMessage("invalid") }),
-      (session) => session.emit({ type: "message_end", message: { ...assistantMessage("partial"), stopReason, errorMessage: "provider failed" } }),
-    );
-    const child = await openSubsession(fixture.request);
-    onTestFinished(() => child.dispose());
-    await child.exec("Task");
-    expect(child.result).toMatchObject({ status: stopReason, output: stopReason === "error" ? "provider failed" : "partial" });
-    expect(fixture.sessions[0]!.prompt).toHaveBeenCalledTimes(2);
   });
 });
 

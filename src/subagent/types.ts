@@ -37,7 +37,6 @@ export interface SubsessionResult {
 
 export interface RuntimeConfig {
   agent: string;
-  builtIn: boolean;
   meta: AgentMeta;
   systemPrompt: string;
 }

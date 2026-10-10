@@ -43,7 +43,7 @@ async function setup() {
       },
       toolCounts: {},
     },
-    runtime: { agent: "planner", builtIn: false, meta: { description: "Test planner" }, systemPrompt: "" },
+    runtime: { agent: "planner", meta: { description: "Test planner" }, systemPrompt: "" },
     exec: vi.fn<Subsession["exec"]>(),
     dispose: vi.fn<Subsession["dispose"]>(),
   };

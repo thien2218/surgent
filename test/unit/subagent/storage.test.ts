@@ -15,7 +15,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 
 function subsession(overrides: Partial<Subsession> = {}): Subsession {
   return {
-    pid: "parent", title: "Existing", runtime: { agent: "worker", builtIn: false, meta: { description: "Worker" }, systemPrompt: "Instructions" },
+    pid: "parent", title: "Existing", runtime: { agent: "worker", meta: { description: "Worker" }, systemPrompt: "Instructions" },
     result: { ...createErrorResult("# Plan: Saved"), id: "child", status: "done" },
     exec: vi.fn(), dispose: vi.fn(), ...overrides,
   };
@@ -165,16 +165,16 @@ describe("subsession transcripts", () => {
 });
 
 describe("subagent runtime profiles", () => {
-  it("loads custom prompt and metadata instead of marking them built-in", async () => {
+  it("loads custom prompt and metadata", async () => {
     const { cwd, local } = await setup();
     await writeFile(join(local, "worker.md"), "---\ndescription: Worker profile\ntools: [read]\n---\nCustom instructions\n");
-    expect(await resolveRuntime(cwd, "worker")).toMatchObject({ agent: "worker", builtIn: false, meta: { description: "Worker profile", tools: ["read"] } });
+    expect(await resolveRuntime(cwd, "worker")).toMatchObject({ agent: "worker", meta: { description: "Worker profile", tools: ["read"] } });
     expect((await resolveRuntime(cwd, "worker")).systemPrompt).toContain("Custom instructions");
   });
 
-  it("identifies built-in profiles and rejects unknown profiles", async () => {
+  it("loads built-in profiles and rejects unknown profiles", async () => {
     const { cwd } = await setup();
-    expect(await resolveRuntime(cwd, "planner")).toMatchObject({ agent: "planner", builtIn: true });
+    expect(await resolveRuntime(cwd, "planner")).toMatchObject({ agent: "planner" });
     await expect(resolveRuntime(cwd, "missing-agent")).rejects.toThrow();
   });
 });

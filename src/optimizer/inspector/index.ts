@@ -27,7 +27,7 @@ const inspect = defineTool({
 
     if (path.length === 0 || symbol.length === 0 || symbol.includes("#")) {
       return {
-        isError: false,
+        isError: true,
         details: null,
         content: [
           {
@@ -42,7 +42,7 @@ const inspect = defineTool({
       const inspected = await inspectSymbol(ctx.cwd, path, symbol, signal);
       if (!inspected) {
         return {
-          isError: false,
+          isError: true,
           details: null,
           content: [
             {
@@ -53,8 +53,7 @@ const inspect = defineTool({
         };
       }
 
-      const details = { path: inspected.path, symbol: inspected.symbol };
-      return { isError: false, details, content: [{ type: "text", text: inspected.text }] };
+      return { isError: false, details: null, content: [{ type: "text", text: inspected.text }] };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return {

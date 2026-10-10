@@ -25,8 +25,8 @@ function loadContext(manager: SessionManager) {
 describe("optimizer settle boundary", () => {
   it.each(["aborted", "error"] as const)("does not reduce current results after %s", async (outcome) => {
     const manager = SessionManager.inMemory(workspace.cwd);
-    appendTool(manager, "old", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
-    appendTool(manager, "new", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
+    appendTool(manager, "old", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, null);
+    appendTool(manager, "new", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, null);
     appendTool(manager, "empty", "find", "No files found matching pattern");
     appendTool(manager, "grep", "grep", "file.ts\n1: source");
     const { handler, ctx } = loadContext(manager);
@@ -139,8 +139,8 @@ describe("optimizer settle boundary", () => {
 
   it("leaves duplicate inspections unchanged at settle even with earlier omissions", async () => {
     const manager = SessionManager.inMemory(workspace.cwd);
-    appendTool(manager, "old", "inspect", "first\nsecond", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
-    const newer = appendTool(manager, "new", "inspect", "first\nsecond", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
+    appendTool(manager, "old", "inspect", "first\nsecond", { path: "file.ts", symbol: "handler" }, false, null);
+    const newer = appendTool(manager, "new", "inspect", "first\nsecond", { path: "file.ts", symbol: "handler" }, false, null);
     const { handler, ctx } = loadContext(manager);
     const preview = SessionManager.inMemory(workspace.cwd, undefined, manager.getEntries());
     const prior: ContextEditEntryDraft = { type: "context_edit", targetId: newer.resultId, replacement: null };
@@ -160,10 +160,10 @@ describe("optimizer settle boundary", () => {
       { type: "toolCall", id: "keep", name: "bash", arguments: {} },
     );
     const callId = manager.appendMessage(assistant);
-    manager.appendMessage({ role: "toolResult", toolCallId: "old", toolName: "inspect", details: { path: "file.ts", symbol: "handler" }, content: [{ type: "text", text: "source" }], isError: false, timestamp: 0 });
+    manager.appendMessage({ role: "toolResult", toolCallId: "old", toolName: "inspect", details: null, content: [{ type: "text", text: "source" }], isError: false, timestamp: 0 });
     const emptyId = manager.appendMessage({ role: "toolResult", toolCallId: "empty", toolName: "find", content: [{ type: "text", text: "No files found matching pattern" }], isError: false, timestamp: 0 });
     manager.appendMessage({ role: "toolResult", toolCallId: "keep", toolName: "bash", content: [{ type: "text", text: "exit 1" }], isError: true, timestamp: 0 });
-    appendTool(manager, "new", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
+    appendTool(manager, "new", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, null);
 
     const result = await settleOptimizer(manager);
 

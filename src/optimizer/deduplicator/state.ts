@@ -1,61 +1,94 @@
 import type { ToolCall } from "@earendil-works/pi-ai";
 import type { ProjectedSessionEntry, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { getEligibleResult } from "../entries.js";
-import { getInspectIdentity, normalizeToolPath } from "./resources.js";
+import { normalizeToolPath } from "./resources.js";
+
+function isPathTool(toolName: string) {
+  return (
+    toolName === "write" || toolName === "read" || toolName === "edit" || toolName === "inspect"
+  );
+}
+
+function mapCalls(branch: SessionEntry[]) {
+  const calls = new Map<string, { call: ToolCall; idx: number } | null>();
+  for (const [idx, entry] of branch.entries()) {
+    if (
+      entry.type !== "message" ||
+      entry.message.role !== "assistant" ||
+      !Array.isArray(entry.message.content)
+    ) {
+      continue;
+    }
+    for (const block of entry.message.content) {
+      if (block.type !== "toolCall") continue;
+      calls.set(block.id, calls.has(block.id) ? null : { call: block, idx });
+    }
+  }
+  return calls;
+}
 
 export function buildDeduplicatorState(
   entries: ProjectedSessionEntry[],
   branch: SessionEntry[],
   cwd: string,
 ): Set<string> {
-  const calls = new Map<string, { call: ToolCall; index: number } | null>();
-  const eligible = new Set(entries.filter((entry) => getEligibleResult(entry)).map((entry) => entry.sourceEntry.id));
-  const retained = new Set<string>();
-  const writes = new Set<string>();
+  const calls = mapCalls(branch);
+  const eligible = new Set(
+    entries.filter((entry) => getEligibleResult(entry)).map((entry) => entry.sourceEntry.id),
+  );
+  const inspected = new Set<string>();
+  const snapshots = new Set<string>();
   const hidden = new Set<string>();
 
-  for (const [index, entry] of branch.entries()) {
-    if (entry.type !== "message" || entry.message.role !== "assistant" || !Array.isArray(entry.message.content)) continue;
-    for (const block of entry.message.content) {
-      if (block.type !== "toolCall") continue;
-      calls.set(block.id, calls.has(block.id) ? null : { call: block, index });
-    }
-  }
-
-  for (let index = branch.length - 1; index >= 0; index--) {
-    const entry = branch[index]!;
+  for (let idx = branch.length - 1; idx >= 0; idx--) {
+    const entry = branch[idx]!;
     if (entry.type === "compaction") break;
-    if (entry.type !== "message" || entry.message.role !== "toolResult") continue;
-    const raw = entry.message;
-    if (raw.isError !== false) continue;
-
-    let path: string | undefined;
-    if (raw.toolName === "write" || raw.toolName === "read") {
-      const matched = calls.get(raw.toolCallId);
-      if (!matched || matched.index >= index || matched.call.name !== raw.toolName) continue;
-      const input = matched.call.arguments?.path;
-      if (typeof input !== "string" || input.trim() === "") continue;
-      try {
-        path = normalizeToolPath(input, cwd, raw.toolName);
-      } catch {
-        continue;
-      }
-      // Raw successful writes remain mutation evidence even when context edits hide them.
-      if (raw.toolName === "write") {
-        writes.add(path);
-        continue;
-      }
+    if (
+      entry.type !== "message" ||
+      entry.message.role !== "toolResult" ||
+      entry.message.isError !== false
+    ) {
+      continue;
     }
 
-    if (!eligible.has(entry.id)) continue;
+    const raw = entry.message;
+    if (!isPathTool(raw.toolName) || !eligible.has(entry.id)) continue;
 
-    const inspected = raw.toolName === "inspect" ? getInspectIdentity(raw.details, cwd) : undefined;
-    if (inspected) path = inspected.path;
-    if (!path) continue;
+    const matched = calls.get(raw.toolCallId);
+    if (!matched || matched.idx >= idx || matched.call.name !== raw.toolName) continue;
 
-    const identity = inspected && JSON.stringify([inspected.path, inspected.symbol]);
-    if (writes.has(path) || (identity && retained.has(identity))) hidden.add(entry.id);
-    if (identity) retained.add(identity);
+    const input = matched.call.arguments?.path;
+    if (typeof input !== "string" || input.trim() === "") continue;
+
+    let path: string;
+    try {
+      path = normalizeToolPath(input, cwd, raw.toolName);
+    } catch {
+      continue;
+    }
+
+    if (snapshots.has(path)) {
+      hidden.add(entry.id);
+      continue;
+    }
+
+    const fullRead =
+      raw.toolName === "read" &&
+      raw.details !== null &&
+      typeof raw.details === "object" &&
+      "fullFile" in raw.details &&
+      raw.details.fullFile === true;
+
+    if (raw.toolName === "write" || fullRead) {
+      snapshots.add(path);
+      continue;
+    }
+    if (raw.toolName !== "inspect") continue;
+
+    const symbol = matched.call.arguments.symbol as string;
+    const identity = `${path}:${symbol.trim()}`;
+    if (inspected.has(identity)) hidden.add(entry.id);
+    else inspected.add(identity);
   }
 
   return hidden;

@@ -23,7 +23,7 @@ function exchange(
   id: string,
   parentId: string | null,
   overrides: Partial<ToolResultMessage> = {},
-  args: ToolCall["arguments"] = { path: "input.ts", symbol: "requested" },
+  args: ToolCall["arguments"] = { path: "source.ts", symbol: "handler" },
 ) {
   const message = assistantMessage("");
   message.content = [{
@@ -38,7 +38,7 @@ function exchange(
     message: {
       role: "toolResult", toolName: "inspect", toolCallId: id,
       content: [{ type: "text", text: "source" }], isError: false, timestamp: 0,
-      details: { path: "source.ts", symbol: "handler" },
+      details: null,
       ...overrides,
     },
   } satisfies SessionMessageEntry;
@@ -67,10 +67,9 @@ describe("inspect identity deduplication", () => {
   it.each([
     { path: "source.ts", symbol: "other" },
     { path: "source.ts", symbol: "Handler" },
-    { path: "source.ts", symbol: "handler " },
     { path: "other.ts", symbol: "handler" },
-  ])("keeps distinct returned identities despite matching inputs (%j)", (details) => {
-    const entries = [...exchange("old", null), ...exchange("new", "old-result", { details })];
+  ])("keeps distinct input identities (%j)", (args) => {
+    const entries = [...exchange("old", null), ...exchange("new", "old-result", {}, args)];
     expect(candidates(entries, "new-result", workspace()).size).toBe(0);
   });
 
@@ -80,8 +79,8 @@ describe("inspect identity deduplication", () => {
     symlinkSync(join(cwd, "source.ts"), join(cwd, "alias.ts"));
     const entries = [
       ...exchange("first", null),
-      ...exchange("second", "first-result", { details: { path: "./alias.ts", symbol: "handler" } }),
-      ...exchange("last", "second-result", { details: { path: join(cwd, "source.ts"), symbol: "handler" } }),
+      ...exchange("second", "first-result", {}, { path: "./alias.ts", symbol: "handler" }),
+      ...exchange("last", "second-result", {}, { path: join(cwd, "source.ts"), symbol: "handler" }),
     ];
 
     expect(candidates(entries, "last-result", cwd)).toEqual(new Set(["first-result", "second-result"]));
@@ -90,24 +89,24 @@ describe("inspect identity deduplication", () => {
   it("normalizes unavailable paths when hiding older duplicates", () => {
     const entries = [
       ...exchange("first", null),
-      ...exchange("second", "first-result", { details: { path: "./folder/../source.ts", symbol: "handler" } }),
+      ...exchange("second", "first-result", {}, { path: "./folder/../source.ts", symbol: "handler" }),
       ...exchange("last", "second-result"),
     ];
 
     expect(candidates(entries, "last-result", workspace())).toEqual(new Set(["first-result", "second-result"]));
   });
 
-  it("keeps file and symbol boundaries unambiguous", () => {
+  it("uses trimmed input symbols for deduplication", () => {
     const entries = [
-      ...exchange("old", null, { details: { path: "source.ts:part", symbol: "handler" } }),
-      ...exchange("new", "old-result", { details: { path: "source.ts", symbol: "part:handler" } }),
+      ...exchange("old", null),
+      ...exchange("new", "old-result", {}, { path: "source.ts", symbol: " handler " }),
     ];
-    expect(candidates(entries, "new-result", workspace()).size).toBe(0);
+    expect(candidates(entries, "new-result", workspace())).toEqual(new Set(["old-result"]));
   });
 
   it.each([
     ["read", "read"], ["read", "inspect"], ["inspect", "read"],
-  ])("never uses reads for deduplication (%s then %s)", (older, newer) => {
+  ])("does not infer read completeness (%s then %s)", (older, newer) => {
     const entries = [
       ...exchange("old", null, { toolName: older }),
       ...exchange("new", "old-result", { toolName: newer }),
@@ -115,22 +114,11 @@ describe("inspect identity deduplication", () => {
     expect(candidates(entries, "new-result", workspace()).size).toBe(0);
   });
 
-  it.each<Partial<ToolResultMessage>>([
-    { isError: true },
-    { details: undefined },
-    { details: null },
-    { details: {} },
-    { details: { path: "", symbol: "handler" } },
-    { details: { path: "source.ts", symbol: "" } },
-    { details: { path: 5, symbol: "handler" } },
-    { details: { path: "source.ts", symbol: 5 } },
-    { details: { path: "source.ts" } },
-    { details: { symbol: "handler" } },
-  ])("does not let ineligible results supersede valid identities (%j)", (overrides) => {
+  it("does not let failed inspections supersede valid identities", () => {
     const entries = [
       ...exchange("first", null),
       ...exchange("second", "first-result"),
-      ...exchange("invalid", "second-result", overrides),
+      ...exchange("invalid", "second-result", { isError: true }),
     ];
     expect(candidates(entries, "invalid-result", workspace())).toEqual(new Set(["first-result"]));
   });
@@ -162,7 +150,7 @@ describe("inspect identity deduplication", () => {
   it("uses only the active branch, including an intentionally empty branch", () => {
     const entries = [
       ...exchange("old", null),
-      ...exchange("other", "old-result", { details: { path: "other.ts", symbol: "handler" } }),
+      ...exchange("other", "old-result", {}, { path: "other.ts", symbol: "handler" }),
       ...exchange("sibling", "old-result"),
     ];
     const cwd = workspace();
@@ -173,26 +161,19 @@ describe("inspect identity deduplication", () => {
 });
 
 describe("compaction boundary", () => {
-  it.each(["inspect", "write"])(
-    "protects kept pre-compaction results from later %s while deduplicating newer results",
-    (toolName) => {
-      const entries: SessionEntry[] = [
-        ...exchange("kept-read", null, { toolName: "read" }, { path: "source.ts" }),
-        ...exchange("kept-inspect", "kept-read-result"),
-        ...exchange("kept-duplicate", "kept-inspect-result"),
-        { type: "compaction", id: "compaction", parentId: "kept-duplicate-result",
-          timestamp: "2025-01-01T00:00:00.000Z", summary: "Earlier context",
-          firstKeptEntryId: "kept-read-call", tokensBefore: 1000 },
-        ...exchange("active-read", "compaction", { toolName: "read" }, { path: "source.ts" }),
-        ...exchange("active-inspect", "active-read-result"),
-        ...exchange("latest", "active-inspect-result", { toolName }, { path: "source.ts", symbol: "handler" }),
-      ];
+  it("protects kept inspections while deduplicating newer inspections", () => {
+    const entries: SessionEntry[] = [
+      ...exchange("kept-inspect", null),
+      ...exchange("kept-duplicate", "kept-inspect-result"),
+      { type: "compaction", id: "compaction", parentId: "kept-duplicate-result",
+        timestamp: "2025-01-01T00:00:00.000Z", summary: "Earlier context",
+        firstKeptEntryId: "kept-inspect-call", tokensBefore: 1000 },
+      ...exchange("active-inspect", "compaction"),
+      ...exchange("latest", "active-inspect-result"),
+    ];
 
-      expect(candidates(entries, "latest-result", workspace())).toEqual(new Set(
-        toolName === "write" ? ["active-read-result", "active-inspect-result"] : ["active-inspect-result"],
-      ));
-    },
-  );
+    expect(candidates(entries, "latest-result", workspace())).toEqual(new Set(["active-inspect-result"]));
+  });
 });
 
 describe("successful write invalidation", () => {
@@ -212,7 +193,7 @@ describe("successful write invalidation", () => {
       ...exchange("read", null, { toolName: "read", details: undefined }, { path: "source.ts", offset: 1, limit: 5 }),
       ...exchange("range", "read-result", { toolName: "read", details: undefined }, { path: "source.ts", offset: 20, limit: 2 }),
       ...exchange("inspect", "range-result"),
-      ...exchange("symbol", "inspect-result", { details: { path: "source.ts", symbol: "other" } }),
+      ...exchange("symbol", "inspect-result", {}, { path: "source.ts", symbol: "other" }),
       ...exchange("unrelated", "symbol-result", { toolName: "read" }, { path: "other.ts" }),
       ...exchange("write", "unrelated-result", { toolName: "write", details: undefined }, { path: "source.ts", content: "changed" }),
       ...exchange("fresh-read", "write-result", { toolName: "read" }, { path: "source.ts" }),
@@ -225,7 +206,7 @@ describe("successful write invalidation", () => {
   });
 
   it.each(["relative", "absolute", "symlink", "tilde", "at-prefix", "file-url", "unicode-space"] as const)(
-    "matches built-in %s inputs to canonical returned inspect paths",
+    "matches normalized %s input paths across tools",
     (convention) => {
       const cwd = workspace();
       const path = join(cwd, "source file.ts");
@@ -238,7 +219,7 @@ describe("successful write invalidation", () => {
       };
       const entries = [
         ...exchange("read", null, { toolName: "read", details: undefined }, { path: inputs[convention] }),
-        ...exchange("inspect", "read-result", { details: { path, symbol: "handler" } }),
+        ...exchange("inspect", "read-result", {}, { path, symbol: "handler" }),
         ...exchange("write", "inspect-result", { toolName: "write", details: undefined }, { path: inputs[convention] }),
       ];
 
@@ -313,13 +294,18 @@ describe("successful write invalidation", () => {
     },
   );
 
-  it.each([null, { content: "external write summary" }])("uses raw writes even with context replacement %j", (replacement) => {
+  it.each([null, { content: "external call summary" }])("uses successful writes even when their projected call is replaced (%j)", (replacement) => {
     const entries: SessionEntry[] = [
-      ...exchange("old", null),
-      ...exchange("write", "old-result", { toolName: "write" }, { path: "source.ts" }),
-      { type: "context_edit", id: "replacement", parentId: "write-result", timestamp: "2025-01-01T00:00:00.000Z", targetId: "write-result", replacement },
+      ...exchange("old-write", null, { toolName: "write" }, { path: "source.ts", content: "old" }),
+      ...exchange("old-edit", "old-write-result", { toolName: "edit" }, { path: "source.ts", edits: [{ oldText: "old", newText: "edited" }] }),
+      ...exchange("old-read", "old-edit-result", { toolName: "read" }, { path: "source.ts" }),
+      ...exchange("old-inspect", "old-read-result"),
+      ...exchange("write", "old-inspect-result", { toolName: "write" }, { path: "source.ts", content: "current" }),
+      { type: "context_edit", id: "replacement", parentId: "write-result", timestamp: "2025-01-01T00:00:00.000Z", targetId: "write-call", replacement },
     ];
-    expect(candidates(entries, "replacement", workspace())).toEqual(new Set(["old-result"]));
+    expect(candidates(entries, "replacement", workspace())).toEqual(new Set([
+      "old-write-result", "old-edit-result", "old-read-result", "old-inspect-result",
+    ]));
   });
 
   it("protects omitted and externally replaced reads and inspections from invalidation", () => {
@@ -342,5 +328,93 @@ describe("successful write invalidation", () => {
     const cwd = workspace();
     expect(candidates(entries, "active-result", cwd).size).toBe(0);
     expect(candidates(entries, "write-result", cwd)).toEqual(new Set(["old-result"]));
+  });
+});
+
+describe("file snapshot invalidation", () => {
+  it.each(["write", "read"])("uses a newer %s to replace older observations and mutations", (toolName) => {
+    const cwd = workspace();
+    writeFileSync(join(cwd, "source.ts"), "current");
+    symlinkSync(join(cwd, "source.ts"), join(cwd, "alias.ts"));
+    const entries = [
+      ...exchange("old-write", null, { toolName: "write" }, { path: pathToFileURL(join(cwd, "source.ts")).href, content: "old" }),
+      ...exchange("old-edit", "old-write-result", { toolName: "edit" }, { path: "alias.ts", edits: [{ oldText: "old", newText: "edited" }] }),
+      ...exchange("old-read", "old-edit-result", { toolName: "read", details: undefined }, { path: "folder/../source.ts", limit: 1 }),
+      ...exchange("old-inspect", "old-read-result"),
+      ...exchange("other-edit", "old-inspect-result", { toolName: "edit" }, { path: "other.ts", edits: [{ oldText: "old", newText: "new" }] }),
+      ...exchange("snapshot", "other-edit-result", { toolName, details: toolName === "read" ? { fullFile: true } : undefined }, { path: "@./source.ts", content: "current" }),
+      ...exchange("fresh-read", "snapshot-result", { toolName: "read", details: undefined }, { path: "source.ts", limit: 1 }),
+      ...exchange("fresh-edit", "fresh-read-result", { toolName: "edit" }, { path: "source.ts", edits: [{ oldText: "current", newText: "fresh" }] }),
+    ];
+
+    expect(candidates(entries, "fresh-edit-result", cwd)).toEqual(new Set([
+      "old-write-result", "old-edit-result", "old-read-result", "old-inspect-result",
+    ]));
+  });
+
+  it.each<Partial<ToolResultMessage>>([
+    { isError: true, details: { fullFile: true } },
+    { details: undefined },
+    { details: null },
+    { details: [] },
+    { details: { fullFile: false } },
+    { details: { fullFile: "true" } },
+  ])("does not treat an unsuccessful or incomplete read as a snapshot (%j)", (overrides) => {
+    const entries = [
+      ...exchange("write", null, { toolName: "write" }, { path: "source.ts", content: "old" }),
+      ...exchange("edit", "write-result", { toolName: "edit" }, { path: "source.ts", edits: [{ oldText: "old", newText: "new" }] }),
+      ...exchange("read", "edit-result", { toolName: "read", details: undefined }, { path: "source.ts", limit: 1 }),
+      ...exchange("inspect", "read-result"),
+      ...exchange("latest", "inspect-result", { toolName: "read", ...overrides }, { path: "source.ts" }),
+    ];
+
+    expect(candidates(entries, "latest-result", workspace()).size).toBe(0);
+  });
+
+  it("does not let an edit replace prior mutation history", () => {
+    const entries = [
+      ...exchange("write", null, { toolName: "write" }, { path: "source.ts", content: "old" }),
+      ...exchange("old-edit", "write-result", { toolName: "edit" }, { path: "source.ts", edits: [{ oldText: "old", newText: "new" }] }),
+      ...exchange("latest", "old-edit-result", { toolName: "edit" }, { path: "source.ts", edits: [{ oldText: "new", newText: "newer" }] }),
+    ];
+    expect(candidates(entries, "latest-result", workspace()).size).toBe(0);
+  });
+
+  it.each([
+    { toolName: "write", replacement: null },
+    { toolName: "write", replacement: { content: "external summary" } },
+    { toolName: "read", replacement: null },
+    { toolName: "read", replacement: { content: "external summary" } },
+  ])("keeps mutation history when the newest $toolName snapshot is replaced by $replacement", ({ toolName, replacement }) => {
+    const entries: SessionEntry[] = [
+      ...exchange("old-write", null, { toolName: "write" }, { path: "source.ts", content: "old" }),
+      ...exchange("old-edit", "old-write-result", { toolName: "edit" }, { path: "source.ts", edits: [{ oldText: "old", newText: "new" }] }),
+      ...exchange("read", "old-edit-result", { toolName: "read", details: undefined }, { path: "source.ts", limit: 1 }),
+      ...exchange("inspect", "read-result"),
+      ...exchange("snapshot", "inspect-result", { toolName, details: toolName === "read" ? { fullFile: true } : undefined }, { path: "source.ts", content: "current" }),
+      { type: "context_edit", id: "replacement", parentId: "snapshot-result", timestamp: "2025-01-01T00:00:00.000Z", targetId: "snapshot-result", replacement },
+    ];
+
+    expect(candidates(entries, "replacement", workspace()).size).toBe(0);
+  });
+
+  it.each(["write", "read"])("protects pre-compaction mutation history from a newer %s snapshot", (toolName) => {
+    const entries: SessionEntry[] = [
+      ...exchange("kept-write", null, { toolName: "write" }, { path: "source.ts", content: "old" }),
+      ...exchange("kept-edit", "kept-write-result", { toolName: "edit" }, { path: "source.ts", edits: [{ oldText: "old", newText: "new" }] }),
+      ...exchange("kept-read", "kept-edit-result", { toolName: "read", details: undefined }, { path: "source.ts" }),
+      ...exchange("kept-inspect", "kept-read-result"),
+      { type: "compaction", id: "compaction", parentId: "kept-inspect-result", timestamp: "2025-01-01T00:00:00.000Z",
+        summary: "Earlier context", firstKeptEntryId: "kept-write-call", tokensBefore: 1000 },
+      ...exchange("active-write", "compaction", { toolName: "write" }, { path: "source.ts", content: "active" }),
+      ...exchange("active-edit", "active-write-result", { toolName: "edit" }, { path: "source.ts", edits: [{ oldText: "active", newText: "new" }] }),
+      ...exchange("active-read", "active-edit-result", { toolName: "read", details: undefined }, { path: "source.ts" }),
+      ...exchange("active-inspect", "active-read-result"),
+      ...exchange("snapshot", "active-inspect-result", { toolName, details: toolName === "read" ? { fullFile: true } : undefined }, { path: "source.ts", content: "current" }),
+    ];
+
+    expect(candidates(entries, "snapshot-result", workspace())).toEqual(new Set([
+      "active-write-result", "active-edit-result", "active-read-result", "active-inspect-result",
+    ]));
   });
 });

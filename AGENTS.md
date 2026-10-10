@@ -25,7 +25,7 @@
 │   ├── permission
 │   ├── questionnaire
 │   ├── redactor
-│   ├── subsession
+│   ├── subagent
 │   ├── ui
 │   ├── utils.ts
 │   └── web-tools

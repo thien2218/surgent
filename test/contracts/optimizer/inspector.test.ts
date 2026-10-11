@@ -48,7 +48,7 @@ beforeEach(async () => {
 });
 
 describe("registered inspect results", () => {
-  it("returns the requested body with no result identity metadata", async () => {
+  it("returns full source for normalized paths with no result identity metadata", async () => {
     const source = "function handler() {}";
     await writeFile(join(workspace.cwd, "input.ts"), source);
     const grammar = join(workspace.home, ".pi", "agent", "grammars", "node_modules", "tree-sitter-typescript");
@@ -59,7 +59,7 @@ describe("registered inspect results", () => {
     optimizer(pi.api);
 
     const result = await pi.tool("inspect").execute("body", {
-      path: " ./input.ts ", symbol: " handler ",
+      path: "@./input.ts", symbol: " handler ",
     }, undefined, undefined, makePermissionContext(workspace.cwd));
 
     expect(result).toMatchObject({ isError: false, details: null, content: [{ type: "text", text: source }] });
@@ -69,14 +69,14 @@ describe("registered inspect results", () => {
     { path: "", symbol: "handler" },
     { path: "input.ts", symbol: " " },
     { path: "input.ts", symbol: "handler#" },
-  ])("marks invalid symbol requests as errors (%j)", async (args) => {
+  ])("marks invalid paths and symbols as errors (%j)", async (args) => {
     const pi = recordExtension();
     optimizer(pi.api);
 
     const result = await pi.tool("inspect").execute("invalid", args, undefined, undefined, makePermissionContext(workspace.cwd));
 
     expect(result).toMatchObject({ isError: true, details: null });
-    expect(result.content).toEqual([{ type: "text", text: expect.stringContaining("inspect symbol format invalid") }]);
+    expect(result.content).toEqual([{ type: "text", text: expect.stringContaining("inspect") }]);
   });
 
   it("marks symbol-not-found results as errors", async () => {

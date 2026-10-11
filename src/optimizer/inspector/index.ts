@@ -2,6 +2,7 @@ import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { inspectSymbol } from "./inspect.js";
+import { normalizeToolPath } from "../deduplicator/resources.js";
 
 export interface InspectToolDetails {
   path: string;
@@ -22,7 +23,7 @@ const inspect = defineTool({
     }),
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-    const path = params.path.trim().replaceAll("\\", "/");
+    const path = normalizeToolPath(params.path, ctx.cwd, "inspect");
     const symbol = params.symbol.trim();
 
     if (path.length === 0 || symbol.length === 0 || symbol.includes("#")) {

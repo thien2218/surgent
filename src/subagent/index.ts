@@ -45,53 +45,60 @@ export default function (pi: ExtensionAPI) {
           "Task-specific objective, scope, needed background, expected output, and completion criteria",
       }),
     }),
-    execute: (toolCallId, params, signal, onUpdate, ctx) => withFileMutationQueue(getPiPath("subsessionsDir", ctx.cwd, params.id ?? toolCallId), async () => {
-      let snapshot: SubsessionSnapshot | undefined;
-      const request: SubsessionRequest = {
-        ctx,
-        state: getState(pi),
-        id: params.id,
-        agent: params.agent,
-        signal,
-        onSnapshot: (nextSnapshot) => {
-          snapshot = nextSnapshot;
-          onUpdate?.({ content: [], details: nextSnapshot });
-        },
-      };
-
-      const subsession = await openSubsession(request);
-      const previousCost = { ...subsession.result.usage.cost };
-      try {
-        if (subsession.result.status !== "error") {
-          await subsession.exec(params.task, signal);
-        }
-        if (subsession.result.status === "error") {
-          let message = subsession.result.output || "Subsession failed";
-          if (subsession.result.id) message += `\n\nSubagent ID: ${subsession.result.id}`;
-          throw new Error(message);
-        }
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Subagent ID: ${subsession.result.id}\n\n${subsession.result.output}`,
+    execute: (toolCallId, params, signal, onUpdate, ctx) =>
+      withFileMutationQueue(
+        getPiPath("subsessionsDir", ctx.cwd, params.id ?? toolCallId),
+        async () => {
+          let snapshot: SubsessionSnapshot | undefined;
+          const request: SubsessionRequest = {
+            ctx,
+            state: getState(pi),
+            id: params.id,
+            agent: params.agent,
+            signal,
+            onSnapshot: (nextSnapshot) => {
+              snapshot = nextSnapshot;
+              onUpdate?.({ content: [], details: nextSnapshot });
             },
-          ],
-          details: snapshot ?? { status: subsession.result.status, usage: subsession.result.usage },
-        };
-      } finally {
-        // Attach cost on tool_result so failed executions are accounted for too.
-        const cost = subsession.result.usage.cost;
-        costs.set(toolCallId, {
-          input: cost.input - previousCost.input,
-          output: cost.output - previousCost.output,
-          cacheRead: cost.cacheRead - previousCost.cacheRead,
-          cacheWrite: cost.cacheWrite - previousCost.cacheWrite,
-          total: cost.total - previousCost.total,
-        });
-        await subsession.dispose();
-      }
-    }),
+          };
+
+          const subsession = await openSubsession(request);
+          const previousCost = { ...subsession.result.usage.cost };
+          try {
+            if (subsession.result.status !== "error") {
+              await subsession.exec(params.task, signal);
+            }
+            if (subsession.result.status === "error") {
+              let message = subsession.result.output || "Subsession failed";
+              if (subsession.result.id) message += `\n\nSubagent ID: ${subsession.result.id}`;
+              throw new Error(message);
+            }
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `Subagent ID: ${subsession.result.id}\n\n${subsession.result.output}`,
+                },
+              ],
+              details: snapshot ?? {
+                status: subsession.result.status,
+                usage: subsession.result.usage,
+              },
+            };
+          } finally {
+            // Attach cost on tool_result so failed executions are accounted for too.
+            const cost = subsession.result.usage.cost;
+            costs.set(toolCallId, {
+              input: cost.input - previousCost.input,
+              output: cost.output - previousCost.output,
+              cacheRead: cost.cacheRead - previousCost.cacheRead,
+              cacheWrite: cost.cacheWrite - previousCost.cacheWrite,
+              total: cost.total - previousCost.total,
+            });
+            await subsession.dispose();
+          }
+        },
+      ),
     renderCall(args, theme) {
       return {
         render(width: number) {

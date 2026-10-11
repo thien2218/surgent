@@ -9,7 +9,7 @@ import type { WebFetchResponse } from "../web-fetch/types.js";
 import type { WebFetchProvider } from "./index.js";
 
 export class NativeWebFetchProvider implements WebFetchProvider {
-  private readonly turndown = new TurndownService();
+  private readonly turndown = new TurndownService({ headingStyle: "atx" });
 
   async fetch(url: string, signal?: AbortSignal): Promise<WebFetchResponse> {
     try {

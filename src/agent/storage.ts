@@ -162,8 +162,7 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
 
   const agents = profiles.flatMap((profile) => (profile.agent ? [profile.agent] : []));
   const { meta } = profile.agent;
-  // Registry includes deferred/codemode tools; only explicit choices promote them.
-  if (meta.tools) pi.setActiveTools(meta.tools);
+  pi.setActiveTools(meta.tools ?? pi.getAllTools().map((tool) => tool.name));
 
   if (meta.model) {
     const existing = ctx.modelRegistry.find(

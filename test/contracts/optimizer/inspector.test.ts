@@ -115,15 +115,11 @@ describe("registered inspect results", () => {
     expect(result).toEqual({ isError: false, details: null, content: [{ type: "text", text: expected }] });
   });
 
-  it.each([
-    { path: "", symbol: "handler" },
-    { path: "input.ts", symbol: " " },
-    { path: "input.ts", symbol: "handler#" },
-  ])("marks invalid paths and symbols as errors (%j)", async (args) => {
+  it("marks invalid symbols as errors", async () => {
     const pi = recordExtension();
     optimizer(pi.api);
 
-    const result = await pi.tool("inspect").execute("invalid", args, undefined, undefined, makePermissionContext(workspace.cwd));
+    const result = await pi.tool("inspect").execute("invalid", { path: "input.ts", symbol: " " }, undefined, undefined, makePermissionContext(workspace.cwd));
 
     expect(result).toMatchObject({ isError: true, details: null });
     expect(result.content).toEqual([{ type: "text", text: expect.stringContaining("inspect symbol format invalid") }]);

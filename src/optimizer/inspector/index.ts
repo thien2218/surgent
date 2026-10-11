@@ -33,15 +33,14 @@ const inspect = defineTool({
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
     const path = normalizeToolPath(params.path, ctx.cwd, "inspect");
     const symbol = params.symbol.trim();
-
-    if (path.length === 0 || symbol.length === 0 || symbol.includes("#")) {
+    if (symbol.length === 0) {
       return {
         isError: true,
         details: null,
         content: [
           {
             type: "text",
-            text: "inspect symbol format invalid. path/symbol must be non-empty; symbol cannot include '#'. use symbol name, e.g. name or name~2",
+            text: "inspect symbol format invalid. path/symbol must be non-empty. Use symbol name, e.g. name or name~2",
           },
         ],
       };

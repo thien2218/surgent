@@ -29,13 +29,17 @@ async function findFiles(
 
   const result = await runCommand(cwd, "find", args, {
     signal,
+    successExitCodes: [0, 1],
     abortMessage: "Tool call aborted",
   });
 
-  return result.stdout
-    .split("\0")
-    .filter(Boolean)
-    .map((path) => path.replaceAll("\\", "/").replace(/\/+$/, ""));
+  return {
+    files: result.stdout
+      .split("\0")
+      .filter(Boolean)
+      .map((path) => path.replaceAll("\\", "/").replace(/\/+$/, "")),
+    failed: result.stderr.trim().split("\n").filter(Boolean),
+  };
 }
 
 export async function resolveTargetPaths(
@@ -47,7 +51,7 @@ export async function resolveTargetPaths(
 ) {
   const state = getState(pi);
   const allowed: string[] = [];
-  const files = await findFiles(ctx.cwd, paths, patterns, signal);
+  const { files, failed } = await findFiles(ctx.cwd, paths, patterns, signal);
   let check: FileCheck | undefined;
   let denied = false;
 
@@ -66,7 +70,7 @@ export async function resolveTargetPaths(
     }
   }
 
-  if (allowed.length === 0) {
+  if (allowed.length === 0 && (files.length > 0 || failed.length === 0)) {
     throw new Error("(no read-authorized files found)");
   }
   if (check && getState(pi).getMode() !== "yolo") {
@@ -74,5 +78,5 @@ export async function resolveTargetPaths(
     if (decision?.block) throw new Error(decision.reason);
   }
 
-  return { files: allowed, denied };
+  return { files: allowed, denied, failed };
 }

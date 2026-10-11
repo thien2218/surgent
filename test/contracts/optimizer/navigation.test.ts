@@ -40,13 +40,12 @@ describe("code_map navigation contract", () => {
     // No native language packages, parser mocks, or installs are needed.
     const output = await mapText(["src"], ["*.ts", "*.py"]);
 
-    expect(output).toContain("failed src/main.ts:");
-    expect(output).toContain("failed src/other.py:");
-    expect(output).toContain("failed src/nested/child.ts:");
+    expect(output).toMatch(/^src\/main\.ts:/m);
+    expect(output).toMatch(/^src\/other\.py:/m);
+    expect(output).toMatch(/^src\/nested\/child\.ts:/m);
     expect(output).toContain("grammar package not installed in cache");
     expect(output).not.toContain("skipped.rs");
     expect(output).not.toContain("outside.ts");
-    expect(output.split("\n").filter((line) => line.startsWith("failed "))).toHaveLength(3);
   });
 
   it.each([undefined, []])("includes all files when patterns are %j", async (patterns) => {
@@ -55,8 +54,8 @@ describe("code_map navigation contract", () => {
 
     const output = await mapText(["first.ts", "second.py"], patterns);
 
-    expect(output).toContain("failed first.ts:");
-    expect(output).toContain("failed second.py:");
+    expect(output).toMatch(/^first\.ts:/m);
+    expect(output).toMatch(/^second\.py:/m);
   });
 
   it("treats predicate-looking paths as literal filenames rather than find arguments", async () => {
@@ -67,9 +66,8 @@ describe("code_map navigation contract", () => {
 
     const output = await mapText(["-name", "("], ["*.ts"]);
 
-    expect(output).toContain("failed ./-name/entry.ts:");
-    expect(output).toContain("failed ./(/entry.ts:");
-    expect(output.split("\n").filter((line) => line.startsWith("failed "))).toHaveLength(2);
+    expect(output).toMatch(/^\.\/-name\/entry\.ts:/m);
+    expect(output).toMatch(/^\.\/\(\/entry\.ts:/m);
   });
 
   it("returns an explicit empty map for an authorized unsupported file", async () => {
@@ -85,11 +83,22 @@ describe("code_map navigation contract", () => {
       .rejects.toThrow("no read-authorized files found");
   });
 
-  it("propagates discovery failures instead of returning a partial success", async () => {
-    await writeFile(join(workspace.cwd, "present.txt"), "fixture source");
+  it.each([
+    { paths: ["present.ts", "missing-path"] },
+    { paths: ["missing-path"] },
+  ])("reports missing paths without a tool error for $paths", async ({ paths }) => {
+    await writeFile(join(workspace.cwd, "present.ts"), "export const present = true;");
 
-    await expect(mapText(["present.txt", "missing-path"]))
-      .rejects.toThrow("missing-path");
+    const result = await session.tool("code_map").execute(
+      "map-partial", { paths }, undefined, undefined, makePermissionContext(workspace.cwd),
+    );
+    const output = result.content.map((block) => block.type === "text" ? block.text : "").join("\n");
+
+    expect(result).not.toHaveProperty("isError", true);
+    expect(output).toMatch(/^find: .*missing-path/m);
+    for (const path of paths) {
+      expect(output).toContain(path);
+    }
   });
 });
 
@@ -111,7 +120,7 @@ describe("code_map permission boundary", () => {
 
     const output = await mapText(["public.ts", "private.ts"]);
 
-    expect(output).toContain("failed public.ts:");
+    expect(output).toMatch(/^public\.ts:/m);
     expect(output).not.toContain("private.ts");
     expect(output).not.toContain("fixture private source");
     expect(output).toContain("[Code map results exclude files blocked by permission policy]");

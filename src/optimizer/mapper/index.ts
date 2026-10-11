@@ -61,14 +61,14 @@ export default function (pi: ExtensionAPI) {
         let outputPath = "";
         const outputLines: string[] = [];
         const kinds = new Set(params.kinds ?? SYMBOL_KINDS);
-        const result: MapperResult = { symbols: [], failed: [] };
-        const { files, denied } = await resolveTargetPaths(
+        const { files, denied, failed } = await resolveTargetPaths(
           pi,
           ctx,
           params.paths,
           params.patterns,
           signal,
         );
+        const result: MapperResult = { symbols: [], failed };
 
         for (const file of files) {
           signal?.throwIfAborted();
@@ -95,7 +95,7 @@ export default function (pi: ExtensionAPI) {
         }
 
         if (result.failed.length > 0) {
-          outputLines.push(...result.failed.map((failure) => `failed ${failure}`));
+          outputLines.push(...result.failed);
         }
         if (denied) {
           outputLines.push("[Code map results exclude files blocked by permission policy]");

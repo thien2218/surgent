@@ -16,7 +16,7 @@ Long coding sessions accumulate large tool results, repeated file content, and o
 - Losslessly compresses consecutive Bash lines with at most one varying alphanumeric token: `status {204, 404, 500}`. Order, duplicates, and raw bytes remain recoverable; `{{` / `}}` escape literal braces. Compression applies only when shorter. Bash output limits still apply.
 - Reduces grep output during execution by grouping matches under file paths.
 - Filters older eligible `inspect` exchanges and pre-write `read`/`inspect` exchanges from model requests using a session-start snapshot.
-- Persistently prunes eligible error and empty tool results, together with their tool calls, through append-only context edits.
+- Once the model has seen them, persistently prunes eligible error and empty tool results with their tool calls, and strips context lines from successful `grep` results, through append-only context edits.
 
 These changes reduce context growth, improve prompt-cache reuse, and leave more room for requirements, code, and reasoning.
 
@@ -26,7 +26,7 @@ At `session_start`, optimizer snapshots the current branch. For model requests o
 
 Changes after startup are deferred until the next session start. Session tree navigation clears the snapshot. This transient filtering leaves raw history, the TUI, exports, and Pi's canonical context for native compaction unchanged.
 
-Separately, when the agent settles after successful completion, eligible error results (except Bash errors) and recognized empty `ls`/`find` results are pruned with their tool calls through persistent, append-only context edits. These change future model context without rewriting raw history.
+Separately, at the end of each completed turn, results from earlier turns are edited through persistent, append-only context edits: eligible error results (except Bash errors) and recognized empty `ls`/`find` results are pruned with their tool calls, and successful `grep` results lose their context lines while match lines, file headers, and notices remain. Results from the turn just ended stay intact until the model has seen them once. Editing one turn back keeps the invalidated prompt-cache suffix short. These change future model context without rewriting raw history.
 
 ## Requirements
 

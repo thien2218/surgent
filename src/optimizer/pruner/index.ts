@@ -3,18 +3,19 @@ import { filterToolCalls, getEligibleResult } from "../entries.js";
 import { getRemovedToolCallId } from "./cleanup.js";
 
 export default function (pi: ExtensionAPI) {
-  pi.on("agent_before_settle", (event) => {
+  pi.on("turn_end", (event) => {
     if (event.outcome !== "completed") return;
 
     const entries = event.context.contextEntries;
+    const unseen = new Set(event.toolResultEntryIds);
     const edits = new Map<string, ContextEditEntryDraft>();
     const removedCalls = new Set<string>();
 
     for (const entry of entries) {
       const message = getEligibleResult(entry);
-      if (!message) continue;
-
       const targetId = entry.sourceEntry.id;
+      if (!message || unseen.has(targetId)) continue;
+
       if (getRemovedToolCallId(message)) {
         edits.set(targetId, { type: "context_edit", targetId, replacement: null });
         removedCalls.add(message.toolCallId);
@@ -24,7 +25,10 @@ export default function (pi: ExtensionAPI) {
 
       const content = message.content.map((block) => {
         if (block.type !== "text") return block;
-        const text = block.text.split("\n").filter((line) => !/^\d+- /.test(line)).join("\n");
+        const text = block.text
+          .split("\n")
+          .filter((line) => !/^\d+- /.test(line))
+          .join("\n");
         return text === block.text ? block : { ...block, text };
       });
       if (content.some((block, index) => block !== message.content[index])) {

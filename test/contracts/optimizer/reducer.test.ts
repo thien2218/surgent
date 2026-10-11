@@ -110,12 +110,12 @@ it("does not mark image attachments as full text snapshots", async () => {
   expect(result.content).toContainEqual({ type: "image", data: image.toString("base64"), mimeType: "image/png" });
 });
 
-it("allows up to three grep context lines", () => {
+it("allows up to two grep context lines", () => {
   const pi = recordExtension();
   reducerExtension(pi.api);
   const grep = pi.tool("grep");
 
-  expect(grep.parameters.properties.context).toMatchObject({ type: "number", maximum: 3 });
-  expect(Check(grep.parameters, { pattern: "match", context: 3 })).toBe(true);
-  expect(Check(grep.parameters, { pattern: "match", context: 4 })).toBe(false);
+  expect(grep.parameters.properties.context).toMatchObject({ type: "number", maximum: 2 });
+  expect(Check(grep.parameters, { pattern: "match", context: 2 })).toBe(true);
+  expect(Check(grep.parameters, { pattern: "match", context: 3 })).toBe(false);
 });

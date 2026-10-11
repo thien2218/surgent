@@ -11,6 +11,7 @@ export class JinaWebFetchProvider implements WebFetchProvider {
         signal,
         headers: {
           Accept: "text/plain, text/markdown;q=0.9",
+          "X-Respond-With": "markdown",
           ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
         },
       });

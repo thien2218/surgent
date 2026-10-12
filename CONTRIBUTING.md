@@ -8,19 +8,22 @@ Read the [README](./README.md) for the project architecture, setup, and feature 
 
 ## Setup
 
-You need Node.js 22.19 or newer, Git, and either pnpm or npm.
+You need Node.js 22.19 or newer, Git, and pnpm.
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/thien2218/surgent.git
 cd surgent
-node bin/build.mjs
+pnpm install
+npm link
 ```
 
-The build script installs dependencies (preferring pnpm when available), runs `npm link`, and creates the required `~/.pi/agent/` directories. You can then start the TUI with:
+`npm link` points the global `surgent` command at your checkout, so source changes apply the next time you start it. You can then start the TUI with:
 
 ```bash
 surgent
 ```
+
+surgent creates its `~/.pi/agent/` directories on first start. `pnpm build` only builds the standalone `pi-optimizer` package into `dist/optimizer`; you do not need it to run surgent from source.
 
 ## Development workflow
 

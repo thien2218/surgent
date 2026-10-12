@@ -113,7 +113,7 @@ async function pickPlanId(ctx: ExtensionContext): Promise<string | null> {
 
   return ctx.ui.custom<string | null>((_tui, theme, _keybindings, done) => {
     const selectList = new ExtendedSelectList<{ subsessionId: string }>(theme, {
-      title: "Reopen plan session",
+      title: "Open planning session",
       items,
       maxVisibleRows: 12,
     });

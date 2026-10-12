@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
@@ -20,17 +21,17 @@ beforeEach(async () => {
 
 async function mapText(
   paths: string[],
-  patterns?: string[],
+  glob?: string,
   context = makePermissionContext(workspace.cwd),
 ) {
   const result = await session.tool("code_map").execute(
-    "map-1", { paths, patterns }, undefined, undefined, context,
+    "map-1", { paths, glob }, undefined, undefined, context,
   );
   return result.content.map((block) => block.type === "text" ? block.text : "").join("\n");
 }
 
 describe("code_map navigation contract", () => {
-  it("reports selected files independently when grammars are unavailable, joining patterns with OR", async () => {
+  it("reports selected files independently when grammars are unavailable, filtering directories by glob", async () => {
     await mkdir(join(workspace.cwd, "src", "nested"), { recursive: true });
     for (const path of ["src/main.ts", "src/other.py", "src/nested/child.ts", "src/skipped.rs", "outside.ts"]) {
       await writeFile(join(workspace.cwd, path), "fixture source");
@@ -38,7 +39,7 @@ describe("code_map navigation contract", () => {
 
     // Missing grammars expose selected paths through the real tool's per-file failures.
     // No native language packages, parser mocks, or installs are needed.
-    const output = await mapText(["src"], ["*.ts", "*.py"]);
+    const output = await mapText(["src"], "*.{ts,py}");
 
     expect(output).toMatch(/^src\/main\.ts:/m);
     expect(output).toMatch(/^src\/other\.py:/m);
@@ -48,26 +49,26 @@ describe("code_map navigation contract", () => {
     expect(output).not.toContain("outside.ts");
   });
 
-  it.each([undefined, []])("includes all files when patterns are %j", async (patterns) => {
+  it.each([undefined, ""])("includes all files when glob is %j", async (glob) => {
     await writeFile(join(workspace.cwd, "first.ts"), "fixture source");
     await writeFile(join(workspace.cwd, "second.py"), "fixture source");
 
-    const output = await mapText(["first.ts", "second.py"], patterns);
+    const output = await mapText(["first.ts", "second.py"], glob);
 
     expect(output).toMatch(/^first\.ts:/m);
     expect(output).toMatch(/^second\.py:/m);
   });
 
-  it("treats predicate-looking paths as literal filenames rather than find arguments", async () => {
+  it("treats dash-prefixed directories as literal paths rather than rg options", async () => {
     for (const directory of ["-name", "("]) {
       await mkdir(join(workspace.cwd, directory));
       await writeFile(join(workspace.cwd, directory, "entry.ts"), "fixture source");
     }
 
-    const output = await mapText(["-name", "("], ["*.ts"]);
+    const output = await mapText(["-name", "("], "*.ts");
 
-    expect(output).toMatch(/^\.\/-name\/entry\.ts:/m);
-    expect(output).toMatch(/^\.\/\(\/entry\.ts:/m);
+    expect(output).toMatch(/^-name\/entry\.ts:/m);
+    expect(output).toMatch(/^\(\/entry\.ts:/m);
   });
 
   it("returns an explicit empty map for an authorized unsupported file", async () => {
@@ -76,10 +77,10 @@ describe("code_map navigation contract", () => {
     expect(await mapText(["notes.txt"])).toBe("(no symbols found)");
   });
 
-  it("does not broaden the search when no pattern matches", async () => {
+  it("does not broaden the search when no glob matches", async () => {
     await writeFile(join(workspace.cwd, "entry.ts"), "fixture source");
 
-    await expect(mapText(["."], ["*.java"]))
+    await expect(mapText(["."], "*.java"))
       .rejects.toThrow("no read-authorized files found");
   });
 
@@ -95,10 +96,50 @@ describe("code_map navigation contract", () => {
     const output = result.content.map((block) => block.type === "text" ? block.text : "").join("\n");
 
     expect(result).not.toHaveProperty("isError", true);
-    expect(output).toMatch(/^find: .*missing-path/m);
+    expect(output).toMatch(/^missing-path: no such file or directory$/m);
     for (const path of paths) {
       expect(output).toContain(path);
     }
+  });
+
+  it("skips gitignored files when scanning an unignored directory", async () => {
+    execFileSync("git", ["init", "--quiet"], { cwd: workspace.cwd });
+    await mkdir(join(workspace.cwd, "src", "dist"), { recursive: true });
+    await writeFile(join(workspace.cwd, ".gitignore"), "dist/\n");
+    await writeFile(join(workspace.cwd, "src", "main.ts"), "fixture source");
+    await writeFile(join(workspace.cwd, "src", "dist", "built.ts"), "fixture source");
+
+    const output = await mapText(["src"]);
+
+    expect(output).toMatch(/^src\/main\.ts:/m);
+    expect(output).not.toContain("built.ts");
+  });
+
+  it("scans named ignored directories while parent ignore rules still apply below them", async () => {
+    execFileSync("git", ["init", "--quiet"], { cwd: workspace.cwd });
+    await mkdir(join(workspace.cwd, "node_modules", "pkg", "dist"), { recursive: true });
+    await writeFile(join(workspace.cwd, ".gitignore"), "node_modules\ndist/\n");
+    await writeFile(join(workspace.cwd, "node_modules", "pkg", "index.ts"), "fixture source");
+    await writeFile(join(workspace.cwd, "node_modules", "pkg", "dist", "built.ts"), "fixture source");
+
+    const packageOutput = await mapText(["node_modules/pkg"]);
+    const distOutput = await mapText(["node_modules/pkg/dist"]);
+
+    expect(packageOutput).toMatch(/^node_modules\/pkg\/index\.ts:/m);
+    expect(packageOutput).not.toContain("built.ts");
+    expect(distOutput).toMatch(/^node_modules\/pkg\/dist\/built\.ts:/m);
+  });
+
+  it("drops unsupported directory files before permission checks", async () => {
+    await mkdir(join(workspace.cwd, "src"));
+    await writeFile(join(workspace.cwd, "src", "main.ts"), "fixture source");
+    await writeFile(join(workspace.cwd, "src", "notes.txt"), "fixture notes");
+    await writeRules({ project: { file: { "src/notes.txt": "deny" } } }, workspace.cwd);
+
+    const output = await mapText(["src"]);
+
+    expect(output).toMatch(/^src\/main\.ts:/m);
+    expect(output).not.toContain("blocked by permission policy");
   });
 });
 

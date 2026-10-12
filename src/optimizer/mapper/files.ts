@@ -1,57 +1,81 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { existsSync } from "node:fs";
+import { stat } from "node:fs/promises";
+import { extname, join, resolve } from "node:path";
+import {
+  getAgentDir,
+  type ExtensionAPI,
+  type ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { resolveReadGrant } from "../../permission/resolution.js";
 import { runCommand } from "../../utils.js";
 import type { FileCheck } from "../../permission/types.js";
 import { getState } from "../../state.js";
 import { askForPermission } from "../../permission/index.js";
+import { getSupportedExtensions } from "../languages/index.js";
 
-async function findFiles(
-  cwd: string,
-  paths: string[],
-  patterns: string[] = [],
-  signal?: AbortSignal,
-) {
-  // Filenames can also be `find` predicates; keep those paths literal.
-  const args = paths.map((path) =>
-    path.startsWith("-") || ["!", "(", ")", ","].includes(path) ? `./${path}` : path,
-  );
-  args.push("-type", "f");
+function normalizePath(path: string) {
+  return path.replaceAll("\\", "/").replace(/\/+$/, "");
+}
 
-  if (patterns.length > 0) {
-    args.push("(");
-    for (const [index, pattern] of patterns.entries()) {
-      if (index > 0) args.push("-o");
-      args.push("-path", pattern);
-    }
-    args.push(")");
-  }
-  args.push("-print0");
+async function listDirectory(cwd: string, dirs: string[], glob?: string, signal?: AbortSignal) {
+  if (dirs.length === 0) return { files: [], failed: [] };
+  const localPath = join(getAgentDir(), "bin", process.platform === "win32" ? "rg.exe" : "rg");
+  const cmd = existsSync(localPath) ? localPath : "rg";
+  const args = ["--files", "--hidden", "--glob", "!.{git,pi}"];
+  if (glob) args.push("--glob", glob);
+  args.push("--", ...dirs);
 
-  const result = await runCommand(cwd, "find", args, {
+  const result = await runCommand(cwd, cmd, args, {
     signal,
-    successExitCodes: [0, 1],
-    abortMessage: "Tool call aborted",
+    successExitCodes: [0, 1, 2],
   });
-
   return {
-    files: result.stdout
-      .split("\0")
-      .filter(Boolean)
-      .map((path) => path.replaceAll("\\", "/").replace(/\/+$/, "")),
+    files: result.stdout.split("\n").filter(Boolean),
     failed: result.stderr.trim().split("\n").filter(Boolean),
   };
+}
+
+async function findFiles(cwd: string, paths: string[], glob?: string, signal?: AbortSignal) {
+  const supported = getSupportedExtensions();
+  const files = new Set<string>();
+  const dirs: string[] = [];
+  const failed: string[] = [];
+
+  for (const path of paths) {
+    signal?.throwIfAborted();
+    const stats = await stat(resolve(cwd, path)).catch(() => undefined);
+    if (!stats) {
+      failed.push(`${path}: no such file or directory`);
+      continue;
+    }
+    if (!stats.isDirectory()) {
+      files.add(normalizePath(path));
+      continue;
+    }
+    dirs.push(path);
+  }
+
+  const listed = await listDirectory(cwd, dirs, glob, signal);
+  for (const file of listed.files) {
+    if (supported.has(extname(file).toLowerCase())) {
+      files.add(normalizePath(file));
+    }
+  }
+  failed.push(...listed.failed);
+
+  return { files, failed };
 }
 
 export async function resolveTargetPaths(
   pi: ExtensionAPI,
   ctx: ExtensionContext,
   paths: string[],
-  patterns?: string[],
+  glob?: string,
   signal?: AbortSignal,
 ) {
   const state = getState(pi);
   const allowed: string[] = [];
-  const { files, failed } = await findFiles(ctx.cwd, paths, patterns, signal);
+  const { files, failed } = await findFiles(ctx.cwd, paths, glob, signal);
   let check: FileCheck | undefined;
   let denied = false;
 
@@ -70,7 +94,7 @@ export async function resolveTargetPaths(
     }
   }
 
-  if (allowed.length === 0 && (files.length > 0 || failed.length === 0)) {
+  if (allowed.length === 0 && (files.size > 0 || failed.length === 0)) {
     throw new Error("(no read-authorized files found)");
   }
   if (check && getState(pi).getMode() !== "yolo") {

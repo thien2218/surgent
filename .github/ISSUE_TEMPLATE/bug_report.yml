@@ -1,18 +1,40 @@
 name: Bug report
 description: Report reproducible incorrect behavior in surgent
 title: "[Bug]: "
-labels: []
+labels: [bug]
 assignees: []
 body:
   - type: markdown
     attributes:
-      value: Thanks for helping improve surgent.
+      value: |
+        Thanks for helping improve surgent.
+        Report security vulnerabilities privately as described in [SECURITY.md](https://github.com/thien2218/surgent/blob/main/SECURITY.md), not in a public issue.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of surgent is affected?
+      options:
+        - Install, startup, or CLI flags
+        - Agents and profiles (/agents, subagents)
+        - Planning (/plan)
+        - Code navigation (code_map, inspect)
+        - Context optimization (output pruning and deduplication)
+        - Permissions and .piignore
+        - Checkpoints, rewind, and fork
+        - Web search and fetch (/web-login)
+        - MCP servers (/mcp)
+        - TUI rendering or input
+        - Other
+    validations:
+      required: true
 
   - type: textarea
     id: behavior
     attributes:
       label: Current behavior
-      description: What happened? Include the affected command, tool, or TUI flow.
+      description: What happened? Include the affected command, tool, or TUI flow. Attach screenshots for TUI issues.
     validations:
       required: true
 
@@ -36,20 +58,34 @@ body:
     validations:
       required: true
 
-  - type: input
+  - type: textarea
     id: environment
     attributes:
       label: Environment
-      description: Include surgent version or commit, OS, terminal, Node.js version, and package manager.
-      placeholder: "surgent commit ..., Ubuntu 24.04, Node.js 22, pnpm 10"
+      description: Agent behavior often depends on the model, so include provider, model, and thinking level.
+      value: |
+        - `surgent --version`:
+        - Install method (npm global or source checkout):
+        - OS and terminal:
+        - Node.js version:
+        - Provider, model, and thinking level:
     validations:
       required: true
+
+  - type: textarea
+    id: tool-call
+    attributes:
+      label: Tool call
+      description: |
+        For tool bugs, paste the failing tool call arguments and result. Session files live under `~/.pi/agent/sessions/`.
+        Session files contain source code and command output; remove secrets and private content first.
+      render: json
 
   - type: textarea
     id: logs
     attributes:
       label: Relevant output
-      description: Paste only relevant logs or screenshots. Remove API keys, tokens, and other secrets first.
+      description: Paste only relevant logs. Remove API keys, tokens, and other secrets first.
       render: shell
 
   - type: checkboxes

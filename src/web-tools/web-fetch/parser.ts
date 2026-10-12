@@ -19,7 +19,7 @@ export function parseWebFetchContent(content: string): string {
       continue;
     }
 
-    const headingMatch = line.match(/^(#{1,5})[ \t]+(.+?)(?:[ \t]+#+[ \t]*)?$/);
+    const headingMatch = line.match(/^(#{1,6})[ \t]+(.+?)(?:[ \t]+#+[ \t]*)?$/);
     if (!headingMatch) {
       continue;
     }

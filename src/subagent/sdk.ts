@@ -61,10 +61,6 @@ function createSubsessionBridge(
 }
 
 async function openSessionManager(request: SubsessionRequest): Promise<SessionManager> {
-  if (request.temporary) {
-    return SessionManager.inMemory(request.ctx.cwd);
-  }
-
   const subsessionsDir = getPiPath("subsessionsDir", request.ctx.cwd);
   if (!request.id) {
     const parentSession = request.ctx.sessionManager.getSessionFile();

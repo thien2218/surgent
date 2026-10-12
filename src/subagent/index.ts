@@ -1,11 +1,11 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { withFileMutationQueue, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { openSubsession } from "./subsession.js";
 import { getState } from "../state.js";
 import { formatSnapshotText, truncateText } from "./helpers.js";
 import type { Cost, SubsessionRequest, SubsessionSnapshot } from "./types.js";
-import { renderResultText } from "../utils.js";
+import { getPiPath, renderResultText } from "../utils.js";
 
 export default function (pi: ExtensionAPI) {
   const costs = new Map<string, Cost>();
@@ -23,55 +23,82 @@ export default function (pi: ExtensionAPI) {
     name: "subagent",
     label: "Subagent",
     exposure: "model-only",
-    description: "Run a task in a separate session using a configured agent and return its result.",
+    description:
+      "Run or resume a task in a separate session using a configured agent and return its result and session ID.",
     promptSnippet: "Offload bounded, context-heavy work to configured agents",
     promptGuidelines: [
       "Choose a profile by its description. Batch independent calls and do not duplicate delegated work.",
-      "Subagents start with fresh context and cannot see the parent conversation. Supply all needed background in context.",
+      "New subagents start with fresh context and cannot see the parent conversation. Include all needed background in the task.",
+      "Reuse the returned session ID for follow-up tasks. Resumed subagents retain their conversation and configured profile.",
       "Agent profile instructions are already loaded. Provide task-specific work and constraints, not repeated role responsibilities or rules.",
     ],
     parameters: Type.Object({
+      id: Type.Optional(
+        Type.String({
+          description:
+            "Session ID from a previous subagent result to resume; omit to start a new session",
+        }),
+      ),
       agent: Type.String({ description: "Configured agent profile selected by its description" }),
       task: Type.String({
-        description: "Task-specific objective, scope, expected output, and completion criteria",
-      }),
-      context: Type.String({
         description:
-          "Background needed for the task: relevant facts, file paths, decisions, and prior findings. Appended to the task prompt.",
+          "Task-specific objective, scope, needed background, expected output, and completion criteria",
       }),
     }),
-    async execute(toolCallId, params, signal, onUpdate, ctx) {
-      let snapshot: SubsessionSnapshot | undefined;
-      const request: SubsessionRequest = {
-        ctx,
-        state: getState(pi),
-        temporary: true,
-        agent: params.agent,
-        signal,
-        onSnapshot: (nextSnapshot) => {
-          snapshot = nextSnapshot;
-          onUpdate?.({ content: [], details: nextSnapshot });
-        },
-      };
+    execute: (toolCallId, params, signal, onUpdate, ctx) =>
+      withFileMutationQueue(
+        getPiPath("subsessionsDir", ctx.cwd, params.id ?? toolCallId),
+        async () => {
+          let snapshot: SubsessionSnapshot | undefined;
+          const request: SubsessionRequest = {
+            ctx,
+            state: getState(pi),
+            id: params.id,
+            agent: params.agent,
+            signal,
+            onSnapshot: (nextSnapshot) => {
+              snapshot = nextSnapshot;
+              onUpdate?.({ content: [], details: nextSnapshot });
+            },
+          };
 
-      const subsession = await openSubsession(request);
-      try {
-        if (subsession.result.status !== "error") {
-          await subsession.exec(`Task:\n${params.task}\n\nContext:\n${params.context}`, signal);
-        }
-        if (subsession.result.status === "error") {
-          throw new Error(subsession.result.output || "Subsession failed");
-        }
-        return {
-          content: [{ type: "text", text: subsession.result.output }],
-          details: snapshot ?? { status: subsession.result.status, usage: subsession.result.usage },
-        };
-      } finally {
-        // Attach cost on tool_result so failed executions are accounted for too.
-        costs.set(toolCallId, subsession.result.usage.cost);
-        await subsession.dispose();
-      }
-    },
+          const subsession = await openSubsession(request);
+          const previousCost = { ...subsession.result.usage.cost };
+          try {
+            if (subsession.result.status !== "error") {
+              await subsession.exec(params.task, signal);
+            }
+            if (subsession.result.status === "error") {
+              let message = subsession.result.output || "Subsession failed";
+              if (subsession.result.id) message += `\n\nSubagent ID: ${subsession.result.id}`;
+              throw new Error(message);
+            }
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `Subagent ID: ${subsession.result.id}\n\n${subsession.result.output}`,
+                },
+              ],
+              details: snapshot ?? {
+                status: subsession.result.status,
+                usage: subsession.result.usage,
+              },
+            };
+          } finally {
+            // Attach cost on tool_result so failed executions are accounted for too.
+            const cost = subsession.result.usage.cost;
+            costs.set(toolCallId, {
+              input: cost.input - previousCost.input,
+              output: cost.output - previousCost.output,
+              cacheRead: cost.cacheRead - previousCost.cacheRead,
+              cacheWrite: cost.cacheWrite - previousCost.cacheWrite,
+              total: cost.total - previousCost.total,
+            });
+            await subsession.dispose();
+          }
+        },
+      ),
     renderCall(args, theme) {
       return {
         render(width: number) {

@@ -1,7 +1,7 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { getPlanCompletions, getPlanPreviews, parseCommandInput } from "../../../src/commands/helpers.js";
+import { getPlanCompletions, parseCommandInput } from "../../../src/commands/helpers.js";
 import { commandWorkspace, PLAN_ID, planMetadata, storePlans } from "../../helpers/commands.js";
 
 describe("command input", () => {
@@ -24,20 +24,28 @@ describe("command input", () => {
 describe("saved plan lookup", () => {
   it("returns no plans when storage does not exist", async () => {
     const cwd = await commandWorkspace();
-    expect(await getPlanPreviews(cwd, "parent-session")).toEqual([]);
     expect(await getPlanCompletions(cwd, "parent-session", "")).toBeNull();
   });
 
-  it("exposes only plan IDs and titles belonging to the current parent", async () => {
+  it("ignores subsession metadata when the plans directory is missing", async () => {
+    const cwd = await commandWorkspace();
+    await writeFile(join(cwd, ".pi", "subsessions.json"), JSON.stringify({ [PLAN_ID]: planMetadata() }));
+
+    expect(await getPlanCompletions(cwd, "parent-session", "")).toBeNull();
+  });
+
+  it("exposes only saved plan files for the current parent, regardless of profile", async () => {
     const cwd = await commandWorkspace();
     await storePlans(cwd, {
-      [PLAN_ID]: planMetadata("Cache strategy"),
+      [PLAN_ID]: { ...planMetadata("Cache strategy"), agent: "reviewer" },
       foreign: planMetadata("Other session", "other-parent"),
-      documenter: { ...planMetadata("Documentation"), temporary: true },
+      documenter: { ...planMetadata("Documentation"), agent: "documenter" },
     });
+    await unlink(join(cwd, ".pi", "plans", "documenter.md"));
+    await mkdir(join(cwd, ".pi", "plans", "documenter.md"));
 
-    expect(await getPlanPreviews(cwd, "parent-session")).toEqual([
-      { subsessionId: PLAN_ID, title: "Cache strategy" },
+    expect(await getPlanCompletions(cwd, "parent-session", "")).toEqual([
+      { value: PLAN_ID, label: "Cache strategy", data: { subsessionId: PLAN_ID } },
     ]);
   });
 
@@ -46,7 +54,7 @@ describe("saved plan lookup", () => {
     await storePlans(cwd, { [PLAN_ID]: planMetadata("Cache strategy") });
 
     expect(await getPlanCompletions(cwd, "parent-session", prefix)).toEqual([
-      { value: PLAN_ID, label: "Cache strategy" },
+      { value: PLAN_ID, label: "Cache strategy", data: { subsessionId: PLAN_ID } },
     ]);
   });
 
@@ -62,13 +70,22 @@ describe("saved plan lookup", () => {
     const cwd = await commandWorkspace();
     await writeFile(join(cwd, ".pi", "subsessions.json"), content);
 
-    await expect(getPlanPreviews(cwd, "parent-session")).rejects.toBeInstanceOf(Error);
+    await expect(getPlanCompletions(cwd, "parent-session", "")).rejects.toBeInstanceOf(Error);
   });
 
   it("does not disguise storage read failures as an empty list", async () => {
     const cwd = await commandWorkspace();
     await mkdir(join(cwd, ".pi", "subsessions.json"));
 
-    await expect(getPlanPreviews(cwd, "parent-session")).rejects.toBeInstanceOf(Error);
+    await expect(getPlanCompletions(cwd, "parent-session", "")).rejects.toBeInstanceOf(Error);
+  });
+
+  it("surfaces plan-directory read failures", async () => {
+    const cwd = await commandWorkspace();
+    await writeFile(join(cwd, ".pi", "subsessions.json"), JSON.stringify({ [PLAN_ID]: planMetadata() }));
+    await rm(join(cwd, ".pi", "plans"), { recursive: true });
+    await writeFile(join(cwd, ".pi", "plans"), "not a directory");
+
+    await expect(getPlanCompletions(cwd, "parent-session", "")).rejects.toMatchObject({ code: "ENOTDIR" });
   });
 });

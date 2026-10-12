@@ -15,7 +15,7 @@ async function setup() {
   let activeTools = ["read", "subagent", "codemode", "tool_search"];
   const extension = recordExtension({
     events: createEventBus(),
-    getAllTools: () => ["read", "subagent", "codemode", "tool_search", "mcp__docs__search"].map((name) => ({
+    getAllTools: () => ["read", "ls", "find", "subagent", "codemode", "tool_search", "mcp__docs__search"].map((name) => ({
       name, description: name, parameters: Type.Object({}), exposure: name.startsWith("mcp__") ? "deferred" : "direct",
       sourceInfo: { path: "test:agent", source: "test", scope: "temporary", origin: "top-level" },
     })),
@@ -45,6 +45,18 @@ async function setup() {
 }
 
 describe("agent startup", () => {
+  it("enables every registered tool when the profile omits tools", async () => {
+    const context = await setup();
+    await writeFile(join(context.local, "general.md"), "---\ndescription: General\n---\nInstructions");
+
+    await context.start();
+
+    expect(context.extension.api.getActiveTools()).toEqual(
+      context.extension.api.getAllTools().map((tool) => tool.name),
+    );
+    expect(context.shutdown).not.toHaveBeenCalled();
+  });
+
   it("allows an explicit profile choice to declare a deferred native tool", async () => {
     const context = await setup();
     await writeFile(join(context.local, "general.md"), '---\ndescription: General\ntools: [mcp__docs__search]\n---\nInstructions');

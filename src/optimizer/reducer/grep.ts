@@ -1,15 +1,21 @@
 import { stat } from "node:fs/promises";
 import { basename, resolve } from "node:path";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+  createGrepToolDefinition,
+  type ExtensionAPI,
+  type ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import type { FileCheck } from "../../permission/types.js";
 import { expandFilePath, resolveReadGrant } from "../../permission/resolution.js";
-import type { AppState } from "../../state.js";
+import { getState, type AppState } from "../../state.js";
+import Type from "typebox";
+import { askForPermission } from "../../permission/index.js";
 
 const GREP_NOTICE =
   /^\[(?:\d+ matches limit reached\. Use limit=\d+ for more, or refine pattern(?:\. )?)?(?:[\d.]+KB limit reached(?:\. )?)?(?:Some lines truncated to \d+ chars\. Use read tool to see full lines)?\]$/;
 const GREP_CONTENT = /^\d+[:-] /;
 
-export function formatGrepResult(content: string): string[] {
+function formatGrepResult(content: string): string[] {
   const formattedLines: string[] = [];
   const formattedIndexes = new Map<string, number>();
   let currentFilePath: string | undefined;
@@ -46,7 +52,7 @@ export function formatGrepResult(content: string): string[] {
   return formattedLines;
 }
 
-export async function filterGrepResult(
+async function filterGrepResult(
   lines: string[],
   path: string,
   state: AppState,
@@ -101,4 +107,43 @@ export async function filterGrepResult(
     );
   }
   return { text: retained.join("\n"), check };
+}
+
+export default function grep(pi: ExtensionAPI) {
+  const grepTool = createGrepToolDefinition(process.cwd());
+
+  pi.registerTool({
+    ...grepTool,
+    parameters: Type.Object({
+      ...grepTool.parameters.properties,
+      context: Type.Optional(
+        Type.Number({
+          description:
+            "Number of lines to show before and after each match (default: 0). Context lines are later stripped to reduce optimize context; they're still shown when requested",
+          maximum: 2,
+        }),
+      ),
+    }),
+    async execute(toolCallId, params, signal, _onUpdate, ctx) {
+      const result = await grepTool.execute(toolCallId, params, signal, undefined, ctx);
+      const state = getState(pi);
+      const formatted = formatGrepResult(
+        result.content.map((item) => (item.type === "text" ? item.text : "")).join("\n"),
+      );
+      const { text, check } = await filterGrepResult(formatted, params.path || ".", state, ctx);
+
+      if (state.getMode() !== "yolo" && check) {
+        const decision = await askForPermission(pi, ctx, check);
+        if (decision?.block) throw new Error(decision.reason);
+      }
+      // Truncation contains raw text and pre-filter counts; only search-limit flags remain valid.
+      return {
+        content: [{ type: "text", text }],
+        details: result.details && {
+          matchLimitReached: result.details.matchLimitReached,
+          linesTruncated: result.details.linesTruncated,
+        },
+      };
+    },
+  });
 }

@@ -28,8 +28,11 @@ it("outlines nested headings with one-based inclusive section ranges", () => {
 it.each(["```", "~~~"])("ignores headings inside %s code fences", fence => {
   expect(parseWebFetchContent([fence, "# Hidden", fence, "# Visible"].join("\n"))).toBe("# Visible (L4-4)");
 });
-it("supports heading levels one through five and ignores plain text", () => {
-  expect(parseWebFetchContent("plain\n##### Deep\n###### Not indexed")).toBe("        ##### Deep (L2-3)");
+it("supports heading levels one through six and ignores plain text", () => {
+  expect(parseWebFetchContent("plain\n##### Deep\n###### Deeper")).toBe([
+    "        ##### Deep (L2-3)",
+    "          ###### Deeper (L3-3)",
+  ].join("\n"));
   expect(parseWebFetchContent("plain text\nno headings")).toBe("");
 });
 it("keeps headings inside an unclosed fence out of the outline", () => {

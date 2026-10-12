@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import pruner from "../../../src/optimizer/pruner/index.js";
 import { assistantMessage, commandContext } from "../../helpers/commands.js";
 import { recordExtension } from "../../helpers/extension.js";
-import { appendTool, boundaryEvent, settleOptimizer } from "../../helpers/optimizer.js";
+import { appendTool, boundaryEvent, endOptimizerTurn } from "../../helpers/optimizer.js";
 import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
 let workspace: Workspace;
@@ -19,16 +19,16 @@ function loadContext(manager: SessionManager) {
   const pi = recordExtension();
   pruner(pi.api);
   const { ctx } = commandContext(workspace.cwd);
-  return { handler: pi.event("agent_before_settle"), ctx: { ...ctx, sessionManager: manager } };
+  return { handler: pi.event("turn_end"), ctx: { ...ctx, sessionManager: manager } };
 }
 
-describe("optimizer settle boundary", () => {
-  it.each(["aborted", "error"] as const)("does not reduce current results after %s", async (outcome) => {
+describe("optimizer turn boundary", () => {
+  it.each(["aborted", "error"] as const)("does not reduce results when a turn ends with %s", async (outcome) => {
     const manager = SessionManager.inMemory(workspace.cwd);
-    appendTool(manager, "old", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
-    appendTool(manager, "new", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
+    appendTool(manager, "old", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, null);
+    appendTool(manager, "new", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, null);
     appendTool(manager, "empty", "find", "No files found matching pattern");
-    appendTool(manager, "grep", "grep", "file.ts\n1: source");
+    appendTool(manager, "grep", "grep", "file.ts\n1- context\n2: source");
     const { handler, ctx } = loadContext(manager);
     const event = { ...boundaryEvent(manager), outcome };
     const original = structuredClone(event);
@@ -69,7 +69,7 @@ describe("optimizer settle boundary", () => {
     expect(manager.getEntries().some((entry) => entry.type === "context_edit")).toBe(false);
   });
 
-  it("prunes successful grep context while preserving matches, headers, notices, and tool calls", async () => {
+  it("prunes seen grep context at turn end while preserving matches, headers, notices, and tool calls", async () => {
     const manager = SessionManager.inMemory(workspace.cwd);
     const text = [
       "src/first.ts",
@@ -102,7 +102,8 @@ describe("optimizer settle boundary", () => {
     const { resultId } = appendTool(manager, "grep", "grep", text, args, false, details);
     const original = structuredClone(manager.getEntries());
 
-    const result = await settleOptimizer(manager);
+    expect(await endOptimizerTurn(manager, [resultId])).toBeUndefined();
+    const result = await endOptimizerTurn(manager);
 
     expect(result?.entries).toEqual([
       { type: "context_edit", targetId: resultId, replacement: { content: [{ type: "text", text: expected }] } },
@@ -112,7 +113,23 @@ describe("optimizer settle boundary", () => {
       { role: "toolResult", toolCallId: "grep", toolName: "grep", isError: false, content: [{ type: "text", text: expected }], details },
     ]);
     expect(manager.getEntries().slice(0, original.length)).toEqual(original);
-    expect(await settleOptimizer(manager)).toBeUndefined();
+    expect(await endOptimizerTurn(manager)).toBeUndefined();
+  });
+
+  it("removes failures only after the model has seen them", async () => {
+    const manager = SessionManager.inMemory(workspace.cwd);
+    const seen = appendTool(manager, "seen", "read", "failure", {}, true);
+    const current = appendTool(manager, "current", "read", "failure", {}, true);
+
+    expect((await endOptimizerTurn(manager, [current.resultId]))?.entries).toEqual([
+      { type: "context_edit", targetId: seen.resultId, replacement: null },
+      { type: "context_edit", targetId: seen.callId, replacement: null },
+    ]);
+    expect(manager.buildSessionProjection().messages.map((message) => message.role)).toEqual(["assistant", "toolResult"]);
+    expect((await endOptimizerTurn(manager))?.entries).toEqual([
+      { type: "context_edit", targetId: current.resultId, replacement: null },
+      { type: "context_edit", targetId: current.callId, replacement: null },
+    ]);
   });
 
   it("leaves context-free grep results and other successful tool output unchanged", async () => {
@@ -122,7 +139,7 @@ describe("optimizer settle boundary", () => {
     appendTool(manager, "bash", "bash", "1- command output");
     const original = structuredClone(manager.getEntries());
 
-    expect(await settleOptimizer(manager)).toBeUndefined();
+    expect(await endOptimizerTurn(manager)).toBeUndefined();
     expect(manager.getEntries()).toEqual(original);
   });
 
@@ -130,17 +147,17 @@ describe("optimizer settle boundary", () => {
     const manager = SessionManager.inMemory(workspace.cwd);
     const { callId, resultId } = appendTool(manager, "failed", "grep", "file.ts\n1- context\n2: failure", {}, true);
 
-    expect((await settleOptimizer(manager))?.entries).toEqual([
+    expect((await endOptimizerTurn(manager))?.entries).toEqual([
       { type: "context_edit", targetId: resultId, replacement: null },
       { type: "context_edit", targetId: callId, replacement: null },
     ]);
     expect(manager.buildSessionProjection().messages).toEqual([]);
   });
 
-  it("leaves duplicate inspections unchanged at settle even with earlier omissions", async () => {
+  it("leaves duplicate inspections unchanged at turn end even with earlier omissions", async () => {
     const manager = SessionManager.inMemory(workspace.cwd);
-    appendTool(manager, "old", "inspect", "first\nsecond", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
-    const newer = appendTool(manager, "new", "inspect", "first\nsecond", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
+    appendTool(manager, "old", "inspect", "first\nsecond", { path: "file.ts", symbol: "handler" }, false, null);
+    const newer = appendTool(manager, "new", "inspect", "first\nsecond", { path: "file.ts", symbol: "handler" }, false, null);
     const { handler, ctx } = loadContext(manager);
     const preview = SessionManager.inMemory(workspace.cwd, undefined, manager.getEntries());
     const prior: ContextEditEntryDraft = { type: "context_edit", targetId: newer.resultId, replacement: null };
@@ -160,12 +177,12 @@ describe("optimizer settle boundary", () => {
       { type: "toolCall", id: "keep", name: "bash", arguments: {} },
     );
     const callId = manager.appendMessage(assistant);
-    manager.appendMessage({ role: "toolResult", toolCallId: "old", toolName: "inspect", details: { path: "file.ts", symbol: "handler" }, content: [{ type: "text", text: "source" }], isError: false, timestamp: 0 });
+    manager.appendMessage({ role: "toolResult", toolCallId: "old", toolName: "inspect", details: null, content: [{ type: "text", text: "source" }], isError: false, timestamp: 0 });
     const emptyId = manager.appendMessage({ role: "toolResult", toolCallId: "empty", toolName: "find", content: [{ type: "text", text: "No files found matching pattern" }], isError: false, timestamp: 0 });
     manager.appendMessage({ role: "toolResult", toolCallId: "keep", toolName: "bash", content: [{ type: "text", text: "exit 1" }], isError: true, timestamp: 0 });
-    appendTool(manager, "new", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
+    appendTool(manager, "new", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, null);
 
-    const result = await settleOptimizer(manager);
+    const result = await endOptimizerTurn(manager);
 
     expect(result?.entries).toEqual([
       { type: "context_edit", targetId: emptyId, replacement: null },
@@ -183,12 +200,12 @@ describe("optimizer settle boundary", () => {
     const callId = manager.appendMessage(assistant);
     const resultId = manager.appendMessage({ role: "toolResult", toolCallId: "failed", toolName: "read", content: [{ type: "text", text: "failure" }], isError: true, timestamp: 0 });
 
-    expect((await settleOptimizer(manager))?.entries).toEqual([
+    expect((await endOptimizerTurn(manager))?.entries).toEqual([
       { type: "context_edit", targetId: resultId, replacement: null },
       { type: "context_edit", targetId: callId, replacement: null },
     ]);
     expect(manager.buildSessionProjection().messages).toEqual([]);
-    expect(await settleOptimizer(manager)).toBeUndefined();
+    expect(await endOptimizerTurn(manager)).toBeUndefined();
     expect(manager.getSessionFile()).toBeUndefined();
   });
 
@@ -201,7 +218,7 @@ describe("optimizer settle boundary", () => {
     const editId = manager.appendContextEdit(resultId, null);
     const original = structuredClone(manager.getEntries());
 
-    expect(await settleOptimizer(manager)).toBeUndefined();
+    expect(await endOptimizerTurn(manager)).toBeUndefined();
     expect(manager.getEntries()).toEqual(original);
     expect(manager.getEntry(editId)).toMatchObject({ targetId: resultId, replacement: null });
     expect(manager.buildSessionProjection().entries.find((entry) => entry.sourceEntry.id === callId)?.messages).toEqual([assistant]);

@@ -38,13 +38,14 @@ async function bridgeSetup() {
 }
 
 describe("SDK session configuration", () => {
-  it("uses parent model, thinking level and UI with an in-memory session", async () => {
+  it("uses parent model, thinking level and UI with a persistent session", async () => {
     const fixture = await setup();
     fixture.request.ctx = { ...fixture.ctx, model: fixture.model, thinkingLevel: "low" };
     await createSdkSession(fixture.request, fixture.runtime);
     const options = vi.mocked(createAgentSession).mock.calls[0]![0]!;
     expect(options).toMatchObject({ cwd: fixture.cwd, model: fixture.request.ctx.model, thinkingLevel: "low" });
-    expect(options.sessionManager!.getSessionFile()).toBeUndefined();
+    expect(options.sessionManager!.getSessionDir()).toBe(join(fixture.cwd, ".pi", "subsessions"));
+    expect(options.sessionManager!.getSessionFile()).toEqual(expect.any(String));
     expect(fixture.sessions[0]!.bindExtensions).toHaveBeenCalledWith({ mode: fixture.ctx.mode, uiContext: fixture.ui });
     expect(fixture.sessions[0]!.setActiveToolsByName).toHaveBeenCalledWith(["read", "bash"]);
   });
@@ -99,7 +100,6 @@ describe("SDK session configuration", () => {
   it("creates persistent sessions linked to the parent transcript", async () => {
     const fixture = await setup();
     const parentPath = join(fixture.cwd, "parent.jsonl");
-    fixture.request.temporary = false;
     fixture.request.ctx = { ...fixture.ctx, sessionManager: { ...fixture.ctx.sessionManager, getSessionFile: () => parentPath } };
     await createSdkSession(fixture.request, fixture.runtime);
     const manager = vi.mocked(createAgentSession).mock.calls[0]![0]!.sessionManager!;
@@ -111,7 +111,6 @@ describe("SDK session configuration", () => {
     const fixture = await setup();
     const manager = SessionManager.create(fixture.cwd, join(fixture.cwd, ".pi", "subsessions"));
     manager.appendMessage(assistantMessage("saved"));
-    fixture.request.temporary = false;
     fixture.request.id = manager.getSessionId();
     await createSdkSession(fixture.request, fixture.runtime);
     const options = vi.mocked(createAgentSession).mock.calls[0]![0]!;
@@ -122,7 +121,6 @@ describe("SDK session configuration", () => {
 
   it("rejects resume when the transcript is missing", async () => {
     const fixture = await setup();
-    fixture.request.temporary = false;
     fixture.request.id = "missing";
     await expect(createSdkSession(fixture.request, fixture.runtime)).rejects.toThrow("Subsession file not found");
     expect(createAgentSession).not.toHaveBeenCalled();

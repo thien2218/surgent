@@ -12,7 +12,7 @@ async function session() {
 }
 
 function inspect(manager: SessionManager, id: string) {
-  return appendTool(manager, id, "inspect", "source", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
+  return appendTool(manager, id, "inspect", "source", { path: "file.ts", symbol: "handler" }, false, null);
 }
 
 function resultIds(messages: ContextEvent["messages"]) {
@@ -62,7 +62,7 @@ describe("session-start request filtering", () => {
       { type: "toolCall", id: "keep", name: "bash", arguments: { command: "pwd" } },
     );
     manager.appendMessage(assistant);
-    manager.appendMessage({ role: "toolResult", toolCallId: "old", toolName: "inspect", content: [{ type: "text", text: "source" }], details: { path: "file.ts", symbol: "handler" }, isError: false, timestamp: 0 });
+    manager.appendMessage({ role: "toolResult", toolCallId: "old", toolName: "inspect", content: [{ type: "text", text: "source" }], details: null, isError: false, timestamp: 0 });
     manager.appendMessage({ role: "toolResult", toolCallId: "keep", toolName: "bash", content: [{ type: "text", text: "directory" }], isError: false, timestamp: 0 });
     inspect(manager, "new");
     const loaded = await startDeduplicator(manager);

@@ -2,6 +2,7 @@ import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { inspectSymbol } from "./inspect.js";
+import { normalizeToolPath } from "../deduplicator/resources.js";
 
 export interface InspectToolDetails {
   path: string;
@@ -11,7 +12,8 @@ export interface InspectToolDetails {
 const inspect = defineTool({
   name: "inspect",
   label: "Inspect",
-  description: "Fetch one symbol's full body from one file. Output is safe for targeted edits.",
+  description:
+    "Fetch one symbol's body from one file, optionally collapsing nested code blocks to save context.",
   parameters: Type.Object({
     path: Type.String({
       description: "Exact file path containing target symbol (relative to cwd or absolute)",
@@ -20,29 +22,35 @@ const inspect = defineTool({
       description:
         "Exact symbol string for one declaration in file: function name, class name, method name (MyClass.method), synthetic anonymous name (anonymous~1), or duplicate form name~2",
     }),
+    depth: Type.Optional(
+      Type.Integer({
+        minimum: 0,
+        description:
+          "Maximum code-block depth: 0 keeps signatures only, 1 keeps outer bodies. Omit for full source.",
+      }),
+    ),
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-    const path = params.path.trim().replaceAll("\\", "/");
+    const path = normalizeToolPath(params.path, ctx.cwd, "inspect");
     const symbol = params.symbol.trim();
-
-    if (path.length === 0 || symbol.length === 0 || symbol.includes("#")) {
+    if (symbol.length === 0) {
       return {
-        isError: false,
+        isError: true,
         details: null,
         content: [
           {
             type: "text",
-            text: "inspect symbol format invalid. path/symbol must be non-empty; symbol cannot include '#'. use symbol name, e.g. name or name~2",
+            text: "inspect symbol format invalid. path/symbol must be non-empty. Use symbol name, e.g. name or name~2",
           },
         ],
       };
     }
 
     try {
-      const inspected = await inspectSymbol(ctx.cwd, path, symbol, signal);
+      const inspected = await inspectSymbol(ctx.cwd, path, symbol, params.depth, signal);
       if (!inspected) {
         return {
-          isError: false,
+          isError: true,
           details: null,
           content: [
             {
@@ -53,8 +61,7 @@ const inspect = defineTool({
         };
       }
 
-      const details = { path: inspected.path, symbol: inspected.symbol };
-      return { isError: false, details, content: [{ type: "text", text: inspected.text }] };
+      return { isError: false, details: null, content: [{ type: "text", text: inspected.text }] };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return {

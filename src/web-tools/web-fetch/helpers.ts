@@ -30,7 +30,8 @@ export function isTextLikeContentType(contentType: string | null): boolean {
 
 export function formatFetchResult(result: WebFetchResponse, cacheDate: string): string {
   const filePath = getCacheFilePath(result.url, cacheDate);
-  return `Provider: ${result.provider}\nOutput path: ${filePath}\nSections:\n${parseWebFetchContent(result.content!)}`;
+  const sections = parseWebFetchContent(result.content!);
+  return `Provider: ${result.provider}\nOutput path: ${filePath}${sections ? `\nSections:\n${sections}` : ""}`;
 }
 
 export function formatErrorMessage(error: unknown): string {

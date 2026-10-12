@@ -36,7 +36,11 @@ it.each([undefined, "fake-key"])("extracts Jina reader content with optional key
   const result = await new WebToolsFactory().createWebFetcher("jina", key).fetch(url);
   expect(result).toEqual({ provider: "jina", url, content: "# Heading\nbody" });
   expect(fetch).toHaveBeenCalledWith("https://r.jina.ai/http://example.invalid/page", expect.objectContaining({
-    headers: { Accept: expect.stringContaining("text/plain"), ...(key ? { Authorization: `Bearer ${key}` } : {}) },
+    headers: {
+      Accept: expect.stringContaining("text/plain"),
+      "X-Respond-With": "markdown",
+      ...(key ? { Authorization: `Bearer ${key}` } : {}),
+    },
   }));
 });
 

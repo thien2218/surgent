@@ -139,7 +139,9 @@ describe("command lifecycle", () => {
     const complete = extension.command("plan").getArgumentCompletions!;
 
     await extension.event("session_start")({ type: "session_start", reason: "startup" }, ctx);
-    expect(await complete("")).toEqual([{ value: PLAN_ID, label: "First plan" }]);
+    expect(await complete("")).toEqual([
+      { value: PLAN_ID, label: "First plan", data: { subsessionId: PLAN_ID } },
+    ]);
     await extension.event("session_start")(
       { type: "session_start", reason: "resume" },
       {
@@ -148,7 +150,9 @@ describe("command lifecycle", () => {
         sessionManager: { ...ctx.sessionManager, getSessionId: () => "other-parent" },
       },
     );
-    expect(await complete("")).toEqual([{ value: "other", label: "Second plan" }]);
+    expect(await complete("")).toEqual([
+      { value: "other", label: "Second plan", data: { subsessionId: "other" } },
+    ]);
   });
 
   it.each(["init", "plan"])("rejects headless /%s without creating a subsession", async (name) => {
@@ -243,7 +247,6 @@ describe("/plan contract", () => {
       agent: "planner",
       pid: "parent-session",
     });
-    expect(store[sessions[0]!.sessionId]).not.toHaveProperty("inMemory");
     expect(ui.custom).toHaveBeenCalledOnce();
     expect(ui.setWidget).toHaveBeenCalledWith("planner", expect.any(Function));
     expect(ui.setWidget).toHaveBeenLastCalledWith("planner", undefined);
@@ -362,10 +365,10 @@ describe("/plan contract", () => {
   it("disposes the planner when initial result persistence throws", async () => {
     const { cwd, run, beforeReply, sessions, ui } = await setup();
     beforeReply.mockImplementationOnce(async () => {
-      await mkdir(join(cwd, ".pi", "subsessions.json"));
+      await writeFile(join(cwd, ".pi", "subsessions.json"), "{broken");
     });
 
-    await expect(run("plan", "New request")).rejects.toMatchObject({ code: "EISDIR" });
+    await expect(run("plan", "New request")).rejects.toThrow();
 
     expect(sessions[0]?.extensionRunner.emit).toHaveBeenCalledWith({
       type: "session_shutdown",

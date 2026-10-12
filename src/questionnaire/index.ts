@@ -29,7 +29,7 @@ export default function (pi: ExtensionAPI) {
         if (!ctx.hasUI) {
           return {
             content: [{ type: "text", text: "Questionnaire requires an interactive UI." }],
-            details: undefined,
+            details: null,
           };
         }
 
@@ -37,7 +37,7 @@ export default function (pi: ExtensionAPI) {
           content: [
             { type: "text", text: "User refused to answer the questionnaire." },
           ] as TextContent[],
-          details: undefined,
+          details: null,
         };
         if (signal?.aborted) return refusal;
 
@@ -58,10 +58,7 @@ export default function (pi: ExtensionAPI) {
           )
           .join("\n\n");
 
-        return {
-          content: [{ type: "text", text: content }],
-          details: undefined,
-        };
+        return { content: [{ type: "text", text: content }], details: null };
       },
       renderCall(args, theme, { isPartial }) {
         const questions = ((args.questions as Question[] | undefined) ?? []).filter(Boolean);

@@ -44,11 +44,11 @@ export default function (pi: ExtensionAPI) {
           description:
             "File or directory paths to scan (relative to cwd or absolute). No globs. Keep scope narrow.",
           minItems: 1,
+          uniqueItems: true,
         }),
-        patterns: Type.Optional(
-          Type.Array(Type.String(), {
-            description:
-              "Full-path find -path patterns joined with OR (e.g. *.ts, *.go). Omit or use [] to include all files.",
+        glob: Type.Optional(
+          Type.String({
+            description: "Filter files found in directories, same as grep glob.",
           }),
         ),
         kinds: Type.Optional(
@@ -61,14 +61,14 @@ export default function (pi: ExtensionAPI) {
         let outputPath = "";
         const outputLines: string[] = [];
         const kinds = new Set(params.kinds ?? SYMBOL_KINDS);
-        const result: MapperResult = { symbols: [], failed: [] };
-        const { files, denied } = await resolveTargetPaths(
+        const { files, denied, failed } = await resolveTargetPaths(
           pi,
           ctx,
           params.paths,
-          params.patterns,
+          params.glob,
           signal,
         );
+        const result: MapperResult = { symbols: [], failed };
 
         for (const file of files) {
           signal?.throwIfAborted();
@@ -95,7 +95,7 @@ export default function (pi: ExtensionAPI) {
         }
 
         if (result.failed.length > 0) {
-          outputLines.push(...result.failed.map((failure) => `failed ${failure}`));
+          outputLines.push(...result.failed);
         }
         if (denied) {
           outputLines.push("[Code map results exclude files blocked by permission policy]");
@@ -106,17 +106,17 @@ export default function (pi: ExtensionAPI) {
 
         const truncation = truncateHead(outputLines.join("\n"));
         const output = truncation.truncated
-          ? `${truncation.content}\n\n[Output truncated at 2000 lines or 50KB. Narrow paths, patterns, or kinds.]`
+          ? `${truncation.content}\n\n[Output truncated at 2000 lines or 50KB. Narrow paths, glob, or kinds.]`
           : truncation.content;
-        return { details: undefined, content: [{ type: "text", text: output }] };
+        return { details: null, content: [{ type: "text", text: output }] };
       },
       renderCall(args, theme, { isPartial }) {
         const paths = Array.isArray(args.paths) ? args.paths.join(", ") : "";
-        const patterns = Array.isArray(args.patterns) ? args.patterns.join(" OR ") : "";
+        const glob = typeof args.glob === "string" ? args.glob : "";
         const kinds = Array.isArray(args.kinds) ? args.kinds.join(", ") : "default";
 
         return renderCallText(
-          `${theme.fg("toolTitle", "code_map")} ${theme.fg("accent", paths)}${patterns ? ` ${theme.fg("dim", `(${patterns})`)}` : ""} ${theme.fg("dim", `(${kinds})`)}`,
+          `${theme.fg("toolTitle", "code_map")} ${theme.fg("accent", paths)}${glob ? ` ${theme.fg("dim", `/${glob}/`)}` : ""} ${theme.fg("dim", `(${kinds})`)}`,
           isPartial,
         );
       },

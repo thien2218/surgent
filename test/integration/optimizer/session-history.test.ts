@@ -12,7 +12,7 @@ import {
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import deduplicator from "../../../src/optimizer/deduplicator/index.js";
 import { assistantMessage } from "../../helpers/commands.js";
-import { appendTool, settleOptimizer, startDeduplicator } from "../../helpers/optimizer.js";
+import { appendTool, endOptimizerTurn, startDeduplicator } from "../../helpers/optimizer.js";
 
 function workspace() {
   const root = mkdtempSync(join(tmpdir(), "surgent-history-"));
@@ -52,7 +52,7 @@ describe("canonical optimizer history", () => {
     expect(manager.buildSessionProjection().messages).toEqual(originalContext);
     expect(manager.getLabel(failed.resultId)).toBe("bookmark");
 
-    await settleOptimizer(manager);
+    await endOptimizerTurn(manager);
     const optimizedLeaf = manager.getLeafId()!;
     const optimized = manager.buildSessionProjection().messages;
 
@@ -65,7 +65,7 @@ describe("canonical optimizer history", () => {
     expect(reopened.buildSessionProjection().messages).toEqual(optimized);
     expect(reopened.getLabel(failed.resultId)).toBe("bookmark");
     for (const entry of raw) expect(reopened.getEntry(entry.id)).toEqual(entry);
-    expect(await settleOptimizer(reopened)).toBeUndefined();
+    expect(await endOptimizerTurn(reopened)).toBeUndefined();
     const resumedBytes = readFileSync(file);
     const resumed = await startDeduplicator(reopened, "resume");
     expect((await resumed.request()).filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["new", "grep"]);
@@ -99,7 +99,7 @@ describe("canonical optimizer history", () => {
     expect((await branchStart.request()).filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["failed", "old"]);
   });
 
-  it("keeps canonical compaction boundaries and retained calls intact while hiding them in requests", async () => {
+  it("preserves canonical compaction boundaries and retained calls in requests", async () => {
     const manager = SessionManager.inMemory(workspace());
     const hidden = appendTool(manager, "hidden", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
     const old = appendTool(manager, "old", "inspect", "source", { path: "file.ts", symbol: "handler" }, false, { path: "file.ts", symbol: "handler" });
@@ -111,8 +111,8 @@ describe("canonical optimizer history", () => {
     const snapshot = await startDeduplicator(manager);
     const filtered = await snapshot.request();
 
-    expect(await settleOptimizer(manager)).toBeUndefined();
-    expect(filtered.filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["new"]);
+    expect(await endOptimizerTurn(manager)).toBeUndefined();
+    expect(filtered.filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["old", "new"]);
     expect(manager.buildSessionProjection()).toEqual(canonical);
     expect(manager.getEntry(compactId)).toMatchObject({ firstKeptEntryId: old.callId, summary: "previous summary" });
     expect(manager.getEntries()).toEqual(raw);
@@ -158,7 +158,7 @@ describe("canonical optimizer history", () => {
     await expect(session.compact()).rejects.toThrow("Compaction cancelled");
     const snapshot = await startDeduplicator(manager);
     expect((await snapshot.request()).filter((message) => message.role === "toolResult").map((message) => message.toolCallId)).toEqual(["new", "grep", "failed"]);
-    await settleOptimizer(manager);
+    await endOptimizerTurn(manager);
     await expect(session.compact()).rejects.toThrow("Compaction cancelled");
 
     expect(preparations).toHaveLength(2);

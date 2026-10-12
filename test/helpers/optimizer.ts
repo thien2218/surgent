@@ -4,13 +4,13 @@ import {
   createExtensionRuntime,
   ExtensionRunner,
   SessionManager,
-  type AgentBeforeSettleEvent,
   type ContextEvent,
   type ContextEventResult,
   type SessionStartEvent,
   type Extension,
   type ExtensionContext,
   type ModelRegistry,
+  type TurnEndEvent,
 } from "@earendil-works/pi-coding-agent";
 import pruner from "../../src/optimizer/pruner/index.js";
 import deduplicator from "../../src/optimizer/deduplicator/index.js";
@@ -37,10 +37,18 @@ export function appendTool(
   return { callId, resultId };
 }
 
-export function boundaryEvent(manager: SessionManager): AgentBeforeSettleEvent {
+/** Ends a turn whose own results are `toolResultEntryIds`, so only earlier results count as seen. */
+function turnEnd(manager: SessionManager, toolResultEntryIds: string[]): Omit<TurnEndEvent, "entries" | "continue" | "context"> {
+  return {
+    type: "turn_end", turnIndex: 0, message: assistantMessage(""), toolResults: [],
+    messageEntryId: manager.getLeafId() ?? "", toolResultEntryIds, outcome: "completed",
+  };
+}
+
+export function boundaryEvent(manager: SessionManager, toolResultEntryIds: string[] = []): TurnEndEvent {
   const projection = manager.buildSessionProjection();
   return {
-    type: "agent_before_settle", outcome: "completed", entries: [], continue: false,
+    ...turnEnd(manager, toolResultEntryIds), entries: [], continue: false,
     context: {
       contextEntries: projection.entries, contextMessages: projection.messages,
       llmMessages: convertToLlm(projection.messages), pendingMessages: [], canContinue: true,
@@ -64,15 +72,15 @@ export async function startDeduplicator(manager: SessionManager, reason: Session
   };
 }
 
-export async function settleOptimizer(manager: SessionManager) {
+export async function endOptimizerTurn(manager: SessionManager, toolResultEntryIds: string[] = []) {
   const extensions: Extension[] = [pruner].map((factory) => {
     const pi = recordExtension();
     factory(pi.api);
     return {
       path: factory.name, resolvedPath: factory.name,
       sourceInfo: { path: factory.name, source: "test", scope: "temporary", origin: "top-level" },
-      handlers: new Map([["agent_before_settle", [async (...args: unknown[]) =>
-        pi.event("agent_before_settle")(args[0] as AgentBeforeSettleEvent, args[1] as ExtensionContext),
+      handlers: new Map([["turn_end", [async (...args: unknown[]) =>
+        pi.event("turn_end")(args[0] as TurnEndEvent, args[1] as ExtensionContext),
       ]]]),
       tools: new Map(), messageRenderers: new Map(), commands: new Map(), flags: new Map(), shortcuts: new Map(),
     };
@@ -83,7 +91,7 @@ export async function settleOptimizer(manager: SessionManager) {
   const runner = new ExtensionRunner(extensions, createExtensionRuntime(), manager.getCwd(), manager, registry);
   const errors: string[] = [];
   runner.onError((error) => { errors.push(error.error); });
-  const result = await runner.emitBoundary({ type: "agent_before_settle", outcome: "completed" }, (drafts) => {
+  const result = await runner.emitBoundary(turnEnd(manager, toolResultEntryIds), (drafts) => {
     const preview = SessionManager.inMemory(manager.getCwd(), undefined, manager.getEntries());
     const leafId = manager.getLeafId();
     if (leafId === null) preview.resetLeaf();

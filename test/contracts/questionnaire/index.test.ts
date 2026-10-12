@@ -79,7 +79,7 @@ describe("questionnaire tool execution", () => {
     const result = await tool.execute("no-ui", { questions: [question] }, undefined, undefined, { ...ctx, hasUI: false });
 
     expect(result.content).toEqual([{ type: "text", text: "Questionnaire requires an interactive UI." }]);
-    expect(result.details).toBeUndefined();
+    expect(result.details).toBeNull();
     expect(ui.custom).not.toHaveBeenCalled();
   });
 
@@ -91,7 +91,7 @@ describe("questionnaire tool execution", () => {
     const result = await tool.execute("aborted", { questions: [question] }, controller.signal, undefined, ctx);
 
     expect(result.content).toEqual([{ type: "text", text: "User refused to answer the questionnaire." }]);
-    expect(result.details).toBeUndefined();
+    expect(result.details).toBeNull();
     expect(ui.custom).not.toHaveBeenCalled();
   });
 
@@ -113,7 +113,7 @@ describe("questionnaire tool execution", () => {
 
     expect(result).toEqual({
       content: [{ type: "text", text: "Q1: Goal?\nA1: Ship the feature\n\nQ2: Choices?\nA2: Alpha\nBeta" }],
-      details: undefined,
+      details: null,
     });
     expect(ui.custom).toHaveBeenCalledTimes(1);
   });
@@ -128,7 +128,7 @@ describe("questionnaire tool execution", () => {
     const result = await tool.execute("refused", { questions: [question] }, new AbortController().signal, undefined, ctx);
 
     expect(result).toEqual({
-      content: [{ type: "text", text: "User refused to answer the questionnaire." }], details: undefined,
+      content: [{ type: "text", text: "User refused to answer the questionnaire." }], details: null,
     });
   });
 

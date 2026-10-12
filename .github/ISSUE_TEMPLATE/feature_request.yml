@@ -1,12 +1,33 @@
 name: Feature request
 description: Suggest an improvement to surgent
 title: "[Feature]: "
-labels: []
+labels: [enhancement]
 assignees: []
 body:
   - type: markdown
     attributes:
       value: Describe the problem before proposing a solution.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of surgent would change?
+      options:
+        - Install, startup, or CLI flags
+        - Agents and profiles (/agents, subagents)
+        - Planning (/plan)
+        - Code navigation (code_map, inspect)
+        - Context optimization (output pruning and deduplication)
+        - Permissions and .piignore
+        - Checkpoints, rewind, and fork
+        - Web search and fetch (/web-login)
+        - MCP servers (/mcp)
+        - TUI rendering or input
+        - New tool or command
+        - Other
+    validations:
+      required: true
 
   - type: textarea
     id: problem
@@ -28,7 +49,7 @@ body:
     id: alternatives
     attributes:
       label: Alternatives considered
-      description: Describe workarounds or other approaches you considered.
+      description: Describe workarounds or other approaches you considered, including how other coding agents handle it.
 
   - type: textarea
     id: context

@@ -45,7 +45,7 @@ describe("saved plan lookup", () => {
     await mkdir(join(cwd, ".pi", "plans", "documenter.md"));
 
     expect(await getPlanCompletions(cwd, "parent-session", "")).toEqual([
-      { value: PLAN_ID, label: "Cache strategy" },
+      { value: PLAN_ID, label: "Cache strategy", data: { subsessionId: PLAN_ID } },
     ]);
   });
 
@@ -54,7 +54,7 @@ describe("saved plan lookup", () => {
     await storePlans(cwd, { [PLAN_ID]: planMetadata("Cache strategy") });
 
     expect(await getPlanCompletions(cwd, "parent-session", prefix)).toEqual([
-      { value: PLAN_ID, label: "Cache strategy" },
+      { value: PLAN_ID, label: "Cache strategy", data: { subsessionId: PLAN_ID } },
     ]);
   });
 

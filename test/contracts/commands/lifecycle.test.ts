@@ -139,7 +139,9 @@ describe("command lifecycle", () => {
     const complete = extension.command("plan").getArgumentCompletions!;
 
     await extension.event("session_start")({ type: "session_start", reason: "startup" }, ctx);
-    expect(await complete("")).toEqual([{ value: PLAN_ID, label: "First plan" }]);
+    expect(await complete("")).toEqual([
+      { value: PLAN_ID, label: "First plan", data: { subsessionId: PLAN_ID } },
+    ]);
     await extension.event("session_start")(
       { type: "session_start", reason: "resume" },
       {
@@ -148,7 +150,9 @@ describe("command lifecycle", () => {
         sessionManager: { ...ctx.sessionManager, getSessionId: () => "other-parent" },
       },
     );
-    expect(await complete("")).toEqual([{ value: "other", label: "Second plan" }]);
+    expect(await complete("")).toEqual([
+      { value: "other", label: "Second plan", data: { subsessionId: "other" } },
+    ]);
   });
 
   it.each(["init", "plan"])("rejects headless /%s without creating a subsession", async (name) => {

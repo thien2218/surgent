@@ -78,7 +78,7 @@ async function forwardAction(
 async function getPlanPreviews(
   cwd: string,
   sessionId: string,
-): Promise<{ subsessionId: string; title: string }[]> {
+): Promise<SelectEntry<{ subsessionId: string }>[]> {
   const [store, files] = await Promise.all([
     readJson<StoredSubsessions>(getPiPath("subsessions", cwd), {}),
     readdir(getPiPath("plans", cwd), { withFileTypes: true }).catch((error) => {
@@ -87,11 +87,11 @@ async function getPlanPreviews(
     }),
   ]);
   const plans = new Set(files.filter((file) => file.isFile()).map((file) => file.name));
-  const previews: { subsessionId: string; title: string }[] = [];
+  const previews: SelectEntry<{ subsessionId: string }>[] = [];
 
   for (const [subsessionId, metadata] of Object.entries(store)) {
     if (metadata.pid === sessionId && plans.has(`${subsessionId}.md`)) {
-      previews.push({ subsessionId, title: metadata.title });
+      previews.push({ value: subsessionId, label: metadata.title, data: { subsessionId } });
     }
   }
 
@@ -105,16 +105,10 @@ async function pickPlanId(ctx: ExtensionContext): Promise<string | null> {
     return null;
   }
 
-  const items: SelectEntry<{ subsessionId: string }>[] = previews.map((preview) => ({
-    value: preview.subsessionId,
-    label: preview.title,
-    data: { subsessionId: preview.subsessionId },
-  }));
-
   return ctx.ui.custom<string | null>((_tui, theme, _keybindings, done) => {
     const selectList = new ExtendedSelectList<{ subsessionId: string }>(theme, {
       title: "Open planning session",
-      items,
+      items: previews,
       maxVisibleRows: 12,
     });
 
@@ -173,13 +167,10 @@ export async function runPlanLoop(
 }
 
 export async function getPlanCompletions(cwd: string, sessionId: string, prefix: string) {
-  const normalizedPrefix = prefix.trim().toLowerCase();
-  const items = (await getPlanPreviews(cwd, sessionId))
-    .filter(
-      ({ subsessionId, title }) =>
-        subsessionId.startsWith(normalizedPrefix) || title.toLowerCase().includes(normalizedPrefix),
-    )
-    .map(({ subsessionId, title }) => ({ value: subsessionId, label: title }));
+  const normalized = prefix.trim().toLowerCase();
+  const items = (await getPlanPreviews(cwd, sessionId)).filter(
+    ({ value, label }) => value.startsWith(normalized) || label.toLowerCase().includes(normalized),
+  );
   return items.length > 0 ? items : null;
 }
 

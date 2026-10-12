@@ -44,6 +44,7 @@ export default function (pi: ExtensionAPI) {
           description:
             "File or directory paths to scan (relative to cwd or absolute). No globs. Keep scope narrow.",
           minItems: 1,
+          uniqueItems: true,
         }),
         patterns: Type.Optional(
           Type.Array(Type.String(), {

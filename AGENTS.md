@@ -9,12 +9,11 @@
 ```text
 .
 ├── bin
-│   └── surgent.js
+│   ├── surgent.js
+│   └── build.mjs
 ├── package.json
 ├── pnpm-lock.yaml
 ├── pnpm-workspace.yaml
-├── scripts
-│   └── build.mjs
 ├── src
 │   ├── agent
 │   ├── checkpoint

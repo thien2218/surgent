@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { containSecrets } from "./secrets.js";
-import { sanitizeResult } from "./results.js";
+import { block, structured } from "./results.js";
 
 export default function (pi: ExtensionAPI) {
   pi.on("tool_call", async (event, _ctx) => {
@@ -43,7 +43,31 @@ export default function (pi: ExtensionAPI) {
     if (!["read", "bash", "grep", "powershell", "codemode"].includes(event.toolName)) {
       return;
     }
-    // Ancestry changes neither result policy nor authorization.
-    return sanitizeResult(event);
+
+    try {
+      // Keep Pi content types and opaque image bytes; sanitize text and metadata.
+      const content = event.content.map((item) => block(item) as unknown as typeof item);
+      return {
+        content,
+        ...(event.structuredContent === undefined ? {} : { structuredContent: structured(event) }),
+        details: event.details,
+        isError: event.isError,
+        ...(event.usage === undefined ? {} : { usage: event.usage }),
+      };
+    } catch {
+      // Never serialize rejected payloads or exception messages. Replacing content
+      // without structuredContent makes Pi drop the unsafe programmatic result.
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Tool result rejected: cannot safely redact supported result data.",
+          },
+        ],
+        details: event.details,
+        isError: true,
+        ...(event.usage === undefined ? {} : { usage: event.usage }),
+      };
+    }
   });
 }

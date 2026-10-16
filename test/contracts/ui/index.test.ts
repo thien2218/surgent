@@ -3,7 +3,7 @@ import { CustomEditor, VERSION as PI_VERSION } from "@earendil-works/pi-coding-a
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { Key, KeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
 import type { EditorTheme, TUI } from "@earendil-works/pi-tui";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import uiExtension from "../../../src/ui/index.js";
 import { recordExtension } from "../../helpers/extension.js";
 
@@ -18,9 +18,14 @@ function setup() {
   const ui = {
     setHeader: vi.fn<ExtensionContext["ui"]["setHeader"]>(),
     setEditorComponent: vi.fn<ExtensionContext["ui"]["setEditorComponent"]>(),
+    setTitle: vi.fn<ExtensionContext["ui"]["setTitle"]>(),
     theme: theme as Theme,
-  } satisfies Pick<ExtensionContext["ui"], "setHeader" | "setEditorComponent" | "theme">;
-  const context = { hasUI: true, ui } as unknown as ExtensionContext;
+  } satisfies Pick<ExtensionContext["ui"], "setHeader" | "setEditorComponent" | "setTitle" | "theme">;
+  const sessionManager = {
+    getCwd: vi.fn<ExtensionContext["sessionManager"]["getCwd"]>().mockReturnValue("/workspace/project"),
+    getSessionName: vi.fn<ExtensionContext["sessionManager"]["getSessionName"]>(),
+  } satisfies Pick<ExtensionContext["sessionManager"], "getCwd" | "getSessionName">;
+  const context = { hasUI: true, mode: "tui", ui, sessionManager } as unknown as ExtensionContext;
   const tui = { requestRender: vi.fn(), terminal: { rows: 40, columns: 100 } } as unknown as TUI;
   const start = () => extension.event("session_start")({ type: "session_start", reason: "startup" }, context);
   const cycle = () => extension.shortcut(Key.ctrlAlt("b")).handler(context);
@@ -48,10 +53,146 @@ function setup() {
     return editor;
   }
 
-  return { extension, ui, context, tui, start, cycle, createEditor };
+  return { extension, ui, context, sessionManager, tui, start, cycle, createEditor };
 }
 
 describe("UI extension contract", () => {
+  describe("terminal title", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    });
+
+    it("sets idle title at startup and cycles frames every 50 ms", async () => {
+      const { extension, ui, context, start } = setup();
+      await start();
+      expect(ui.setTitle).toHaveBeenCalledExactlyOnceWith("π   project");
+
+      await extension.event("agent_start")({ type: "agent_start" }, context);
+      vi.advanceTimersByTime(49);
+      expect(ui.setTitle).toHaveBeenCalledOnce();
+      vi.advanceTimersByTime(1);
+      expect(ui.setTitle).toHaveBeenLastCalledWith("⠋   project");
+      vi.advanceTimersByTime(50);
+      expect(ui.setTitle).toHaveBeenLastCalledWith("⠙   project");
+      vi.advanceTimersByTime(9 * 50);
+      expect(ui.setTitle).toHaveBeenCalledTimes(12);
+      expect(ui.setTitle).toHaveBeenLastCalledWith("⠋   project");
+    });
+
+    it("keeps one animation without flashing idle on repeated starts", async () => {
+      const { extension, ui, context } = setup();
+      await extension.event("agent_start")({ type: "agent_start" }, context);
+      vi.advanceTimersByTime(25);
+
+      await extension.event("agent_start")({ type: "agent_start" }, context);
+      await extension.event("agent_start")({ type: "agent_start" }, context);
+      vi.advanceTimersByTime(25);
+      vi.advanceTimersByTime(50);
+
+      expect(ui.setTitle.mock.calls).toEqual([
+        ["⠋   project"],
+        ["⠙   project"],
+      ]);
+    });
+
+    it.each([false, true])("restores idle after settlement (aborted: %s) and allows another run", async (aborted) => {
+      const { extension, ui, context, sessionManager } = setup();
+      await extension.event("agent_start")({ type: "agent_start" }, context);
+      vi.advanceTimersByTime(100);
+      sessionManager.getSessionName.mockReturnValue("finished session");
+      sessionManager.getCwd.mockReturnValue("/sessions/finished-dir");
+
+      await extension.event("agent_settled")({ type: "agent_settled", aborted }, context);
+      expect(ui.setTitle.mock.calls).toEqual([
+        ["⠋   project"],
+        ["⠙   project"],
+        ["π   finished session - finished-dir"],
+      ]);
+      vi.advanceTimersByTime(500);
+      expect(ui.setTitle).toHaveBeenCalledTimes(3);
+
+      await extension.event("agent_start")({ type: "agent_start" }, context);
+      expect(ui.setTitle).toHaveBeenCalledTimes(3);
+      vi.advanceTimersByTime(50);
+      expect(ui.setTitle).toHaveBeenLastCalledWith("⠋   finished session - finished-dir");
+      vi.advanceTimersByTime(50);
+      expect(ui.setTitle).toHaveBeenLastCalledWith("⠙   finished session - finished-dir");
+    });
+
+    it("restores idle on shutdown once and never writes afterward", async () => {
+      const { extension, ui, context } = setup();
+      await extension.event("agent_start")({ type: "agent_start" }, context);
+
+      await extension.event("session_shutdown")({ type: "session_shutdown", reason: "quit" }, context);
+      await extension.event("session_shutdown")({ type: "session_shutdown", reason: "quit" }, context);
+      await extension.event("agent_settled")({ type: "agent_settled", aborted: true }, context);
+      vi.advanceTimersByTime(800);
+
+      expect(ui.setTitle.mock.calls).toEqual([["π   project"]]);
+    });
+
+    it("reads current session and directory metadata on every frame", async () => {
+      const { extension, ui, context, sessionManager } = setup();
+      sessionManager.getSessionName.mockReturnValue("original session");
+      sessionManager.getCwd.mockReturnValue("/sessions/original-dir");
+      await extension.event("agent_start")({ type: "agent_start" }, context);
+      vi.advanceTimersByTime(50);
+
+      sessionManager.getSessionName.mockReturnValue("renamed session");
+      sessionManager.getCwd.mockReturnValue("/sessions/new-dir");
+      vi.advanceTimersByTime(50);
+      sessionManager.getSessionName.mockReturnValue(undefined);
+      vi.advanceTimersByTime(50);
+      await extension.event("agent_settled")({ type: "agent_settled", aborted: false }, context);
+
+      expect(ui.setTitle.mock.calls).toEqual([
+        ["⠋   original session - original-dir"],
+        ["⠙   renamed session - new-dir"],
+        ["⠹   new-dir"],
+        ["π   new-dir"],
+      ]);
+    });
+
+    it("strips terminal escapes and control characters from active and idle titles", async () => {
+      const { extension, ui, context, sessionManager } = setup();
+      sessionManager.getSessionName.mockReturnValue("\x1b]0;hidden\x07review\x1b[31m name\x1b[0m\x00\x01\t\r\n\x7f\x85");
+      sessionManager.getCwd.mockReturnValue("/sessions/\x1b[32mproject\x1b[0m\x07\n\x7f\x9f");
+
+      await extension.event("agent_start")({ type: "agent_start" }, context);
+      vi.advanceTimersByTime(100);
+      await extension.event("agent_settled")({ type: "agent_settled", aborted: false }, context);
+
+      expect(ui.setTitle.mock.calls).toEqual([
+        ["⠋   review name - project"],
+        ["⠙   review name - project"],
+        ["π   review name - project"],
+      ]);
+    });
+
+    it.each([
+      { mode: "rpc", hasUI: false, titles: [] },
+      { mode: "rpc", hasUI: true, titles: [["π   project"]] },
+      { mode: "json", hasUI: false, titles: [] },
+      { mode: "print", hasUI: false, titles: [] },
+    ] as const)("keeps animation off in $mode (hasUI: $hasUI)", async ({ mode, hasUI, titles }) => {
+      const { extension, ui, context } = setup();
+      const headless = { ...context, mode, hasUI };
+
+      await extension.event("session_start")({ type: "session_start", reason: "startup" }, headless);
+      expect(ui.setTitle.mock.calls).toEqual(titles);
+      await extension.event("agent_start")({ type: "agent_start" }, headless);
+      expect(vi.getTimerCount()).toBe(0);
+      vi.advanceTimersByTime(800);
+      await extension.event("agent_settled")({ type: "agent_settled", aborted: false }, headless);
+      await extension.event("session_shutdown")({ type: "session_shutdown", reason: "quit" }, headless);
+      vi.advanceTimersByTime(800);
+
+      expect(ui.setTitle.mock.calls).toEqual(titles);
+    });
+  });
+
   it("leaves header and editor untouched in headless sessions", async () => {
     const { extension, ui, context } = setup();
 

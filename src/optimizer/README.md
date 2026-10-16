@@ -76,15 +76,15 @@ src/config.ts
 8: export function readPort() {
 ```
 
-### Clean up after each turn
+### Clean up seen results when you resume
 
-Once the model has seen a result and moved on, some of it stops being useful. After each completed turn, pi-optimizer tidies up results from earlier turns:
+Once the model has seen a result and moved on, some of it stops being useful. When a session starts or resumes, pi-optimizer tidies up results the model has already replied to:
 
 - Failed tool calls are removed, together with the call that produced them. Failed shell commands are kept, because their errors are often still relevant.
 - File searches and directory listings that found nothing are removed.
 - Search results keep their matching lines but drop the surrounding context lines.
 
-Results from the turn that just ended are always left intact. Cleaning up only one turn behind lets your model provider keep reusing its cached copy of the rest of the conversation, which keeps requests faster and cheaper.
+Results the model has not replied to yet are left intact. The cleanup is saved to the session, so it carries over to later resumes and forks. It runs only at session start, because editing earlier turns mid-session would make your model provider discard its cached copy of the conversation from that point on, costing more than the cleanup saves. Results produced during the session are cleaned up the next time you resume it.
 
 ### Skip outdated file contents when you resume
 

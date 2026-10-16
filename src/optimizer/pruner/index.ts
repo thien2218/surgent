@@ -1,20 +1,30 @@
-import type { ContextEditEntryDraft, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+  ContextEditEntryDraft,
+  ExtensionAPI,
+  SessionManager,
+} from "@earendil-works/pi-coding-agent";
 import { filterToolCalls, getEligibleResult } from "../entries.js";
 import { getRemovedToolCallId } from "./cleanup.js";
 
 export default function (pi: ExtensionAPI) {
-  pi.on("turn_end", (event) => {
-    if (event.outcome !== "completed") return;
+  pi.on("session_start", (_event, ctx) => {
+    // Session start has no boundary for drafts; the getter returns the live manager.
+    const manager = ctx.sessionManager as SessionManager;
+    const entries = manager.buildSessionProjection().entries;
+    const lastReply = entries.findLastIndex(
+      ({ sourceEntry }) =>
+        sourceEntry.type === "message" && sourceEntry.message.role === "assistant",
+    );
+    if (lastReply === -1) return;
 
-    const entries = event.context.contextEntries;
-    const unseen = new Set(event.toolResultEntryIds);
     const edits = new Map<string, ContextEditEntryDraft>();
     const removedCalls = new Set<string>();
 
-    for (const entry of entries) {
+    // Results after the last reply have not been seen by the model yet.
+    for (const entry of entries.slice(0, lastReply)) {
       const message = getEligibleResult(entry);
       const targetId = entry.sourceEntry.id;
-      if (!message || unseen.has(targetId)) continue;
+      if (!message) continue;
 
       if (getRemovedToolCallId(message)) {
         edits.set(targetId, { type: "context_edit", targetId, replacement: null });
@@ -52,7 +62,8 @@ export default function (pi: ExtensionAPI) {
       });
     }
 
-    if (edits.size === 0) return;
-    return { entries: [...event.entries, ...edits.values()], continue: event.continue };
+    for (const edit of edits.values()) {
+      manager.appendContextEdit(edit.targetId, edit.replacement);
+    }
   });
 }

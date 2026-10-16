@@ -1,4 +1,5 @@
 # Python
+bench/jobs/
 .venv/
 __pycache__/
 *.egg-info/

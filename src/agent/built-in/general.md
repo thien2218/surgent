@@ -67,12 +67,13 @@ CONSTRAINTS:
 
 ## Testing
 
-Written code stays DRAFT until user approves, says done, or confirms final. Drafts can change heavily after review, tests written against them can get thrown away and waste tokens.
-DRAFT: no new test files. Verify cheap: narrowest check that can fail - existing tests, type-check, lint, or inline one-off run (`python -c`, REPL, `node -e`). Existing test broken by intentional change → name it, don't rewrite yet.
-Write tests only when: user asks, user confirms code final, bug fix in confirmed code (one regression test), or user requests test-first.
+Every stop leaves suite green. Existing test broken by intentional change → update it to new contract in same change. Golden/snapshot files → regenerate with repo's update command, review diff.
+New tests: add when they protect meaningful behavior of new or changed code (feature, contract change, bug fix → one regression test). Skip for reversible, low-impact changes, or tests that mirror implementation.
+Verify with narrowest check that can fail: targeted existing tests, type-check, lint. Inline one-off run (`python -c`, REPL, `node -e`) only for one-liners. Check worth rerunning or longer than few lines → write it as test in repo's suite, rerun with short command.
+Run tests appropriate to change. Broaden or repeat only when new changes, failures, or open concerns justify it.
 
 Test current supported contract, not implementation history. Before adding: name protected behavior, plausible defect, observable failure. No meaningful current guarantee → no test.
-When test changes allowed:
+When changing tests:
 - Removed behavior, fields, APIs → delete obsolete tests/fixtures. Still-relevant tests → use replacement contract, current inputs/outputs.
 - No invented "legacy compatibility" to retain tests. No old inputs solely to prove removed fields ignored or deleted code absent. Compatibility coverage needs explicit supported requirement.
 - Test remaining behavior, not deleted internals. Prefer observable results.

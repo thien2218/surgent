@@ -16,6 +16,7 @@ const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT_ENTRY_URL = import.meta.resolve("@earendil-works/pi-coding-agent");
 const LOCAL_PI_SUBDIRS = ["agents", "plans"];
 const GLOBAL_PI_SUBDIRS = ["agents", "grammars"];
+const GIT_EXCLUDED_PATHS = [".pi", ".piignore"];
 const BASE_TOOLS = ["ls", "find", "grep", "code_map", "inspect", "read"];
 const BUILT_IN_META = {
   documenter: {
@@ -105,10 +106,11 @@ async function ensurePiExcluded(cwd) {
   }
 
   const existingPatterns = excludeContents.split(/\r?\n/).map((line) => line.trim());
-  if (existingPatterns.includes(".pi")) return;
+  const missingPatterns = GIT_EXCLUDED_PATHS.filter((pattern) => !existingPatterns.includes(pattern));
+  if (missingPatterns.length === 0) return;
 
   const separator = excludeContents.length > 0 && !excludeContents.endsWith("\n") ? "\n" : "";
-  await writeFile(excludePath, `${excludeContents}${separator}.pi\n`);
+  await writeFile(excludePath, `${excludeContents}${separator}${missingPatterns.join("\n")}\n`);
 }
 
 async function syncPiIgnore(cwd) {

@@ -143,6 +143,28 @@ describe("optimizer session start", () => {
     expect(manager.getEntries()).toEqual(original);
   });
 
+  it("removes seen shell failures whose exact command executed again later", async () => {
+    const manager = SessionManager.inMemory(workspace.cwd);
+    const first = appendTool(manager, "first", "bash", "error TS2304", { command: "pnpm tsc --noEmit" }, true);
+    const second = appendTool(manager, "second", "bash", "error TS2322", { command: " pnpm tsc --noEmit " }, true);
+    appendTool(manager, "edited", "bash", "exit 1", { command: "pnpm test -- -t pruner" }, true);
+    appendTool(manager, "flaky", "powershell", "exit 1", { command: "pnpm test" }, true);
+    appendTool(manager, "other", "bash", "passed", { command: "pnpm test" });
+    appendTool(manager, "last", "bash", "exit 1", { command: "pnpm tsc --noEmit" }, true);
+    blockTool(manager, "blocked", "powershell", "Permission request was cancelled", { command: "pnpm test" });
+    reply(manager);
+    appendTool(manager, "unseen", "bash", "passed", { command: "pnpm test -- -t pruner" });
+
+    expect(await startPruner(manager)).toEqual([
+      { type: "context_edit", targetId: first.resultId, replacement: null },
+      { type: "context_edit", targetId: second.resultId, replacement: null },
+      { type: "context_edit", targetId: first.callId, replacement: null },
+      { type: "context_edit", targetId: second.callId, replacement: null },
+    ]);
+    const results = manager.buildSessionProjection().messages.filter((message) => message.role === "toolResult");
+    expect(results.map((message) => message.toolCallId)).toEqual(["edited", "flaky", "other", "last", "blocked", "unseen"]);
+  });
+
   it("leaves duplicate inspections unchanged at session start even with earlier omissions", async () => {
     const manager = SessionManager.inMemory(workspace.cwd);
     appendTool(manager, "old", "inspect", "first\nsecond", { path: "file.ts", symbol: "handler" }, false, null);

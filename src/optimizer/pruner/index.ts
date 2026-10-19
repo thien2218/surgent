@@ -4,7 +4,7 @@ import type {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import { filterToolCalls, getEligibleResult } from "../entries.js";
-import { shouldRemoveToolCall } from "./cleanup.js";
+import { getRetriedCalls, shouldRemoveToolCall } from "./cleanup.js";
 
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", (_event, ctx) => {
@@ -21,12 +21,14 @@ export default function (pi: ExtensionAPI) {
     const removedCalls = new Set<string>();
 
     // Results after the last reply have not been seen by the model yet.
-    for (const entry of entries.slice(0, lastReply)) {
+    const seen = entries.slice(0, lastReply);
+    const retriedCalls = getRetriedCalls(seen);
+    for (const entry of seen) {
       const message = getEligibleResult(entry);
       const targetId = entry.sourceEntry.id;
       if (!message) continue;
 
-      if (shouldRemoveToolCall(message)) {
+      if (shouldRemoveToolCall(message, retriedCalls)) {
         edits.set(targetId, { type: "context_edit", targetId, replacement: null });
         removedCalls.add(message.toolCallId);
         continue;

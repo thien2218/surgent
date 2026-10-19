@@ -14,13 +14,19 @@ function blocked(toolName: string, text: string): ToolResultMessage {
   return message;
 }
 
+const noRetries = new Set<string>();
+
 describe("prunable results", () => {
   it.each(["read", "inspect", "find", "edit"])("removes failed %s results", (toolName) => {
-    expect(shouldRemoveToolCall(result("failed", toolName, "failure", true))).toBe(true);
+    expect(shouldRemoveToolCall(result("failed", toolName, "failure", true), noRetries)).toBe(true);
   });
 
-  it.each(["bash", "powershell", "codemode", "subagent"])("retains %s failures because their output remains useful", (toolName) => {
-    expect(shouldRemoveToolCall(result("shell", toolName, "exit status 1", true))).toBe(false);
+  it.each(["bash", "powershell", "codemode", "subagent"])("retains %s failures that were not retried", (toolName) => {
+    expect(shouldRemoveToolCall(result("shell", toolName, "exit status 1", true), noRetries)).toBe(false);
+  });
+
+  it.each(["bash", "powershell"])("removes retried %s failures", (toolName) => {
+    expect(shouldRemoveToolCall(result("shell", toolName, "exit status 1", true), new Set(["shell"]))).toBe(true);
   });
 
   it.each([
@@ -29,7 +35,7 @@ describe("prunable results", () => {
     ["read", 'Path blocked by .piignore rule ".env"'],
     ["bash", "Permission request was cancelled"],
   ])("retains blocked %s calls: %s", (toolName, text) => {
-    expect(shouldRemoveToolCall(blocked(toolName, text))).toBe(false);
+    expect(shouldRemoveToolCall(blocked(toolName, text), new Set(["blocked"]))).toBe(false);
   });
 
   it.each([
@@ -40,7 +46,7 @@ describe("prunable results", () => {
     "Operation aborted",
     'Tool call "read" was not executed: the response hit the output token limit',
   ])("removes unexecuted calls the agent loop rejected: %s", (text) => {
-    expect(shouldRemoveToolCall(blocked("read", text))).toBe(true);
+    expect(shouldRemoveToolCall(blocked("read", text), noRetries)).toBe(true);
   });
 
   it.each([
@@ -49,7 +55,7 @@ describe("prunable results", () => {
     ["find", "No changes found."],
     ["find", "No changes in selected files."],
   ])("removes empty %s output: %s", (toolName, text) => {
-    expect(shouldRemoveToolCall(result("empty", toolName, text))).toBe(true);
+    expect(shouldRemoveToolCall(result("empty", toolName, text), noRetries)).toBe(true);
   });
 
   it.each([
@@ -59,13 +65,13 @@ describe("prunable results", () => {
     ["ls", ""],
     ["find", "source.ts"],
   ])("preserves meaningful %s output: %s", (toolName, text) => {
-    expect(shouldRemoveToolCall(result("keep", toolName, text))).toBe(false);
+    expect(shouldRemoveToolCall(result("keep", toolName, text), noRetries)).toBe(false);
   });
 
   it("preserves empty-looking text accompanied by other output", () => {
     const message = result("keep", "find", "No files found matching pattern");
     message.content.push({ type: "text", text: "diagnostic" });
 
-    expect(shouldRemoveToolCall(message)).toBe(false);
+    expect(shouldRemoveToolCall(message, noRetries)).toBe(false);
   });
 });

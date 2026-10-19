@@ -1,7 +1,9 @@
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
+import type { ProjectedSessionEntry } from "@earendil-works/pi-coding-agent";
 import { isRecord } from "../../utils.js";
 
-const RETAINED_TOOLS = new Set(["bash", "powershell", "codemode", "subagent"]);
+const RETAINED_TOOLS = new Set(["codemode", "subagent"]);
+const SHELL_TOOLS = new Set(["bash", "powershell"]);
 
 // Errors the agent loop raises itself before a call runs, as opposed to extension blocks.
 const LOOP_ERRORS = [
@@ -42,8 +44,41 @@ function isBlocked(message: ToolResultMessage): boolean {
   return !LOOP_ERRORS.some((pattern) => pattern.test(content.text));
 }
 
-export function shouldRemoveToolCall(message: ToolResultMessage): boolean {
+/** Failed shell calls whose exact command executed again later. */
+export function getRetriedCalls(entries: ProjectedSessionEntry[]): Set<string> {
+  const commands = new Map<string, string>();
+  for (const { messages } of entries) {
+    for (const message of messages) {
+      if (message.role !== "assistant") continue;
+      for (const block of message.content) {
+        if (block.type !== "toolCall" || !SHELL_TOOLS.has(block.name)) continue;
+        const { command } = block.arguments;
+        if (typeof command === "string") commands.set(block.id, `${block.name}:${command.trim()}`);
+      }
+    }
+  }
+
+  const retriedCalls = new Set<string>();
+  const laterRuns = new Set<string>();
+  for (const { messages } of entries.toReversed()) {
+    const message = messages[0];
+    if (messages.length !== 1 || message?.role !== "toolResult") continue;
+
+    const command = commands.get(message.toolCallId);
+    if (!command || message.durationMs === undefined) continue;
+    if (message.isError && laterRuns.has(command)) retriedCalls.add(message.toolCallId);
+    laterRuns.add(command);
+  }
+
+  return retriedCalls;
+}
+
+export function shouldRemoveToolCall(
+  message: ToolResultMessage,
+  retriedCalls: ReadonlySet<string>,
+): boolean {
   if (typeof message.toolCallId !== "string") return false;
   if (!message.isError) return hasEmptyResult(message);
-  return !isBlocked(message) && !RETAINED_TOOLS.has(message.toolName);
+  if (isBlocked(message) || RETAINED_TOOLS.has(message.toolName)) return false;
+  return !SHELL_TOOLS.has(message.toolName) || retriedCalls.has(message.toolCallId);
 }

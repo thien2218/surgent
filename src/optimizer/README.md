@@ -80,7 +80,8 @@ src/config.ts
 
 Once the model has seen a result and moved on, some of it stops being useful. When a session starts or resumes, pi-optimizer tidies up results the model has already replied to:
 
-- Failed tool calls are removed, together with the call that produced them. Failed shell commands are kept, because their errors are often still relevant.
+- Failed tool calls are removed, together with the call that produced them. Calls blocked before they ran, for example by a permission rule or a rejected prompt, are kept so the model remembers what was refused and why.
+- Failed shell commands are kept, because their errors are often still relevant.
 - File searches and directory listings that found nothing are removed.
 - Search results keep their matching lines but drop the surrounding context lines.
 

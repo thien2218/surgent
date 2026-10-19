@@ -1,7 +1,7 @@
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it } from "vitest";
 import { assistantMessage } from "../../helpers/commands.js";
-import { appendTool, startPruner } from "../../helpers/optimizer.js";
+import { appendTool, blockTool, startPruner } from "../../helpers/optimizer.js";
 import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
 let workspace: Workspace;
@@ -131,6 +131,18 @@ describe("optimizer session start", () => {
     expect(manager.buildSessionProjection().messages.map((message) => message.role)).toEqual(["assistant"]);
   });
 
+  it("keeps seen calls blocked before execution, including retried shell commands", async () => {
+    const manager = SessionManager.inMemory(workspace.cwd);
+    blockTool(manager, "read", "read", "User rejected this tool call. User input: use the fixture", { path: "file.ts" });
+    blockTool(manager, "bash", "bash", "Access to this resource is denied by policy rule: deny", { command: "rm -rf dist" });
+    appendTool(manager, "retry", "bash", "removed", { command: "rm -rf dist" });
+    reply(manager);
+    const original = structuredClone(manager.getEntries());
+
+    expect(await startPruner(manager)).toBeUndefined();
+    expect(manager.getEntries()).toEqual(original);
+  });
+
   it("leaves duplicate inspections unchanged at session start even with earlier omissions", async () => {
     const manager = SessionManager.inMemory(workspace.cwd);
     appendTool(manager, "old", "inspect", "first\nsecond", { path: "file.ts", symbol: "handler" }, false, null);
@@ -173,7 +185,7 @@ describe("optimizer session start", () => {
     if (thinking) assistant.content.push({ type: "thinking", thinking: "reasoning" });
     assistant.content.push({ type: "toolCall", id: "failed", name: "read", arguments: {} });
     const callId = manager.appendMessage(assistant);
-    const resultId = manager.appendMessage({ role: "toolResult", toolCallId: "failed", toolName: "read", content: [{ type: "text", text: "failure" }], isError: true, timestamp: 0 });
+    const resultId = manager.appendMessage({ role: "toolResult", toolCallId: "failed", toolName: "read", content: [{ type: "text", text: "failure" }], isError: true, timestamp: 0, durationMs: 0 });
     reply(manager);
 
     expect(await startPruner(manager)).toEqual([

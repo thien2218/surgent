@@ -25,10 +25,28 @@ export function appendTool(
   assistant.content = [{ type: "toolCall", id: toolCallId, name: toolName, arguments: args }];
   const callId = manager.appendMessage(assistant);
   const message: ToolResultMessage = {
-    role: "toolResult", toolCallId, toolName, isError, details, timestamp: 0,
+    role: "toolResult", toolCallId, toolName, isError, details, timestamp: 0, durationMs: 0,
     content: [{ type: "text", text }],
   };
   const resultId = manager.appendMessage(message);
+  return { callId, resultId };
+}
+
+/** Appends a call a `tool_call` handler blocked; pi records it without `durationMs`. */
+export function blockTool(
+  manager: SessionManager,
+  toolCallId: string,
+  toolName: string,
+  reason: string,
+  args: ToolCall["arguments"] = {},
+) {
+  const assistant = assistantMessage("");
+  assistant.content = [{ type: "toolCall", id: toolCallId, name: toolName, arguments: args }];
+  const callId = manager.appendMessage(assistant);
+  const resultId = manager.appendMessage({
+    role: "toolResult", toolCallId, toolName, isError: true, timestamp: 0,
+    content: [{ type: "text", text: reason }],
+  });
   return { callId, resultId };
 }
 

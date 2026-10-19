@@ -1,7 +1,16 @@
-import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
+import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import { isRecord } from "../../utils.js";
 
 const RETAINED_TOOLS = new Set(["bash", "powershell", "codemode", "subagent"]);
+
+// Errors the agent loop raises itself before a call runs, as opposed to extension blocks.
+const LOOP_ERRORS = [
+  /^Tool "?[^"\s]+"? not found$/,
+  /^Validation failed for tool "/,
+  /^Invalid arguments for tool "/,
+  /^Operation aborted$/,
+  /^Tool call "[^"]+" was not executed: /,
+];
 
 function hasEmptyResult(message: { content?: unknown; toolName?: unknown }): boolean {
   if (
@@ -25,13 +34,16 @@ function hasEmptyResult(message: { content?: unknown; toolName?: unknown }): boo
   );
 }
 
-export function shouldRemoveToolCall(message: {
-  toolCallId: string;
-  toolName: string;
-  content: (TextContent | ImageContent)[];
-  isError: boolean;
-}): boolean {
+/** Pi stamps `durationMs` only on executed calls, so other errors are blocks unless the loop raised them. */
+function isBlocked(message: ToolResultMessage): boolean {
+  if (!message.isError || message.durationMs !== undefined) return false;
+  const [content] = message.content;
+  if (message.content.length !== 1 || content?.type !== "text") return true;
+  return !LOOP_ERRORS.some((pattern) => pattern.test(content.text));
+}
+
+export function shouldRemoveToolCall(message: ToolResultMessage): boolean {
   if (typeof message.toolCallId !== "string") return false;
-  if (message.isError) return !RETAINED_TOOLS.has(message.toolName);
-  return hasEmptyResult(message);
+  if (!message.isError) return hasEmptyResult(message);
+  return !isBlocked(message) && !RETAINED_TOOLS.has(message.toolName);
 }

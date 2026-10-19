@@ -4,7 +4,7 @@ import type {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import { filterToolCalls, getEligibleResult } from "../entries.js";
-import { getRemovedToolCallId } from "./cleanup.js";
+import { shouldRemoveToolCall } from "./cleanup.js";
 
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", (_event, ctx) => {
@@ -26,7 +26,7 @@ export default function (pi: ExtensionAPI) {
       const targetId = entry.sourceEntry.id;
       if (!message) continue;
 
-      if (getRemovedToolCallId(message)) {
+      if (shouldRemoveToolCall(message)) {
         edits.set(targetId, { type: "context_edit", targetId, replacement: null });
         removedCalls.add(message.toolCallId);
         continue;

@@ -1,6 +1,6 @@
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
-import { getRemovedToolCallId } from "../../../src/optimizer/pruner/cleanup.js";
+import { shouldRemoveToolCall } from "../../../src/optimizer/pruner/cleanup.js";
 
 function result(toolCallId: string, toolName: string, text: string, isError = false): ToolResultMessage {
   return {
@@ -10,11 +10,11 @@ function result(toolCallId: string, toolName: string, text: string, isError = fa
 
 describe("prunable results", () => {
   it.each(["read", "inspect", "find", "edit"])("removes failed %s results", (toolName) => {
-    expect(getRemovedToolCallId(result("failed", toolName, "failure", true))).toBe("failed");
+    expect(shouldRemoveToolCall(result("failed", toolName, "failure", true))).toBe(true);
   });
 
-  it("retains bash failures because command output remains useful", () => {
-    expect(getRemovedToolCallId(result("shell", "bash", "exit status 1", true))).toBeUndefined();
+  it.each(["bash", "powershell", "codemode", "subagent"])("retains %s failures because their output remains useful", (toolName) => {
+    expect(shouldRemoveToolCall(result("shell", toolName, "exit status 1", true))).toBe(false);
   });
 
   it.each([
@@ -23,7 +23,7 @@ describe("prunable results", () => {
     ["find", "No changes found."],
     ["find", "No changes in selected files."],
   ])("removes empty %s output: %s", (toolName, text) => {
-    expect(getRemovedToolCallId(result("empty", toolName, text))).toBe("empty");
+    expect(shouldRemoveToolCall(result("empty", toolName, text))).toBe(true);
   });
 
   it.each([
@@ -33,13 +33,13 @@ describe("prunable results", () => {
     ["ls", ""],
     ["find", "source.ts"],
   ])("preserves meaningful %s output: %s", (toolName, text) => {
-    expect(getRemovedToolCallId(result("keep", toolName, text))).toBeUndefined();
+    expect(shouldRemoveToolCall(result("keep", toolName, text))).toBe(false);
   });
 
   it("preserves empty-looking text accompanied by other output", () => {
     const message = result("keep", "find", "No files found matching pattern");
     message.content.push({ type: "text", text: "diagnostic" });
 
-    expect(getRemovedToolCallId(message)).toBeUndefined();
+    expect(shouldRemoveToolCall(message)).toBe(false);
   });
 });

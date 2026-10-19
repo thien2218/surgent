@@ -1,16 +1,21 @@
+import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import { isRecord } from "../../utils.js";
 
-function hasEmptyResult(message: {
-  content?: unknown;
-  toolName?: unknown;
-}): boolean {
-  if (message.toolName !== "ls" && message.toolName !== "find") {
+const RETAINED_TOOLS = new Set(["bash", "powershell", "codemode", "subagent"]);
+
+function hasEmptyResult(message: { content?: unknown; toolName?: unknown }): boolean {
+  if (
+    (message.toolName !== "ls" && message.toolName !== "find") ||
+    !Array.isArray(message.content) ||
+    message.content.length !== 1
+  ) {
     return false;
   }
 
-  if (!Array.isArray(message.content) || message.content.length !== 1) return false;
   const content = message.content[0];
-  if (!isRecord(content) || content.type !== "text" || typeof content.text !== "string") return false;
+  if (!isRecord(content) || content.type !== "text" || typeof content.text !== "string") {
+    return false;
+  }
 
   return (
     content.text === "(empty directory)" ||
@@ -20,13 +25,13 @@ function hasEmptyResult(message: {
   );
 }
 
-export function getRemovedToolCallId(message: {
-  content?: unknown;
-  isError?: unknown;
-  toolCallId?: unknown;
-  toolName?: unknown;
-}): string | undefined {
-  if (typeof message.toolCallId !== "string") return;
-  if (message.isError === true) return message.toolName === "bash" ? undefined : message.toolCallId;
-  return hasEmptyResult(message) ? message.toolCallId : undefined;
+export function shouldRemoveToolCall(message: {
+  toolCallId: string;
+  toolName: string;
+  content: (TextContent | ImageContent)[];
+  isError: boolean;
+}): boolean {
+  if (typeof message.toolCallId !== "string") return false;
+  if (message.isError) return !RETAINED_TOOLS.has(message.toolName);
+  return hasEmptyResult(message);
 }

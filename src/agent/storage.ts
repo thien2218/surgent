@@ -24,6 +24,21 @@ const BASE_PROMPT = `
 7. 'read' on code MUST have offset + limit. ALWAYS use range from 'code_map' output as the source of truth.
 </optimization>
 `;
+const SUBAGENT_PROMPT = `
+<subagent>
+Use specialized subagent proactively for bounded work that would consume substantial context: broad code exploration, planning, diff review, documentation, tests, logs, etc.
+Select profile based on its description.
+Start every \`scout\` task with "Depth: quick", "Depth: standard", or "Depth: deep". Use standard by default; use deep only when cross-component uncertainty requires it.
+Before delegating, split task into immediate local work and independent side work. Keep tiny tasks and tightly coupled next actions local when handoff costs more than doing work.
+Include outcome, exact scope or write ownership, known paths and symbols, relevant evidence, constraints, expected output, and done condition. Subagent cannot see parent conversation.
+Emit independent calls in same assistant message so they run concurrently. Parallel writes must own disjoint files; otherwise sequence them.
+Do not repeat delegated research or edits. Continue non-overlapping work, then integrate returned result. Recheck only missing, conflicting, or safety-critical evidence.
+Subagent doesn't own sequencing, cross-task decisions, integration, final verification, and user response.
+
+Available subagents:
+{{subagents}}
+</subagent>
+`;
 
 async function getAgentFiles(cwd: string, name?: string): Promise<string[]> {
   const seen = new Set<string>();
@@ -162,8 +177,8 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
 
   const agents = profiles.flatMap((profile) => (profile.agent ? [profile.agent] : []));
   const { meta } = profile.agent;
-  pi.setActiveTools(meta.tools ?? pi.getAllTools().map((tool) => tool.name));
 
+  if (meta.tools) pi.setActiveTools(meta.tools);
   if (meta.model) {
     const existing = ctx.modelRegistry.find(
       meta.model.slice(0, meta.model.indexOf("/")),
@@ -183,11 +198,11 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
 
   let systemPrompt = BASE_PROMPT;
   if (pi.getActiveTools().includes("subagent")) {
-    const subagentsList = agents
+    const text = agents
       .filter(({ name }) => name !== DEFAULT_AGENT)
       .map((profile) => `- ${profile.name}: ${profile.meta.description}`)
       .join("\n");
-    systemPrompt += `\n\n<subagents>\n${subagentsList}\n</subagents>`;
+    systemPrompt += SUBAGENT_PROMPT.replace("{{subagents}}", text);
   }
   await writeFile(getPiPath("system"), systemPrompt, "utf8");
   return profile.agent;

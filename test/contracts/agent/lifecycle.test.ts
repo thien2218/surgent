@@ -45,15 +45,13 @@ async function setup() {
 }
 
 describe("agent startup", () => {
-  it("enables every registered tool when the profile omits tools", async () => {
+  it("keeps pi's tool selection when the profile omits tools", async () => {
     const context = await setup();
     await writeFile(join(context.local, "general.md"), "---\ndescription: General\n---\nInstructions");
 
     await context.start();
 
-    expect(context.extension.api.getActiveTools()).toEqual(
-      context.extension.api.getAllTools().map((tool) => tool.name),
-    );
+    expect(context.extension.api.getActiveTools()).toEqual(["read", "subagent", "codemode", "tool_search"]);
     expect(context.shutdown).not.toHaveBeenCalled();
   });
 
@@ -143,14 +141,14 @@ describe("generated tool details", () => {
     const filePath = join(context.local, "general.md");
     await writeFile(filePath, "---\ndescription: General\ntools: [subagent]\n---\nInstructions");
     await context.start();
-    expect(await readFile(getPiPath("system"), "utf8")).toContain("<subagents>");
+    expect(await readFile(getPiPath("system"), "utf8")).toContain("<subagent>");
 
     await writeFile(filePath, "---\ndescription: General\ntools: []\n---\nInstructions");
     await context.start();
 
     const prompt = await readFile(getPiPath("system"), "utf8");
     expect(prompt).toContain('<optimization priority="highest" target="token usage">');
-    expect(prompt).not.toContain("<subagents>");
+    expect(prompt).not.toContain("<subagent>");
     expect(context.shutdown).not.toHaveBeenCalled();
   });
 });

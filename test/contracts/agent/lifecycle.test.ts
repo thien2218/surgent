@@ -1,6 +1,6 @@
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createEventBus, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { createEventBus, type BeforeAgentStartEvent, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import agentExtension from "../../../src/agent/index.js";
@@ -135,20 +135,24 @@ describe("agent startup", () => {
   });
 });
 
-describe("generated tool details", () => {
-  it("retains shared guidance while clearing details when subagent is disabled", async () => {
+describe("delegation prompt", () => {
+  it("lists configured profiles only while the subagent tool is active", async () => {
     const context = await setup();
-    const filePath = join(context.local, "general.md");
-    await writeFile(filePath, "---\ndescription: General\ntools: [subagent]\n---\nInstructions");
+    await writeFile(join(context.local, "worker.md"), "---\ndescription: Test worker\n---\nWorker instructions");
     await context.start();
-    expect(await readFile(getPiPath("system"), "utf8")).toContain("<subagent>");
+    const sections: Record<string, string> = {};
+    const prompt = () => context.extension.event("before_agent_start")({
+      type: "before_agent_start", messageType: "user", prompt: "Task", systemPrompt: "",
+      systemPromptOptions: { sections },
+    } as unknown as BeforeAgentStartEvent, context.ctx);
 
-    await writeFile(filePath, "---\ndescription: General\ntools: []\n---\nInstructions");
-    await context.start();
+    await prompt();
+    expect(sections.subagent).toContain("- worker: Test worker");
+    expect(sections.subagent).not.toContain("- general:");
 
-    const prompt = await readFile(getPiPath("system"), "utf8");
-    expect(prompt).toContain('<optimization priority="highest" target="token usage">');
-    expect(prompt).not.toContain("<subagent>");
+    context.extension.api.setActiveTools(["read"]);
+    await prompt();
+    expect(sections).not.toHaveProperty("subagent");
     expect(context.shutdown).not.toHaveBeenCalled();
   });
 });

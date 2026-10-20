@@ -1,3 +1,6 @@
+# General
+temp/
+
 # Python
 bench/jobs/
 .venv/
@@ -8,4 +11,3 @@ __pycache__/
 # TS/JS
 node_modules/
 dist/
-benchmark/sessions/

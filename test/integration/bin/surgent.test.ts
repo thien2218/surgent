@@ -109,6 +109,19 @@ describe("CLI bootstrap", () => {
     expect(await readFile(settingsPath, "utf8")).toBe(saved);
   });
 
+  it("replaces a stale global SYSTEM.md with the base prompt before Pi reads it", async () => {
+    const fixture = await setup();
+    await mkdir(fixture.globalDir, { recursive: true });
+    const systemPath = join(fixture.globalDir, "SYSTEM.md");
+    await writeFile(systemPath, "<subagent>\nStale delegation prompt\n</subagent>\n");
+
+    expect(fixture.run(["--mode", "json"]).status).toBe(0);
+
+    const prompt = await readFile(systemPath, "utf8");
+    expect(prompt).toContain('<optimization priority="highest" target="token usage">');
+    expect(prompt).not.toContain("<subagent>");
+  });
+
   it("rejects malformed settings without overwriting them or launching Pi", async () => {
     const fixture = await setup();
     await mkdir(fixture.globalDir, { recursive: true });

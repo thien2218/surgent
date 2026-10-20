@@ -13,20 +13,7 @@ import {
 } from "./config.js";
 
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
-const BASE_PROMPT = `
-<optimization priority="highest" target="token usage">
-1. Token consumption by read-only tools in asc order: 'ls' → 'find' → 'grep' → 'code_map' → 'inspect' → 'read'. Use the right tool for the right purpose.
-2. Load applicable skills, instructions, and reference docs once. "Use/read before work" means apply already-loaded content, not reload it per task.
-3. Re-read content only with evidence of file changes or required content truncated or unavailable. Identify the gap first; fetch only the changed/missing region. Do NOT run freshness checks solely to justify re-reading.
-4. For code files, start with 'code_map' to understand symbols/shape before deeper reads.
-5. Use 'inspect' for minimal symbol body needed to answer/fix.
-6. Use 'read' on code only when region is uninspectable.
-7. 'read' on code MUST have offset + limit. ALWAYS use range from 'code_map' output as the source of truth.
-</optimization>
-`;
-const SUBAGENT_PROMPT = `
-<subagent>
-Use specialized subagent proactively for bounded work that would consume substantial context: broad code exploration, planning, diff review, documentation, tests, logs, etc.
+const SUBAGENT_PROMPT = `Use specialized subagent proactively for bounded work that would consume substantial context: broad code exploration, planning, diff review, documentation, tests, logs, etc.
 Select profile based on its description.
 Start every \`scout\` task with "Depth: quick", "Depth: standard", or "Depth: deep". Use standard by default; use deep only when cross-component uncertainty requires it.
 Before delegating, split task into immediate local work and independent side work. Keep tiny tasks and tightly coupled next actions local when handoff costs more than doing work.
@@ -35,10 +22,7 @@ Emit independent calls in same assistant message so they run concurrently. Paral
 Do not repeat delegated research or edits. Continue non-overlapping work, then integrate returned result. Recheck only missing, conflicting, or safety-critical evidence.
 Subagent doesn't own sequencing, cross-task decisions, integration, final verification, and user response.
 
-Available subagents:
-{{subagents}}
-</subagent>
-`;
+Available subagents:`;
 
 async function getAgentFiles(cwd: string, name?: string): Promise<string[]> {
   const seen = new Set<string>();
@@ -113,6 +97,14 @@ export async function loadAgents(cwd: string, name?: string): Promise<[Agent, ..
   return agents as [Agent, ...Agent[]];
 }
 
+export async function loadSubagentPrompt(cwd: string): Promise<string> {
+  const list = (await loadAgents(cwd))
+    .filter(({ name }) => name !== DEFAULT_AGENT)
+    .map((agent) => `- ${agent.name}: ${agent.meta.description}`)
+    .join("\n");
+  return `${SUBAGENT_PROMPT}\n${list}`;
+}
+
 export async function createAgentFile(base: string, name: string): Promise<string> {
   validateAgentName(name);
   const filePath = join(getPiPath("agents", base), `${name}.md`);
@@ -175,9 +167,7 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
   if (!profile) throw new Error("Invalid agent name.");
   if (!profile.agent) throw new Error(`Invalid agent "${name}": ${profile.error}`);
 
-  const agents = profiles.flatMap((profile) => (profile.agent ? [profile.agent] : []));
   const { meta } = profile.agent;
-
   if (meta.tools) pi.setActiveTools(meta.tools);
   if (meta.model) {
     const existing = ctx.modelRegistry.find(
@@ -196,14 +186,5 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
     pi.setThinkingLevel(meta.thinking_level);
   }
 
-  let systemPrompt = BASE_PROMPT;
-  if (pi.getActiveTools().includes("subagent")) {
-    const text = agents
-      .filter(({ name }) => name !== DEFAULT_AGENT)
-      .map((profile) => `- ${profile.name}: ${profile.meta.description}`)
-      .join("\n");
-    systemPrompt += SUBAGENT_PROMPT.replace("{{subagents}}", text);
-  }
-  await writeFile(getPiPath("system"), systemPrompt, "utf8");
   return profile.agent;
 }

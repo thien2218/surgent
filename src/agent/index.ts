@@ -75,9 +75,9 @@ export default function (pi: ExtensionAPI) {
   pi.on("before_agent_start", (event) => {
     const { body } = getState(pi).getAgent();
     if (body) {
-      event.systemPromptOptions.sections.agent = body;
+      event.systemPromptOptions.sections.main = body;
     } else {
-      delete event.systemPromptOptions.sections.agent;
+      delete event.systemPromptOptions.sections.main;
     }
   });
 

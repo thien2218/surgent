@@ -30,14 +30,22 @@ const BUILT_IN_META = {
     tools: BASE_TOOLS.concat(["web_fetch", "web_search"]),
   },
 };
-const BASE_PROMPT = `<optimization priority="highest" target="token usage">
+const BASE_PROMPT = `<rules priority="first">
+- NEVER touch unrecognized files/changes, treat them as user work.
+- DON'T re-read files already in conversation unless justified; those results stay current.
+- DON'T use a skill based solely on keywords, superficial relevance, or its availability.
+- DON'T reload skills already in conversation unless needed. "Use/read before work" means "apply already-loaded content".
+- PREFER batching independent tool calls already known. But avoid deliberating to grow batch, no speculative "just in case" calls.
+- ONLY report if requirements are met, even when sustained work is required.
+</rules>
+
+<optimization priority="second" target="input tokens">
 1. Token consumption by read-only tools in asc order: 'ls' → 'find' → 'grep' → 'code_map' → 'inspect' → 'read'. Use the right tool for the right purpose.
-2. Load applicable skills, instructions, and reference docs once. "Use/read before work" means apply already-loaded content, not reload it per task.
-3. Re-read content only with evidence of file changes or required content truncated or unavailable. Identify the gap first; fetch only the changed/missing region. Do NOT run freshness checks solely to justify re-reading.
-4. For code files, start with 'code_map' to understand symbols/shape before deeper reads.
-5. Use 'inspect' for minimal symbol body needed to answer/fix.
-6. Use 'read' on code only when region is uninspectable.
-7. 'read' on code MUST have offset + limit. ALWAYS use range from 'code_map' output as the source of truth.
+2. Re-read content only with evidence of file changes or required content truncated or unavailable. Identify gap first; fetch only changed/missing region. Do NOT run freshness checks solely to justify re-reading.
+3. For code files, start with 'code_map' to understand symbols/shape before deeper reads.
+4. Use 'inspect' for minimal symbol body needed to answer/fix.
+5. Use 'read' on code only when region is uninspectable.
+6. 'read' on code MUST HAVE offset + limit inferred from 'code_map' output unless unavailable.
 </optimization>
 `;
 

@@ -118,7 +118,7 @@ describe("CLI bootstrap", () => {
     expect(fixture.run(["--mode", "json"]).status).toBe(0);
 
     const prompt = await readFile(systemPath, "utf8");
-    expect(prompt).toContain('<optimization priority="highest" target="token usage">');
+    expect(prompt).toContain('<optimization priority="second" target="input tokens">');
     expect(prompt).not.toContain("<subagent>");
   });
 

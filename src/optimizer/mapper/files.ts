@@ -21,7 +21,7 @@ async function listDirectory(cwd: string, dirs: string[], glob?: string, signal?
   if (dirs.length === 0) return { files: [], failed: [] };
   const localPath = join(getAgentDir(), "bin", process.platform === "win32" ? "rg.exe" : "rg");
   const cmd = existsSync(localPath) ? localPath : "rg";
-  const args = ["--files", "--hidden", "--glob", "!.{git,pi}"];
+  const args = ["--no-config", "--files", "--hidden", "--glob", "!.{git,pi}"];
   if (glob) args.push("--glob", glob);
   args.push("--", ...dirs);
 

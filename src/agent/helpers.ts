@@ -1,6 +1,7 @@
 import type { AgentMeta } from "./types.js";
 import type { FormConfig } from "../ui/components/form.js";
 import { META_KEYS, parseAgentList, THINKING_LEVELS } from "./config.js";
+import { getCurrentDate } from "../utils.js";
 
 function parseConfigValues(values: Record<string, string>) {
   const description = (values.description ?? "").trim();
@@ -97,4 +98,12 @@ export function getAgentConfigForm(
       ? (values) => parseConfigValues({ description: meta.description, ...values })
       : parseConfigValues,
   };
+}
+
+export function buildCwdSection(cwd: string): string {
+  return [
+    cwd.replace(/\\/g, "/"),
+    `platform: ${process.platform}`,
+    `date: ${getCurrentDate()}`,
+  ].join("\n");
 }

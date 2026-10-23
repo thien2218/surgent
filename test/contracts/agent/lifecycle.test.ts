@@ -4,6 +4,7 @@ import { createEventBus, type BeforeAgentStartEvent, type ExtensionContext } fro
 import { Type } from "typebox";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import agentExtension from "../../../src/agent/index.js";
+import { buildCwdSection } from "../../../src/agent/helpers.js";
 import { getState } from "../../../src/state.js";
 import { resolveReadGrant } from "../../../src/permission/resolution.js";
 import { getPiPath } from "../../../src/utils.js";
@@ -143,7 +144,7 @@ describe("delegation prompt", () => {
     const sections: Record<string, string> = {};
     const prompt = () => context.extension.event("before_agent_start")({
       type: "before_agent_start", messageType: "user", prompt: "Task", systemPrompt: "",
-      systemPromptOptions: { sections },
+      systemPromptOptions: { cwd: context.cwd, sections },
     } as unknown as BeforeAgentStartEvent, context.ctx);
 
     await prompt();
@@ -154,5 +155,20 @@ describe("delegation prompt", () => {
     await prompt();
     expect(sections).not.toHaveProperty("subagent");
     expect(context.shutdown).not.toHaveBeenCalled();
+  });
+});
+
+describe("cwd prompt", () => {
+  it("replaces Pi's cwd section with the environment section", async () => {
+    const context = await setup();
+    await context.start();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    onTestFinished(() => { vi.useRealTimers(); });
+    const sections: Record<string, string> = {};
+    await context.extension.event("before_agent_start")({
+      type: "before_agent_start", messageType: "user", prompt: "Task", systemPrompt: "",
+      systemPromptOptions: { cwd: context.cwd, sections },
+    } as unknown as BeforeAgentStartEvent, context.ctx);
+    expect(sections.cwd).toBe(buildCwdSection(context.cwd));
   });
 });

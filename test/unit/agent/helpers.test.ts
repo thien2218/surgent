@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { getAgentConfigForm } from "../../../src/agent/helpers.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { buildCwdSection, getAgentConfigForm } from "../../../src/agent/helpers.js";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("agent restriction fields", () => {
   it("renders quoted arrays without splitting commas inside entries", () => {
@@ -39,5 +43,13 @@ describe("agent restriction fields", () => {
 
     expect(form.parseOnSave!({ description: "Probe", bash: "", "files.read": "[]" }))
       .toEqual({ description: "Probe", "files.read": [] });
+  });
+});
+
+describe("cwd section", () => {
+  it("lists the slash-normalized path, platform and local date", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 3, 3, 12));
+    expect(buildCwdSection("C:\\work\\repo")).toBe(`C:/work/repo\nplatform: ${process.platform}\ndate: 2026-04-03`);
   });
 });

@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { agentsCommandHandler } from "./command.js";
+import { buildCwdSection } from "./helpers.js";
 import { loadMainAgent, loadSubagentPrompt } from "./storage.js";
 import { cycleMode } from "../permission/helpers.js";
 import { readAgentMode } from "../permission/storage.js";
@@ -73,6 +74,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
+    event.systemPromptOptions.sections.cwd = buildCwdSection(event.systemPromptOptions.cwd);
     const { body } = getState(pi).getAgent();
     if (body) {
       event.systemPromptOptions.sections.main = body;

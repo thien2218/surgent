@@ -1,6 +1,7 @@
 import type { Model } from "@earendil-works/pi-ai";
-import { createAgentSession, createEventBus, DefaultResourceLoader, SessionManager } from "@earendil-works/pi-coding-agent";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { createAgentSession, createEventBus, DefaultResourceLoader, SessionManager, type BeforeAgentStartEvent } from "@earendil-works/pi-coding-agent";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { buildCwdSection } from "../../../src/agent/helpers.js";
 import { createSdkSession } from "../../../src/subagent/sdk.js";
 import { resolveRuntime } from "../../../src/subagent/storage.js";
 import { getState, STATE_EVENT } from "../../../src/state.js";
@@ -158,5 +159,17 @@ describe("subsession bridge", () => {
   it("does not require paths for non-path tools", async () => {
     const { extension, ctx } = await bridgeSetup();
     expect(await extension.event("tool_call")({ type: "tool_call", toolName: "bash", toolCallId: "call", input: { command: "pwd" } }, ctx)).toBeUndefined();
+  });
+
+  it("replaces Pi's cwd section with the environment section", async () => {
+    const { extension, ctx, cwd } = await bridgeSetup();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    onTestFinished(() => { vi.useRealTimers(); });
+    const sections: Record<string, string> = {};
+    await extension.event("before_agent_start")({
+      type: "before_agent_start", messageType: "user", prompt: "Task", systemPrompt: "",
+      systemPromptOptions: { cwd, sections },
+    } as unknown as BeforeAgentStartEvent, ctx);
+    expect(sections.cwd).toBe(buildCwdSection(cwd));
   });
 });

@@ -2,8 +2,8 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, expect, it, onTestFinished, vi } from "vitest";
-import { getPiPath } from "../../../src/utils.js";
-import { getCacheFilePath, getCurrentCacheDate, pruneExpiredCacheDirs, readCachedContent, writeFetchedResult } from "../../../src/web-tools/web-fetch/storage.js";
+import { getCurrentDate, getPiPath } from "../../../src/utils.js";
+import { getCacheFilePath, pruneExpiredCacheDirs, readCachedContent, writeFetchedResult } from "../../../src/web-tools/web-fetch/storage.js";
 
 vi.mock("node:fs/promises", async importOriginal => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
@@ -33,7 +33,7 @@ it("uses canonical URL identity while keeping query variants separate", () => {
 it("uses the local calendar date with padded month and day", () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date(2026, 3, 3, 12));
-  expect(getCurrentCacheDate()).toBe(date);
+  expect(getCurrentDate()).toBe(date);
 });
 
 it("distinguishes a cache miss from an empty cached document", async () => {

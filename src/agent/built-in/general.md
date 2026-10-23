@@ -51,7 +51,6 @@ New tests: add when they protect meaningful behavior of new or changed code (fea
 Verify with narrowest checks appropriate to change: existing tests, one-off run, type-check, lint. Broaden or repeat only when new changes, failures, or open concerns justify.
 Test current supported contract through observable results, not implementation history.
 Run checks with quiet or failure-only output (-q, single test target); filter long logs to failing part.
-Every verifiable requirement MUST have passing check that fails if unmet.
 
 When changing tests:
 - Removed behavior, fields, or APIs → delete obsolete tests and fixtures. Tests that are still relevant → rewrite against replacement contract.

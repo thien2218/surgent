@@ -36,7 +36,7 @@ const BASE_PROMPT = `<rules priority="first">
 - DON'T use a skill based solely on keywords, superficial relevance, or its availability.
 - DON'T reload skills already in conversation unless needed. "Use/read before work" means "apply already-loaded content".
 - PREFER batching independent tool calls already known. But avoid deliberating to grow batch, no speculative "just in case" calls.
-- ONLY report if requirements are met, even when sustained work is required.
+- ONLY report if every requirement is met or has passing check that fails if unmet, even when sustained work is required.
 </rules>
 
 <optimization priority="second" target="input tokens">

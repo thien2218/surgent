@@ -9,29 +9,6 @@ const MOVE_HEADER = "*** Move to:";
 const EOF_MARKER = "*** End of File";
 const BOM = "﻿";
 
-export function splitBom(text: string) {
-  return text.startsWith(BOM) ? { bom: true, text: text.slice(1) } : { bom: false, text };
-}
-
-export function joinBom(text: string, bom: boolean) {
-  return bom ? BOM + text : text;
-}
-
-// Same line-ending rules as pi's edit tool: match on LF, write back the file's first ending.
-export function detectLineEnding(text: string) {
-  const crlfIdx = text.indexOf("\r\n");
-  const lfIdx = text.indexOf("\n");
-  return crlfIdx !== -1 && crlfIdx < lfIdx ? "\r\n" : "\n";
-}
-
-export function normalizeToLF(text: string) {
-  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-}
-
-export function restoreLineEndings(text: string, ending: string) {
-  return ending === "\r\n" ? text.replace(/\n/g, "\r\n") : text;
-}
-
 function parsePatchHeader(
   lines: string[],
   startIdx: number,
@@ -143,60 +120,6 @@ function stripHeredoc(input: string): string {
   return heredocMatch ? heredocMatch[2]! : input;
 }
 
-export function parsePatch(patchText: string): Hunk[] {
-  const lines = stripHeredoc(normalizeToLF(patchText).trim()).split("\n");
-  const hunks: Hunk[] = [];
-
-  const beginIdx = lines.findIndex((line) => line.trim() === BEGIN_MARKER);
-  const endIdx = lines.findIndex((line) => line.trim() === END_MARKER);
-
-  if (beginIdx === -1 || endIdx === -1 || beginIdx >= endIdx) {
-    throw new Error("Invalid patch format: missing Begin/End markers");
-  }
-
-  let lineIdx = beginIdx + 1;
-  while (lineIdx < endIdx) {
-    const header = parsePatchHeader(lines, lineIdx);
-    if (!header) {
-      lineIdx++;
-      continue;
-    }
-
-    const line = lines[lineIdx]!;
-    if (line.startsWith(ADD_HEADER)) {
-      const { content, nextIdx } = parseAddContent(lines, header.nextIdx);
-      hunks.push({ type: "add", path: header.filePath, contents: content });
-      lineIdx = nextIdx;
-    } else if (line.startsWith(DELETE_HEADER)) {
-      hunks.push({ type: "delete", path: header.filePath });
-      lineIdx = header.nextIdx;
-    } else {
-      const { chunks, nextIdx } = parseUpdateChunks(lines, header.nextIdx);
-      hunks.push({ type: "update", path: header.filePath, movePath: header.movePath, chunks });
-      lineIdx = nextIdx;
-    }
-  }
-
-  return hunks;
-}
-
-export function deriveNewContent(filePath: string, chunks: UpdateChunk[], originalText: string) {
-  const originalLines = originalText.split("\n");
-  // Drop trailing empty element for consistent line counting
-  if (originalLines.length > 0 && originalLines[originalLines.length - 1] === "") {
-    originalLines.pop();
-  }
-
-  const replacements = computeReplacements(originalLines, filePath, chunks);
-  const newLines = applyReplacements(originalLines, replacements);
-
-  if (newLines.length === 0 || newLines[newLines.length - 1] !== "") {
-    newLines.push("");
-  }
-
-  return newLines.join("\n");
-}
-
 function computeReplacements(
   originalLines: string[],
   filePath: string,
@@ -306,4 +229,81 @@ function seekSequence(lines: string[], pattern: string[], startIdx: number, eof 
     if (found !== -1) return found;
   }
   return -1;
+}
+
+export function splitBom(text: string) {
+  return text.startsWith(BOM) ? { bom: true, text: text.slice(1) } : { bom: false, text };
+}
+
+export function joinBom(text: string, bom: boolean) {
+  return bom ? BOM + text : text;
+}
+
+// Same line-ending rules as pi's edit tool: match on LF, write back the file's first ending.
+export function detectLineEnding(text: string) {
+  const crlfIdx = text.indexOf("\r\n");
+  const lfIdx = text.indexOf("\n");
+  return crlfIdx !== -1 && crlfIdx < lfIdx ? "\r\n" : "\n";
+}
+
+export function normalizeToLF(text: string) {
+  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+export function restoreLineEndings(text: string, ending: string) {
+  return ending === "\r\n" ? text.replace(/\n/g, "\r\n") : text;
+}
+
+export function parsePatch(patchText: string): Hunk[] {
+  const lines = stripHeredoc(normalizeToLF(patchText).trim()).split("\n");
+  const hunks: Hunk[] = [];
+
+  const beginIdx = lines.findIndex((line) => line.trim() === BEGIN_MARKER);
+  const endIdx = lines.findIndex((line) => line.trim() === END_MARKER);
+
+  if (beginIdx === -1 || endIdx === -1 || beginIdx >= endIdx) {
+    throw new Error("Invalid patch format: missing Begin/End markers");
+  }
+
+  let lineIdx = beginIdx + 1;
+  while (lineIdx < endIdx) {
+    const header = parsePatchHeader(lines, lineIdx);
+    if (!header) {
+      lineIdx++;
+      continue;
+    }
+
+    const line = lines[lineIdx]!;
+    if (line.startsWith(ADD_HEADER)) {
+      const { content, nextIdx } = parseAddContent(lines, header.nextIdx);
+      hunks.push({ type: "add", path: header.filePath, contents: content });
+      lineIdx = nextIdx;
+    } else if (line.startsWith(DELETE_HEADER)) {
+      hunks.push({ type: "delete", path: header.filePath });
+      lineIdx = header.nextIdx;
+    } else {
+      const { chunks, nextIdx } = parseUpdateChunks(lines, header.nextIdx);
+      hunks.push({ type: "update", path: header.filePath, movePath: header.movePath, chunks });
+      lineIdx = nextIdx;
+    }
+  }
+
+  return hunks;
+}
+
+export function deriveNewContent(filePath: string, chunks: UpdateChunk[], originalText: string) {
+  const originalLines = originalText.split("\n");
+  // Drop trailing empty element for consistent line counting
+  if (originalLines.length > 0 && originalLines[originalLines.length - 1] === "") {
+    originalLines.pop();
+  }
+
+  const replacements = computeReplacements(originalLines, filePath, chunks);
+  const newLines = applyReplacements(originalLines, replacements);
+
+  if (newLines.length === 0 || newLines[newLines.length - 1] !== "") {
+    newLines.push("");
+  }
+
+  return newLines.join("\n");
 }

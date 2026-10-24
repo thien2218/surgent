@@ -7,7 +7,6 @@ import {
   type InlineExtension,
 } from "@earendil-works/pi-coding-agent";
 import type { RuntimeConfig, SubsessionRequest } from "./types.js";
-import applyPatch from "../apply-patch/index.js";
 import optimizer from "../optimizer/index.js";
 import permission from "../permission/index.js";
 import questionnaire from "../questionnaire/index.js";
@@ -57,7 +56,6 @@ function createSubsessionBridge(
         });
       },
     },
-    { name: "apply-patch", factory: applyPatch },
     { name: "optimizer", factory: optimizer },
     { name: "permission", factory: permission },
     { name: "questionnaire", factory: questionnaire },

@@ -7,8 +7,8 @@ import {
   parsePatch,
   restoreLineEndings,
   splitBom,
-} from "../../../src/apply-patch/patch.js";
-import type { UpdateChunk } from "../../../src/apply-patch/types.js";
+} from "../../../src/optimizer/patcher/patch.js";
+import type { UpdateChunk } from "../../../src/optimizer/patcher/types.js";
 
 const patch = (...lines: string[]) => ["*** Begin Patch", ...lines, "*** End Patch"].join("\n");
 const chunk = (oldLines: string[], newLines: string[], extra: Partial<UpdateChunk> = {}) =>

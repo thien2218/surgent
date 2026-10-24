@@ -17,7 +17,7 @@ import {
   restoreLineEndings,
   splitBom,
 } from "./patch.js";
-import { renderCallText } from "../utils.js";
+import { renderCallText } from "../../utils.js";
 import type { Hunk, FileChange, PatchedFile, PatchPlan, Snapshot, WriteStep } from "./types.js";
 
 const FILE_HEADER = /^\*\*\* (?:Add|Update|Delete) File:\s*(.+)$/gm;

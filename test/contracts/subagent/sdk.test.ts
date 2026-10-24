@@ -64,7 +64,7 @@ describe("SDK session configuration", () => {
     expect(loader).toMatchObject({ cwd: fixture.cwd, noExtensions: true });
     expect(loader.systemPromptOverride!("parent prompt")).toBe(fixture.runtime.systemPrompt);
     expect(loader.extensionFactories!.map((extension) => extension.name)).toEqual(expect.arrayContaining([
-      "subsession-bridge", "apply-patch", "optimizer", "permission", "questionnaire", "redactor", "web-tools",
+      "subsession-bridge", "optimizer", "permission", "questionnaire", "redactor", "web-tools",
     ]));
     expect(fixture.sessions[0]!.setActiveToolsByName).toHaveBeenCalledWith(["read"]);
   });

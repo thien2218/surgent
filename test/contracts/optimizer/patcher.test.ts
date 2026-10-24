@@ -1,7 +1,7 @@
 import { generateDiffString, initTheme, type ExtensionToolContext, type Theme } from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { beforeAll, describe, expect, it } from "vitest";
-import applyPatchExtension from "../../../src/apply-patch/index.js";
+import optimizer from "../../../src/optimizer/index.js";
 import { recordExtension } from "../../helpers/extension.js";
 
 beforeAll(() => { initTheme("dark", false); });
@@ -10,7 +10,7 @@ const patch = (...lines: string[]) => ["*** Begin Patch", ...lines, "*** End Pat
 
 function setup() {
   const extension = recordExtension();
-  applyPatchExtension(extension.api);
+  optimizer(extension.api);
   const tool = extension.tool("apply_patch");
   const theme = { fg: (_color: string, text: string) => text } as Theme;
   type CallOptions = Parameters<NonNullable<typeof tool.renderCall>>[2];
@@ -30,7 +30,7 @@ function text(component: { render(width: number): string[] } | undefined) {
 }
 
 describe("apply_patch registration", () => {
-  it("registers a required patchText string and documents the patch envelope", () => {
+  it("registers apply_patch with a required patchText string and the patch envelope", () => {
     const { tool } = setup();
 
     expect(tool.parameters).toMatchObject({

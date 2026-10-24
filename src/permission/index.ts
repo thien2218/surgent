@@ -7,8 +7,8 @@ import type { PermissionCheck, PromptDecision } from "./types.js";
 import PermissionPrompt from "./components/prompt.js";
 import { getPermissionCheck } from "./helpers.js";
 import { isDeny } from "./precedence.js";
-import { parsePatch } from "../apply-patch/patch.js";
-import type { Hunk } from "../apply-patch/types.js";
+import { parsePatch } from "../optimizer/patcher/patch.js";
+import type { Hunk } from "../optimizer/patcher/types.js";
 
 function permissionCalls(toolName: string, input: Record<string, unknown>) {
   if (toolName !== "apply_patch") return [{ toolName, input }];

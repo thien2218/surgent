@@ -38,6 +38,25 @@ From the outline, the agent can fetch just the function it needs, or only its si
 
 The agent uses this through the `code_map` and `inspect` tools. Supported languages are TypeScript, JavaScript, Python, Go, Java, and Rust.
 
+### Patch edits for GPT models
+
+GPT models are trained to edit code with patches. The `apply_patch` tool gives them that format: one patch that can add, update, move, and delete several files, so a change that would otherwise take several edit calls takes one:
+
+```text
+*** Begin Patch
+*** Update File: src/app.py
+@@ def greet():
+-    print("Hi")
++    print("Hello")
+*** Add File: docs/hello.txt
++Hello
+*** End Patch
+```
+
+Every file in the patch is checked before anything is written, so a patch that does not match leaves all files unchanged. If a write fails partway, files already written are restored. Updated files keep their line endings and byte order mark.
+
+In surgent, GPT models get `apply_patch` in place of `edit` and `write` when the agent is allowed to write files; other models keep `edit` and `write`. In Pi, `apply_patch` is available to every model alongside `edit` and `write`.
+
 ### Compact command output
 
 When a command prints a run of lines that differ by a single value, those lines are merged into one. This output:

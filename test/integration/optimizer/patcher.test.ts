@@ -1,9 +1,11 @@
 import { access, chmod, lstat, mkdir, readFile, stat, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { withFileMutationQueue, type ExtensionToolContext } from "@earendil-works/pi-coding-agent";
+import {
+  withFileMutationQueue, type AgentToolResult, type ExtensionToolContext,
+} from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import applyPatchExtension from "../../../src/apply-patch/index.js";
-import { recordExtension } from "../../helpers/extension.js";
+import { applyPatch } from "../../../src/optimizer/patcher/tool.js";
+import type { PatchedFile } from "../../../src/optimizer/patcher/types.js";
 import { createWorkspace } from "../../helpers/workspace.js";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
@@ -14,16 +16,15 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 const patch = (...lines: string[]) => ["*** Begin Patch", ...lines, "*** End Patch"].join("\n");
 
 async function setup() {
-  const workspace = await createWorkspace({ prefix: "surgent-apply-patch-" });
-  const extension = recordExtension();
-  applyPatchExtension(extension.api);
-  const tool = extension.tool("apply_patch");
+  const workspace = await createWorkspace({ prefix: "surgent-patcher-" });
   const path = (name: string) => join(workspace.cwd, name);
   return {
     ...workspace,
     path,
     run: (patchText: string, signal?: AbortSignal) =>
-      tool.execute("call", { patchText }, signal, undefined, { cwd: workspace.cwd } as ExtensionToolContext),
+      applyPatch.execute(
+        "call", { patchText }, signal, undefined, { cwd: workspace.cwd } as ExtensionToolContext,
+      ) as Promise<AgentToolResult<{ files: PatchedFile[] }>>,
     read: (name: string) => readFile(path(name), "utf8"),
     exists: (name: string) => access(path(name)).then(() => true, () => false),
   };
@@ -51,7 +52,7 @@ describe("apply_patch file changes", () => {
       { type: "add", path: "docs/new/hello.txt" }, { type: "update", path: "app.py" },
       { type: "move", path: "moved/renamed.txt" }, { type: "delete", path: "obsolete.txt" },
     ]);
-    expect(result.details.files[1].diff).toContain('print("Hello")');
+    expect(result.details.files[1]?.diff).toContain('print("Hello")');
     expect(await fixture.read("docs/new/hello.txt")).toBe("Hello\nworld\n");
     expect(await fixture.read("app.py")).toBe('def greet():\n    print("Hello")\n');
     expect(await fixture.read("moved/renamed.txt")).toBe("keep\nnew\n");
@@ -80,7 +81,7 @@ describe("apply_patch file changes", () => {
     const result = await fixture.run(patch("*** Update File: a.txt", "@@", " one", "-two", "+TWO"));
 
     expect(await fixture.read("a.txt")).toBe("one\r\nTWO\r\nthree\r\n");
-    expect(result.details.files[0].diff).not.toContain("\r");
+    expect(result.details.files[0]?.diff).not.toContain("\r");
   });
 
   it("writes no carriage returns from a CRLF patch", async () => {

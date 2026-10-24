@@ -64,9 +64,28 @@ describe("SDK session configuration", () => {
     expect(loader).toMatchObject({ cwd: fixture.cwd, noExtensions: true });
     expect(loader.systemPromptOverride!("parent prompt")).toBe(fixture.runtime.systemPrompt);
     expect(loader.extensionFactories!.map((extension) => extension.name)).toEqual(expect.arrayContaining([
-      "subsession-bridge", "optimizer", "permission", "questionnaire", "redactor", "web-tools",
+      "subsession-bridge", "apply-patch", "optimizer", "permission", "questionnaire", "redactor", "web-tools",
     ]));
     expect(fixture.sessions[0]!.setActiveToolsByName).toHaveBeenCalledWith(["read"]);
+  });
+
+  it.each([
+    { modelId: "gpt-5", tools: ["read", "edit", "write"], expected: ["read", "apply_patch"] },
+    { modelId: "gpt-5", tools: ["read", "edit"], expected: ["read", "edit"] },
+    { modelId: "claude-sonnet-4-5", tools: ["read", "apply_patch"], expected: ["read", "edit", "write"] },
+  ])("activates $expected for $modelId with profile tools $tools", async ({ modelId, tools, expected }) => {
+    const fixture = await setup();
+    fixture.runtime.meta.tools = tools;
+    const original = vi.mocked(createAgentSession).getMockImplementation()!;
+    vi.mocked(createAgentSession).mockImplementation(async (options) => {
+      const result = await original(options);
+      Object.assign(result.session, { model: { id: modelId } });
+      return result;
+    });
+
+    await createSdkSession(fixture.request, fixture.runtime);
+
+    expect(fixture.sessions[0]!.setActiveToolsByName).toHaveBeenCalledWith(expected);
   });
 
   it("preserves an explicitly empty allowed tool list and binds without UI", async () => {

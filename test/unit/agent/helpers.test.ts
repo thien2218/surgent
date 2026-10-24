@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildCwdSection, getAgentConfigForm } from "../../../src/agent/helpers.js";
+import { buildCwdSection, getAgentConfigForm, selectTools } from "../../../src/agent/helpers.js";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -43,6 +43,44 @@ describe("agent restriction fields", () => {
 
     expect(form.parseOnSave!({ description: "Probe", bash: "", "files.read": "[]" }))
       .toEqual({ description: "Probe", "files.read": [] });
+  });
+});
+
+describe("file tool selection", () => {
+  it.each([
+    ["gpt-5", ["read", "edit", "write", "bash"]],
+    ["gpt-5.1-codex", ["read", "write", "bash"]],
+  ])("gives %s apply_patch in place of edit and write when %j allows writing", (modelId, tools) => {
+    expect(selectTools(tools, modelId)).toEqual(["read", "bash", "apply_patch"]);
+  });
+
+  it.each(["gpt-4o", "gpt-4.1", "gpt-oss-120b", "claude-sonnet-4-5", "o3"])(
+    "keeps edit and write for %s", (modelId) => {
+      expect(selectTools(["read", "edit", "write"], modelId)).toEqual(["read", "edit", "write"]);
+    },
+  );
+
+  it.each(["gpt-5", "claude-sonnet-4-5"])("keeps an edit-only tool set unchanged for %s", (modelId) => {
+    expect(selectTools(["read", "edit"], modelId)).toEqual(["read", "edit"]);
+  });
+
+  it("leaves tool sets without file editing unchanged", () => {
+    expect(selectTools(["read", "bash"], "gpt-5")).toEqual(["read", "bash"]);
+  });
+
+  it.each([{ tools: ["read", "apply_patch"] }, { tools: ["read", "edit", "apply_patch"] }])(
+    "restores edit and write without duplicates for $tools on another model", ({ tools }) => {
+      expect(selectTools(tools, "claude-sonnet-4-5")).toEqual(["read", "edit", "write"]);
+    },
+  );
+
+  it("keeps tools unchanged without a model", () => {
+    expect(selectTools(["read", "edit", "write"], undefined)).toEqual(["read", "edit", "write"]);
+  });
+
+  it("is stable when applied twice", () => {
+    const once = selectTools(["read", "edit", "write"], "gpt-5");
+    expect(selectTools(once, "gpt-5")).toEqual(once);
   });
 });
 

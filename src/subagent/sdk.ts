@@ -7,6 +7,7 @@ import {
   type InlineExtension,
 } from "@earendil-works/pi-coding-agent";
 import type { RuntimeConfig, SubsessionRequest } from "./types.js";
+import applyPatch from "../apply-patch/index.js";
 import optimizer from "../optimizer/index.js";
 import permission from "../permission/index.js";
 import questionnaire from "../questionnaire/index.js";
@@ -16,7 +17,7 @@ import { getPiPath } from "../utils.js";
 import { findSubsessionFile } from "./storage.js";
 import { STATE_EVENT, type AppState } from "../state.js";
 import type { AgentMode } from "../agent/types.js";
-import { buildCwdSection } from "../agent/helpers.js";
+import { buildCwdSection, selectTools } from "../agent/helpers.js";
 
 const PATH_TOOLS = new Set(["read", "write", "edit", "grep", "find", "ls"]);
 
@@ -56,6 +57,7 @@ function createSubsessionBridge(
         });
       },
     },
+    { name: "apply-patch", factory: applyPatch },
     { name: "optimizer", factory: optimizer },
     { name: "permission", factory: permission },
     { name: "questionnaire", factory: questionnaire },
@@ -125,6 +127,6 @@ export async function createSdkSession(
 
   const availableTools = session.getAllTools().map((tool) => tool.name);
   const activeTools = runtime.meta.tools ?? availableTools;
-  session.setActiveToolsByName(activeTools);
+  session.setActiveToolsByName(selectTools(activeTools, session.model?.id));
   return session;
 }

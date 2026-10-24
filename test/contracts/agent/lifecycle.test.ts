@@ -1,6 +1,8 @@
 import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createEventBus, type BeforeAgentStartEvent, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+  createEventBus, type BeforeAgentStartEvent, type ExtensionContext, type ModelSelectEvent,
+} from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import agentExtension from "../../../src/agent/index.js";
@@ -11,9 +13,11 @@ import { getPiPath } from "../../../src/utils.js";
 import { agentWorkspace } from "../../helpers/agent.js";
 import { recordExtension } from "../../helpers/extension.js";
 
-async function setup() {
+async function setup(
+  { tools = ["read", "subagent", "codemode", "tool_search"], modelId }: { tools?: string[]; modelId?: string } = {},
+) {
   const workspace = await agentWorkspace();
-  let activeTools = ["read", "subagent", "codemode", "tool_search"];
+  let activeTools = tools;
   const extension = recordExtension({
     events: createEventBus(),
     getAllTools: () => ["read", "ls", "find", "subagent", "codemode", "tool_search", "mcp__docs__search"].map((name) => ({
@@ -27,6 +31,7 @@ async function setup() {
   const shutdown = vi.fn<ExtensionContext["shutdown"]>();
   const ctx = {
     cwd: workspace.cwd,
+    model: modelId ? { id: modelId } : undefined,
     sessionManager: { getEntries: () => [], getSessionId: () => "child-session" },
     ui: { notify, setStatus: vi.fn(), theme: { fg: (_color: string, text: string) => text } },
     shutdown,
@@ -133,6 +138,46 @@ describe("agent startup", () => {
     expect(context.shutdown).toHaveBeenCalledOnce();
     expect(() => state.getAgent()).toThrow("unavailable");
     expect(process.stdout.listenerCount("resize")).toBe(listeners);
+  });
+});
+
+describe("file tool selection", () => {
+  it.each([
+    { modelId: "gpt-5", tools: "[read, edit, write]", expected: ["read", "apply_patch"] },
+    { modelId: "gpt-5", tools: "[read, edit]", expected: ["read", "edit"] },
+    { modelId: "claude-sonnet-4-5", tools: "[read, edit, write]", expected: ["read", "edit", "write"] },
+  ])("starts $modelId with $expected for profile tools $tools", async ({ modelId, tools, expected }) => {
+    const context = await setup({ modelId });
+    await writeFile(join(context.local, "general.md"), `---\ndescription: General\ntools: ${tools}\n---\nInstructions`);
+
+    await context.start();
+
+    expect(context.extension.api.getActiveTools()).toEqual(expected);
+  });
+
+  it("selects from pi's active tools when the profile omits tools", async () => {
+    const context = await setup({ tools: ["read", "edit", "write", "bash"], modelId: "gpt-5" });
+
+    await context.start();
+
+    expect(context.extension.api.getActiveTools()).toEqual(["read", "bash", "apply_patch"]);
+  });
+
+  it.each([
+    { tools: ["read", "edit", "write"], patched: ["read", "apply_patch"] },
+    { tools: ["read", "edit"], patched: ["read", "edit"] },
+  ])("swaps $tools on model changes and restores them afterwards", async ({ tools, patched }) => {
+    const context = await setup({ tools });
+    await context.start();
+    const select = (id: string) => context.extension.event("model_select")(
+      { type: "model_select", model: { id }, previousModel: undefined, source: "set" } as ModelSelectEvent,
+      context.ctx,
+    );
+
+    await select("gpt-5");
+    expect(context.extension.api.getActiveTools()).toEqual(patched);
+    await select("claude-sonnet-4-5");
+    expect(context.extension.api.getActiveTools()).toEqual(tools);
   });
 });
 

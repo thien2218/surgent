@@ -4,6 +4,7 @@ import path, { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isMissingFileError, readJson, writeJson, getPiPath } from "../utils.js";
 import type { AgentMeta, Agent, AgentProfile, SettingsSchema } from "./types.js";
+import { selectTools } from "./helpers.js";
 import {
   DEFAULT_AGENT,
   parseAgentConfig,
@@ -168,7 +169,6 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
   if (!profile.agent) throw new Error(`Invalid agent "${name}": ${profile.error}`);
 
   const { meta } = profile.agent;
-  if (meta.tools) pi.setActiveTools(meta.tools);
   if (meta.model) {
     const existing = ctx.modelRegistry.find(
       meta.model.slice(0, meta.model.indexOf("/")),
@@ -185,6 +185,8 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
   if (meta.thinking_level) {
     pi.setThinkingLevel(meta.thinking_level);
   }
+  // After the agent's model is applied, since the model decides apply_patch or edit/write.
+  pi.setActiveTools(selectTools(meta.tools ?? pi.getActiveTools(), ctx.model?.id));
 
   return profile.agent;
 }

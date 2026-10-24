@@ -74,3 +74,4 @@ Run this command exactly once, as-is, with no chaining, flags, or extra shell mo
 - When tasked with researching to implement new feature or update existing one, also look into open source coding harnesses like OpenCode, Codex and Gemini CLI.
 - Avoid nested ternary operators.
 - Always use `npm version` to bump surgent version
+- Edits to built-in agents (`src/agent/built-in/*.md`) must match the file's existing prose and output style: terse fragments in `general.md`, full sentences in the others.

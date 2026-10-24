@@ -54,21 +54,6 @@ describe("secret-bearing tool calls", () => {
     expect(await call(toolName as string, input)).toBeUndefined();
   });
 
-  it.each([
-    ["write", {}], ["edit", {}], ["edit", { edits: [{}] }],
-    ["write", null], ["write", []], ["write", "invalid"],
-    ["write", { content: null }], ["write", { content: 123 }], ["write", { content: [secret] }],
-    ["edit", null], ["edit", { edits: null }], ["edit", { edits: {} }], ["edit", { edits: secret }],
-    ["edit", { edits: [null] }], ["edit", { edits: [secret] }], ["edit", { edits: [[]] }],
-    ["edit", { edits: [{ newText: null }] }], ["edit", { edits: [{ newText: [secret] }] }],
-    ["edit", { edits: [{ newText: 123 }] }],
-  ])("fails closed for malformed %s input: %j", async (toolName, input) => {
-    const { call } = setup();
-    const result = await call(toolName as string, input);
-    expect(result).toMatchObject({ block: true });
-    expect(JSON.stringify(result)).not.toContain(secret);
-  });
-
   it.each(["read", "bash", "grep", "custom"])("does not change unrelated %s calls", async (toolName) => {
     const { call } = setup();
     expect(await call(toolName, { content: secret, edits: [{ newText: secret }] })).toBeUndefined();

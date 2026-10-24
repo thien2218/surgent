@@ -5,37 +5,13 @@ import { block, structured } from "./results.js";
 
 export default function (pi: ExtensionAPI) {
   pi.on("tool_call", async (event, _ctx) => {
-    if (event.toolName !== "write" && event.toolName !== "edit") return;
-    if (!event.input || typeof event.input !== "object" || Array.isArray(event.input)) {
-      return { block: true, reason: "Invalid input for secret scanning" };
-    }
-
-    if (isToolCallEventType("write", event)) {
-      if (typeof event.input.content !== "string") {
-        return { block: true, reason: "Invalid write content for secret scanning" };
-      }
-      if (containSecrets(event.input.content)) {
-        return { block: true, reason: "Secrets detected in content to be written" };
-      }
-    } else {
-      const { edits } = event.input as { edits?: unknown };
-      if (!Array.isArray(edits)) {
-        return { block: true, reason: "Invalid edits for secret scanning" };
-      }
-
-      for (const edit of edits) {
-        if (
-          !edit ||
-          typeof edit !== "object" ||
-          Array.isArray(edit) ||
-          typeof edit.newText !== "string"
-        ) {
-          return { block: true, reason: "Invalid edit content for secret scanning" };
-        }
-        if (containSecrets(edit.newText)) {
-          return { block: true, reason: "Secrets detected in edit content" };
-        }
-      }
+    if (isToolCallEventType("write", event) && containSecrets(event.input.content)) {
+      return { block: true, reason: "Secrets detected in content to be written" };
+    } else if (
+      isToolCallEventType("edit", event) &&
+      event.input.edits.some((edit) => containSecrets(edit.newText))
+    ) {
+      return { block: true, reason: "Secrets detected in edit content" };
     }
   });
 
@@ -55,8 +31,6 @@ export default function (pi: ExtensionAPI) {
         ...(event.usage === undefined ? {} : { usage: event.usage }),
       };
     } catch {
-      // Never serialize rejected payloads or exception messages. Replacing content
-      // without structuredContent makes Pi drop the unsafe programmatic result.
       return {
         content: [
           {

@@ -1,17 +1,12 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { formatErrorMessage, formatFetchResult, getValidatedUrl } from "./helpers.js";
-import {
-  getCurrentCacheDate,
-  pruneExpiredCacheDirs,
-  readCachedContent,
-  writeFetchedResult,
-} from "./storage.js";
+import { pruneExpiredCacheDirs, readCachedContent, writeFetchedResult } from "./storage.js";
 import { WebToolsFactory } from "../providers/index.js";
 import type { WebFetchResponse } from "./types.js";
 import { WEB_FETCH_PROVIDERS } from "../settings.js";
 import { getApiKey } from "../web-login/helpers.js";
-import { renderCallText } from "../../utils.js";
+import { getCurrentDate, renderCallText } from "../../utils.js";
 
 const webToolsFactory = new WebToolsFactory();
 
@@ -31,7 +26,7 @@ const webFetchTool = defineTool({
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
     const url = getValidatedUrl(params.url);
-    const cacheDate = getCurrentCacheDate();
+    const cacheDate = getCurrentDate();
     const attempts: string[] = [];
     const nativeFetch = { name: "native", label: "Native fetch" } as const;
 

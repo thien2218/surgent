@@ -8,7 +8,7 @@ import {
   type ToolCall,
   type TranscriptContext,
 } from "@earendil-works/pi-ai";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 
 export type ScriptStep = {
   expect?: {
@@ -27,6 +27,18 @@ export type ScriptStep = {
   | { type: "hold"; text: string }
 );
 
+function scriptedModel(id: string, name: string): ProviderModelConfig {
+  return {
+    id,
+    name,
+    reasoning: false,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 200_000,
+    maxTokens: 4096,
+  };
+}
+
 // Loaded explicitly by CLI tests only. No sockets, credentials, or fallback provider.
 export default async function (pi: ExtensionAPI) {
   const script: ScriptStep[] = JSON.parse(await readFile(join(process.cwd(), "e2e-script.json"), "utf8"));
@@ -36,15 +48,11 @@ export default async function (pi: ExtensionAPI) {
     api: "surgent-e2e-scripted",
     baseUrl: "https://surgent-e2e.invalid",
     apiKey: "fake-e2e-key",
-    models: [{
-      id: "scripted",
-      name: "Offline scripted model",
-      reasoning: false,
-      input: ["text"],
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: 200_000,
-      maxTokens: 4096,
-    }],
+    models: [
+      scriptedModel("scripted", "Offline scripted model"),
+      // A "gpt-" id makes surgent replace edit and write with patch.
+      scriptedModel("scripted-gpt-5", "Offline scripted GPT model"),
+    ],
     streamSimple(model, context, options) {
       const stream = createAssistantMessageEventStream();
       const message: AssistantMessage = {

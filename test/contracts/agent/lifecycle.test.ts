@@ -1,18 +1,23 @@
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createEventBus, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+  createEventBus, type BeforeAgentStartEvent, type ExtensionContext, type ModelSelectEvent,
+} from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import agentExtension from "../../../src/agent/index.js";
+import { buildCwdSection } from "../../../src/agent/helpers.js";
 import { getState } from "../../../src/state.js";
 import { resolveReadGrant } from "../../../src/permission/resolution.js";
 import { getPiPath } from "../../../src/utils.js";
 import { agentWorkspace } from "../../helpers/agent.js";
 import { recordExtension } from "../../helpers/extension.js";
 
-async function setup() {
+async function setup(
+  { tools = ["read", "subagent", "codemode", "tool_search"], modelId }: { tools?: string[]; modelId?: string } = {},
+) {
   const workspace = await agentWorkspace();
-  let activeTools = ["read", "subagent", "codemode", "tool_search"];
+  let activeTools = tools;
   const extension = recordExtension({
     events: createEventBus(),
     getAllTools: () => ["read", "ls", "find", "subagent", "codemode", "tool_search", "mcp__docs__search"].map((name) => ({
@@ -26,6 +31,7 @@ async function setup() {
   const shutdown = vi.fn<ExtensionContext["shutdown"]>();
   const ctx = {
     cwd: workspace.cwd,
+    model: modelId ? { id: modelId } : undefined,
     sessionManager: { getEntries: () => [], getSessionId: () => "child-session" },
     ui: { notify, setStatus: vi.fn(), theme: { fg: (_color: string, text: string) => text } },
     shutdown,
@@ -45,15 +51,13 @@ async function setup() {
 }
 
 describe("agent startup", () => {
-  it("enables every registered tool when the profile omits tools", async () => {
+  it("keeps pi's tool selection when the profile omits tools", async () => {
     const context = await setup();
     await writeFile(join(context.local, "general.md"), "---\ndescription: General\n---\nInstructions");
 
     await context.start();
 
-    expect(context.extension.api.getActiveTools()).toEqual(
-      context.extension.api.getAllTools().map((tool) => tool.name),
-    );
+    expect(context.extension.api.getActiveTools()).toEqual(["read", "subagent", "codemode", "tool_search"]);
     expect(context.shutdown).not.toHaveBeenCalled();
   });
 
@@ -137,20 +141,79 @@ describe("agent startup", () => {
   });
 });
 
-describe("generated tool details", () => {
-  it("retains shared guidance while clearing details when subagent is disabled", async () => {
+describe("file tool selection", () => {
+  it.each([
+    { modelId: "gpt-5", tools: "[read, edit, write]", expected: ["read", "patch"] },
+    { modelId: "gpt-5", tools: "[read, edit]", expected: ["read", "edit"] },
+    { modelId: "claude-sonnet-4-5", tools: "[read, edit, write]", expected: ["read", "edit", "write"] },
+  ])("starts $modelId with $expected for profile tools $tools", async ({ modelId, tools, expected }) => {
+    const context = await setup({ modelId });
+    await writeFile(join(context.local, "general.md"), `---\ndescription: General\ntools: ${tools}\n---\nInstructions`);
+
+    await context.start();
+
+    expect(context.extension.api.getActiveTools()).toEqual(expected);
+  });
+
+  it("selects from pi's active tools when the profile omits tools", async () => {
+    const context = await setup({ tools: ["read", "edit", "write", "bash"], modelId: "gpt-5" });
+
+    await context.start();
+
+    expect(context.extension.api.getActiveTools()).toEqual(["read", "bash", "patch"]);
+  });
+
+  it.each([
+    { tools: ["read", "edit", "write"], patched: ["read", "patch"] },
+    { tools: ["read", "edit"], patched: ["read", "edit"] },
+  ])("swaps $tools on model changes and restores them afterwards", async ({ tools, patched }) => {
+    const context = await setup({ tools });
+    await context.start();
+    const select = (id: string) => context.extension.event("model_select")(
+      { type: "model_select", model: { id }, previousModel: undefined, source: "set" } as ModelSelectEvent,
+      context.ctx,
+    );
+
+    await select("gpt-5");
+    expect(context.extension.api.getActiveTools()).toEqual(patched);
+    await select("claude-sonnet-4-5");
+    expect(context.extension.api.getActiveTools()).toEqual(tools);
+  });
+});
+
+describe("delegation prompt", () => {
+  it("lists configured profiles only while the subagent tool is active", async () => {
     const context = await setup();
-    const filePath = join(context.local, "general.md");
-    await writeFile(filePath, "---\ndescription: General\ntools: [subagent]\n---\nInstructions");
+    await writeFile(join(context.local, "worker.md"), "---\ndescription: Test worker\n---\nWorker instructions");
     await context.start();
-    expect(await readFile(getPiPath("system"), "utf8")).toContain("<subagents>");
+    const sections: Record<string, string> = {};
+    const prompt = () => context.extension.event("before_agent_start")({
+      type: "before_agent_start", messageType: "user", prompt: "Task", systemPrompt: "",
+      systemPromptOptions: { cwd: context.cwd, sections },
+    } as unknown as BeforeAgentStartEvent, context.ctx);
 
-    await writeFile(filePath, "---\ndescription: General\ntools: []\n---\nInstructions");
-    await context.start();
+    await prompt();
+    expect(sections.subagent).toContain("- worker: Test worker");
+    expect(sections.subagent).not.toContain("- general:");
 
-    const prompt = await readFile(getPiPath("system"), "utf8");
-    expect(prompt).toContain('<optimization priority="highest" target="token usage">');
-    expect(prompt).not.toContain("<subagents>");
+    context.extension.api.setActiveTools(["read"]);
+    await prompt();
+    expect(sections).not.toHaveProperty("subagent");
     expect(context.shutdown).not.toHaveBeenCalled();
+  });
+});
+
+describe("cwd prompt", () => {
+  it("replaces Pi's cwd section with the environment section", async () => {
+    const context = await setup();
+    await context.start();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    onTestFinished(() => { vi.useRealTimers(); });
+    const sections: Record<string, string> = {};
+    await context.extension.event("before_agent_start")({
+      type: "before_agent_start", messageType: "user", prompt: "Task", systemPrompt: "",
+      systemPromptOptions: { cwd: context.cwd, sections },
+    } as unknown as BeforeAgentStartEvent, context.ctx);
+    expect(sections.cwd).toBe(buildCwdSection(context.cwd));
   });
 });

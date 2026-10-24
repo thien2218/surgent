@@ -16,6 +16,7 @@ import { getPiPath } from "../utils.js";
 import { findSubsessionFile } from "./storage.js";
 import { STATE_EVENT, type AppState } from "../state.js";
 import type { AgentMode } from "../agent/types.js";
+import { buildCwdSection, selectTools } from "../agent/helpers.js";
 
 const PATH_TOOLS = new Set(["read", "write", "edit", "grep", "find", "ls"]);
 
@@ -43,6 +44,9 @@ function createSubsessionBridge(
           } satisfies AppState);
         });
         pi.on("session_shutdown", () => unsubscribe());
+        pi.on("before_agent_start", (event) => {
+          event.systemPromptOptions.sections.cwd = buildCwdSection(event.systemPromptOptions.cwd);
+        });
 
         pi.on("tool_call", async (event) => {
           const path = (event.input as { path?: unknown }).path;
@@ -121,6 +125,6 @@ export async function createSdkSession(
 
   const availableTools = session.getAllTools().map((tool) => tool.name);
   const activeTools = runtime.meta.tools ?? availableTools;
-  session.setActiveToolsByName(activeTools);
+  session.setActiveToolsByName(selectTools(activeTools, session.model?.id));
   return session;
 }

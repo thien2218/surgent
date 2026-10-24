@@ -4,7 +4,13 @@ import {
   type Theme,
   type ThemeColor,
 } from "@earendil-works/pi-coding-agent";
-import { CURSOR_MARKER, truncateToWidth, type EditorTheme, type TUI } from "@earendil-works/pi-tui";
+import {
+  CURSOR_MARKER,
+  renderFakeCursor,
+  truncateToWidth,
+  type EditorTheme,
+  type TUI,
+} from "@earendil-works/pi-tui";
 
 export class PlaceholderInput extends CustomEditor {
   constructor(
@@ -35,9 +41,7 @@ export class PlaceholderInput extends CustomEditor {
         if (i === 0 && this.focused) {
           const firstChar = line.charAt(0) || " ";
           const rest = line.slice(1);
-          // Visible cursor requires BOTH the marker (IME positioning) AND the
-          // reverse-video block — the TUI hides the hardware cursor by default.
-          const cursor = CURSOR_MARKER + `\x1b[7m${firstChar}\x1b[0m`;
+          const cursor = CURSOR_MARKER + renderFakeCursor(firstChar);
           const dimRest = rest.length > 0 ? this.uiTheme.fg("dim", rest) : "";
           return truncateToWidth(cursor + dimRest, width);
         }

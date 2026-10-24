@@ -339,8 +339,9 @@ describe("checkpoint fork inheritance", () => {
 
 describe("checkpoint turn tracking", () => {
   it.each([
-    { toolName: "write" }, { toolName: "edit" }, { toolName: "subagent" },
+    { toolName: "write" }, { toolName: "edit" }, { toolName: "patch" }, { toolName: "subagent" },
     { toolName: "write", parentToolCallId: "parent" }, { toolName: "edit", parentToolCallId: "parent" },
+    { toolName: "patch", parentToolCallId: "parent" },
   ])("captures successful $toolName results with ancestry $parentToolCallId once at the turn leaf", async ({ toolName, parentToolCallId }) => {
     const fixture = await setup();
     await fixture.emit("session_start", { reason: "startup" });
@@ -362,6 +363,7 @@ describe("checkpoint turn tracking", () => {
 
   it.each([
     { toolName: "write", isError: true }, { toolName: "edit", isError: true },
+    { toolName: "patch", isError: true },
     { toolName: "subagent", isError: true }, { toolName: "read", isError: false },
     { toolName: "bash", isError: false },
     { toolName: "write", isError: true, parentToolCallId: "parent" },

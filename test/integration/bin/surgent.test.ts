@@ -109,6 +109,19 @@ describe("CLI bootstrap", () => {
     expect(await readFile(settingsPath, "utf8")).toBe(saved);
   });
 
+  it("replaces a stale global SYSTEM.md with the base prompt before Pi reads it", async () => {
+    const fixture = await setup();
+    await mkdir(fixture.globalDir, { recursive: true });
+    const systemPath = join(fixture.globalDir, "SYSTEM.md");
+    await writeFile(systemPath, "<subagent>\nStale delegation prompt\n</subagent>\n");
+
+    expect(fixture.run(["--mode", "json"]).status).toBe(0);
+
+    const prompt = await readFile(systemPath, "utf8");
+    expect(prompt).toContain('<optimization priority="second" target="input tokens">');
+    expect(prompt).not.toContain("<subagent>");
+  });
+
   it("rejects malformed settings without overwriting them or launching Pi", async () => {
     const fixture = await setup();
     await mkdir(fixture.globalDir, { recursive: true });
@@ -123,7 +136,7 @@ describe("CLI bootstrap", () => {
     expect(await readFile(settingsPath, "utf8")).toBe("{broken");
   });
 
-  it("copies gitignore on first startup and adds one Git exclusion without losing existing patterns", async () => {
+  it("copies gitignore on first startup and adds Git exclusions once without losing existing patterns", async () => {
     const fixture = await setup();
     fixture.git(["init", "--quiet"]);
     const excludePath = join(fixture.workspace, ".git", "info", "exclude");
@@ -133,7 +146,7 @@ describe("CLI bootstrap", () => {
     expect(fixture.run().status).toBe(0);
     expect(fixture.run().status).toBe(0);
 
-    expect(await readFile(excludePath, "utf8")).toBe("keep-pattern\n.pi\n");
+    expect(await readFile(excludePath, "utf8")).toBe("keep-pattern\n.pi\n.piignore\n");
     expect(await readFile(join(fixture.workspace, ".piignore"), "utf8"))
       .toBe(".pi\n\nnode_modules/\nsecret.env\n");
   });
@@ -151,7 +164,7 @@ describe("CLI bootstrap", () => {
     await expect(stat(join(fixture.workspace, ".piignore"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("preserves existing piignore and an existing Git exclusion", async () => {
+  it("preserves existing piignore and adds only missing Git exclusions", async () => {
     const fixture = await setup();
     fixture.git(["init", "--quiet"]);
     const excludePath = join(fixture.workspace, ".git", "info", "exclude");
@@ -161,7 +174,7 @@ describe("CLI bootstrap", () => {
 
     expect(fixture.run().status).toBe(0);
 
-    expect(await readFile(excludePath, "utf8")).toBe("keep\r\n.pi\r\n");
+    expect(await readFile(excludePath, "utf8")).toBe("keep\r\n.pi\r\n.piignore\n");
     expect(await readFile(join(fixture.workspace, ".piignore"), "utf8")).toBe("custom\n");
   });
 

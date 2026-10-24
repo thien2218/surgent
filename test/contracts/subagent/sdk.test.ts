@@ -1,6 +1,7 @@
 import type { Model } from "@earendil-works/pi-ai";
-import { createAgentSession, createEventBus, DefaultResourceLoader, SessionManager } from "@earendil-works/pi-coding-agent";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { createAgentSession, createEventBus, DefaultResourceLoader, SessionManager, type BeforeAgentStartEvent } from "@earendil-works/pi-coding-agent";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { buildCwdSection } from "../../../src/agent/helpers.js";
 import { createSdkSession } from "../../../src/subagent/sdk.js";
 import { resolveRuntime } from "../../../src/subagent/storage.js";
 import { getState, STATE_EVENT } from "../../../src/state.js";
@@ -66,6 +67,25 @@ describe("SDK session configuration", () => {
       "subsession-bridge", "optimizer", "permission", "questionnaire", "redactor", "web-tools",
     ]));
     expect(fixture.sessions[0]!.setActiveToolsByName).toHaveBeenCalledWith(["read"]);
+  });
+
+  it.each([
+    { modelId: "gpt-5", tools: ["read", "edit", "write"], expected: ["read", "patch"] },
+    { modelId: "gpt-5", tools: ["read", "edit"], expected: ["read", "edit"] },
+    { modelId: "claude-sonnet-4-5", tools: ["read", "patch"], expected: ["read", "edit", "write"] },
+  ])("activates $expected for $modelId with profile tools $tools", async ({ modelId, tools, expected }) => {
+    const fixture = await setup();
+    fixture.runtime.meta.tools = tools;
+    const original = vi.mocked(createAgentSession).getMockImplementation()!;
+    vi.mocked(createAgentSession).mockImplementation(async (options) => {
+      const result = await original(options);
+      Object.assign(result.session, { model: { id: modelId } });
+      return result;
+    });
+
+    await createSdkSession(fixture.request, fixture.runtime);
+
+    expect(fixture.sessions[0]!.setActiveToolsByName).toHaveBeenCalledWith(expected);
   });
 
   it("preserves an explicitly empty allowed tool list and binds without UI", async () => {
@@ -158,5 +178,17 @@ describe("subsession bridge", () => {
   it("does not require paths for non-path tools", async () => {
     const { extension, ctx } = await bridgeSetup();
     expect(await extension.event("tool_call")({ type: "tool_call", toolName: "bash", toolCallId: "call", input: { command: "pwd" } }, ctx)).toBeUndefined();
+  });
+
+  it("replaces Pi's cwd section with the environment section", async () => {
+    const { extension, ctx, cwd } = await bridgeSetup();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    onTestFinished(() => { vi.useRealTimers(); });
+    const sections: Record<string, string> = {};
+    await extension.event("before_agent_start")({
+      type: "before_agent_start", messageType: "user", prompt: "Task", systemPrompt: "",
+      systemPromptOptions: { cwd, sections },
+    } as unknown as BeforeAgentStartEvent, ctx);
+    expect(sections.cwd).toBe(buildCwdSection(cwd));
   });
 });

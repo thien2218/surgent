@@ -16,6 +16,7 @@ const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT_ENTRY_URL = import.meta.resolve("@earendil-works/pi-coding-agent");
 const LOCAL_PI_SUBDIRS = ["agents", "plans"];
 const GLOBAL_PI_SUBDIRS = ["agents", "grammars"];
+const GIT_EXCLUDED_PATHS = [".pi", ".piignore"];
 const BASE_TOOLS = ["ls", "find", "grep", "code_map", "inspect", "read"];
 const BUILT_IN_META = {
   documenter: {
@@ -29,6 +30,23 @@ const BUILT_IN_META = {
     tools: BASE_TOOLS.concat(["web_fetch", "web_search"]),
   },
 };
+const BASE_PROMPT = `<rules priority="first">
+- NEVER touch unrecognized files/changes, treat them as user work.
+- DON'T re-read files already in conversation unless justified; those results stay current.
+- DON'T use skill based solely on keywords, superficial relevance, or its availability.
+- DON'T reload skills already in conversation unless needed. "Use/read before work" means "apply already-loaded content".
+- PREFER batching independent tool calls already known. But avoid deliberating to grow batch, no speculative "just in case" calls.
+</rules>
+
+<optimization priority="second" target="input tokens">
+1. Token consumption by read-only tools in asc order: 'ls' → 'find' → 'grep' → 'code_map' → 'inspect' → 'read'. Use the right tool for the right purpose.
+2. Re-read content only with evidence of file changes or required content truncated or unavailable. Identify gap first; fetch only changed/missing region. Do NOT run freshness checks solely to justify re-reading.
+3. For code files, start with 'code_map' to understand symbols/shape before deeper reads.
+4. Use 'inspect' for minimal symbol body needed to answer/fix.
+5. Use 'read' on code only when region is uninspectable.
+6. 'read' on code MUST HAVE offset + limit inferred from 'code_map' output unless unavailable.
+</optimization>
+`;
 
 function isMissingFileError(error) {
   return Boolean(error) && typeof error === "object" && "code" in error && error.code === "ENOENT";
@@ -56,6 +74,19 @@ async function initBuiltInMeta() {
   settings.agent = { ...settings.agent, meta };
   await mkdir(dirname(settingsPath), { recursive: true });
   await writeFile(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
+}
+
+// Pi reads SYSTEM.md before any extension runs, so it must be current before launch.
+async function writeSystemPrompt() {
+  const systemPath = resolve(GLOBAL_PI_DIR, "SYSTEM.md");
+  // Skip identical writes so concurrent launches never read a truncated file.
+  try {
+    if ((await readFile(systemPath, "utf8")) === BASE_PROMPT) return;
+  } catch (error) {
+    if (!isMissingFileError(error)) throw error;
+  }
+  await mkdir(GLOBAL_PI_DIR, { recursive: true });
+  await writeFile(systemPath, BASE_PROMPT);
 }
 
 async function getGitExcludePath(cwd) {
@@ -105,10 +136,13 @@ async function ensurePiExcluded(cwd) {
   }
 
   const existingPatterns = excludeContents.split(/\r?\n/).map((line) => line.trim());
-  if (existingPatterns.includes(".pi")) return;
+  const missingPatterns = GIT_EXCLUDED_PATHS.filter(
+    (pattern) => !existingPatterns.includes(pattern),
+  );
+  if (missingPatterns.length === 0) return;
 
   const separator = excludeContents.length > 0 && !excludeContents.endsWith("\n") ? "\n" : "";
-  await writeFile(excludePath, `${excludeContents}${separator}.pi\n`);
+  await writeFile(excludePath, `${excludeContents}${separator}${missingPatterns.join("\n")}\n`);
 }
 
 async function syncPiIgnore(cwd) {
@@ -191,6 +225,7 @@ async function runRewrittenHelp(args) {
 }
 
 await initBuiltInMeta();
+await writeSystemPrompt();
 
 if (args.includes("--help") || args.includes("-h")) {
   await runRewrittenHelp(args);

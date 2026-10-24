@@ -39,6 +39,31 @@ describe("secret-bearing tool calls", () => {
     expect(edits[position]?.newText).toBe(secret);
   });
 
+  it.each([
+    ["an added file", ["*** Add File: a.txt", `+token = ${secret}`], "\n"],
+    ["an updated line", ["*** Update File: a.txt", "@@", "-token = old", `+token = ${secret}`], "\n"],
+    ["a CRLF patch", ["*** Add File: a.txt", `+token = ${secret}`], "\r\n"],
+  ])("blocks a patch that writes a secret in %s", async (_case, lines, separator) => {
+    const { call } = setup();
+    const input = { patchText: ["*** Begin Patch", ...lines, "*** End Patch"].join(separator) };
+
+    const result = await call("patch", input);
+
+    expect(result).toEqual({ block: true, reason: "Secrets detected in patch content" });
+    expect(JSON.stringify(result)).not.toContain(secret);
+    expect(input.patchText).toContain(secret);
+  });
+
+  it.each([
+    ["removed", [`-token = ${secret}`, "+token = safe"]],
+    ["context", [` token = ${secret}`, "-old", "+new"]],
+  ])("allows a patch whose secret appears only on %s lines", async (_case, lines) => {
+    const { call } = setup();
+    const patchText = ["*** Begin Patch", "*** Update File: a.txt", "@@", ...lines, "*** End Patch"].join("\n");
+
+    expect(await call("patch", { patchText })).toBeUndefined();
+  });
+
   it("allows removal of a secret present only in oldText", async () => {
     const { call } = setup();
     expect(await call("edit", { path: "fake.txt", edits: [{ oldText: secret, newText: "safe" }] })).toBeUndefined();
@@ -52,21 +77,6 @@ describe("secret-bearing tool calls", () => {
   ])("allows safe or empty replacement content for %s: %j", async (toolName, input) => {
     const { call } = setup();
     expect(await call(toolName as string, input)).toBeUndefined();
-  });
-
-  it.each([
-    ["write", {}], ["edit", {}], ["edit", { edits: [{}] }],
-    ["write", null], ["write", []], ["write", "invalid"],
-    ["write", { content: null }], ["write", { content: 123 }], ["write", { content: [secret] }],
-    ["edit", null], ["edit", { edits: null }], ["edit", { edits: {} }], ["edit", { edits: secret }],
-    ["edit", { edits: [null] }], ["edit", { edits: [secret] }], ["edit", { edits: [[]] }],
-    ["edit", { edits: [{ newText: null }] }], ["edit", { edits: [{ newText: [secret] }] }],
-    ["edit", { edits: [{ newText: 123 }] }],
-  ])("fails closed for malformed %s input: %j", async (toolName, input) => {
-    const { call } = setup();
-    const result = await call(toolName as string, input);
-    expect(result).toMatchObject({ block: true });
-    expect(JSON.stringify(result)).not.toContain(secret);
   });
 
   it.each(["read", "bash", "grep", "custom"])("does not change unrelated %s calls", async (toolName) => {

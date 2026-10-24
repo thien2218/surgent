@@ -3,23 +3,15 @@ import { renameSync } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { toCanonicalUrl } from "./helpers.js";
-import { getPiPath } from "../../utils.js";
+import { getCurrentDate, getPiPath } from "../../utils.js";
 
-export function getCurrentCacheDate(): string {
-  const now = new Date();
-  const year = String(now.getFullYear());
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-export function getCacheFilePath(url: string, date = getCurrentCacheDate()): string {
+export function getCacheFilePath(url: string, date = getCurrentDate()): string {
   const canonicalUrl = toCanonicalUrl(url);
   const fileName = `${createHash("md5").update(canonicalUrl).digest("hex")}.md`;
   return getPiPath("web", "global", date, fileName);
 }
 
-export async function pruneExpiredCacheDirs(today = getCurrentCacheDate()) {
+export async function pruneExpiredCacheDirs(today = getCurrentDate()) {
   const cacheRoot = getPiPath("web");
   try {
     const entries = await readdir(cacheRoot, { withFileTypes: true });
@@ -36,7 +28,7 @@ export async function pruneExpiredCacheDirs(today = getCurrentCacheDate()) {
 
 export async function readCachedContent(
   url: string,
-  date = getCurrentCacheDate(),
+  date = getCurrentDate(),
 ): Promise<string | undefined> {
   try {
     return await readFile(getCacheFilePath(url, date), "utf8");
@@ -49,7 +41,7 @@ export async function readCachedContent(
 export async function writeFetchedResult(
   url: string,
   content: string,
-  date = getCurrentCacheDate(),
+  date: string,
   signal?: AbortSignal,
 ) {
   signal?.throwIfAborted();

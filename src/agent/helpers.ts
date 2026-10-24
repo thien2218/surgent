@@ -1,6 +1,9 @@
 import type { AgentMeta } from "./types.js";
 import type { FormConfig } from "../ui/components/form.js";
 import { META_KEYS, parseAgentList, THINKING_LEVELS } from "./config.js";
+import { getCurrentDate } from "../utils.js";
+
+const WRITE_TOOLS = ["edit", "write"];
 
 function parseConfigValues(values: Record<string, string>) {
   const description = (values.description ?? "").trim();
@@ -97,4 +100,23 @@ export function getAgentConfigForm(
       ? (values) => parseConfigValues({ description: meta.description, ...values })
       : parseConfigValues,
   };
+}
+
+export function buildCwdSection(cwd: string): string {
+  return [
+    cwd.replace(/\\/g, "/"),
+    `platform: ${process.platform}`,
+    `date: ${getCurrentDate()}`,
+  ].join("\n");
+}
+
+export function selectTools(tools: string[], modelId: string | undefined): string[] {
+  if (modelId) {
+    const kept = tools.filter((name) => name !== "patch" && !WRITE_TOOLS.includes(name));
+    const usePatch =
+      modelId.includes("gpt-") && !modelId.includes("oss") && !modelId.includes("gpt-4");
+    if (usePatch && tools.includes("write")) return [...kept, "patch"];
+    if (!usePatch && tools.includes("patch")) return [...kept, ...WRITE_TOOLS];
+  }
+  return tools;
 }

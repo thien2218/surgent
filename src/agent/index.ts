@@ -1,7 +1,8 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key, visibleWidth } from "@earendil-works/pi-tui";
 import { agentsCommandHandler } from "./command.js";
-import { loadMainAgent } from "./storage.js";
+import { buildCwdSection, selectTools } from "./helpers.js";
+import { loadMainAgent, loadSubagentPrompt } from "./storage.js";
 import { cycleMode } from "../permission/helpers.js";
 import { readAgentMode } from "../permission/storage.js";
 import { createState, getState, type AppState } from "../state.js";
@@ -72,12 +73,23 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
-  pi.on("before_agent_start", (event) => {
+  pi.on("model_select", (event) => {
+    pi.setActiveTools(selectTools(pi.getActiveTools(), event.model.id));
+  });
+
+  pi.on("before_agent_start", async (event, ctx) => {
+    event.systemPromptOptions.sections.cwd = buildCwdSection(event.systemPromptOptions.cwd);
     const { body } = getState(pi).getAgent();
     if (body) {
-      event.systemPromptOptions.sections.agent = body;
+      event.systemPromptOptions.sections.main = body;
     } else {
-      delete event.systemPromptOptions.sections.agent;
+      delete event.systemPromptOptions.sections.main;
+    }
+    // Built per run from active tools; Pi wraps the section in <subagent> tags.
+    if (pi.getActiveTools().includes("subagent")) {
+      event.systemPromptOptions.sections.subagent = await loadSubagentPrompt(ctx.cwd);
+    } else {
+      delete event.systemPromptOptions.sections.subagent;
     }
   });
 

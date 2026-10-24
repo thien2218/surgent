@@ -1,20 +1,52 @@
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
-import { getRemovedToolCallId } from "../../../src/optimizer/pruner/cleanup.js";
+import { shouldRemoveToolCall } from "../../../src/optimizer/pruner/cleanup.js";
 
 function result(toolCallId: string, toolName: string, text: string, isError = false): ToolResultMessage {
   return {
-    role: "toolResult", toolCallId, toolName, content: [{ type: "text", text }], isError, timestamp: 0,
+    role: "toolResult", toolCallId, toolName, content: [{ type: "text", text }], isError, timestamp: 0, durationMs: 0,
   };
 }
 
+function blocked(toolName: string, text: string): ToolResultMessage {
+  const message = result("blocked", toolName, text, true);
+  delete message.durationMs;
+  return message;
+}
+
+const noRetries = new Set<string>();
+
 describe("prunable results", () => {
   it.each(["read", "inspect", "find", "edit"])("removes failed %s results", (toolName) => {
-    expect(getRemovedToolCallId(result("failed", toolName, "failure", true))).toBe("failed");
+    expect(shouldRemoveToolCall(result("failed", toolName, "failure", true), noRetries)).toBe(true);
   });
 
-  it("retains bash failures because command output remains useful", () => {
-    expect(getRemovedToolCallId(result("shell", "bash", "exit status 1", true))).toBeUndefined();
+  it.each(["bash", "powershell", "codemode", "subagent"])("retains %s failures that were not retried", (toolName) => {
+    expect(shouldRemoveToolCall(result("shell", toolName, "exit status 1", true), noRetries)).toBe(false);
+  });
+
+  it.each(["bash", "powershell"])("removes retried %s failures", (toolName) => {
+    expect(shouldRemoveToolCall(result("shell", toolName, "exit status 1", true), new Set(["shell"]))).toBe(true);
+  });
+
+  it.each([
+    ["read", "User rejected this tool call. Find a different approach. User input: use the fixture"],
+    ["edit", "Access to this resource is denied by policy rule: deny"],
+    ["read", 'Path blocked by .piignore rule ".env"'],
+    ["bash", "Permission request was cancelled"],
+  ])("retains blocked %s calls: %s", (toolName, text) => {
+    expect(shouldRemoveToolCall(blocked(toolName, text), new Set(["blocked"]))).toBe(false);
+  });
+
+  it.each([
+    'Tool "missing" not found',
+    "Tool missing not found",
+    'Validation failed for tool "read":\n  - path: must be string',
+    'Invalid arguments for tool "read": Unexpected end of JSON input',
+    "Operation aborted",
+    'Tool call "read" was not executed: the response hit the output token limit',
+  ])("removes unexecuted calls the agent loop rejected: %s", (text) => {
+    expect(shouldRemoveToolCall(blocked("read", text), noRetries)).toBe(true);
   });
 
   it.each([
@@ -23,7 +55,7 @@ describe("prunable results", () => {
     ["find", "No changes found."],
     ["find", "No changes in selected files."],
   ])("removes empty %s output: %s", (toolName, text) => {
-    expect(getRemovedToolCallId(result("empty", toolName, text))).toBe("empty");
+    expect(shouldRemoveToolCall(result("empty", toolName, text), noRetries)).toBe(true);
   });
 
   it.each([
@@ -33,13 +65,13 @@ describe("prunable results", () => {
     ["ls", ""],
     ["find", "source.ts"],
   ])("preserves meaningful %s output: %s", (toolName, text) => {
-    expect(getRemovedToolCallId(result("keep", toolName, text))).toBeUndefined();
+    expect(shouldRemoveToolCall(result("keep", toolName, text), noRetries)).toBe(false);
   });
 
   it("preserves empty-looking text accompanied by other output", () => {
     const message = result("keep", "find", "No files found matching pattern");
     message.content.push({ type: "text", text: "diagnostic" });
 
-    expect(getRemovedToolCallId(message)).toBeUndefined();
+    expect(shouldRemoveToolCall(message, noRetries)).toBe(false);
   });
 });

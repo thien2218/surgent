@@ -4,6 +4,7 @@ import path, { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isMissingFileError, readJson, writeJson, getPiPath } from "../utils.js";
 import type { AgentMeta, Agent, AgentProfile, SettingsSchema } from "./types.js";
+import { selectTools } from "./helpers.js";
 import {
   DEFAULT_AGENT,
   parseAgentConfig,
@@ -13,17 +14,16 @@ import {
 } from "./config.js";
 
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
-const BASE_PROMPT = `
-<optimization priority="highest" target="token usage">
-1. Token consumption by read-only tools in asc order: 'ls' → 'find' → 'grep' → 'code_map' → 'inspect' → 'read'. Use the right tool for the right purpose.
-2. Load applicable skills, instructions, and reference docs once. "Use/read before work" means apply already-loaded content, not reload it per task.
-3. Re-read content only with evidence of file changes or required content truncated or unavailable. Identify the gap first; fetch only the changed/missing region. Do NOT run freshness checks solely to justify re-reading.
-4. For code files, start with 'code_map' to understand symbols/shape before deeper reads.
-5. Use 'inspect' for minimal symbol body needed to answer/fix.
-6. Use 'read' on code only when region is uninspectable.
-7. 'read' on code MUST have offset + limit. ALWAYS use range from 'code_map' output as the source of truth.
-</optimization>
-`;
+const SUBAGENT_PROMPT = `Use specialized subagent proactively for bounded work that would consume substantial context: broad code exploration, planning, diff review, documentation, tests, logs, etc.
+Select profile based on its description.
+Start every \`scout\` task with "Depth: quick", "Depth: standard", or "Depth: deep". Use standard by default; use deep only when cross-component uncertainty requires it.
+Before delegating, split task into immediate local work and independent side work. Keep tiny tasks and tightly coupled next actions local when handoff costs more than doing work.
+Include outcome, exact scope or write ownership, known paths and symbols, relevant evidence, constraints, expected output, and done condition. Subagent cannot see parent conversation.
+Emit independent calls in same assistant message so they run concurrently. Parallel writes must own disjoint files; otherwise sequence them.
+Do not repeat delegated research or edits. Continue non-overlapping work, then integrate returned result. Recheck only missing, conflicting, or safety-critical evidence.
+Subagent doesn't own sequencing, cross-task decisions, integration, final verification, and user response.
+
+Available subagents:`;
 
 async function getAgentFiles(cwd: string, name?: string): Promise<string[]> {
   const seen = new Set<string>();
@@ -98,6 +98,14 @@ export async function loadAgents(cwd: string, name?: string): Promise<[Agent, ..
   return agents as [Agent, ...Agent[]];
 }
 
+export async function loadSubagentPrompt(cwd: string): Promise<string> {
+  const list = (await loadAgents(cwd))
+    .filter(({ name }) => name !== DEFAULT_AGENT)
+    .map((agent) => `- ${agent.name}: ${agent.meta.description}`)
+    .join("\n");
+  return `${SUBAGENT_PROMPT}\n${list}`;
+}
+
 export async function createAgentFile(base: string, name: string): Promise<string> {
   validateAgentName(name);
   const filePath = join(getPiPath("agents", base), `${name}.md`);
@@ -160,10 +168,7 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
   if (!profile) throw new Error("Invalid agent name.");
   if (!profile.agent) throw new Error(`Invalid agent "${name}": ${profile.error}`);
 
-  const agents = profiles.flatMap((profile) => (profile.agent ? [profile.agent] : []));
   const { meta } = profile.agent;
-  pi.setActiveTools(meta.tools ?? pi.getAllTools().map((tool) => tool.name));
-
   if (meta.model) {
     const existing = ctx.modelRegistry.find(
       meta.model.slice(0, meta.model.indexOf("/")),
@@ -180,15 +185,8 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
   if (meta.thinking_level) {
     pi.setThinkingLevel(meta.thinking_level);
   }
+  // After the agent's model is applied, since the model decides patch or edit/write.
+  pi.setActiveTools(selectTools(meta.tools ?? pi.getActiveTools(), ctx.model?.id));
 
-  let systemPrompt = BASE_PROMPT;
-  if (pi.getActiveTools().includes("subagent")) {
-    const subagentsList = agents
-      .filter(({ name }) => name !== DEFAULT_AGENT)
-      .map((profile) => `- ${profile.name}: ${profile.meta.description}`)
-      .join("\n");
-    systemPrompt += `\n\n<subagents>\n${subagentsList}\n</subagents>`;
-  }
-  await writeFile(getPiPath("system"), systemPrompt, "utf8");
   return profile.agent;
 }

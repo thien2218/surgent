@@ -6,10 +6,13 @@ import { cliPath, packageRoot, setupCli } from "../helpers/cli.js";
 
 const providerPath = join(packageRoot, "test", "fixtures", "cli-provider.ts");
 const model = { provider: "surgent-e2e", id: "scripted" };
+const patchModel = { provider: "surgent-e2e", id: "scripted-gpt-5" };
 
-async function startAgent(fixture: Awaited<ReturnType<typeof setupCli>>, script: ScriptStep[], args = ["--no-session"]) {
+async function startAgent(
+  fixture: Awaited<ReturnType<typeof setupCli>>, script: ScriptStep[], args = ["--no-session"], selected = model,
+) {
   await writeFile(join(fixture.workspace, "e2e-script.json"), JSON.stringify(script));
-  return fixture.rpc([...args, "--extension", providerPath], fixture.workspace, cliPath, { model, allowGeneration: true });
+  return fixture.rpc([...args, "--extension", providerPath], fixture.workspace, cliPath, { model: selected, allowGeneration: true });
 }
 
 function endedMessages(events: Record<string, unknown>[]) {
@@ -82,6 +85,57 @@ describe("offline CLI agent journeys", () => {
       role: "toolResult", toolCallId: "blocked-write", isError: true,
       content: expect.arrayContaining([expect.objectContaining({ type: "text", text: expect.stringContaining("denied by policy rule") })]),
     }));
+    expect(await session.request("get_last_assistant_text")).toEqual({ text: "Policy denial received" });
+    await session.close();
+  }, 120_000);
+
+  it("applies a multi-file patch from a GPT model", async () => {
+    const fixture = await setupCli();
+    await writeFile(join(fixture.workspace, "notes.txt"), "draft\n");
+    const patchText = [
+      "*** Begin Patch", "*** Update File: notes.txt", "@@", "-draft", "+final",
+      "*** Add File: docs/added.txt", "+created", "*** End Patch",
+    ].join("\n");
+    // The scripted provider fails the turn if `patch` is not an active tool.
+    const session = await startAgent(fixture, [
+      { type: "tool", call: { type: "toolCall", id: "patch-notes", name: "patch", arguments: { patchText } } },
+      {
+        type: "text", text: "Patched",
+        expect: { result: { toolCallId: "patch-notes", toolName: "patch", isError: false, includes: "M notes.txt\nA docs/added.txt" } },
+      },
+    ], ["--no-session"], patchModel);
+
+    const turn = await session.promptAndWait("Patch the notes.");
+
+    expect(await readFile(join(fixture.workspace, "notes.txt"), "utf8")).toBe("final\n");
+    expect(await readFile(join(fixture.workspace, "docs", "added.txt"), "utf8")).toBe("created\n");
+    expect(endedMessages(turn)).toContainEqual(expect.objectContaining({ role: "toolResult", toolCallId: "patch-notes", isError: false }));
+    expect(await session.request("get_last_assistant_text")).toEqual({ text: "Patched" });
+    await session.close();
+  }, 120_000);
+
+  it("blocks a whole patch when one of its paths is denied", async () => {
+    const fixture = await setupCli();
+    await mkdir(join(fixture.home, ".pi", "agent"), { recursive: true });
+    await writeFile(join(fixture.home, ".pi", "agent", "permissions.json"), JSON.stringify({ file: { "blocked.txt": "deny" } }));
+    await writeFile(join(fixture.workspace, "notes.txt"), "draft\n");
+    await writeFile(join(fixture.workspace, "blocked.txt"), "Keep this content\n");
+    const patchText = [
+      "*** Begin Patch", "*** Update File: notes.txt", "@@", "-draft", "+final",
+      "*** Update File: blocked.txt", "@@", "-Keep this content", "+Unwanted change", "*** End Patch",
+    ].join("\n");
+    const session = await startAgent(fixture, [
+      { type: "tool", call: { type: "toolCall", id: "blocked-patch", name: "patch", arguments: { patchText } } },
+      {
+        type: "text", text: "Policy denial received",
+        expect: { result: { toolCallId: "blocked-patch", toolName: "patch", isError: true, includes: "denied by policy rule" } },
+      },
+    ], ["--no-session"], patchModel);
+
+    await session.promptAndWait("Patch notes.txt and blocked.txt.");
+
+    expect(await readFile(join(fixture.workspace, "notes.txt"), "utf8")).toBe("draft\n");
+    expect(await readFile(join(fixture.workspace, "blocked.txt"), "utf8")).toBe("Keep this content\n");
     expect(await session.request("get_last_assistant_text")).toEqual({ text: "Policy denial received" });
     await session.close();
   }, 120_000);

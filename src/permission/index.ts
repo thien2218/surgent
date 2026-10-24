@@ -7,6 +7,24 @@ import type { PermissionCheck, PromptDecision } from "./types.js";
 import PermissionPrompt from "./components/prompt.js";
 import { getPermissionCheck } from "./helpers.js";
 import { isDeny } from "./precedence.js";
+import { parsePatch } from "../optimizer/patcher/patch.js";
+import type { Hunk } from "../optimizer/patcher/types.js";
+
+function permissionCalls(toolName: string, input: Record<string, unknown>) {
+  if (toolName !== "patch") return [{ toolName, input }];
+
+  let hunks: Hunk[];
+  try {
+    hunks = parsePatch(typeof input.patchText === "string" ? input.patchText : "");
+  } catch {
+    return [];
+  }
+  return hunks
+    .flatMap((hunk) =>
+      hunk.type === "update" && hunk.movePath ? [hunk.path, hunk.movePath] : [hunk.path],
+    )
+    .map((path) => ({ toolName: "write", input: { path } }));
+}
 
 export async function askForPermission(
   pi: ExtensionAPI,
@@ -59,30 +77,33 @@ export default function (pi: ExtensionAPI) {
     const sessionId = state.pid ?? ctx.sessionManager.getSessionId();
 
     try {
-      const check = await getPermissionCheck(ctx.cwd, sessionId, event.toolName, event.input);
-      if (!check) return;
+      for (const call of permissionCalls(event.toolName, event.input)) {
+        const check = await getPermissionCheck(ctx.cwd, sessionId, call.toolName, call.input);
+        if (!check) continue;
 
-      if (check.category === "file") {
-        const piIgnoreBlock = await resolvePiIgnorePathBlock(ctx.cwd, check.raw);
-        if (piIgnoreBlock) {
-          return { block: true, reason: piIgnoreBlock };
+        if (check.category === "file") {
+          const piIgnoreBlock = await resolvePiIgnorePathBlock(ctx.cwd, check.raw);
+          if (piIgnoreBlock) {
+            return { block: true, reason: piIgnoreBlock };
+          }
         }
-      }
-      if (!checkAgentRules(meta, check)) {
-        return { block: true, reason: "Access to this resource is beyond allowed scope" };
-      }
+        if (!checkAgentRules(meta, check)) {
+          return { block: true, reason: "Access to this resource is beyond allowed scope" };
+        }
 
-      const permission = await resolvePermission(ctx.cwd, check, mode);
-      if (isDeny(permission)) {
-        return {
-          block: true,
-          reason: `Access to this resource is denied by policy rule: ${permission}`,
-        };
-      }
-      if (mode === "yolo") return;
-      if (permission === "allowed" && !check.uncertainty) return;
+        const permission = await resolvePermission(ctx.cwd, check, mode);
+        if (isDeny(permission)) {
+          return {
+            block: true,
+            reason: `Access to this resource is denied by policy rule: ${permission}`,
+          };
+        }
+        if (mode === "yolo") continue;
+        if (permission === "allowed" && !check.uncertainty) continue;
 
-      return await askForPermission(pi, ctx, check);
+        const decision = await askForPermission(pi, ctx, check);
+        if (decision) return decision;
+      }
     } catch (error) {
       return {
         block: true,

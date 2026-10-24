@@ -70,9 +70,9 @@ describe("SDK session configuration", () => {
   });
 
   it.each([
-    { modelId: "gpt-5", tools: ["read", "edit", "write"], expected: ["read", "apply_patch"] },
+    { modelId: "gpt-5", tools: ["read", "edit", "write"], expected: ["read", "patch"] },
     { modelId: "gpt-5", tools: ["read", "edit"], expected: ["read", "edit"] },
-    { modelId: "claude-sonnet-4-5", tools: ["read", "apply_patch"], expected: ["read", "edit", "write"] },
+    { modelId: "claude-sonnet-4-5", tools: ["read", "patch"], expected: ["read", "edit", "write"] },
   ])("activates $expected for $modelId with profile tools $tools", async ({ modelId, tools, expected }) => {
     const fixture = await setup();
     fixture.runtime.meta.tools = tools;

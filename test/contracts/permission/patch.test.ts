@@ -26,12 +26,12 @@ function setup(
   const ctx = makePermissionContext(workspace.cwd, hasUI);
   permissionExtension(pi.api);
   const call = (patchText: string) => pi.event("tool_call")({
-    type: "tool_call", toolCallId: "patch", toolName: "apply_patch", input: { patchText },
+    type: "tool_call", toolCallId: "patch", toolName: "patch", input: { patchText },
   } as ToolCallEvent, ctx);
   return { ctx, call };
 }
 
-describe("apply_patch permission checks", () => {
+describe("patch permission checks", () => {
   it.each([0, 1, 2])("blocks the whole patch when section %s writes a denied path", async (position) => {
     await writeRules({ project: { file: { "secret.txt": "deny" } } }, workspace.cwd);
     const paths = ["a.txt", "b.txt", "c.txt"];

@@ -11,7 +11,7 @@ import { parsePatch } from "../optimizer/patcher/patch.js";
 import type { Hunk } from "../optimizer/patcher/types.js";
 
 function permissionCalls(toolName: string, input: Record<string, unknown>) {
-  if (toolName !== "apply_patch") return [{ toolName, input }];
+  if (toolName !== "patch") return [{ toolName, input }];
 
   let hunks: Hunk[];
   try {

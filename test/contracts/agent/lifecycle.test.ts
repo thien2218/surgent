@@ -143,7 +143,7 @@ describe("agent startup", () => {
 
 describe("file tool selection", () => {
   it.each([
-    { modelId: "gpt-5", tools: "[read, edit, write]", expected: ["read", "apply_patch"] },
+    { modelId: "gpt-5", tools: "[read, edit, write]", expected: ["read", "patch"] },
     { modelId: "gpt-5", tools: "[read, edit]", expected: ["read", "edit"] },
     { modelId: "claude-sonnet-4-5", tools: "[read, edit, write]", expected: ["read", "edit", "write"] },
   ])("starts $modelId with $expected for profile tools $tools", async ({ modelId, tools, expected }) => {
@@ -160,11 +160,11 @@ describe("file tool selection", () => {
 
     await context.start();
 
-    expect(context.extension.api.getActiveTools()).toEqual(["read", "bash", "apply_patch"]);
+    expect(context.extension.api.getActiveTools()).toEqual(["read", "bash", "patch"]);
   });
 
   it.each([
-    { tools: ["read", "edit", "write"], patched: ["read", "apply_patch"] },
+    { tools: ["read", "edit", "write"], patched: ["read", "patch"] },
     { tools: ["read", "edit"], patched: ["read", "edit"] },
   ])("swaps $tools on model changes and restores them afterwards", async ({ tools, patched }) => {
     const context = await setup({ tools });

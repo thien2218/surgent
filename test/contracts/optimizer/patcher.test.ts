@@ -11,7 +11,7 @@ const patch = (...lines: string[]) => ["*** Begin Patch", ...lines, "*** End Pat
 function setup() {
   const extension = recordExtension();
   optimizer(extension.api);
-  const tool = extension.tool("apply_patch");
+  const tool = extension.tool("patch");
   const theme = { fg: (_color: string, text: string) => text } as Theme;
   type CallOptions = Parameters<NonNullable<typeof tool.renderCall>>[2];
   type ResultContext = Parameters<NonNullable<typeof tool.renderResult>>[3];
@@ -29,8 +29,8 @@ function text(component: { render(width: number): string[] } | undefined) {
   return stripTerminalSequences(component?.render(120).join("\n") ?? "").trimEnd();
 }
 
-describe("apply_patch registration", () => {
-  it("registers apply_patch with a required patchText string and the patch envelope", () => {
+describe("patch registration", () => {
+  it("registers patch with a required patchText string and the patch envelope", () => {
     const { tool } = setup();
 
     expect(tool.parameters).toMatchObject({
@@ -42,10 +42,10 @@ describe("apply_patch registration", () => {
 
   it.each([
     ["", "patchText is required"],
-    ["*** Add File: a.txt\n+x", "apply_patch verification failed: Error: Invalid patch format: missing Begin/End markers"],
+    ["*** Add File: a.txt\n+x", "patch verification failed: Error: Invalid patch format: missing Begin/End markers"],
     [patch(), "patch rejected: empty patch"],
     ["*** Begin Patch\r\n*** End Patch\r\n", "patch rejected: empty patch"],
-    [patch("not a header"), "apply_patch verification failed: no hunks found"],
+    [patch("not a header"), "patch verification failed: no hunks found"],
   ])("rejects %j before reading the session context", async (patchText, message) => {
     const { tool } = setup();
     const ctx = new Proxy({}, {
@@ -56,7 +56,7 @@ describe("apply_patch registration", () => {
   });
 });
 
-describe("apply_patch rendering", () => {
+describe("patch rendering", () => {
   it.each([false, true])("lists every file header in the call with partial=%s", (isPartial) => {
     const { renderCall } = setup();
     const patchText = patch(
@@ -65,12 +65,12 @@ describe("apply_patch rendering", () => {
       "*** Delete File: d.txt",
     );
 
-    expect(renderCall({ patchText }, isPartial)).toBe("apply_patch src/a.ts, c.txt, d.txt");
+    expect(renderCall({ patchText }, isPartial)).toBe("patch src/a.ts, c.txt, d.txt");
   });
 
   it.each([
-    [{}, "apply_patch"],
-    [{ patchText: "*** Begin Patch\n*** Update File: src/a" }, "apply_patch src/a"],
+    [{}, "patch"],
+    [{ patchText: "*** Begin Patch\n*** Update File: src/a" }, "patch src/a"],
   ])("renders streaming arguments %j", (args, expected) => {
     const { renderCall } = setup();
     expect(renderCall(args, true)).toBe(expected);
@@ -94,9 +94,9 @@ describe("apply_patch rendering", () => {
 
   it("renders the error text for a failed call and nothing without details", () => {
     const { renderResult } = setup();
-    const content = [{ type: "text", text: "apply_patch verification failed: no hunks found" }];
+    const content = [{ type: "text", text: "patch verification failed: no hunks found" }];
 
-    expect(renderResult({ content }, true)).toBe("apply_patch verification failed: no hunks found");
+    expect(renderResult({ content }, true)).toBe("patch verification failed: no hunks found");
     expect(renderResult({})).toBe("");
   });
 });

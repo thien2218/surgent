@@ -185,7 +185,7 @@ export async function loadMainAgent(pi: ExtensionAPI, ctx: ExtensionContext) {
   if (meta.thinking_level) {
     pi.setThinkingLevel(meta.thinking_level);
   }
-  // After the agent's model is applied, since the model decides apply_patch or edit/write.
+  // After the agent's model is applied, since the model decides patch or edit/write.
   pi.setActiveTools(selectTools(meta.tools ?? pi.getActiveTools(), ctx.model?.id));
 
   return profile.agent;

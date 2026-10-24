@@ -5,7 +5,7 @@ import { block, structured } from "./results.js";
 
 export default function (pi: ExtensionAPI) {
   pi.on("tool_call", async (event, _ctx) => {
-    if (isToolCallEventType<"apply_patch", { patchText: string }>("apply_patch", event)) {
+    if (isToolCallEventType<"patch", { patchText: string }>("patch", event)) {
       // Only added lines are written; removed lines may drop secrets already in a file.
       const added = event.input.patchText
         .split("\n")

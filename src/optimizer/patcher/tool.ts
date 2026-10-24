@@ -22,10 +22,9 @@ import type { Hunk, FileChange, PatchedFile, PatchPlan, Snapshot, WriteStep } fr
 
 const FILE_HEADER = /^\*\*\* (?:Add|Update|Delete) File:\s*(.+)$/gm;
 const SUMMARY_CODES = { add: "A", update: "M", move: "M", delete: "D" } as const;
-const PATCH_TOOL = "apply_patch";
 
 const DESCRIPTION = [
-  "Use the `apply_patch` tool to edit files. Your patch language is a stripped‑down, file‑oriented diff format designed to be easy to parse and safe to apply. You can think of it as a high‑level envelope:",
+  "Use the tool to edit files. Your patch language is a stripped-down, file-oriented diff format designed to be easy to parse and safe to apply. You can think of it as a high-level envelope:",
   "",
   "*** Begin Patch",
   "[ one or more file sections ]",
@@ -74,7 +73,7 @@ async function lockKeys(targets: string[]): Promise<string[]> {
     // Two names for one file would wait on their own lock or overwrite each other.
     const owner = owners.get(key);
     if (owner) {
-      throw new Error(`apply_patch verification failed: ${owner} and ${target} are the same file`);
+      throw new Error(`patch verification failed: ${owner} and ${target} are the same file`);
     }
     owners.set(key, target);
   }
@@ -91,14 +90,14 @@ async function readOriginal(filePath: string): Promise<Snapshot | null> {
   const stats = await stat(filePath).catch(() => undefined);
   if (!stats) return null;
   if (!stats.isFile()) {
-    throw new Error(`apply_patch verification failed: Not a regular file: ${filePath}`);
+    throw new Error(`patch verification failed: Not a regular file: ${filePath}`);
   }
 
   try {
     return { content: await readFile(filePath), mode: stats.mode };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`apply_patch verification failed: ${message}`);
+    throw new Error(`patch verification failed: ${message}`);
   }
 }
 
@@ -129,9 +128,7 @@ async function planChange(hunk: Hunk, cwd: string, plan: PatchPlan): Promise<Fil
     case "update": {
       const current = await readCurrent(plan, filePath);
       if (current === null) {
-        throw new Error(
-          `apply_patch verification failed: Failed to read file to update: ${filePath}`,
-        );
+        throw new Error(`patch verification failed: Failed to read file to update: ${filePath}`);
       }
 
       const source = splitBom(current);
@@ -141,7 +138,7 @@ async function planChange(hunk: Hunk, cwd: string, plan: PatchPlan): Promise<Fil
       try {
         newContent = deriveNewContent(filePath, hunk.chunks, oldContent);
       } catch (error) {
-        throw new Error(`apply_patch verification failed: ${error}`);
+        throw new Error(`patch verification failed: ${error}`);
       }
 
       const movePath = hunk.movePath ? resolve(cwd, hunk.movePath) : undefined;
@@ -167,9 +164,7 @@ async function planChange(hunk: Hunk, cwd: string, plan: PatchPlan): Promise<Fil
     case "delete": {
       const current = await readCurrent(plan, filePath);
       if (current === null) {
-        throw new Error(
-          `apply_patch verification failed: Failed to read file to delete: ${filePath}`,
-        );
+        throw new Error(`patch verification failed: Failed to read file to delete: ${filePath}`);
       }
 
       plan.files.set(filePath, null);
@@ -226,9 +221,9 @@ async function writePlan(plan: PatchPlan) {
     const message = error instanceof Error ? error.message : String(error);
     const failed = await restore(plan, steps);
     if (failed.length > 0) {
-      throw new Error(`apply_patch failed: ${message}\nCould not restore: ${failed.join(", ")}`);
+      throw new Error(`patch failed: ${message}\nCould not restore: ${failed.join(", ")}`);
     }
-    throw new Error(`apply_patch failed, no files were changed: ${message}`);
+    throw new Error(`patch failed, no files were changed: ${message}`);
   }
 }
 
@@ -237,8 +232,8 @@ function patchedPaths(patchText: string): string[] {
 }
 
 export const applyPatch = defineTool({
-  name: PATCH_TOOL,
-  label: PATCH_TOOL,
+  name: "patch",
+  label: "patch",
   description: DESCRIPTION,
   parameters: Type.Object({
     patchText: Type.String({
@@ -254,14 +249,14 @@ export const applyPatch = defineTool({
     try {
       hunks = parsePatch(params.patchText);
     } catch (error) {
-      throw new Error(`apply_patch verification failed: ${error}`);
+      throw new Error(`patch verification failed: ${error}`);
     }
 
     if (hunks.length === 0) {
       if (normalizeToLF(params.patchText).trim() === "*** Begin Patch\n*** End Patch") {
         throw new Error("patch rejected: empty patch");
       }
-      throw new Error("apply_patch verification failed: no hunks found");
+      throw new Error("patch verification failed: no hunks found");
     }
 
     const locks = await lockKeys(patchTargets(hunks, ctx.cwd));
@@ -296,7 +291,7 @@ export const applyPatch = defineTool({
   renderCall(args, theme, { isPartial }) {
     const paths = typeof args.patchText === "string" ? patchedPaths(args.patchText) : [];
     return renderCallText(
-      `${theme.fg("toolTitle", PATCH_TOOL)} ${theme.fg("accent", paths.join(", "))}`,
+      `${theme.fg("toolTitle", "patch")} ${theme.fg("accent", paths.join(", "))}`,
       isPartial,
     );
   },

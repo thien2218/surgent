@@ -96,12 +96,12 @@ describe("offline CLI agent journeys", () => {
       "*** Begin Patch", "*** Update File: notes.txt", "@@", "-draft", "+final",
       "*** Add File: docs/added.txt", "+created", "*** End Patch",
     ].join("\n");
-    // The scripted provider fails the turn if apply_patch is not an active tool.
+    // The scripted provider fails the turn if `patch` is not an active tool.
     const session = await startAgent(fixture, [
-      { type: "tool", call: { type: "toolCall", id: "patch-notes", name: "apply_patch", arguments: { patchText } } },
+      { type: "tool", call: { type: "toolCall", id: "patch-notes", name: "patch", arguments: { patchText } } },
       {
         type: "text", text: "Patched",
-        expect: { result: { toolCallId: "patch-notes", toolName: "apply_patch", isError: false, includes: "M notes.txt\nA docs/added.txt" } },
+        expect: { result: { toolCallId: "patch-notes", toolName: "patch", isError: false, includes: "M notes.txt\nA docs/added.txt" } },
       },
     ], ["--no-session"], patchModel);
 
@@ -125,10 +125,10 @@ describe("offline CLI agent journeys", () => {
       "*** Update File: blocked.txt", "@@", "-Keep this content", "+Unwanted change", "*** End Patch",
     ].join("\n");
     const session = await startAgent(fixture, [
-      { type: "tool", call: { type: "toolCall", id: "blocked-patch", name: "apply_patch", arguments: { patchText } } },
+      { type: "tool", call: { type: "toolCall", id: "blocked-patch", name: "patch", arguments: { patchText } } },
       {
         type: "text", text: "Policy denial received",
-        expect: { result: { toolCallId: "blocked-patch", toolName: "apply_patch", isError: true, includes: "denied by policy rule" } },
+        expect: { result: { toolCallId: "blocked-patch", toolName: "patch", isError: true, includes: "denied by policy rule" } },
       },
     ], ["--no-session"], patchModel);
 

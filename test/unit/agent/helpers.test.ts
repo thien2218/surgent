@@ -50,8 +50,8 @@ describe("file tool selection", () => {
   it.each([
     ["gpt-5", ["read", "edit", "write", "bash"]],
     ["gpt-5.1-codex", ["read", "write", "bash"]],
-  ])("gives %s apply_patch in place of edit and write when %j allows writing", (modelId, tools) => {
-    expect(selectTools(tools, modelId)).toEqual(["read", "bash", "apply_patch"]);
+  ])("gives %s patch in place of edit and write when %j allows writing", (modelId, tools) => {
+    expect(selectTools(tools, modelId)).toEqual(["read", "bash", "patch"]);
   });
 
   it.each(["gpt-4o", "gpt-4.1", "gpt-oss-120b", "claude-sonnet-4-5", "o3"])(
@@ -68,7 +68,7 @@ describe("file tool selection", () => {
     expect(selectTools(["read", "bash"], "gpt-5")).toEqual(["read", "bash"]);
   });
 
-  it.each([{ tools: ["read", "apply_patch"] }, { tools: ["read", "edit", "apply_patch"] }])(
+  it.each([{ tools: ["read", "patch"] }, { tools: ["read", "edit", "patch"] }])(
     "restores edit and write without duplicates for $tools on another model", ({ tools }) => {
       expect(selectTools(tools, "claude-sonnet-4-5")).toEqual(["read", "edit", "write"]);
     },

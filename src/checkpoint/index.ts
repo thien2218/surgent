@@ -133,7 +133,7 @@ export default function (pi: ExtensionAPI) {
     if (
       (event.toolName === "write" ||
         event.toolName === "edit" ||
-        event.toolName === "apply_patch" ||
+        event.toolName === "patch" ||
         event.toolName === "subagent") &&
       !event.isError
     ) {

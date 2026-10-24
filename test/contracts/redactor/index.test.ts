@@ -47,7 +47,7 @@ describe("secret-bearing tool calls", () => {
     const { call } = setup();
     const input = { patchText: ["*** Begin Patch", ...lines, "*** End Patch"].join(separator) };
 
-    const result = await call("apply_patch", input);
+    const result = await call("patch", input);
 
     expect(result).toEqual({ block: true, reason: "Secrets detected in patch content" });
     expect(JSON.stringify(result)).not.toContain(secret);
@@ -61,7 +61,7 @@ describe("secret-bearing tool calls", () => {
     const { call } = setup();
     const patchText = ["*** Begin Patch", "*** Update File: a.txt", "@@", ...lines, "*** End Patch"].join("\n");
 
-    expect(await call("apply_patch", { patchText })).toBeUndefined();
+    expect(await call("patch", { patchText })).toBeUndefined();
   });
 
   it("allows removal of a secret present only in oldText", async () => {

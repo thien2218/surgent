@@ -30,7 +30,7 @@ async function setup() {
   };
 }
 
-describe("apply_patch file changes", () => {
+describe("patch file changes", () => {
   it("adds, updates, moves and deletes files in one call", async () => {
     const fixture = await setup();
     await writeFile(fixture.path("app.py"), 'def greet():\n    print("Hi")\n');
@@ -127,7 +127,7 @@ describe("apply_patch file changes", () => {
   });
 });
 
-describe("apply_patch verification", () => {
+describe("patch verification", () => {
   it.each([
     ["missing context", ["*** Update File: a.txt", "@@ nowhere", "-one", "+two"], "Failed to find context 'nowhere'"],
     ["missing lines", ["*** Update File: a.txt", "@@", "-nope", "+two"], "Failed to find expected lines"],
@@ -163,7 +163,7 @@ describe("apply_patch verification", () => {
   });
 });
 
-describe("apply_patch sections on one file", () => {
+describe("patch sections on one file", () => {
   it("applies two updates to the same file in order", async () => {
     const fixture = await setup();
     await writeFile(fixture.path("a.txt"), "one\ntwo\n");
@@ -212,7 +212,7 @@ describe("apply_patch sections on one file", () => {
   });
 });
 
-describe("apply_patch moves", () => {
+describe("patch moves", () => {
   it.each(["a.txt", "./a.txt"])("keeps a file moved onto itself as %s", async (destination) => {
     const fixture = await setup();
     await writeFile(fixture.path("a.txt"), "one\n");
@@ -235,7 +235,7 @@ describe("apply_patch moves", () => {
   });
 });
 
-describe("apply_patch symlinks", () => {
+describe("patch symlinks", () => {
   it("rejects a patch naming a file and its symlink without writing either", async () => {
     const fixture = await setup();
     await writeFile(fixture.path("real.txt"), "one\n");
@@ -260,7 +260,7 @@ describe("apply_patch symlinks", () => {
   });
 });
 
-describe("apply_patch concurrent writers", () => {
+describe("patch concurrent writers", () => {
   it("serializes concurrent patches to the same file", async () => {
     const fixture = await setup();
     await writeFile(fixture.path("a.txt"), "one\ntwo\n");
@@ -296,7 +296,7 @@ describe("apply_patch concurrent writers", () => {
   });
 });
 
-describe("apply_patch rollback", () => {
+describe("patch rollback", () => {
   it("restores files and permissions and removes created directories when a write fails", async () => {
     const fixture = await setup();
     await writeFile(fixture.path("a.txt"), "one\n");
@@ -309,7 +309,7 @@ describe("apply_patch rollback", () => {
       "*** Delete File: run.sh",
       "*** Add File: nested/deep/x.txt", "+x",
       "*** Add File: blocker/child.txt", "+y",
-    ))).rejects.toThrow(/^apply_patch failed, no files were changed: EEXIST/);
+    ))).rejects.toThrow(/^patch failed, no files were changed: EEXIST/);
 
     expect(await fixture.read("a.txt")).toBe("one\n");
     expect(await fixture.read("run.sh")).toBe("echo hi\n");
@@ -347,7 +347,7 @@ describe("apply_patch rollback", () => {
 
     await expect(fixture.run(patch(
       "*** Update File: a.txt", "@@", "-one", "+two", "*** Update File: b.txt", "@@", "-keep", "+changed",
-    ))).rejects.toThrow(`apply_patch failed: disk full\nCould not restore: ${fixture.path("a.txt")}`);
+    ))).rejects.toThrow(`patch failed: disk full\nCould not restore: ${fixture.path("a.txt")}`);
 
     expect(await fixture.read("a.txt")).toBe("two\n");
     expect(await fixture.read("b.txt")).toBe("keep\n");

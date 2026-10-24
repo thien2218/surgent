@@ -50,7 +50,7 @@ export default async function (pi: ExtensionAPI) {
     apiKey: "fake-e2e-key",
     models: [
       scriptedModel("scripted", "Offline scripted model"),
-      // A "gpt-" id makes surgent replace edit and write with apply_patch.
+      // A "gpt-" id makes surgent replace edit and write with patch.
       scriptedModel("scripted-gpt-5", "Offline scripted GPT model"),
     ],
     streamSimple(model, context, options) {

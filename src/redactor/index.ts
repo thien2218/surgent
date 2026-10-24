@@ -5,7 +5,17 @@ import { block, structured } from "./results.js";
 
 export default function (pi: ExtensionAPI) {
   pi.on("tool_call", async (event, _ctx) => {
-    if (isToolCallEventType("write", event) && containSecrets(event.input.content)) {
+    if (isToolCallEventType<"apply_patch", { patchText: string }>("apply_patch", event)) {
+      // Only added lines are written; removed lines may drop secrets already in a file.
+      const added = event.input.patchText
+        .split("\n")
+        .filter((line) => line.startsWith("+"))
+        .map((line) => line.slice(1))
+        .join("\n");
+      if (containSecrets(added)) {
+        return { block: true, reason: "Secrets detected in patch content" };
+      }
+    } else if (isToolCallEventType("write", event) && containSecrets(event.input.content)) {
       return { block: true, reason: "Secrets detected in content to be written" };
     } else if (
       isToolCallEventType("edit", event) &&

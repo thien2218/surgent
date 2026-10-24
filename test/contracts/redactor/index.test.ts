@@ -39,6 +39,31 @@ describe("secret-bearing tool calls", () => {
     expect(edits[position]?.newText).toBe(secret);
   });
 
+  it.each([
+    ["an added file", ["*** Add File: a.txt", `+token = ${secret}`], "\n"],
+    ["an updated line", ["*** Update File: a.txt", "@@", "-token = old", `+token = ${secret}`], "\n"],
+    ["a CRLF patch", ["*** Add File: a.txt", `+token = ${secret}`], "\r\n"],
+  ])("blocks a patch that writes a secret in %s", async (_case, lines, separator) => {
+    const { call } = setup();
+    const input = { patchText: ["*** Begin Patch", ...lines, "*** End Patch"].join(separator) };
+
+    const result = await call("apply_patch", input);
+
+    expect(result).toEqual({ block: true, reason: "Secrets detected in patch content" });
+    expect(JSON.stringify(result)).not.toContain(secret);
+    expect(input.patchText).toContain(secret);
+  });
+
+  it.each([
+    ["removed", [`-token = ${secret}`, "+token = safe"]],
+    ["context", [` token = ${secret}`, "-old", "+new"]],
+  ])("allows a patch whose secret appears only on %s lines", async (_case, lines) => {
+    const { call } = setup();
+    const patchText = ["*** Begin Patch", "*** Update File: a.txt", "@@", ...lines, "*** End Patch"].join("\n");
+
+    expect(await call("apply_patch", { patchText })).toBeUndefined();
+  });
+
   it("allows removal of a secret present only in oldText", async () => {
     const { call } = setup();
     expect(await call("edit", { path: "fake.txt", edits: [{ oldText: secret, newText: "safe" }] })).toBeUndefined();

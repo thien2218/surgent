@@ -131,7 +131,10 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("tool_result", (event) => {
     if (
-      (event.toolName === "write" || event.toolName === "edit" || event.toolName === "subagent") &&
+      (event.toolName === "write" ||
+        event.toolName === "edit" ||
+        event.toolName === "apply_patch" ||
+        event.toolName === "subagent") &&
       !event.isError
     ) {
       turnChanged = true;

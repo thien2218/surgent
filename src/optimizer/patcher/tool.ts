@@ -24,21 +24,19 @@ const FILE_HEADER = /^\*\*\* (?:Add|Update|Delete) File:\s*(.+)$/gm;
 const SUMMARY_CODES = { add: "A", update: "M", move: "M", delete: "D" } as const;
 
 const DESCRIPTION = [
-  "Use the tool to edit files. Your patch language is a stripped-down, file-oriented diff format designed to be easy to parse and safe to apply. You can think of it as a high-level envelope:",
+  "Edit files with stripped-down, file-oriented diff format. Wrap file sections in envelope:",
   "",
   "*** Begin Patch",
   "[ one or more file sections ]",
   "*** End Patch",
   "",
-  "Within that envelope, you get a sequence of file operations.",
-  "You MUST include a header to specify the action you are taking.",
-  "Each operation starts with one of three headers:",
+  "Each section starts with one of three headers:",
   "",
-  "*** Add File: <path> - create a new file. Every following line is a + line (the initial contents).",
-  "*** Delete File: <path> - remove an existing file. Nothing follows.",
-  "*** Update File: <path> - patch an existing file in place (optionally with a rename).",
+  "*** Add File: <path> - create file. Every following line is + line (initial contents).",
+  "*** Delete File: <path> - remove existing file. Nothing follows.",
+  "*** Update File: <path> - patch existing file in place, optionally with rename.",
   "",
-  "Example patch:",
+  "Example:",
   "",
   "```",
   "*** Begin Patch",
@@ -53,10 +51,9 @@ const DESCRIPTION = [
   "*** End Patch",
   "```",
   "",
-  "It is important to remember:",
-  "",
-  "- You must include a header with your intended action (Add/Delete/Update)",
-  "- You must prefix new lines with `+` even when creating a new file",
+  "Rules:",
+  "- Every section needs Add/Delete/Update header.",
+  "- Prefix new lines with `+`, even in new files.",
 ].join("\n");
 
 function patchTargets(hunks: Hunk[], cwd: string): string[] {
@@ -236,9 +233,7 @@ export const applyPatch = defineTool({
   label: "patch",
   description: DESCRIPTION,
   parameters: Type.Object({
-    patchText: Type.String({
-      description: "The full patch text that describes all changes to be made",
-    }),
+    patchText: Type.String({ description: "Full patch text with all changes" }),
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
     if (!params.patchText) {

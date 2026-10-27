@@ -93,7 +93,7 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
         }
       }
 
-      return "anonymous";
+      return "<anonymous>";
     }
   }
 

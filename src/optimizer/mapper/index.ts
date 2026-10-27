@@ -1,7 +1,12 @@
 import { defineTool, truncateHead, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { resolveTargetPaths } from "./files.js";
-import { collectSymbols, SYMBOL_KINDS, type LanguageSymbol } from "../languages/index.js";
+import {
+  collectSymbols,
+  formatSymbolName,
+  SYMBOL_KINDS,
+  type LanguageSymbol,
+} from "../languages/index.js";
 import { renderCallText } from "../../utils.js";
 
 interface MapperResult {
@@ -24,11 +29,13 @@ function collapseGroupedSymbols(symbols: LanguageSymbol[]) {
     groupedSymbolKind = symbol.kind;
     if (symbol.kind === "deps") {
       importsGroupIndex += 1;
-      return [{ ...symbol, name: `imports~${importsGroupIndex}`, range: undefined }];
+      const name = formatSymbolName("<imports>", importsGroupIndex);
+      return [{ ...symbol, name, range: undefined }];
     }
 
     exportsGroupIndex += 1;
-    return [{ ...symbol, name: `exports~${exportsGroupIndex}`, range: undefined }];
+    const name = formatSymbolName("<exports>", exportsGroupIndex);
+    return [{ ...symbol, name, range: undefined }];
   });
 }
 

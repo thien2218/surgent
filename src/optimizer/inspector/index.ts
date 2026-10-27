@@ -20,7 +20,7 @@ const inspect = defineTool({
     }),
     symbol: Type.String({
       description:
-        "Exact symbol string for one declaration in file: function name, class name, method name (MyClass.method), synthetic anonymous name (anonymous~1), or duplicate form name~2",
+        "Exact symbol string for one declaration in file: function name, class name, method name (MyClass.method), synthetic name (<anonymous>, <imports>, <exports>), or later duplicate form name#1",
     }),
     depth: Type.Optional(
       Type.Integer({
@@ -40,7 +40,7 @@ const inspect = defineTool({
         content: [
           {
             type: "text",
-            text: "inspect symbol format invalid. path/symbol must be non-empty. Use symbol name, e.g. name or name~2",
+            text: "inspect symbol format invalid. path/symbol must be non-empty. Use symbol name, e.g. name or name#1",
           },
         ],
       };
@@ -55,7 +55,7 @@ const inspect = defineTool({
           content: [
             {
               type: "text",
-              text: "inspect symbol not found. verify path/symbol; for duplicates use ~n suffix (name~2). then try container symbol. if still missing, run code_map with broader kinds",
+              text: "inspect symbol not found. verify path/symbol; for later duplicates use #n suffix (name#1). then try container symbol. if still missing, run code_map with broader kinds",
             },
           ],
         };

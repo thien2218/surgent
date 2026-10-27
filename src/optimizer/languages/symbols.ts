@@ -34,6 +34,11 @@ async function getRootNode(cwd: string, path: string) {
   return tree.rootNode;
 }
 
+// First occurrence keeps its bare name; later ones get #1, #2, ...
+export function formatSymbolName(name: string, occurrence: number) {
+  return occurrence > 1 ? `${name}#${occurrence - 1}` : name;
+}
+
 export async function collectSymbols(cwd: string, path: string, kinds: Set<SymbolKind>) {
   const extension = extname(path).toLowerCase();
   const profile = getLanguageProfile(extension);
@@ -71,10 +76,9 @@ export async function collectSymbols(cwd: string, path: string, kinds: Set<Symbo
 
     const symbolIdCount = (symbolIdCounts.get(symbolName) ?? 0) + 1;
     symbolIdCounts.set(symbolName, symbolIdCount);
-    const isAnonymous = symbolName === "anonymous" && !currentNode.childForFieldName("name");
 
     symbols.push({
-      name: isAnonymous || symbolIdCount > 1 ? `${symbolName}~${symbolIdCount}` : symbolName,
+      name: formatSymbolName(symbolName, symbolIdCount),
       path,
       kind: symbolKind,
       node: currentNode,

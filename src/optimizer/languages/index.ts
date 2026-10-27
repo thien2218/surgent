@@ -70,6 +70,6 @@ export default function (pi: ExtensionAPI) {
   });
 }
 
-export { collectSymbols } from "./symbols.js";
+export { collectSymbols, formatSymbolName } from "./symbols.js";
 export type { LanguageProfile, LanguageSymbol } from "./types.js";
 export const SYMBOL_KINDS = ["func", "class", "method", "decl", "deps", "public"] as const;

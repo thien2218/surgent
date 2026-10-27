@@ -117,7 +117,7 @@ describe("language profiles", () => {
 
     expect(language.readNodeName(exported)).toBe("exports");
     expect(language.shouldSkipSymbol(exported)).toBe(false);
-    expect(language.readNodeName(makeNode("function_expression"))).toBe("anonymous");
+    expect(language.readNodeName(makeNode("function_expression"))).toBe("<anonymous>");
     expect(language.shouldSkipSymbol(makeNode("function_expression", {
       fields: { name: makeNode("identifier", { text: "localName" }) },
     }))).toBe(true);

@@ -58,11 +58,11 @@ function inspectGroupedSymbols(
   symbols: LanguageSymbol[],
   depth?: number,
 ): { path: string; symbol: string; text: string } | undefined {
-  const groupedSymbolsMatch = /^(imports|exports)~([1-9]\d*)$/.exec(symbolName);
+  const groupedSymbolsMatch = /^<(imports|exports)>(?:#([1-9]\d*))?$/.exec(symbolName);
   if (!groupedSymbolsMatch) return;
 
   const groupedSymbolKind = groupedSymbolsMatch[1] === "imports" ? "deps" : "public";
-  const requestedGroup = Number(groupedSymbolsMatch[2]);
+  const requestedGroup = Number(groupedSymbolsMatch[2] ?? 0) + 1;
   const groupedNodes: SyntaxNode[] = [];
   const groupedRanges = new Set<string>();
   let symbolsCollapsed = false;

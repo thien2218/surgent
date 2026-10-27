@@ -29,7 +29,7 @@ Agents often read a whole file to find one function. pi-optimizer gives the agen
 
 ```text
 src/web-tools/web-fetch/helpers.ts
-  [deps] imports~1
+  [deps] <imports>
   [public func] toCanonicalUrl L10-L17
   [public func] getValidatedUrl L52-L66
 ```

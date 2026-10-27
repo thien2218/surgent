@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from surgent_bench.settings import HARNESSES, TRIALS, trial_folder
+from surgent_bench.usage import harness_calls
 
 # Failures the agent does not own: rerun by the driver, left out of metrics.
 QUOTA_TYPES = {"ApiRateLimitError", "ApiUsageLimitError", "HostedQuotaExceededError"}
@@ -189,7 +190,7 @@ def _run_errors(agent_dir: Path) -> str:
 
 
 def classify(trial: Trial) -> str | None:
-    """Return 'quota', 'auth', 'sandbox', 'interrupted', or None when the agent owns the outcome."""
+    """Return 'quota', 'auth', 'sandbox', 'interrupted', 'startup', or None when the agent owns the outcome."""
     failure = trial.exception_type
     if failure in QUOTA_TYPES:
         return "quota"
@@ -214,6 +215,9 @@ def classify(trial: Trial) -> str | None:
         return "quota"
     if AUTH_PATTERN.search(evidence):
         return "auth"
+    # Ended before calling the model, so the trial says nothing about the agent.
+    if failure and not any(call.is_main for call in harness_calls(trial.harness, trial.agent_dir)):
+        return "startup"
     return None
 
 

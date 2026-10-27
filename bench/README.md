@@ -9,7 +9,7 @@ Suites: DeepSWE (`datacurve/deep-swe`, 113 tasks) and Terminal-Bench 4.0 (`termi
 - Each suite shuffles its tasks into a fixed order derived from `run.seed` and runs the `limit` tasks starting at position `offset`, skipping excluded ones. A suite with `limit = 0` doesn't run.
 - A run makes three passes over the tasks, one per trial. A round is one task in one pass, with all three agents working on it at the same time, each in its own Harbor trial.
 - Results go to `jobs/<suite>/<task>/`, one folder per trial: `codex`, `codex-2`, `codex-3`, and likewise for `opencode` and `surgent-<build>`.
-- Restarting skips finished trials and reruns ones that failed on infrastructure (sandbox, network, login, quota).
+- Restarting skips finished trials and reruns ones that failed on infrastructure (sandbox, network, login, quota) or whose agent failed before its first model call.
 - Surgent always runs this checkout, installed once by `preflight` into `surgent-<build>.tgz`, a digest of the packed checkout. A changed checkout is a new build, so only surgent reruns and earlier builds stay for comparison.
 - The driver runs until the subscription quota is exhausted.
 

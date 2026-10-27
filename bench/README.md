@@ -11,7 +11,7 @@ Suites: DeepSWE (`datacurve/deep-swe`, 113 tasks) and Terminal-Bench 4.0 (`termi
 - Results go to `jobs/<suite>/<task>/`, one folder per trial: `codex`, `codex-2`, `codex-3`, and likewise for `opencode` and `surgent-<build>`.
 - Restarting skips finished trials and reruns ones that failed on infrastructure (sandbox, network, login, quota) or whose agent failed before its first model call.
 - Surgent always runs this checkout, installed once by `preflight` into `surgent-<build>.tgz`, a digest of the packed checkout. A changed checkout is a new build, so only surgent reruns and earlier builds stay for comparison.
-- The driver runs until the subscription quota is exhausted.
+- The driver runs until the subscription quota is exhausted. Ctrl+C or `kill <pid>` stops it: Harbor removes the running trials' containers, and those trials rerun on restart. A second Ctrl+C kills the trials and removes their containers at once.
 
 ## Quick start
 
@@ -103,5 +103,6 @@ The driver exits with:
 - **3**: the quota ran out. Restart after it resets.
 - **4**: surgent isn't prebuilt (run `preflight`), or a round's setup differs from recorded trials. Restore the setting, or use a new `run.jobs_dir`.
 - **5**: Harbor failed to start a trial; its error is printed above.
+- **130**: stopped with Ctrl+C or `kill`.
 
 Task images are pulled per round and kept by Docker; run `docker image prune -a` if disk runs low. Trial folders may contain credentials an agent wrote, so check `jobs/` before sharing it.

@@ -7,10 +7,11 @@ import json
 import random
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -41,10 +42,12 @@ EXIT_LOGIN = 2
 EXIT_QUOTA = 3
 EXIT_SETUP = 4
 EXIT_HARBOR = 5
+EXIT_INTERRUPTED = 130
 NO_WEB = {"disable_web_search": True}
 STRIP_TESTS = "strip_agent_tests"
 SETUP_COMMANDS = "setup_commands"
 HARBOR_TRIAL = (sys.executable, "-m", "surgent_bench.harbor_cli", "trials", "start", "-c")
+POLL_SECONDS = 5
 
 
 @dataclass(frozen=True)
@@ -215,22 +218,79 @@ def log(message: str) -> None:
     print(f"[{datetime.now(UTC):%Y-%m-%d %H:%M:%S}Z] {message}", flush=True)
 
 
-def run_trials(configs: list[dict[str, Any]], limit: int) -> list[int]:
+def docker(*args: str) -> str:
+    try:
+        done = subprocess.run(
+            ["docker", *args], capture_output=True, encoding="utf-8", errors="replace", timeout=120
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return done.stdout.strip()
+
+
+def remove_containers(trial_name: str) -> None:
+    """Remove a trial's containers and networks, which Harbor names after it."""
+    prefix = f"{trial_name}__"
+    rows = docker("ps", "-a", "--format", '{{.ID}} {{.Label "com.docker.compose.project"}}')
+    containers = [
+        row.split()[0] for row in rows.splitlines() if row.partition(" ")[2].startswith(prefix)
+    ]
+    if containers:
+        docker("rm", "-f", *containers)
+    names = docker("network", "ls", "--format", "{{.Name}}").split()
+    networks = [name for name in names if name.startswith(prefix)]
+    if networks:
+        docker("network", "rm", *networks)
+
+
+def stop_trials(
+    running: dict[str, subprocess.Popen[bytes]], configs: dict[str, dict[str, Any]]
+) -> None:
+    """Let Harbor remove each trial's containers; a second Ctrl+C removes them here."""
+    log(f"Stopping {len(running)} trials; Harbor is removing their containers (Ctrl+C to force)")
+    for process in running.values():
+        process.send_signal(signal.SIGINT)
+    try:
+        for process in running.values():
+            process.wait()
+    except KeyboardInterrupt:
+        # Quick, and stopping it halfway would leave containers behind.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        log("Forcing: killing the trials and removing their containers")
+        for harness, process in running.items():
+            process.kill()
+            process.wait()
+            remove_containers(configs[harness]["trial_name"])
+
+
+def run_trials(config: BenchConfig, configs: dict[str, dict[str, Any]]) -> dict[str, int]:
+    """Harbor's exit code per harness, running `run.n_concurrent` trials at a time."""
+    codes: dict[str, int] = {}
+    running: dict[str, subprocess.Popen[bytes]] = {}
+    queue = list(configs)
     with tempfile.TemporaryDirectory(prefix="bench-trial-") as temp_dir:
-        commands = []
-        for index, data in enumerate(configs):
-            config_path = Path(temp_dir) / f"config-{index}.json"
-            config_path.write_text(json.dumps(data))
-            commands.append([*HARBOR_TRIAL, str(config_path)])
-        executor = ThreadPoolExecutor(max_workers=max(limit, 1))
         try:
-            futures = [
-                executor.submit(subprocess.call, command, cwd=BENCH_DIR) for command in commands
-            ]
-            return [future.result() for future in futures]
-        finally:
-            # Waiting lets Harbor remove containers after Ctrl+C.
-            executor.shutdown(cancel_futures=True)
+            while queue or running:
+                while queue and len(running) < max(config.n_concurrent, 1):
+                    harness = queue.pop(0)
+                    config_path = Path(temp_dir) / f"{harness}.json"
+                    config_path.write_text(json.dumps(configs[harness]))
+                    # Its own session keeps Ctrl+C from reaching Harbor mid-cleanup.
+                    running[harness] = subprocess.Popen(
+                        [*HARBOR_TRIAL, str(config_path)],
+                        cwd=BENCH_DIR,
+                        stdin=subprocess.DEVNULL,
+                        start_new_session=True,
+                    )
+                time.sleep(POLL_SECONDS)
+                for harness, process in list(running.items()):
+                    if process.poll() is not None:
+                        codes[harness] = process.returncode
+                        del running[harness]
+        except KeyboardInterrupt:
+            stop_trials(running, configs)
+            raise
+    return codes
 
 
 def outcome(trial: Trial) -> str:
@@ -262,13 +322,14 @@ def run_round(config: BenchConfig, current: Round, build: str) -> None:
             if path.exists():
                 shutil.rmtree(path)
         log(f"{current.label}: running {names}")
-        configs = [trial_config(config, current, harness, build) for harness in pending]
-        codes = run_trials(configs, config.n_concurrent)
+        configs = {harness: trial_config(config, current, harness, build) for harness in pending}
+        codes = run_trials(config, configs)
         for path in trial_dirs.values():
             if path.is_dir():
                 scrub_logins(path)
         results = round_results(config, current, build)
-        for harness, code in zip(pending, codes):
+        for harness in pending:
+            code = codes[harness]
             if harness in results:
                 log(f"{current.label}: {harness} {outcome(results[harness])}")
             elif code != 0:
@@ -292,6 +353,17 @@ def run_round(config: BenchConfig, current: Round, build: str) -> None:
 
 
 def run_all(config: BenchConfig, limit: int | None = None) -> None:
+    # Ctrl+C or `kill <pid>` lets trials clean up, even when started in the background.
+    for stop in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(stop, signal.default_int_handler)
+    try:
+        run_rounds(config, limit)
+    except KeyboardInterrupt:
+        log("Stopped; unfinished trials rerun on restart")
+        raise SystemExit(EXIT_INTERRUPTED) from None
+
+
+def run_rounds(config: BenchConfig, limit: int | None) -> None:
     rounds = plan_rounds(config)
     pass_size = len(rounds) // TRIALS
     if limit is not None:

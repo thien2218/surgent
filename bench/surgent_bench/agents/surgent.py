@@ -84,6 +84,11 @@ class Surgent(BenchAgent, Pi):
         )
 
     @override
+    def build_cli_flags(self) -> str:
+        # Harbor appends the instruction; `--` keeps pi from reading a leading "-" as an option.
+        return f"{super().build_cli_flags()} --".lstrip()
+
+    @override
     async def install(self, environment: BaseEnvironment) -> None:
         await self.ensure_system_dependencies(environment, ("curl",))
         await environment.upload_file(Path(self.options.prebuilt), PREBUILT_TARGET)

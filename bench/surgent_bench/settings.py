@@ -63,6 +63,8 @@ class BenchConfig:
     auth: AuthPaths
     jobs_dir: Path
     agent_timeout_multiplier: float
+    # Minutes without agent output before the driver stops the agent; 0 turns it off.
+    stall_minutes: float
     n_concurrent: int
     agent_hosts: list[str]
     seed: int
@@ -127,6 +129,7 @@ def load_config(path: Path = DEFAULT_CONFIG) -> BenchConfig:
         ),
         jobs_dir=resolve_path(run.get("jobs_dir", "jobs")),
         agent_timeout_multiplier=float(run.get("agent_timeout_multiplier", 1.0)),
+        stall_minutes=float(run.get("stall_minutes", 20)),
         n_concurrent=int(run.get("n_concurrent", 3)),
         agent_hosts=list(run.get("agent_hosts", [])),
         seed=int(run.get("seed", 7)),

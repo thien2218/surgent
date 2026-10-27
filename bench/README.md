@@ -9,6 +9,7 @@ Suites: DeepSWE (`datacurve/deep-swe`, 113 tasks) and Terminal-Bench 4.0 (`termi
 - Each suite shuffles its tasks into a fixed order derived from `run.seed` and runs the `limit` tasks starting at position `offset`, skipping excluded ones. A suite with `limit = 0` doesn't run.
 - A run makes three passes over the tasks, one per trial. A round is one task in one pass, with all three agents working on it at the same time, each in its own Harbor trial.
 - Results go to `jobs/<suite>/<task>/`, one folder per trial: `codex`, `codex-2`, `codex-3`, and likewise for `opencode` and `surgent-<build>`.
+- An agent that writes no output for `run.stall_minutes` (20) is stopped and graded on its work so far, as `AgentStalledError`. Normal trials have gone at most about 10 minutes without output.
 - Restarting skips finished trials and reruns ones that failed on infrastructure (sandbox, network, login, quota) or whose agent failed before its first model call.
 - Surgent always runs this checkout, installed once by `preflight` into `surgent-<build>.tgz`, a digest of the packed checkout. A changed checkout is a new build, so only surgent reruns and earlier builds stay for comparison.
 - The driver runs until the subscription quota is exhausted. Ctrl+C or `kill <pid>` stops it: Harbor removes the running trials' containers, and those trials rerun on restart. A second Ctrl+C kills the trials and removes their containers at once.
@@ -42,7 +43,7 @@ Rerun `preflight` after changing the surgent checkout. `run --limit N` runs only
 | `[model]` | Model name and reasoning effort. |
 | `[agents]` | Pinned codex and opencode versions. |
 | `[auth]` | Host login files. |
-| `[run]` | Jobs folder, concurrency, allowed hosts, seed, retries, and the instruction appended to every task. |
+| `[run]` | Jobs folder, concurrency, stall limit, allowed hosts, seed, retries, and the instruction appended to every task. |
 | `[[suites]]` | Dataset, `offset` and `limit` (the window of tasks to run), timeout multiplier, `exclude` (see [Excluded tasks](#excluded-tasks)), and `setup_commands` (commands that repair a task's environment before the agents start). |
 
 ## Running on several machines

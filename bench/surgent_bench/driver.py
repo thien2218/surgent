@@ -22,7 +22,7 @@ from harbor.models.trial.config import TaskConfig, TrialConfig
 
 from surgent_bench.prebuild import find_build, prebuilt_archive
 from surgent_bench.pricing import COST_DIGITS
-from surgent_bench.results import Trial, load_trial
+from surgent_bench.results import STALL_MARKER, Trial, load_trial
 from surgent_bench.settings import (
     BENCH_DIR,
     HARNESSES,
@@ -47,7 +47,14 @@ NO_WEB = {"disable_web_search": True}
 STRIP_TESTS = "strip_agent_tests"
 SETUP_COMMANDS = "setup_commands"
 HARBOR_TRIAL = (sys.executable, "-m", "surgent_bench.harbor_cli", "trials", "start", "-c")
+# Harbor tees each agent's output to this file in the trial's agent folder.
+AGENT_LOGS = {"surgent": "pi.txt", "codex": "codex.txt", "opencode": "opencode.txt"}
 POLL_SECONDS = 5
+# One record per process: its stat line, then its NUL-separated command line.
+LIST_PROCESSES = (
+    'for dir in /proc/[0-9]*; do cat "$dir/stat" 2>/dev/null; printf "\\037"; '
+    'cat "$dir/cmdline" 2>/dev/null; printf "\\036"; done'
+)
 
 
 @dataclass(frozen=True)
@@ -228,6 +235,46 @@ def docker(*args: str) -> str:
     return done.stdout.strip()
 
 
+def agent_processes(listing: str, log_path: str) -> list[int]:
+    """The process groups writing `log_path`, with every descendant."""
+    parents: dict[int, int] = {}
+    groups: dict[int, int] = {}
+    writers: set[int] = set()
+    for record in listing.split("\x1e"):
+        stat, _, cmdline = record.partition("\x1f")
+        fields = stat.rpartition(")")[2].split()
+        if len(fields) < 3:
+            continue
+        pid = int(stat.split(" ", 1)[0])
+        parents[pid], groups[pid] = int(fields[1]), int(fields[2])
+        if log_path in cmdline:
+            writers.add(groups[pid])
+    found = {pid for pid, group in groups.items() if group in writers}
+    # Children in their own session, like opencode's rg, would outlive the group.
+    while True:
+        children = {pid for pid, parent in parents.items() if parent in found} - found
+        if not children:
+            return sorted(found)
+        found |= children
+
+
+def stop_agent(trial_name: str, harness: str) -> bool | None:
+    """Kill the agent's processes: False when it already exited, None when unreadable."""
+    containers = docker(
+        "ps", "-q",
+        "--filter", f"label=com.docker.compose.project={trial_name}__env",
+        "--filter", "label=com.docker.compose.service=main",
+    ).split()
+    listing = containers and docker("exec", "-u", "0", containers[0], "sh", "-c", LIST_PROCESSES)
+    if not listing:
+        return None
+    victims = agent_processes(listing, f"/logs/agent/{AGENT_LOGS[harness]}")
+    if victims:
+        pids = map(str, victims)
+        docker("exec", "-u", "0", containers[0], "sh", "-c", 'kill -9 "$@"', "sh", *pids)
+    return bool(victims)
+
+
 def remove_containers(trial_name: str) -> None:
     """Remove a trial's containers and networks, which Harbor names after it."""
     prefix = f"{trial_name}__"
@@ -241,6 +288,26 @@ def remove_containers(trial_name: str) -> None:
     networks = [name for name in names if name.startswith(prefix)]
     if networks:
         docker("network", "rm", *networks)
+
+
+def check_stall(config: BenchConfig, current: Round, harness: str, data: dict[str, Any]) -> bool:
+    """Stop an agent silent for `run.stall_minutes`; True once there is nothing left to watch."""
+    folder = Path(data["trials_dir"]) / data["trial_name"]
+    try:
+        silent = time.time() - (folder / "agent" / AGENT_LOGS[harness]).stat().st_mtime
+    except FileNotFoundError:
+        # The agent hasn't started.
+        return False
+    if silent < config.stall_minutes * 60:
+        return False
+    stopped = stop_agent(data["trial_name"], harness)
+    if stopped is None:
+        return False
+    if stopped:
+        minutes = f"{config.stall_minutes:g}"
+        (folder / STALL_MARKER).write_text(f"No agent output for {minutes} minutes\n")
+        log(f"{current.label}: {harness} gave no output for {minutes} minutes; stopped it")
+    return True
 
 
 def stop_trials(
@@ -263,10 +330,13 @@ def stop_trials(
             remove_containers(configs[harness]["trial_name"])
 
 
-def run_trials(config: BenchConfig, configs: dict[str, dict[str, Any]]) -> dict[str, int]:
+def run_trials(
+    config: BenchConfig, current: Round, configs: dict[str, dict[str, Any]]
+) -> dict[str, int]:
     """Harbor's exit code per harness, running `run.n_concurrent` trials at a time."""
     codes: dict[str, int] = {}
     running: dict[str, subprocess.Popen[bytes]] = {}
+    watched = {harness for harness in configs if config.stall_minutes > 0}
     queue = list(configs)
     with tempfile.TemporaryDirectory(prefix="bench-trial-") as temp_dir:
         try:
@@ -287,6 +357,10 @@ def run_trials(config: BenchConfig, configs: dict[str, dict[str, Any]]) -> dict[
                     if process.poll() is not None:
                         codes[harness] = process.returncode
                         del running[harness]
+                    elif harness in watched and check_stall(
+                        config, current, harness, configs[harness]
+                    ):
+                        watched.discard(harness)
         except KeyboardInterrupt:
             stop_trials(running, configs)
             raise
@@ -323,7 +397,7 @@ def run_round(config: BenchConfig, current: Round, build: str) -> None:
                 shutil.rmtree(path)
         log(f"{current.label}: running {names}")
         configs = {harness: trial_config(config, current, harness, build) for harness in pending}
-        codes = run_trials(config, configs)
+        codes = run_trials(config, current, configs)
         for path in trial_dirs.values():
             if path.is_dir():
                 scrub_logins(path)

@@ -44,6 +44,9 @@ SANDBOX_TYPES = {
 }
 # Trials still running when the driver stops.
 INTERRUPTED_TYPES = {"CancelledError"}
+# The driver leaves this file in a trial whose agent it stopped for giving no output.
+STALL_MARKER = "stalled.txt"
+STALLED = "AgentStalledError"
 USAGE_LIMIT = re.compile(r"usage[ _]limit", re.IGNORECASE)
 # Matched only against the error that ended the run: agents retry transient ones.
 QUOTA_PATTERN = re.compile(
@@ -208,7 +211,7 @@ def classify(trial: Trial) -> str | None:
     if USAGE_LIMIT.search(f"{trial.exception_message}\n{_error_events(trial.agent_dir)}"):
         return "quota"
     evidence = _run_errors(trial.agent_dir)
-    crashed = failure not in (None, "AgentTimeoutError")
+    crashed = failure not in (None, "AgentTimeoutError", STALLED)
     if crashed:
         evidence = f"{trial.exception_message}\n{evidence}"
     if QUOTA_PATTERN.search(evidence):
@@ -233,6 +236,9 @@ def load_trial(result_path: Path, attempt: int) -> Trial | None:
         return None
     agent = (result.get("config") or {}).get("agent") or {}
     exception_type, exception_message = _exception(result.get("exception_info"))
+    stall = result_path.parent / STALL_MARKER
+    if stall.is_file():
+        exception_type, exception_message = STALLED, stall.read_text().strip()
     execution = result.get("agent_execution") or {}
     trial = Trial(
         trial_dir=result_path.parent,

@@ -28,6 +28,14 @@ dataset = "datacurve/deep-swe"
 ref = ""
 exclude = [
     "claude-code-by-agents-recursive-delegation",
+    "eicrud-keyset-pagination-cursor",
+    "happy-dom-deterministic-intersectionobserver",
+    "ink-grid-box-layout",
+    "meriyah-explicit-resource-declarations",
+    "fd-deterministic-multi-key-sorting",
+    "kcp-go-multiplexed-kcp-streams",
+    "go-critic-doc-link-checker",
+    "happy-dom-abort-pending-body-reads",
 ]
 agent_timeout_multiplier = 1.0
 offset = 0

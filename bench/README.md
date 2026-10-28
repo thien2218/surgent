@@ -56,11 +56,19 @@ To report, copy every machine's `jobs/<suite>/<task>/` folders into one `jobs/` 
 
 ## Excluded tasks
 
-A task is excluded when the task itself is flawed, never for difficulty: it is broken, its tests are overly strict or cover too little, or its prompt is underspecified or misleading. A task whose environment alone is broken is repaired with `setup_commands` instead.
+A task is excluded when the task itself is flawed, never for difficulty: it is broken, its tests are flaky, overly strict, or its prompt is underspecified or misleading. A task whose environment alone is broken is repaired with `setup_commands` instead.
 
 | Task | Classification | Reason |
 |---|---|---|
 | `claude-code-by-agents-recursive-delegation` | Overly strict tests | The instruction asks only that the delegating agent see the sub-agent's `tool_result` when re-invoked, but 5 of 7 tests accept it only in the request's `context`. Passing it as `message`, which every provider in the repo sends to the model, fails them, yet `context` is the field the repo's claude-code provider drops, and the orchestrator uses that provider when no Anthropic API key is set. |
+| `eicrud-keyset-pagination-cursor` | Flaky tests | When a logged-in user's request fails, the repo bumps their error count without awaiting it, and the hidden spec closes the app right after its last failing request. When the close wins, Node crashes with `DriverException: Operation interrupted because client was closed`, so the reference solution fails 2 of 6 runs. |
+| `happy-dom-deterministic-intersectionobserver` | Overly strict tests | The instruction asks for a real IntersectionObserver engine, but 3 tests expect detached targets, or targets outside the root, to intersect, which the W3C spec rules out. |
+| `ink-grid-box-layout` | Underspecified prompt | The instruction uses CSS Grid properties but never states its own rules for placing items or sizing `auto` tracks, and 3 tests expect what CSS Grid wouldn't give: an item with only `gridColumn` stays in row 1, and auto tracks don't stretch. |
+| `meriyah-explicit-resource-declarations` | Overly strict tests | A test expects `for (using of of [1,2])` to declare `of`, but the proposal's `[lookahead ≠ using of]` rule makes `using` an identifier there, as test262, TypeScript and Babel agree. Another test expects `using` directly in a `case` clause to parse, which ECMA-262 now rejects. |
+| `fd-deterministic-multi-key-sorting` | Flaky tests | A test creates `c.txt`, `a.txt` and `b.txt` in that order and expects `--sort created --sort name` to list them `a b c`, which holds only when all three get the same creation time. The container's filesystem records creation times in steps of about 4 ms, so the reference solution fails the new tests in 5 of 40 runs. |
+| `kcp-go-multiplexed-kcp-streams` | Flaky tests | A test waits only until a stream has closed, then expects `MuxBytesSent` to already be 27, but the mux counts a frame's bytes after its write returns, so the check can run first. The reference solution fails 5 of 30 runs of the grader's tests. |
+| `go-critic-doc-link-checker` | Grader issue | The grader checks every fixture in the checker's testdata, including ones the agent writes, with a hidden `linttest.go` that drops `/*!` comments the original keeps. In all 4 failing trials the hidden fixtures passed and only the agent's own fixtures failed, though each agent's patch passed the checker's test under the original harness. Filtering fixtures in setup still leaves agent fixtures compiling into the same `checker_test` package as the hidden ones. |
+| `happy-dom-abort-pending-body-reads` | Flaky tests | After `abort()`, an existing test waits a real 10 ms and expects both pending fetches finished, but under load from parallel trials they take up to 24 ms, so the reference solution fails 4 of 15 runs of the grader's tests. Upstream raised the wait to 100 ms, but 13 other 50 ms deadlines in `Request.test.ts` and `Response.test.ts` remain, and one of them also timed out under load. |
 
 ## Results
 

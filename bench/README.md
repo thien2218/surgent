@@ -56,12 +56,10 @@ To report, copy every machine's `jobs/<suite>/<task>/` folders into one `jobs/` 
 
 ## Excluded tasks
 
-A task is excluded when the task itself is flawed, never for difficulty: it is broken, its tests are overly strict or cover too little, or its prompt is underspecified or misleading.
+A task is excluded when the task itself is flawed, never for difficulty: it is broken, its tests are overly strict or cover too little, or its prompt is underspecified or misleading. A task whose environment alone is broken is repaired with `setup_commands` instead.
 
 | Task | Classification | Reason |
 |---|---|---|
-| `prometheus-transactional-reload-status` | Broken | The offline grader can't download Go module `grpc-gateway/v2` v2.27.7, which the image lacks, so no solution passes. |
-| `pest-character-class-coalescing` | Broken | The offline grader can't download crate `proc-macro2` 1.0.106, which the image lacks, so no solution passes. |
 | `claude-code-by-agents-recursive-delegation` | Overly strict tests | The instruction asks only that the delegating agent see the sub-agent's `tool_result` when re-invoked, but 5 of 7 tests accept it only in the request's `context`. Passing it as `message`, which every provider in the repo sends to the model, fails them, yet `context` is the field the repo's claude-code provider drops, and the orchestrator uses that provider when no Anthropic API key is set. |
 
 ## Results

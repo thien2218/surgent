@@ -6,7 +6,7 @@ Suites: DeepSWE (`datacurve/deep-swe`, 113 tasks) and Terminal-Bench 4.0 (`termi
 
 ## How a run works
 
-- Each suite shuffles its tasks into a fixed order derived from `run.seed` and runs the `limit` tasks starting at position `offset`, skipping excluded ones. A suite with `limit = 0` doesn't run.
+- Each suite shuffles its tasks into a fixed order derived from `run.seed`, drops excluded ones, and runs the `limit` tasks starting at position `offset`. A suite with `limit = 0` doesn't run.
 - A run makes three passes over the tasks, one per trial. A round is one task in one pass, with all three agents working on it at the same time, each in its own Harbor trial.
 - Results go to `jobs/<suite>/<task>/`, one folder per trial: `codex`, `codex-2`, `codex-3`, and likewise for `opencode` and `surgent-<build>`.
 - An agent that writes no output for `run.stall_minutes` (20) is stopped and graded on its work so far, as `AgentStalledError`. Normal trials have gone at most about 10 minutes without output.

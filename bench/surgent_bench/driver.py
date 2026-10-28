@@ -89,9 +89,9 @@ def suite_tasks(suite: Suite, seed: int) -> list[TaskConfig]:
     if suite.limit <= 0:
         return []
     tasks = dataset_tasks(suite)
-    # Cut before excluding, so excluding a task never shifts any machine's window.
-    window = pick_tasks(list(tasks), suite.offset + suite.limit, seed)[suite.offset :]
-    return [tasks[name] for name in window if not suite.excludes(name)]
+    # Exclude before cutting, so `limit` counts only tasks that run.
+    order = [name for name in pick_tasks(list(tasks), len(tasks), seed) if not suite.excludes(name)]
+    return [tasks[name] for name in order[suite.offset : suite.offset + suite.limit]]
 
 
 def plan_rounds(config: BenchConfig) -> list[Round]:

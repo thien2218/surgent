@@ -39,7 +39,7 @@ exclude = [
 ]
 agent_timeout_multiplier = 1.0
 offset = 0
-limit = 63
+limit = 80
 
 # Run as root with network before each agent installs; the grader shares the container.
 [suites.setup_commands]

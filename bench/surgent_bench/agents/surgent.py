@@ -25,8 +25,12 @@ from surgent_bench.agents.common import (
 LOGIN_FILE = ".pi/agent/auth.json"
 DEFAULT_LOGIN = Path.home() / LOGIN_FILE
 PREBUILT_TARGET = "/tmp/surgent-prebuilt.tgz"
-WEB_TOOLS = ("web_fetch", "web_search")
-SUBAGENT_TOOL = "subagent"
+HIDDEN_TOOLS = (
+    "subagent",
+    "web_fetch",
+    "web_search",
+    # "questionnaire",
+)
 
 # Surgent skips git-excluding `.pi/` in json mode; graders diff the repo.
 PREPARE_REPO = (
@@ -60,7 +64,7 @@ class SurgentOptions(BenchOptions, PiOptions):
     @model_validator(mode="after")
     def _hide_tools(self):
         hidden = [name for name in (self.exclude_tools or "").split(",") if name]
-        hidden.extend((SUBAGENT_TOOL, *WEB_TOOLS))
+        hidden.extend(HIDDEN_TOOLS)
         self.exclude_tools = ",".join(dict.fromkeys(hidden))
         return self
 

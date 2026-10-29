@@ -34,7 +34,6 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
         ["identifier", [{ kind: "deps", parent: "import_clause" }]],
         ["export_statement", [{ kind: "public", topLevelOnly: true }]],
       ]),
-      new Set(["statement_block", "class_body", "interface_body", "enum_body", "switch_body"]),
     );
   }
 

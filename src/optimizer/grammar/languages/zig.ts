@@ -32,13 +32,6 @@ export class ZigLanguageProfile extends RuleBasedLanguageProfile {
         ["test_declaration", [{ kind: "func" }]],
         ["using_namespace_declaration", [{ kind: "deps", topLevelOnly: true }]],
       ]),
-      new Set([
-        "block",
-        "struct_declaration",
-        "enum_declaration",
-        "union_declaration",
-        "opaque_declaration",
-      ]),
     );
   }
 

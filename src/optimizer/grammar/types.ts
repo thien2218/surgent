@@ -27,7 +27,6 @@ export interface LanguageProfile {
   resolveSymbolKind(node: SyntaxNode): SymbolKind | undefined;
   shouldSkipSymbol(node: SyntaxNode): boolean;
   findImportNode(node: SyntaxNode): SyntaxNode;
-  isBlockNode(node: SyntaxNode): boolean;
   findBodyNode(node: SyntaxNode): SyntaxNode | undefined;
 }
 
@@ -50,7 +49,6 @@ export abstract class RuleBasedLanguageProfile implements LanguageProfile {
     protected readonly topLevelRoots: Set<string>,
     protected readonly topLevelParents: Set<string>,
     protected readonly typeRule: Map<string, SymbolKindRule[]>,
-    protected readonly blockTypes: Set<string>,
   ) {}
 
   abstract loadLanguage(extension: string): Promise<Language>;
@@ -142,11 +140,6 @@ export abstract class RuleBasedLanguageProfile implements LanguageProfile {
 
   findImportNode(node: SyntaxNode) {
     return node;
-  }
-
-  isBlockNode(node: SyntaxNode) {
-    if (!this.blockTypes.has(node.type)) return false;
-    return node.namedChildCount > 0 || node.children.some((childNode) => childNode.type === "{");
   }
 
   findBodyNode(node: SyntaxNode) {

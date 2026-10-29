@@ -24,13 +24,6 @@ export class CSharpLanguageProfile extends RuleBasedLanguageProfile {
         ["property_declaration", [{ kind: "method" }]],
         ["using_directive", [{ kind: "deps", topLevelOnly: true }]],
       ]),
-      new Set([
-        "block",
-        "declaration_list",
-        "enum_member_declaration_list",
-        "accessor_list",
-        "switch_body",
-      ]),
     );
   }
 

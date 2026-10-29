@@ -37,7 +37,6 @@ export class RustLanguageProfile extends RuleBasedLanguageProfile {
         ["static_item", [{ kind: "decl", topLevelOnly: true }]],
         ["use_declaration", [{ kind: "deps", topLevelOnly: true }]],
       ]),
-      new Set(["block", "declaration_list", "field_declaration_list"]),
     );
   }
 

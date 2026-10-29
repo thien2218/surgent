@@ -26,13 +26,6 @@ export class GoLanguageProfile extends RuleBasedLanguageProfile {
         ["type_spec", [{ kind: "class", topLevelOnly: true }]],
         ["var_spec", [{ kind: "decl", topLevelOnly: true }]],
       ]),
-      new Set([
-        "block",
-        "field_declaration_list",
-        "expression_switch_statement",
-        "type_switch_statement",
-        "select_statement",
-      ]),
     );
   }
 

@@ -25,13 +25,6 @@ const SPECIFIER_TYPES = new Set([
   "class_specifier",
 ]);
 
-export const C_BLOCK_TYPES = [
-  "compound_statement",
-  "declaration_list",
-  "field_declaration_list",
-  "enumerator_list",
-];
-
 export const C_TOP_LEVEL_PARENTS = [
   "preproc_if",
   "preproc_ifdef",
@@ -161,7 +154,6 @@ export class CLanguageProfile extends CFamilyLanguageProfile {
         ["preproc_def", [{ kind: "decl", topLevelOnly: true }]],
         ["preproc_include", [{ kind: "deps", topLevelOnly: true }]],
       ]),
-      new Set(C_BLOCK_TYPES),
     );
   }
 

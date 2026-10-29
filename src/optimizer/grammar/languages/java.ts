@@ -33,14 +33,6 @@ export class JavaLanguageProfile extends RuleBasedLanguageProfile {
         ["import_declaration", [{ kind: "deps" }]],
         ["exports_module_directive", [{ kind: "public", parent: "module_body" }]],
       ]),
-      new Set([
-        "block",
-        "class_body",
-        "interface_body",
-        "enum_body",
-        "constructor_body",
-        "switch_block",
-      ]),
     );
   }
 

@@ -26,7 +26,6 @@ export class KotlinLanguageProfile extends RuleBasedLanguageProfile {
         ["property_declaration", [...MEMBER_RULES, { kind: "decl", topLevelOnly: true }]],
         ["import", [{ kind: "deps", topLevelOnly: true }]],
       ]),
-      new Set(["block", "class_body", "enum_class_body", "lambda_literal", "when_expression"]),
     );
   }
 

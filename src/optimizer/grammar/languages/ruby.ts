@@ -26,7 +26,6 @@ export class RubyLanguageProfile extends RuleBasedLanguageProfile {
         ["singleton_method", METHOD_RULES],
         ["assignment", [{ kind: "decl", topLevelOnly: true }]],
       ]),
-      new Set(["block", "body_statement", "then", "else", "do"]),
     );
   }
 

@@ -1,5 +1,5 @@
 import type { Language, SyntaxNode } from "tree-sitter";
-import { CFamilyLanguageProfile, C_BLOCK_TYPES, C_TOP_LEVEL_PARENTS } from "./c.js";
+import { CFamilyLanguageProfile, C_TOP_LEVEL_PARENTS } from "./c.js";
 import { loadGrammarModule } from "../ensure.js";
 import type { SymbolKindRule } from "../types.js";
 
@@ -34,7 +34,6 @@ export class CppLanguageProfile extends CFamilyLanguageProfile {
         ["using_declaration", [{ kind: "deps", topLevelOnly: true }]],
         ["namespace_alias_definition", [{ kind: "deps", topLevelOnly: true }]],
       ]),
-      new Set(C_BLOCK_TYPES),
     );
   }
 

@@ -476,21 +476,6 @@ describe("language profiles", () => {
     expect(language.readNodeName(bare)).toBe("test");
   });
 
-  it("collapses only the block types each language lists", () => {
-    const braced = Object.assign(makeNode("struct_declaration"), {
-      namedChildCount: 0, children: [makeNode("{"), makeNode("}")],
-    });
-    const keyword = Object.assign(makeNode("else"), { namedChildCount: 0, children: [] });
-    const branch = Object.assign(makeNode("else", { children: [makeNode("call")] }), {
-      namedChildCount: 1, children: [],
-    });
-
-    expect(profile(".zig").isBlockNode(braced)).toBe(true);
-    expect(profile(".cs").isBlockNode(braced)).toBe(false);
-    expect(profile(".rb").isBlockNode(branch)).toBe(true);
-    expect(profile(".rb").isBlockNode(keyword)).toBe(false);
-  });
-
   it("finds the body a signature ends before", () => {
     const token = (type: string) => Object.assign(makeNode(type), { isNamed: false });
     const block = makeNode("statement_block");

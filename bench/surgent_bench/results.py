@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from surgent_bench.settings import HARNESSES, TRIALS, trial_folder
+from surgent_bench.settings import HARNESSES, trial_folder
 from surgent_bench.usage import harness_calls
 
 # Failures the agent does not own: rerun by the driver, left out of metrics.
@@ -263,12 +263,12 @@ def load_trial(result_path: Path, attempt: int) -> Trial | None:
     return trial
 
 
-def find_trials(jobs_dir: Path, build: str) -> list[Trial]:
+def find_trials(jobs_dir: Path, build: str, max_trials: int) -> list[Trial]:
     """Codex and opencode trials, and surgent's from one build."""
     paths = [
         (path, attempt)
         for harness in HARNESSES
-        for attempt in range(1, TRIALS + 1)
+        for attempt in range(1, max_trials + 1)
         for path in jobs_dir.glob(f"*/*/{trial_folder(harness, build, attempt)}/result.json")
     ]
     trials = []

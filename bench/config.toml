@@ -18,6 +18,7 @@ stall_minutes = 20
 n_concurrent = 3
 agent_hosts = ["chatgpt.com", "auth.openai.com", "models.dev"]
 seed = 7
+max_trials = 3
 max_retries = 2
 extra_instruction = "You are running non-interactively: nobody will answer questions or approve plans. Make reasonable assumptions, complete the task end to end, and verify your work before finishing."
 
@@ -39,7 +40,7 @@ exclude = [
 ]
 agent_timeout_multiplier = 1.0
 offset = 0
-limit = 80
+limit = 104
 
 # Run as root with network before each agent installs; the grader shares the container.
 [suites.setup_commands]

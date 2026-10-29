@@ -12,8 +12,6 @@ BENCH_DIR = Path(__file__).resolve().parent.parent
 REPO_DIR = Path(os.environ.get("SURGENT_REPO", BENCH_DIR.parent)).resolve()
 DEFAULT_CONFIG = BENCH_DIR / "config.toml"
 HARNESSES = ("surgent", "codex", "opencode")
-# Attempts per agent per task, all graded; fixed so every published run is comparable.
-TRIALS = 3
 SURGENT_PREFIX = "surgent-"
 # pi's legacy Codex provider calls chatgpt.com, the backend codex and opencode use.
 SURGENT_PROVIDER = "openai-codex"
@@ -68,6 +66,8 @@ class BenchConfig:
     n_concurrent: int
     agent_hosts: list[str]
     seed: int
+    # Attempts per agent per task, all graded.
+    max_trials: int
     max_retries: int
     extra_instruction: str
     suites: list[Suite]
@@ -114,6 +114,9 @@ def load_config(path: Path = DEFAULT_CONFIG) -> BenchConfig:
     agents = _section(data, "agents")
     auth = _section(data, "auth")
     run = _section(data, "run")
+    max_trials = int(run.get("max_trials", 3))
+    if max_trials < 1:
+        raise ValueError("run.max_trials must be at least 1")
     return BenchConfig(
         model=model["name"],
         effort=model["effort"],
@@ -133,6 +136,7 @@ def load_config(path: Path = DEFAULT_CONFIG) -> BenchConfig:
         n_concurrent=int(run.get("n_concurrent", 3)),
         agent_hosts=list(run.get("agent_hosts", [])),
         seed=int(run.get("seed", 7)),
+        max_trials=max_trials,
         max_retries=int(run.get("max_retries", 2)),
         extra_instruction=str(run.get("extra_instruction", "")),
         suites=[_suite(entry) for entry in data.get("suites", [])],

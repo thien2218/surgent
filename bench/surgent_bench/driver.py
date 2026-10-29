@@ -27,7 +27,6 @@ from surgent_bench.settings import (
     BENCH_DIR,
     HARNESSES,
     SURGENT_PROVIDER,
-    TRIALS,
     BenchConfig,
     Suite,
     trial_folder,
@@ -98,7 +97,7 @@ def plan_rounds(config: BenchConfig) -> list[Round]:
     """One pass over every suite's tasks per attempt, alternating suites within a pass."""
     tasks = [suite_tasks(suite, config.seed) for suite in config.suites]
     rounds = []
-    for attempt in range(1, TRIALS + 1):
+    for attempt in range(1, config.max_trials + 1):
         queues = [
             [Round(suite, task, attempt) for task in suite_list]
             for suite, suite_list in zip(config.suites, tasks)
@@ -192,7 +191,7 @@ def check_setup(config: BenchConfig, current: Round, build: str) -> None:
     folders = {
         trial_folder(harness, build, attempt): harness
         for harness in HARNESSES
-        for attempt in range(1, TRIALS + 1)
+        for attempt in range(1, config.max_trials + 1)
     }
     recorded = [
         (path, harness, TrialConfig.model_validate_json(path.read_text()))
@@ -439,10 +438,10 @@ def run_all(config: BenchConfig, limit: int | None = None) -> None:
 
 def run_rounds(config: BenchConfig, limit: int | None) -> None:
     rounds = plan_rounds(config)
-    pass_size = len(rounds) // TRIALS
+    pass_size = len(rounds) // config.max_trials
     if limit is not None:
         rounds = rounds[:limit]
-    log(f"{len(rounds)} rounds planned; each of the {TRIALS} passes covers {pass_size} tasks")
+    log(f"{len(rounds)} rounds planned; each of the {config.max_trials} passes covers {pass_size} tasks")
     build = ""
     if rounds:
         build = find_build() or ""

@@ -27,8 +27,8 @@ Run `preflight` again whenever you change the surgent checkout. `run --limit N` 
 ## How a run works
 
 - **Task selection.** Each suite's tasks are shuffled into a fixed order based on `run.seed`. Excluded tasks are removed, and the run takes `limit` tasks starting at position `offset`. A suite with `limit = 0` is skipped.
-- **Trials.** Every agent attempts every task three times. A round is one task attempted once by all three agents at the same time, each in its own Harbor trial. The run goes through all tasks once before starting the second and third attempts.
-- **Output.** Each trial gets its own folder in `jobs/<suite>/<task>/`: `codex`, `codex-2` and `codex-3`, and likewise for `opencode` and `surgent-<build>`.
+- **Trials.** Every agent attempts every task up to `run.max_trials` times, 3 by default. A round is one task attempted once by all three agents at the same time, each in its own Harbor trial. The run goes through all tasks once before starting the next attempt.
+- **Output.** Each trial gets its own folder in `jobs/<suite>/<task>/`: `codex`, `codex-2`, `codex-3` and so on, and likewise for `opencode` and `surgent-<build>`.
 - **Stalled agents.** An agent that produces no output for 20 minutes (`run.stall_minutes`) is stopped and graded on what it has done so far, recorded as `AgentStalledError`. Normal trials have gone at most about 10 minutes without output.
 - **Surgent builds.** Surgent runs from this repository. `preflight` packs the checkout into `surgent-<build>.tgz`, where `<build>` is a hash of its contents. Changing the checkout creates a new build: only surgent's trials run again, and results from earlier builds are kept for comparison.
 - **Stopping and resuming.** The run continues until the subscription quota runs out. To stop it earlier, press Ctrl+C or run `kill <pid>`; trials in progress are cleaned up and run again on restart. Press Ctrl+C twice to stop immediately. A restarted run skips finished trials and reruns trials that failed for infrastructure reasons (sandbox, network, login or quota) or before the agent's first model call.
@@ -42,7 +42,7 @@ Everything is set in `config.toml`:
 | `[model]`    | Model name and reasoning effort.                                                                                                                                                                                                                 |
 | `[agents]`   | Pinned codex and opencode versions.                                                                                                                                                                                                              |
 | `[auth]`     | Where each agent's login file is on the host.                                                                                                                                                                                                    |
-| `[run]`      | Jobs folder, concurrency, time limits, stall limit, allowed network hosts, shuffle seed, retries, and an instruction added to every task.                                                                                                        |
+| `[run]`      | Jobs folder, concurrency, time limits, stall limit, allowed network hosts, shuffle seed, trials per task, retries, and an instruction added to every task.                                                                                       |
 | `[[suites]]` | Dataset, which tasks to run (`offset` and `limit`), time limits, [excluded tasks](#excluded-tasks) (`exclude`), environment fixes (`setup_commands`), and whether tests written by the agent are set aside before grading (`strip_agent_tests`). |
 
 ## Running on several machines
@@ -79,7 +79,7 @@ To combine results, copy every machine's `jobs/<suite>/<task>/` folders into one
 - Each agent runs as shipped: surgent's `general` agent, codex's default agent and opencode's `build` agent.
 - No agent can use subagents or web tools.
 - All agents get the same added instruction, time limits and allowed network hosts.
-- Every agent attempts every task three times, and every trial is graded and reported.
+- Every agent attempts every task the same number of times, and every trial is graded and reported.
 - Installs and environment fixes run before the agent starts, with network access and no time limit. After that, the task's own network rules apply to both the agent and the grader.
 - Test files an agent writes for itself are moved aside before grading, so they can't collide with the hidden tests and only the agent's actual changes are graded. Terminal-Bench is the exception.
 

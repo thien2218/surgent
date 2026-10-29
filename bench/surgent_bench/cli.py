@@ -99,7 +99,7 @@ def _collect(config: BenchConfig, args: argparse.Namespace) -> None:
     out_dir = resolve_path(args.results)
     build = _surgent_build(config, args.surgent_build)
     print(f"surgent build {build}")
-    frames = collect(config.jobs_dir, out_dir, config.suites, build)
+    frames = collect(config.jobs_dir, out_dir, config.suites, build, config.max_trials)
     if frames["trials"].empty:
         print(f"No trials in {config.jobs_dir}; left {out_dir} unchanged")
         return

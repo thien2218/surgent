@@ -6,6 +6,12 @@ import { PythonLanguageProfile } from "./languages/python.js";
 import { GoLanguageProfile } from "./languages/go.js";
 import { JavaLanguageProfile } from "./languages/java.js";
 import { RustLanguageProfile } from "./languages/rust.js";
+import { CLanguageProfile } from "./languages/c.js";
+import { CppLanguageProfile } from "./languages/cpp.js";
+import { CSharpLanguageProfile } from "./languages/csharp.js";
+import { RubyLanguageProfile } from "./languages/ruby.js";
+import { KotlinLanguageProfile } from "./languages/kotlin.js";
+import { ZigLanguageProfile } from "./languages/zig.js";
 
 export const LANGUAGE_REGISTRY: Array<{
   bucketName: string;
@@ -42,6 +48,42 @@ export const LANGUAGE_REGISTRY: Array<{
     packageName: "tree-sitter-rust",
     version: "0.24.0",
     profile: new RustLanguageProfile(),
+  },
+  {
+    bucketName: "c",
+    packageName: "tree-sitter-c",
+    version: "0.24.1",
+    profile: new CLanguageProfile(),
+  },
+  {
+    bucketName: "cpp",
+    packageName: "tree-sitter-cpp",
+    version: "0.23.4",
+    profile: new CppLanguageProfile(),
+  },
+  {
+    bucketName: "csharp",
+    packageName: "tree-sitter-c-sharp",
+    version: "0.23.5",
+    profile: new CSharpLanguageProfile(),
+  },
+  {
+    bucketName: "ruby",
+    packageName: "tree-sitter-ruby",
+    version: "0.23.1",
+    profile: new RubyLanguageProfile(),
+  },
+  {
+    bucketName: "kotlin",
+    packageName: "@tree-sitter-grammars/tree-sitter-kotlin",
+    version: "1.1.0",
+    profile: new KotlinLanguageProfile(),
+  },
+  {
+    bucketName: "zig",
+    packageName: "@tree-sitter-grammars/tree-sitter-zig",
+    version: "1.1.2",
+    profile: new ZigLanguageProfile(),
   },
 ];
 

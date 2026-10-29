@@ -76,13 +76,16 @@ export async function collectSymbols(cwd: string, path: string, kinds: Set<Symbo
 
     const symbolIdCount = (symbolIdCounts.get(symbolName) ?? 0) + 1;
     symbolIdCounts.set(symbolName, symbolIdCount);
+    const { startPosition, endPosition } = currentNode;
+    // Nodes such as C preprocessor lines end after their newline, at the next row.
+    const endsAfterNewline = endPosition.column === 0 && endPosition.row > startPosition.row;
 
     symbols.push({
       name: formatSymbolName(symbolName, symbolIdCount),
       path,
       kind: symbolKind,
       node: currentNode,
-      range: [currentNode.startPosition.row + 1, currentNode.endPosition.row + 1],
+      range: [startPosition.row + 1, endsAfterNewline ? endPosition.row : endPosition.row + 1],
       public: profile.isPublicSymbol(currentNode),
     });
   }

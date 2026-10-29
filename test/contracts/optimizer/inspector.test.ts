@@ -12,6 +12,10 @@ vi.mock("tree-sitter", () => ({
 
     parse(source: string) {
       const nameStart = source.indexOf("handler");
+      const positionAt = (index: number) => ({
+        row: source.slice(0, index).split("\n").length - 1,
+        column: index - source.lastIndexOf("\n", index - 1) - 1,
+      });
       const identifier = {
         type: "identifier", text: "handler", parent: null as unknown,
         namedChildren: [], namedChildCount: 0,
@@ -22,7 +26,7 @@ vi.mock("tree-sitter", () => ({
       const makeBlock = (startIndex: number, endIndex: number) => ({
         ...identifier,
         type: "statement_block", text: source.slice(startIndex, endIndex),
-        startIndex, endIndex,
+        startIndex, endIndex, startPosition: positionAt(startIndex), endPosition: positionAt(endIndex),
         children: [
           { ...identifier, type: "{", text: "{", startIndex, endIndex: startIndex + 1 },
           { ...identifier, type: "}", text: "}", startIndex: endIndex - 1, endIndex },
@@ -34,13 +38,26 @@ vi.mock("tree-sitter", () => ({
       const branch = branchStart < 0 ? undefined : makeBlock(
         source.indexOf("{", branchStart), source.lastIndexOf("}", bodyEnd - 2) + 1,
       );
-      const bodyChildren = branch ? [branch] : [];
+      const guardStart = source.indexOf("if (done)");
+      const guardBlock = guardStart < 0 ? undefined : makeBlock(
+        source.indexOf("{", guardStart), source.indexOf("}", guardStart) + 1,
+      );
+      const guard = guardBlock && {
+        ...guardBlock,
+        type: "if_statement", text: source.slice(guardStart, guardBlock.endIndex),
+        startIndex: guardStart, startPosition: positionAt(guardStart),
+        namedChildren: [guardBlock], namedChildCount: 1,
+        namedChild: (index: number) => index === 0 ? guardBlock : null,
+      };
+      if (guardBlock) guardBlock.parent = guard;
+      const bodyChildren = [guard, branch].filter((child) => child !== undefined);
       const body = {
         ...makeBlock(bodyStart, bodyEnd),
         namedChildren: bodyChildren, namedChildCount: bodyChildren.length,
         namedChild: (index: number) => bodyChildren[index] ?? null,
       };
       if (branch) branch.parent = body;
+      if (guard) guard.parent = body;
       const children = [identifier, body];
       const declaration = {
         type: "function_declaration", text: source, parent: null as unknown,
@@ -81,6 +98,7 @@ describe("registered inspect results", () => {
     "  const value = { nested: { count: 1 } };",
     '  const text = "}";',
     "  // Braces in comments: { }",
+    "  if (done) { return; }",
     "  if (ready) {",
     "    work();",
     "  }",
@@ -103,7 +121,7 @@ describe("registered inspect results", () => {
     { depth: 0, expected: "function handler() { ... }" },
     { depth: 1, expected: source.replace("if (ready) {\n    work();\n  }", "if (ready) { ... }") },
     { depth: 2, expected: source },
-  ])("limits code blocks at depth $depth while preserving source outside them", async ({ depth, expected }) => {
+  ])("limits multi-line code blocks at depth $depth while preserving source outside them", async ({ depth, expected }) => {
     await writeFile(join(workspace.cwd, "input.ts"), source);
     const pi = recordExtension();
     optimizer(pi.api);

@@ -36,7 +36,23 @@ src/web-tools/web-fetch/helpers.ts
 
 From the outline, the agent can fetch just the function it needs, or only its signature, instead of the whole file. Folder outlines skip files excluded by your `.gitignore`.
 
-The agent uses this through the `code_map` and `inspect` tools. Supported languages are TypeScript, JavaScript, Python, Go, Java, and Rust.
+The agent uses this through the `code_map` and `inspect` tools. They support these languages:
+
+| Language | File extensions                              | Parser package                             |
+| -------- | -------------------------------------------- | ------------------------------------------ |
+| JS/TS    | `.ts` `.tsx` `.js` `.jsx` `.mjs` `.cjs`      | `tree-sitter-typescript`                   |
+| Python   | `.py`                                        | `tree-sitter-python`                       |
+| Go       | `.go`                                        | `tree-sitter-go`                           |
+| Java     | `.java`                                      | `tree-sitter-java`                         |
+| Rust     | `.rs`                                        | `tree-sitter-rust`                         |
+| C        | `.c`                                         | `tree-sitter-c`                            |
+| C++      | `.cpp` `.cc` `.cxx` `.h` `.hpp` `.hh` `.hxx` | `tree-sitter-cpp`                          |
+| C#       | `.cs`                                        | `tree-sitter-c-sharp`                      |
+| Ruby     | `.rb` `.rake` `.gemspec`                     | `tree-sitter-ruby`                         |
+| Kotlin   | `.kt` `.kts`                                 | `@tree-sitter-grammars/tree-sitter-kotlin` |
+| Zig      | `.zig`                                       | `@tree-sitter-grammars/tree-sitter-zig`    |
+
+C headers (`.h`) are read with the C++ parser, which also understands C.
 
 ### Patch edits for GPT models
 

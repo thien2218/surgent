@@ -34,6 +34,7 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
         ["identifier", [{ kind: "deps", parent: "import_clause" }]],
         ["export_statement", [{ kind: "public", topLevelOnly: true }]],
       ]),
+      new Set(["statement_block", "class_body", "interface_body", "enum_body", "switch_body"]),
     );
   }
 
@@ -101,6 +102,10 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
     return super.isPublicSymbol(
       node.parent?.type === "variable_declarator" ? node.parent : node,
     );
+  }
+
+  findImportNode(node: SyntaxNode) {
+    return this.findAncestor(node, "import_statement") ?? node;
   }
 
   shouldSkipSymbol(node: SyntaxNode) {

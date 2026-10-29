@@ -26,6 +26,8 @@ export interface LanguageProfile {
   isPublicSymbol(node: SyntaxNode): boolean;
   resolveSymbolKind(node: SyntaxNode): SymbolKind | undefined;
   shouldSkipSymbol(node: SyntaxNode): boolean;
+  findImportNode(node: SyntaxNode): SyntaxNode;
+  isBlockNode(node: SyntaxNode): boolean;
 }
 
 export interface SupportedLanguageBucket {
@@ -47,6 +49,7 @@ export abstract class RuleBasedLanguageProfile implements LanguageProfile {
     protected readonly topLevelRoots: Set<string>,
     protected readonly topLevelParents: Set<string>,
     protected readonly typeRule: Map<string, SymbolKindRule[]>,
+    protected readonly blockTypes: Set<string>,
   ) {}
 
   abstract loadLanguage(extension: string): Promise<Language>;
@@ -63,6 +66,14 @@ export abstract class RuleBasedLanguageProfile implements LanguageProfile {
     }
   }
 
+  protected findAncestor(node: SyntaxNode, type: string) {
+    let current: SyntaxNode | null = node;
+    while (current && current.type !== type) {
+      current = current.parent;
+    }
+    return current ?? undefined;
+  }
+
   protected matchesTopLevelRule(node: SyntaxNode) {
     let current = node.parent;
 
@@ -70,7 +81,7 @@ export abstract class RuleBasedLanguageProfile implements LanguageProfile {
       if (this.topLevelRoots.has(current.type)) {
         return true;
       }
-      if (this.topLevelParents.size > 0 && !this.topLevelParents.has(current.type)) {
+      if (!this.topLevelParents.has(current.type)) {
         return false;
       }
       current = current.parent;
@@ -126,5 +137,14 @@ export abstract class RuleBasedLanguageProfile implements LanguageProfile {
 
   shouldSkipSymbol(_node: SyntaxNode) {
     return false;
+  }
+
+  findImportNode(node: SyntaxNode) {
+    return node;
+  }
+
+  isBlockNode(node: SyntaxNode) {
+    if (!this.blockTypes.has(node.type)) return false;
+    return node.namedChildCount > 0 || node.children.some((childNode) => childNode.type === "{");
   }
 }

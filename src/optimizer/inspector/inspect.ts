@@ -1,24 +1,14 @@
+import { extname } from "node:path";
 import type { SyntaxNode } from "tree-sitter";
-import type { LanguageSymbol } from "../grammar/index.js";
-import { collectSymbols, SYMBOL_KINDS } from "../grammar/index.js";
+import type { LanguageProfile, LanguageSymbol } from "../grammar/index.js";
+import { collectSymbols, getLanguageProfile, SYMBOL_KINDS } from "../grammar/index.js";
 
-const BLOCK_TYPES = new Set([
-  "block",
-  "statement_block",
-  "class_body",
-  "interface_body",
-  "enum_body",
-  "constructor_body",
-  "declaration_list",
-  "switch_body",
-  "switch_block",
-  "expression_switch_statement",
-  "type_switch_statement",
-  "select_statement",
-]);
+function isOneLiner(node: SyntaxNode) {
+  return node.endPosition.row === (node.parent ?? node).startPosition.row;
+}
 
-function renderNode(node: SyntaxNode, depth?: number): string {
-  if (depth === undefined) return node.text;
+function renderNode(node: SyntaxNode, profile: LanguageProfile, depth?: number): string {
+  if (depth === undefined) return node.text.trimEnd();
 
   const pendingNodes = [{ node, level: 0 }];
   const replacements: Array<{ start: number; end: number; text: string }> = [];
@@ -27,13 +17,15 @@ function renderNode(node: SyntaxNode, depth?: number): string {
     const current = pendingNodes.pop();
     if (!current) continue;
 
-    const isBlock = BLOCK_TYPES.has(current.node.type);
-    if (isBlock && current.level >= depth) {
+    const isBlock = profile.isBlockNode(current.node);
+    if (isBlock && current.level >= depth && !isOneLiner(current.node)) {
       const opening = current.node.children.find((child) => child.type === "{");
       const closing = current.node.children.find((child) => child.type === "}");
+      const bodyStart = current.node.firstNamedChild?.startIndex ?? current.node.startIndex;
+      const bodyEnd = current.node.lastNamedChild?.endIndex ?? current.node.endIndex;
       replacements.push({
-        start: (opening?.endIndex ?? current.node.startIndex) - node.startIndex,
-        end: (closing?.startIndex ?? current.node.endIndex) - node.startIndex,
+        start: (opening?.endIndex ?? bodyStart) - node.startIndex,
+        end: (closing?.startIndex ?? bodyEnd) - node.startIndex,
         text: opening && closing ? " ... " : "...",
       });
       continue;
@@ -49,13 +41,14 @@ function renderNode(node: SyntaxNode, depth?: number): string {
   for (const replacement of replacements.reverse()) {
     text = text.slice(0, replacement.start) + replacement.text + text.slice(replacement.end);
   }
-  return text;
+  return text.trimEnd();
 }
 
 function inspectGroupedSymbols(
   path: string,
   symbolName: string,
   symbols: LanguageSymbol[],
+  profile: LanguageProfile,
   depth?: number,
 ): { path: string; symbol: string; text: string } | undefined {
   const groupedSymbolsMatch = /^<(imports|exports)>(?:#([1-9]\d*))?$/.exec(symbolName);
@@ -79,12 +72,8 @@ function inspectGroupedSymbols(
     }
     if (symbolsGroupIndex !== requestedGroup) continue;
 
-    let groupedNode = symbol.node;
-    if (groupedSymbolKind === "deps") {
-      while (groupedNode.parent?.parent) {
-        groupedNode = groupedNode.parent;
-      }
-    }
+    const groupedNode =
+      groupedSymbolKind === "deps" ? profile.findImportNode(symbol.node) : symbol.node;
 
     const groupedRange = `${groupedNode.startIndex}-${groupedNode.endIndex}`;
     if (groupedRanges.has(groupedRange)) continue;
@@ -97,7 +86,7 @@ function inspectGroupedSymbols(
   return {
     path,
     symbol: symbolName,
-    text: groupedNodes.map((groupedNode) => renderNode(groupedNode, depth)).join("\n"),
+    text: groupedNodes.map((groupedNode) => renderNode(groupedNode, profile, depth)).join("\n"),
   };
 }
 
@@ -113,8 +102,10 @@ export async function inspectSymbol(
   }
   const kinds = new Set(SYMBOL_KINDS);
   const symbols = await collectSymbols(cwd, path, kinds);
+  const profile = getLanguageProfile(extname(path).toLowerCase());
+  if (!profile) return;
 
-  const inspectedGroup = inspectGroupedSymbols(path, symbolName, symbols, depth);
+  const inspectedGroup = inspectGroupedSymbols(path, symbolName, symbols, profile, depth);
   if (inspectedGroup) return inspectedGroup;
 
   for (const symbol of symbols) {
@@ -123,7 +114,7 @@ export async function inspectSymbol(
     return {
       path: symbol.path,
       symbol: symbol.name,
-      text: renderNode(symbol.node, depth),
+      text: renderNode(symbol.node, profile, depth),
     };
   }
 }

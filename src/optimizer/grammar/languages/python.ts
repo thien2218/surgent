@@ -29,6 +29,7 @@ export class PythonLanguageProfile extends RuleBasedLanguageProfile {
         ["import_from_statement", [{ kind: "deps", topLevelOnly: true }]],
         ["import_statement", [{ kind: "deps", topLevelOnly: true }]],
       ]),
+      new Set(["block"]),
     );
   }
 

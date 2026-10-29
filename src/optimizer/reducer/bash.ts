@@ -128,12 +128,11 @@ export default function bash(pi: ExtensionAPI) {
   pi.registerTool({
     ...bashTool,
     prepareArguments: undefined,
-    description: `${bashTool.description} Output losslessly group similar consecutive lines with braces: 'status {200, 404, 500}' represents three lines 'status 200', 'status 404', 'status 500'. Expand one line per value, preserving order, duplicates, and line endings. Literal braces are escaped with backslash. Decode once.`,
+    description: `${bashTool.description} Consecutive similar output lines may be merged with braces: 'status {200, 404, 404}' means lines 'status 200', 'status 404', 'status 404'. '\{' and '\}' are literal braces. Expand once.`,
     parameters: Type.Object({
       ...bashTool.parameters.properties,
       purpose: Type.String({
-        description: "Briefly explain what this command will do and why before running it",
-        minLength: 1,
+        description: "What the command does and why, briefly",
         maxLength: 256,
         pattern: "\\S",
       }),

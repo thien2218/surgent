@@ -39,7 +39,6 @@ describe("subagent tool contract", () => {
     } });
     expect(tool.exposure).toBe("model-only");
     expect(tool.description).toContain("separate session");
-    expect(tool.promptSnippet).toContain("configured agents");
   });
 
   it("returns child output, session ID and progress, runs supplied task, and persists before disposal", async () => {

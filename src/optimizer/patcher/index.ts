@@ -51,9 +51,6 @@ const DESCRIPTION = [
   "*** End Patch",
   "```",
   "",
-  "Rules:",
-  "- Every section needs Add/Delete/Update header.",
-  "- Prefix new lines with `+`, even in new files.",
 ].join("\n");
 
 function patchTargets(hunks: Hunk[], cwd: string): string[] {

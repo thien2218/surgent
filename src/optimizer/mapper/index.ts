@@ -45,22 +45,21 @@ export default function (pi: ExtensionAPI) {
       name: "code_map",
       label: "Code map",
       description:
-        "Fast symbol and code blocks offset/limit indexing. Best for: narrowing targets to inspect/read or code discovery.",
+        "List symbols and code blocks with line ranges, to pick inspect targets or read offset/limit.",
       parameters: Type.Object({
         paths: Type.Array(Type.String({ minLength: 1 }), {
-          description:
-            "File or directory paths to scan (relative to cwd or absolute). No globs. Keep scope narrow.",
+          description: "Files or directories to scan, no globs. Keep narrow",
           minItems: 1,
           uniqueItems: true,
         }),
         glob: Type.Optional(
           Type.String({
-            description: "Filter files found in directories, same as grep glob.",
+            description: "Filter files found in directories, same as grep glob",
           }),
         ),
         kinds: Type.Optional(
           Type.Array(Type.Union(SYMBOL_KINDS.map((kind) => Type.Literal(kind))), {
-            description: "Abstraction kinds to include. Omit to include all supported.",
+            description: "Kinds to include (default: all)",
           }),
         ),
       }),

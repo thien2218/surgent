@@ -12,21 +12,19 @@ export interface InspectToolDetails {
 const inspect = defineTool({
   name: "inspect",
   label: "Inspect",
-  description:
-    "Fetch one symbol's body from one file, optionally collapsing nested code blocks to save context.",
+  description: "Fetch one symbol's source from a file, optionally collapsing nested blocks.",
   parameters: Type.Object({
     path: Type.String({
-      description: "Exact file path containing target symbol (relative to cwd or absolute)",
+      description: "File containing the symbol",
     }),
     symbol: Type.String({
       description:
-        "Exact symbol string for one declaration in file: function name, class name, method name (MyClass.method), synthetic name (<anonymous>, <imports>, <exports>), or later duplicate form name#1",
+        "One declaration's name: function, class, or method (MyClass.method); <anonymous>, <imports>, or <exports>; name#1 for the second declaration with that name",
     }),
     depth: Type.Optional(
       Type.Integer({
         minimum: 0,
-        description:
-          "Maximum code-block depth: 0 keeps signatures only, 1 keeps outer bodies. Omit for full source.",
+        description: "Max block depth: 0 = signatures only, 1 = outer bodies. Omit for full source",
       }),
     ),
   }),

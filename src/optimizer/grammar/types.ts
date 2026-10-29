@@ -28,6 +28,7 @@ export interface LanguageProfile {
   shouldSkipSymbol(node: SyntaxNode): boolean;
   findImportNode(node: SyntaxNode): SyntaxNode;
   isBlockNode(node: SyntaxNode): boolean;
+  findBodyNode(node: SyntaxNode): SyntaxNode | undefined;
 }
 
 export interface SupportedLanguageBucket {
@@ -146,5 +147,9 @@ export abstract class RuleBasedLanguageProfile implements LanguageProfile {
   isBlockNode(node: SyntaxNode) {
     if (!this.blockTypes.has(node.type)) return false;
     return node.namedChildCount > 0 || node.children.some((childNode) => childNode.type === "{");
+  }
+
+  findBodyNode(node: SyntaxNode) {
+    return node.childForFieldName("body") ?? undefined;
   }
 }

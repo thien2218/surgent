@@ -12,7 +12,7 @@ export interface InspectToolDetails {
 const inspect = defineTool({
   name: "inspect",
   label: "Inspect",
-  description: "Fetch one symbol's source from a file, optionally collapsing nested blocks.",
+  description: "Fetch one symbol's source or signature from a file.",
   parameters: Type.Object({
     path: Type.String({
       description: "File containing the symbol",
@@ -21,10 +21,9 @@ const inspect = defineTool({
       description:
         "One declaration's name: function, class, or method (MyClass.method); <anonymous>, <imports>, or <exports>; name#1 for the second declaration with that name",
     }),
-    depth: Type.Optional(
-      Type.Integer({
-        minimum: 0,
-        description: "Max block depth: 0 = signatures only, 1 = outer bodies. Omit for full source",
+    signature: Type.Optional(
+      Type.Boolean({
+        description: "Return only the signature, without the body",
       }),
     ),
   }),
@@ -45,7 +44,7 @@ const inspect = defineTool({
     }
 
     try {
-      const inspected = await inspectSymbol(ctx.cwd, path, symbol, params.depth, signal);
+      const inspected = await inspectSymbol(ctx.cwd, path, symbol, params.signature, signal);
       if (!inspected) {
         return {
           isError: true,

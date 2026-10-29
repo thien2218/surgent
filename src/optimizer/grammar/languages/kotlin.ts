@@ -4,6 +4,7 @@ import { RuleBasedLanguageProfile, type SymbolKindRule } from "../types.js";
 
 const RECEIVER_TYPES = new Set(["user_type", "nullable_type", "parenthesized_type"]);
 const VARIABLE_TYPES = new Set(["variable_declaration", "multi_variable_declaration"]);
+const BODY_TYPES = new Set(["block", "class_body", "enum_class_body", "function_body"]);
 const MEMBER_RULES: SymbolKindRule[] = [
   { kind: "method", container: "class_declaration" },
   { kind: "method", container: "object_declaration" },
@@ -64,6 +65,10 @@ export class KotlinLanguageProfile extends RuleBasedLanguageProfile {
 
   readContainerName(node: SyntaxNode) {
     return super.readContainerName(node) ?? this.readReceiver(node);
+  }
+
+  findBodyNode(node: SyntaxNode) {
+    return node.namedChildren.find((childNode) => BODY_TYPES.has(childNode.type));
   }
 
   resolveSymbolKind(node: SyntaxNode) {

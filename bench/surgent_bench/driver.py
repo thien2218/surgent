@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from harbor.environments.docker.docker import _sanitize_docker_compose_project_name
 from harbor.models.job.config import DatasetConfig
 from harbor.models.trial.config import TaskConfig, TrialConfig
 
@@ -261,7 +262,7 @@ def stop_agent(trial_name: str, harness: str) -> bool | None:
     """Kill the agent's processes: False when it already exited, None when unreadable."""
     containers = docker(
         "ps", "-q",
-        "--filter", f"label=com.docker.compose.project={trial_name}__env",
+        "--filter", f"label=com.docker.compose.project={_sanitize_docker_compose_project_name(f'{trial_name}__env')}",
         "--filter", "label=com.docker.compose.service=main",
     ).split()
     listing = containers and docker("exec", "-u", "0", containers[0], "sh", "-c", LIST_PROCESSES)
@@ -276,7 +277,7 @@ def stop_agent(trial_name: str, harness: str) -> bool | None:
 
 def remove_containers(trial_name: str) -> None:
     """Remove a trial's containers and networks, which Harbor names after it."""
-    prefix = f"{trial_name}__"
+    prefix = _sanitize_docker_compose_project_name(f"{trial_name}__")
     rows = docker("ps", "-a", "--format", '{{.ID}} {{.Label "com.docker.compose.project"}}')
     containers = [
         row.split()[0] for row in rows.splitlines() if row.partition(" ")[2].startswith(prefix)

@@ -94,7 +94,7 @@ export default function (pi: ExtensionAPI) {
             outputLines.push(symbol.path);
           }
 
-          let line = `  [${symbol.public ? "public " : ""}${symbol.kind}] ${symbol.name}`;
+          let line = ` [${symbol.public ? "public " : ""}${symbol.kind}] ${symbol.name}`;
           if (symbol.range) {
             line += ` L${symbol.range[0]}-L${symbol.range[1]}`;
           }

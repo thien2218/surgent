@@ -29,9 +29,9 @@ Agents often read a whole file to find one function. pi-optimizer gives the agen
 
 ```text
 src/web-tools/web-fetch/helpers.ts
-  [deps] <imports>
-  [public func] toCanonicalUrl L10-L17
-  [public func] getValidatedUrl L52-L66
+ [deps] <imports>
+ [public func] toCanonicalUrl L10-L17
+ [public func] getValidatedUrl L52-L66
 ```
 
 From the outline, the agent can fetch just the function it needs, or only its signature, instead of the whole file. Folder outlines skip files excluded by your `.gitignore`.

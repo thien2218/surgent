@@ -1,8 +1,8 @@
 import { access, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { loadGrammarModule } from "../../../src/optimizer/languages/grammar.js";
-import { TypeScriptLanguageProfile } from "../../../src/optimizer/languages/typescript.js";
+import { loadGrammarModule } from "../../../src/optimizer/grammar/ensure.js";
+import { TypeScriptLanguageProfile } from "../../../src/optimizer/grammar/languages/typescript.js";
 import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
 let workspace: Workspace;

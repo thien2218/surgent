@@ -1,6 +1,6 @@
 import type { Language, SyntaxNode } from "tree-sitter";
-import { loadGrammarModule } from "./grammar.js";
-import { RuleBasedLanguageProfile, type SymbolKindRule } from "./types.js";
+import { loadGrammarModule } from "../ensure.js";
+import { RuleBasedLanguageProfile, type SymbolKindRule } from "../types.js";
 
 export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
   constructor() {

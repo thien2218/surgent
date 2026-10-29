@@ -11,7 +11,7 @@ import { runCommand } from "../../utils.js";
 import type { FileCheck } from "../../permission/types.js";
 import { getState } from "../../state.js";
 import { askForPermission } from "../../permission/index.js";
-import { getSupportedExtensions } from "../languages/index.js";
+import { getSupportedExtensions } from "../grammar/index.js";
 
 function normalizePath(path: string) {
   return path.replaceAll("\\", "/").replace(/\/+$/, "");

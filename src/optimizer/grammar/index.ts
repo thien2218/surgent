@@ -1,11 +1,11 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { ensureGrammarCache } from "./grammar.js";
+import { ensureGrammarCache } from "./ensure.js";
 import type { LanguageProfile } from "./types.js";
-import { TypeScriptLanguageProfile } from "./typescript.js";
-import { PythonLanguageProfile } from "./python.js";
-import { GoLanguageProfile } from "./go.js";
-import { JavaLanguageProfile } from "./java.js";
-import { RustLanguageProfile } from "./rust.js";
+import { TypeScriptLanguageProfile } from "./languages/typescript.js";
+import { PythonLanguageProfile } from "./languages/python.js";
+import { GoLanguageProfile } from "./languages/go.js";
+import { JavaLanguageProfile } from "./languages/java.js";
+import { RustLanguageProfile } from "./languages/rust.js";
 
 export const LANGUAGE_REGISTRY: Array<{
   bucketName: string;

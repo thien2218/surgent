@@ -1,6 +1,6 @@
 import type { SyntaxNode } from "tree-sitter";
 import { describe, expect, it } from "vitest";
-import { getLanguageProfile, getSupportedExtensions } from "../../../src/optimizer/languages/index.js";
+import { getLanguageProfile, getSupportedExtensions } from "../../../src/optimizer/grammar/index.js";
 
 // Profile tests use only Tree-sitter's node boundary, not a substitute parser.
 function makeNode(

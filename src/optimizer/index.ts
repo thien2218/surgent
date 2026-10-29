@@ -4,12 +4,12 @@ import deduplicator from "./deduplicator/index.js";
 import reducer from "./reducer/index.js";
 import mapper from "./mapper/index.js";
 import inspect from "./inspector/index.js";
-import languages from "./languages/index.js";
+import grammar from "./grammar/index.js";
 import { applyPatch } from "./patcher/tool.js";
 
 export default function (pi: ExtensionAPI) {
   reducer(pi);
-  languages(pi);
+  grammar(pi);
   pruner(pi);
   deduplicator(pi);
   mapper(pi);

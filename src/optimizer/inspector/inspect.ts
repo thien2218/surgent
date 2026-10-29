@@ -1,6 +1,6 @@
 import type { SyntaxNode } from "tree-sitter";
-import type { LanguageSymbol } from "../languages/index.js";
-import { collectSymbols, SYMBOL_KINDS } from "../languages/index.js";
+import type { LanguageSymbol } from "../grammar/index.js";
+import { collectSymbols, SYMBOL_KINDS } from "../grammar/index.js";
 
 const BLOCK_TYPES = new Set([
   "block",

@@ -6,7 +6,7 @@ import {
   formatSymbolName,
   SYMBOL_KINDS,
   type LanguageSymbol,
-} from "../languages/index.js";
+} from "../grammar/index.js";
 import { renderCallText } from "../../utils.js";
 
 interface MapperResult {

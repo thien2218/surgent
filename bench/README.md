@@ -28,9 +28,9 @@ Run `preflight` again whenever you change the surgent checkout. `run --limit N` 
 
 - **Task selection.** Each suite's tasks are shuffled into a fixed order based on `run.seed`. Excluded tasks are removed, and the run takes `limit` tasks starting at position `offset`. A suite with `limit = 0` is skipped.
 - **Trials.** Every agent attempts every task up to `run.max_trials` times, 3 by default. A round is one task attempted once by all three agents at the same time, each in its own Harbor trial. The run goes through all tasks once before starting the next attempt.
-- **Output.** Each trial gets its own folder in `jobs/<suite>/<task>/`: `codex`, `codex-2`, `codex-3` and so on, and likewise for `opencode` and `surgent-<build>`.
+- **Output.** Each trial gets its own folder in `jobs/<suite>/<task>/`: `codex`, `codex-2`, `codex-3` and so on, and likewise for `opencode` and `surgent-<version>-<build>`.
 - **Stalled agents.** An agent that produces no output for 20 minutes (`run.stall_minutes`) is stopped and graded on what it has done so far, recorded as `AgentStalledError`. Normal trials have gone at most about 10 minutes without output.
-- **Surgent builds.** Surgent runs from this repository. `preflight` packs the checkout into `surgent-<build>.tgz`, where `<build>` is a hash of its contents. Changing the checkout creates a new build: only surgent's trials run again, and results from earlier builds are kept for comparison.
+- **Surgent builds.** Surgent runs from this repository. `preflight` packs the checkout into `surgent-<version>-<build>.tgz`, where `<version>` is surgent's package version and `<build>` is a hash of its contents. Changing the checkout creates a new build: only surgent's trials run again, and results from earlier builds are kept for comparison.
 - **Stopping and resuming.** The run continues until the subscription quota runs out. To stop it earlier, press Ctrl+C or run `kill <pid>`; trials in progress are cleaned up and run again on restart. Press Ctrl+C twice to stop immediately. A restarted run skips finished trials and reruns trials that failed for infrastructure reasons (sandbox, network, login or quota) or before the agent's first model call.
 
 ## Configuration
@@ -55,7 +55,7 @@ To combine results, copy every machine's `jobs/<suite>/<task>/` folders into one
 
 ## Results
 
-`collect` writes its reports to `results/`. On each task, it compares the same number of trials for every agent: as many as all of them have finished. It reports a single surgent build: the one `preflight` built, or the one given with `--surgent-build`.
+`collect` writes its reports to `results/`. On each task, it compares the same number of trials for every agent: as many as all of them have finished. It reports a single surgent build: the one `preflight` built, or the one given with `--surgent-build`, either by version or by the start of its hash.
 
 | File                  | Contents                                                                                                                         |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------- |

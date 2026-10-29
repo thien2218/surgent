@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 from datetime import UTC, datetime
@@ -10,12 +11,15 @@ from importlib.metadata import version
 from pathlib import Path
 
 from surgent_bench.settings import (
+    BUILD_PATTERN,
     DEFAULT_CONFIG,
     SURGENT_PREFIX,
     BenchConfig,
     load_config,
     resolve_path,
 )
+
+TRIAL_FOLDER = re.compile(rf"{SURGENT_PREFIX}({BUILD_PATTERN})(?:-\d+)?")
 
 
 def _preflight(config: BenchConfig, _args: argparse.Namespace) -> None:
@@ -84,9 +88,10 @@ def _surgent_build(config: BenchConfig, requested: str | None) -> str:
             raise SystemExit("surgent needs exactly one prebuilt build; run `preflight` or pass --surgent-build")
         return build
     builds = {
-        # Drop the attempt suffix of `surgent-<build>-2` and later trials.
-        path.name.removeprefix(SURGENT_PREFIX).split("-")[0]
-        for path in config.jobs_dir.glob(f"*/*/{SURGENT_PREFIX}{requested}*")
+        match[1]
+        for path in config.jobs_dir.glob(f"*/*/{SURGENT_PREFIX}*")
+        if (match := TRIAL_FOLDER.fullmatch(path.name))
+        and (requested in (match["version"], match["version"][1:]) or match["digest"].startswith(requested))
     }
     if len(builds) != 1:
         raise SystemExit(f"--surgent-build {requested} matches {len(builds)} builds in {config.jobs_dir}")
@@ -133,7 +138,8 @@ def main() -> None:
     collect = commands.add_parser("collect", help="parse jobs into CSVs")
     collect.add_argument("--results", default="results")
     collect.add_argument(
-        "--surgent-build", help="digest prefix of the surgent build to report (default: the prebuilt one)"
+        "--surgent-build",
+        help="version or digest prefix of the surgent build to report (default: the prebuilt one)",
     )
     collect.set_defaults(handler=_collect)
 

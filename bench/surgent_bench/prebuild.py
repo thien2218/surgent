@@ -3,17 +3,18 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import subprocess
 import tempfile
 from pathlib import Path
 
-from surgent_bench.settings import BENCH_DIR, REPO_DIR, SURGENT_PREFIX
+from surgent_bench.settings import BENCH_DIR, BUILD_PATTERN, REPO_DIR, SURGENT_PREFIX
 
 # Older glibc and libstdc++ than any task image, so the tree loads on all of them.
 BUILD_IMAGE = "node:22-bullseye"
-ARCHIVE_NAME = re.compile(rf"{SURGENT_PREFIX}([0-9a-f]{{16}})\.tgz")
+ARCHIVE_NAME = re.compile(rf"{SURGENT_PREFIX}({BUILD_PATTERN})\.tgz")
 
 
 def prebuilt_archive(build: str) -> Path:
@@ -41,8 +42,10 @@ def prebuild_checkout() -> str:
             check=True,
         )
         tarball = next(Path(pack_dir).glob("*.tgz"))
+        version = json.loads((REPO_DIR / "package.json").read_text())["version"]
         # npm pack is reproducible, so an unchanged checkout keeps its build.
-        build = hashlib.sha256(tarball.read_bytes()).hexdigest()[:16]
+        digest = hashlib.sha256(tarball.read_bytes()).hexdigest()[:16]
+        build = f"v{version}-{digest}"
         archive = prebuilt_archive(build)
         if not archive.is_file():
             install_tree(tarball, archive)

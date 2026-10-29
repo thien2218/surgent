@@ -13,6 +13,7 @@ REPO_DIR = Path(os.environ.get("SURGENT_REPO", BENCH_DIR.parent)).resolve()
 DEFAULT_CONFIG = BENCH_DIR / "config.toml"
 HARNESSES = ("surgent", "codex", "opencode")
 SURGENT_PREFIX = "surgent-"
+BUILD_PATTERN = r"(?P<version>v.+)-(?P<digest>[0-9a-f]{16})"
 # pi's legacy Codex provider calls chatgpt.com, the backend codex and opencode use.
 SURGENT_PROVIDER = "openai-codex"
 

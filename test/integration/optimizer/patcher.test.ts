@@ -1,10 +1,12 @@
 import { access, chmod, lstat, mkdir, readFile, stat, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
-  withFileMutationQueue, type AgentToolResult, type ExtensionToolContext,
+  withFileMutationQueue,
+  type AgentToolResult,
+  type ExtensionToolContext,
 } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { applyPatch } from "../../../src/optimizer/patcher/tool.js";
+import { applyPatch } from "../../../src/optimizer/patcher/index.js";
 import type { PatchedFile } from "../../../src/optimizer/patcher/types.js";
 import { createWorkspace } from "../../helpers/workspace.js";
 
@@ -22,11 +24,15 @@ async function setup() {
     ...workspace,
     path,
     run: (patchText: string, signal?: AbortSignal) =>
-      applyPatch.execute(
-        "call", { patchText }, signal, undefined, { cwd: workspace.cwd } as ExtensionToolContext,
-      ) as Promise<AgentToolResult<{ files: PatchedFile[] }>>,
+      applyPatch.execute("call", { patchText }, signal, undefined, {
+        cwd: workspace.cwd,
+      } as ExtensionToolContext) as Promise<AgentToolResult<{ files: PatchedFile[] }>>,
     read: (name: string) => readFile(path(name), "utf8"),
-    exists: (name: string) => access(path(name)).then(() => true, () => false),
+    exists: (name: string) =>
+      access(path(name)).then(
+        () => true,
+        () => false,
+      ),
   };
 }
 
@@ -37,20 +43,36 @@ describe("patch file changes", () => {
     await writeFile(fixture.path("old.txt"), "keep\nold\n");
     await writeFile(fixture.path("obsolete.txt"), "gone\n");
 
-    const result = await fixture.run(patch(
-      "*** Add File: docs/new/hello.txt", "+Hello", "+world",
-      "*** Update File: app.py", "@@ def greet():", '-    print("Hi")', '+    print("Hello")',
-      "*** Update File: old.txt", "*** Move to: moved/renamed.txt", "@@", " keep", "-old", "+new",
-      "*** Delete File: obsolete.txt",
-    ));
+    const result = await fixture.run(
+      patch(
+        "*** Add File: docs/new/hello.txt",
+        "+Hello",
+        "+world",
+        "*** Update File: app.py",
+        "@@ def greet():",
+        '-    print("Hi")',
+        '+    print("Hello")',
+        "*** Update File: old.txt",
+        "*** Move to: moved/renamed.txt",
+        "@@",
+        " keep",
+        "-old",
+        "+new",
+        "*** Delete File: obsolete.txt",
+      ),
+    );
 
-    expect(result.content).toEqual([{
-      type: "text",
-      text: "Success. Updated the following files:\nA docs/new/hello.txt\nM app.py\nM moved/renamed.txt\nD obsolete.txt",
-    }]);
+    expect(result.content).toEqual([
+      {
+        type: "text",
+        text: "Success. Updated the following files:\nA docs/new/hello.txt\nM app.py\nM moved/renamed.txt\nD obsolete.txt",
+      },
+    ]);
     expect(result.details.files).toMatchObject([
-      { type: "add", path: "docs/new/hello.txt" }, { type: "update", path: "app.py" },
-      { type: "move", path: "moved/renamed.txt" }, { type: "delete", path: "obsolete.txt" },
+      { type: "add", path: "docs/new/hello.txt" },
+      { type: "update", path: "app.py" },
+      { type: "move", path: "moved/renamed.txt" },
+      { type: "delete", path: "obsolete.txt" },
     ]);
     expect(result.details.files[1]?.diff).toContain('print("Hello")');
     expect(await fixture.read("docs/new/hello.txt")).toBe("Hello\nworld\n");
@@ -65,10 +87,19 @@ describe("patch file changes", () => {
     await writeFile(fixture.path("a.txt"), "﻿one\n");
     await writeFile(fixture.path("b.txt"), "﻿two\n");
 
-    await fixture.run(patch(
-      "*** Update File: a.txt", "@@", "-one", "+ONE",
-      "*** Update File: b.txt", "*** Move to: c.txt", "@@", "-two", "+TWO",
-    ));
+    await fixture.run(
+      patch(
+        "*** Update File: a.txt",
+        "@@",
+        "-one",
+        "+ONE",
+        "*** Update File: b.txt",
+        "*** Move to: c.txt",
+        "@@",
+        "-two",
+        "+TWO",
+      ),
+    );
 
     expect(await fixture.read("a.txt")).toBe("﻿ONE\n");
     expect(await fixture.read("c.txt")).toBe("﻿TWO\n");
@@ -88,9 +119,16 @@ describe("patch file changes", () => {
     const fixture = await setup();
     await writeFile(fixture.path("a.txt"), "one\ntwo\n");
 
-    await fixture.run(patch(
-      "*** Update File: a.txt", "@@", "-one", "+ONE", "*** Add File: b.txt", "+new",
-    ).replaceAll("\n", "\r\n"));
+    await fixture.run(
+      patch(
+        "*** Update File: a.txt",
+        "@@",
+        "-one",
+        "+ONE",
+        "*** Add File: b.txt",
+        "+new",
+      ).replaceAll("\n", "\r\n"),
+    );
 
     expect(await fixture.read("a.txt")).toBe("ONE\ntwo\n");
     expect(await fixture.read("b.txt")).toBe("new\n");
@@ -108,13 +146,20 @@ describe("patch file changes", () => {
   it("resolves relative and absolute paths against the working directory", async () => {
     const fixture = await setup();
 
-    const result = await fixture.run(patch(
-      "*** Add File: ../outside.txt", "+relative", `*** Add File: ${join(fixture.root, "absolute.txt")}`, "+absolute",
-    ));
+    const result = await fixture.run(
+      patch(
+        "*** Add File: ../outside.txt",
+        "+relative",
+        `*** Add File: ${join(fixture.root, "absolute.txt")}`,
+        "+absolute",
+      ),
+    );
 
     expect(await readFile(join(fixture.root, "outside.txt"), "utf8")).toBe("relative\n");
     expect(await readFile(join(fixture.root, "absolute.txt"), "utf8")).toBe("absolute\n");
-    expect(result.content[0]).toMatchObject({ text: expect.stringContaining("A ../outside.txt\nA ../absolute.txt") });
+    expect(result.content[0]).toMatchObject({
+      text: expect.stringContaining("A ../outside.txt\nA ../absolute.txt"),
+    });
   });
 
   it("replaces an existing file named by Add File", async () => {
@@ -129,9 +174,21 @@ describe("patch file changes", () => {
 
 describe("patch verification", () => {
   it.each([
-    ["missing context", ["*** Update File: a.txt", "@@ nowhere", "-one", "+two"], "Failed to find context 'nowhere'"],
-    ["missing lines", ["*** Update File: a.txt", "@@", "-nope", "+two"], "Failed to find expected lines"],
-    ["a missing file to update", ["*** Update File: missing.txt", "@@", "-x", "+y"], "Failed to read file to update"],
+    [
+      "missing context",
+      ["*** Update File: a.txt", "@@ nowhere", "-one", "+two"],
+      "Failed to find context 'nowhere'",
+    ],
+    [
+      "missing lines",
+      ["*** Update File: a.txt", "@@", "-nope", "+two"],
+      "Failed to find expected lines",
+    ],
+    [
+      "a missing file to update",
+      ["*** Update File: missing.txt", "@@", "-x", "+y"],
+      "Failed to read file to update",
+    ],
     ["a missing file to delete", ["*** Delete File: missing.txt"], "Failed to read file to delete"],
     ["a directory", ["*** Update File: dir", "@@", "-x", "+y"], "Not a regular file"],
   ])("changes nothing when a later section has %s", async (_case, failing, message) => {
@@ -140,9 +197,19 @@ describe("patch verification", () => {
     await writeFile(fixture.path("b.txt"), "keep\n");
     await mkdir(fixture.path("dir"));
 
-    await expect(fixture.run(patch(
-      "*** Update File: b.txt", "@@", "-keep", "+changed", "*** Add File: new.txt", "+x", ...failing,
-    ))).rejects.toThrow(message);
+    await expect(
+      fixture.run(
+        patch(
+          "*** Update File: b.txt",
+          "@@",
+          "-keep",
+          "+changed",
+          "*** Add File: new.txt",
+          "+x",
+          ...failing,
+        ),
+      ),
+    ).rejects.toThrow(message);
 
     expect(await fixture.read("b.txt")).toBe("keep\n");
     expect(await fixture.exists("new.txt")).toBe(false);
@@ -154,9 +221,12 @@ describe("patch verification", () => {
     const controller = new AbortController();
     controller.abort();
 
-    await expect(fixture.run(patch(
-      "*** Update File: b.txt", "@@", "-keep", "+changed", "*** Add File: new.txt", "+x",
-    ), controller.signal)).rejects.toThrow();
+    await expect(
+      fixture.run(
+        patch("*** Update File: b.txt", "@@", "-keep", "+changed", "*** Add File: new.txt", "+x"),
+        controller.signal,
+      ),
+    ).rejects.toThrow();
 
     expect(await fixture.read("b.txt")).toBe("keep\n");
     expect(await fixture.exists("new.txt")).toBe(false);
@@ -168,18 +238,31 @@ describe("patch sections on one file", () => {
     const fixture = await setup();
     await writeFile(fixture.path("a.txt"), "one\ntwo\n");
 
-    const result = await fixture.run(patch(
-      "*** Update File: a.txt", "@@", "-one", "+ONE", "*** Update File: a.txt", "@@", "-two", "+TWO",
-    ));
+    const result = await fixture.run(
+      patch(
+        "*** Update File: a.txt",
+        "@@",
+        "-one",
+        "+ONE",
+        "*** Update File: a.txt",
+        "@@",
+        "-two",
+        "+TWO",
+      ),
+    );
 
     expect(await fixture.read("a.txt")).toBe("ONE\nTWO\n");
-    expect(result.content[0]).toMatchObject({ text: "Success. Updated the following files:\nM a.txt\nM a.txt" });
+    expect(result.content[0]).toMatchObject({
+      text: "Success. Updated the following files:\nM a.txt\nM a.txt",
+    });
   });
 
   it("updates a file added earlier in the patch", async () => {
     const fixture = await setup();
 
-    await fixture.run(patch("*** Add File: a.txt", "+one", "*** Update File: a.txt", "@@", "-one", "+two"));
+    await fixture.run(
+      patch("*** Add File: a.txt", "+one", "*** Update File: a.txt", "@@", "-one", "+two"),
+    );
 
     expect(await fixture.read("a.txt")).toBe("two\n");
   });
@@ -205,8 +288,9 @@ describe("patch sections on one file", () => {
     const fixture = await setup();
     await writeFile(fixture.path("a.txt"), "one\n");
 
-    await expect(fixture.run(patch("*** Delete File: a.txt", "*** Update File: a.txt", "@@", "-one", "+two")))
-      .rejects.toThrow("Failed to read file to update");
+    await expect(
+      fixture.run(patch("*** Delete File: a.txt", "*** Update File: a.txt", "@@", "-one", "+two")),
+    ).rejects.toThrow("Failed to read file to update");
 
     expect(await fixture.read("a.txt")).toBe("one\n");
   });
@@ -217,10 +301,14 @@ describe("patch moves", () => {
     const fixture = await setup();
     await writeFile(fixture.path("a.txt"), "one\n");
 
-    const result = await fixture.run(patch("*** Update File: a.txt", `*** Move to: ${destination}`, "@@", "-one", "+two"));
+    const result = await fixture.run(
+      patch("*** Update File: a.txt", `*** Move to: ${destination}`, "@@", "-one", "+two"),
+    );
 
     expect(await fixture.read("a.txt")).toBe("two\n");
-    expect(result.content[0]).toMatchObject({ text: "Success. Updated the following files:\nM a.txt" });
+    expect(result.content[0]).toMatchObject({
+      text: "Success. Updated the following files:\nM a.txt",
+    });
   });
 
   it("replaces the destination and removes the source", async () => {
@@ -241,9 +329,22 @@ describe("patch symlinks", () => {
     await writeFile(fixture.path("real.txt"), "one\n");
     await symlink(fixture.path("real.txt"), fixture.path("link.txt"));
 
-    await expect(fixture.run(patch(
-      "*** Update File: link.txt", "@@", "-one", "+two", "*** Update File: real.txt", "@@", "-one", "+three",
-    ))).rejects.toThrow(`${fixture.path("link.txt")} and ${fixture.path("real.txt")} are the same file`);
+    await expect(
+      fixture.run(
+        patch(
+          "*** Update File: link.txt",
+          "@@",
+          "-one",
+          "+two",
+          "*** Update File: real.txt",
+          "@@",
+          "-one",
+          "+three",
+        ),
+      ),
+    ).rejects.toThrow(
+      `${fixture.path("link.txt")} and ${fixture.path("real.txt")} are the same file`,
+    );
 
     expect(await fixture.read("real.txt")).toBe("one\n");
   });
@@ -279,8 +380,12 @@ describe("patch concurrent writers", () => {
     await symlink(fixture.path("real.txt"), fixture.path("link.txt"));
     let entered!: () => void;
     let release!: () => void;
-    const holding = new Promise<void>((resolve) => { entered = resolve; });
-    const held = new Promise<void>((resolve) => { release = resolve; });
+    const holding = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     const holder = withFileMutationQueue(fixture.path("link.txt"), async () => {
       entered();
       await held;
@@ -304,12 +409,21 @@ describe("patch rollback", () => {
     await chmod(fixture.path("run.sh"), 0o755);
     await writeFile(fixture.path("blocker"), "file\n");
 
-    await expect(fixture.run(patch(
-      "*** Update File: a.txt", "@@", "-one", "+two",
-      "*** Delete File: run.sh",
-      "*** Add File: nested/deep/x.txt", "+x",
-      "*** Add File: blocker/child.txt", "+y",
-    ))).rejects.toThrow(/^patch failed, no files were changed: EEXIST/);
+    await expect(
+      fixture.run(
+        patch(
+          "*** Update File: a.txt",
+          "@@",
+          "-one",
+          "+two",
+          "*** Delete File: run.sh",
+          "*** Add File: nested/deep/x.txt",
+          "+x",
+          "*** Add File: blocker/child.txt",
+          "+y",
+        ),
+      ),
+    ).rejects.toThrow(/^patch failed, no files were changed: EEXIST/);
 
     expect(await fixture.read("a.txt")).toBe("one\n");
     expect(await fixture.read("run.sh")).toBe("echo hi\n");
@@ -323,10 +437,19 @@ describe("patch rollback", () => {
     await writeFile(fixture.path("b.txt"), "existing\n");
     await writeFile(fixture.path("blocker"), "file\n");
 
-    await expect(fixture.run(patch(
-      "*** Update File: a.txt", "*** Move to: b.txt", "@@", "-one", "+two",
-      "*** Add File: blocker/child.txt", "+y",
-    ))).rejects.toThrow("no files were changed");
+    await expect(
+      fixture.run(
+        patch(
+          "*** Update File: a.txt",
+          "*** Move to: b.txt",
+          "@@",
+          "-one",
+          "+two",
+          "*** Add File: blocker/child.txt",
+          "+y",
+        ),
+      ),
+    ).rejects.toThrow("no files were changed");
 
     expect(await fixture.read("a.txt")).toBe("one\n");
     expect(await fixture.read("b.txt")).toBe("existing\n");
@@ -343,11 +466,24 @@ describe("patch rollback", () => {
       if (args[0] === fixture.path("a.txt") && ++writes > 1) throw new Error("read-only");
       return actual.writeFile(...args);
     });
-    onTestFinished(() => { vi.mocked(writeFile).mockImplementation(actual.writeFile); });
+    onTestFinished(() => {
+      vi.mocked(writeFile).mockImplementation(actual.writeFile);
+    });
 
-    await expect(fixture.run(patch(
-      "*** Update File: a.txt", "@@", "-one", "+two", "*** Update File: b.txt", "@@", "-keep", "+changed",
-    ))).rejects.toThrow(`patch failed: disk full\nCould not restore: ${fixture.path("a.txt")}`);
+    await expect(
+      fixture.run(
+        patch(
+          "*** Update File: a.txt",
+          "@@",
+          "-one",
+          "+two",
+          "*** Update File: b.txt",
+          "@@",
+          "-keep",
+          "+changed",
+        ),
+      ),
+    ).rejects.toThrow(`patch failed: disk full\nCould not restore: ${fixture.path("a.txt")}`);
 
     expect(await fixture.read("a.txt")).toBe("two\n");
     expect(await fixture.read("b.txt")).toBe("keep\n");

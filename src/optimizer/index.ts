@@ -5,7 +5,7 @@ import reducer from "./reducer/index.js";
 import mapper from "./mapper/index.js";
 import inspect from "./inspector/index.js";
 import grammar from "./grammar/index.js";
-import { applyPatch } from "./patcher/tool.js";
+import { applyPatch } from "./patcher/index.js";
 
 export default function (pi: ExtensionAPI) {
   reducer(pi);

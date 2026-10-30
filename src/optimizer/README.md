@@ -73,24 +73,6 @@ Every file in the patch is checked before anything is written, so a patch that d
 
 In surgent, GPT models get `patch` in place of `edit` and `write` when the agent is allowed to write files; other models keep `edit` and `write`. In Pi, `patch` is available to every model alongside `edit` and `write`.
 
-### Compact command output
-
-When a command prints a run of lines that differ by a single value, those lines are merged into one. This output:
-
-```text
-request /health returned 204
-request /health returned 404
-request /health returned 500
-```
-
-reaches the model as:
-
-```text
-request /health returned {204, 404, 500}
-```
-
-Nothing is lost: the merged line keeps every value in order, and output is merged only when that makes it shorter.
-
 ### Grouped search results
 
 Search results are grouped under each file instead of repeating the file path on every matching line. These results:

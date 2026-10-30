@@ -105,17 +105,17 @@ describe("patch file changes", () => {
     expect(await fixture.read("c.txt")).toBe("﻿TWO\n");
   });
 
-  it("keeps a CRLF file's line endings for every line it rewrites", async () => {
+  it("keeps CRLF endings only on lines outside the patched region", async () => {
     const fixture = await setup();
     await writeFile(fixture.path("a.txt"), "one\r\ntwo\r\nthree\r\n");
 
     const result = await fixture.run(patch("*** Update File: a.txt", "@@", " one", "-two", "+TWO"));
 
-    expect(await fixture.read("a.txt")).toBe("one\r\nTWO\r\nthree\r\n");
+    expect(await fixture.read("a.txt")).toBe("one\nTWO\nthree\r\n");
     expect(result.details.files[0]?.diff).not.toContain("\r");
   });
 
-  it("writes no carriage returns from a CRLF patch", async () => {
+  it("writes carriage returns from a CRLF patch as given", async () => {
     const fixture = await setup();
     await writeFile(fixture.path("a.txt"), "one\ntwo\n");
 
@@ -130,8 +130,8 @@ describe("patch file changes", () => {
       ).replaceAll("\n", "\r\n"),
     );
 
-    expect(await fixture.read("a.txt")).toBe("ONE\ntwo\n");
-    expect(await fixture.read("b.txt")).toBe("new\n");
+    expect(await fixture.read("a.txt")).toBe("ONE\r\ntwo\n");
+    expect(await fixture.read("b.txt")).toBe("new\r\n");
   });
 
   it("anchors an *** End of File chunk to the last occurrence", async () => {

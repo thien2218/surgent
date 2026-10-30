@@ -69,7 +69,7 @@ GPT models are trained to edit code with patches. The `patch` tool gives them th
 *** End Patch
 ```
 
-Every file in the patch is checked before anything is written, so a patch that does not match leaves all files unchanged. If a write fails partway, files already written are restored. Updated files keep their line endings and byte order mark.
+Every file in the patch is checked before anything is written, so a patch that does not match leaves all files unchanged. If a write fails partway, files already written are restored. Updated files keep their byte order mark, and lines outside the patched regions keep their line endings.
 
 In surgent, GPT models get `patch` in place of `edit` and `write` when the agent is allowed to write files; other models keep `edit` and `write`. In Pi, `patch` is available to every model alongside `edit` and `write`.
 

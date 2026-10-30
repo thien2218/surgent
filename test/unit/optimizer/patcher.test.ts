@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   deriveNewContent,
-  detectLineEnding,
   joinBom,
   normalizeToLF,
   parsePatch,
-  restoreLineEndings,
   splitBom,
 } from "../../../src/optimizer/patcher/patch.js";
 import type { UpdateChunk } from "../../../src/optimizer/patcher/types.js";
@@ -47,12 +45,12 @@ describe("patch parsing", () => {
     expect(parsePatch(text)).toEqual([{ type: "delete", path: "a.txt" }]);
   });
 
-  it("strips carriage returns from CRLF patch lines", () => {
+  it("keeps carriage returns in CRLF patch content lines", () => {
     const text = patch("*** Add File: a.txt", "+one", "*** Update File: b.txt", "@@", "-old", "+new").replaceAll("\n", "\r\n");
 
     expect(parsePatch(text)).toEqual([
-      { type: "add", path: "a.txt", contents: "one" },
-      { type: "update", path: "b.txt", chunks: [{ oldLines: ["old"], newLines: ["new"] }] },
+      { type: "add", path: "a.txt", contents: "one\r" },
+      { type: "update", path: "b.txt", chunks: [{ oldLines: ["old\r"], newLines: ["new\r"] }] },
     ]);
   });
 
@@ -167,19 +165,13 @@ describe("patch matching", () => {
 });
 
 describe("line endings", () => {
-  it.each([
-    ["one\r\ntwo\n", "\r\n"],
-    ["one\ntwo\r\n", "\n"],
-    ["one\n", "\n"],
-    ["one", "\n"],
-  ])("detects the first line ending of %j", (text, ending) => {
-    expect(detectLineEnding(text)).toBe(ending);
+  it("normalizes CRLF and lone CR to LF", () => {
+    expect(normalizeToLF("a\r\nb\rc\n")).toBe("a\nb\nc\n");
   });
 
-  it("normalizes CRLF and lone CR to LF and restores CRLF", () => {
-    expect(normalizeToLF("a\r\nb\rc\n")).toBe("a\nb\nc\n");
-    expect(restoreLineEndings("a\nb\n", "\r\n")).toBe("a\r\nb\r\n");
-    expect(restoreLineEndings("a\nb\n", "\n")).toBe("a\nb\n");
+  it("matches CRLF lines and writes patch lines as given", () => {
+    expect(deriveNewContent("a.txt", [chunk(["one", "two"], ["one", "TWO"])], "one\r\ntwo\r\nthree\r\n"))
+      .toBe("one\nTWO\nthree\r\n");
   });
 });
 

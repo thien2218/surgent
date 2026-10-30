@@ -8,15 +8,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import {
-  deriveNewContent,
-  detectLineEnding,
-  joinBom,
-  normalizeToLF,
-  parsePatch,
-  restoreLineEndings,
-  splitBom,
-} from "./patch.js";
+import { deriveNewContent, joinBom, normalizeToLF, parsePatch, splitBom } from "./patch.js";
 import { renderCallText } from "../../utils.js";
 import type { Hunk, FileChange, PatchedFile, PatchPlan, Snapshot, WriteStep } from "./types.js";
 
@@ -126,8 +118,7 @@ async function planChange(hunk: Hunk, cwd: string, plan: PatchPlan): Promise<Fil
       }
 
       const source = splitBom(current);
-      const ending = detectLineEnding(source.text);
-      const oldContent = normalizeToLF(source.text);
+      const oldContent = source.text;
       let newContent: string;
       try {
         newContent = deriveNewContent(filePath, hunk.chunks, oldContent);
@@ -143,7 +134,7 @@ async function planChange(hunk: Hunk, cwd: string, plan: PatchPlan): Promise<Fil
       }
       plan.files.set(
         movePath ?? filePath,
-        joinBom(restoreLineEndings(newContent, ending), source.bom),
+        joinBom(newContent, source.bom),
       );
 
       return {
@@ -162,7 +153,7 @@ async function planChange(hunk: Hunk, cwd: string, plan: PatchPlan): Promise<Fil
       }
 
       plan.files.set(filePath, null);
-      const oldContent = normalizeToLF(splitBom(current).text);
+      const oldContent = splitBom(current).text;
       return { filePath, oldContent, newContent: "", type: "delete" };
     }
   }
@@ -266,7 +257,8 @@ export const applyPatch = defineTool({
     const files: PatchedFile[] = changes.map((change) => ({
       type: change.type,
       path: relative(ctx.cwd, change.movePath ?? change.filePath).replaceAll("\\", "/"),
-      diff: generateDiffString(change.oldContent, change.newContent).diff,
+      // Carriage returns would move the cursor when the TUI renders the diff.
+      diff: generateDiffString(normalizeToLF(change.oldContent), normalizeToLF(change.newContent)).diff,
     }));
     const summaryLines = files.map((file) => `${SUMMARY_CODES[file.type]} ${file.path}`);
 

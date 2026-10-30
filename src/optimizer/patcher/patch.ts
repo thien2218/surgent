@@ -239,23 +239,12 @@ export function joinBom(text: string, bom: boolean) {
   return bom ? BOM + text : text;
 }
 
-// Same line-ending rules as pi's edit tool: match on LF, write back the file's first ending.
-export function detectLineEnding(text: string) {
-  const crlfIdx = text.indexOf("\r\n");
-  const lfIdx = text.indexOf("\n");
-  return crlfIdx !== -1 && crlfIdx < lfIdx ? "\r\n" : "\n";
-}
-
 export function normalizeToLF(text: string) {
   return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }
 
-export function restoreLineEndings(text: string, ending: string) {
-  return ending === "\r\n" ? text.replace(/\n/g, "\r\n") : text;
-}
-
 export function parsePatch(patchText: string): Hunk[] {
-  const lines = stripHeredoc(normalizeToLF(patchText).trim()).split("\n");
+  const lines = stripHeredoc(patchText.trim()).split("\n");
   const hunks: Hunk[] = [];
 
   const beginIdx = lines.findIndex((line) => line.trim() === BEGIN_MARKER);

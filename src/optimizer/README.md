@@ -73,6 +73,15 @@ Every file in the patch is checked before anything is written, so a patch that d
 
 In surgent, GPT models get `patch` in place of `edit` and `write` when the agent is allowed to write files; other models keep `edit` and `write`. In Pi, `patch` is available to every model alongside `edit` and `write`.
 
+### Compact command output
+
+Command output reaches the model as it would read in a terminal, without the clutter that only matters on screen:
+
+- Colors and other terminal escape codes are removed.
+- A line redrawn in place, such as a progress bar, keeps only its final state.
+- Trailing spaces and tabs are trimmed.
+- A line printed several times in a row appears once, followed by a note like `[above line repeated 12 more times]`. The note is used only when it is shorter than the repeats it replaces.
+
 ### Grouped search results
 
 Search results are grouped under each file instead of repeating the file path on every matching line. These results:

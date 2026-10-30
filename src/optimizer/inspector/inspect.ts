@@ -1,7 +1,53 @@
 import { extname } from "node:path";
 import type { SyntaxNode } from "tree-sitter";
-import type { LanguageProfile, LanguageSymbol } from "../grammar/index.js";
-import { collectSymbols, getLanguageProfile, SYMBOL_KINDS } from "../grammar/index.js";
+import {
+  collectSymbols,
+  getLanguageProfile,
+  SYMBOL_KINDS,
+  type LanguageProfile,
+  type LanguageSymbol,
+  type SymbolKind,
+} from "../grammar/index.js";
+
+const METHOD_CONTAINER_KINDS = new Set<SymbolKind>(["class", "decl"]);
+
+function findMethodBodies(node: SyntaxNode, profile: LanguageProfile) {
+  const bodies: SyntaxNode[] = [];
+  const pendingNodes = node.namedChildren.slice().reverse();
+
+  while (pendingNodes.length > 0) {
+    const current = pendingNodes.pop();
+    if (!current) continue;
+
+    if (profile.resolveSymbolKind(current) === "method") {
+      const body = profile.findBodyNode(current);
+      if (body) bodies.push(body);
+      continue;
+    }
+    pendingNodes.push(...current.namedChildren.slice().reverse());
+  }
+  return bodies;
+}
+
+function readSignature(symbol: LanguageSymbol, profile: LanguageProfile) {
+  const { node, kind } = symbol;
+  const bodies: SyntaxNode[] = [];
+  if (kind === "func" || kind === "method") {
+    const body = profile.findBodyNode(node);
+    if (body) bodies.push(body);
+  } else if (METHOD_CONTAINER_KINDS.has(kind)) {
+    bodies.push(...findMethodBodies(node, profile));
+  }
+
+  const source = node.text;
+  let text = "";
+  let cursor = 0;
+  for (const body of bodies) {
+    text += source.slice(cursor, body.startIndex - node.startIndex).trimEnd();
+    cursor = body.endIndex - node.startIndex;
+  }
+  return text + source.slice(cursor).trimEnd();
+}
 
 function inspectGroupedSymbols(
   path: string,
@@ -68,11 +114,7 @@ export async function inspectSymbol(
 
   for (const symbol of symbols) {
     if (symbol.name !== symbolName) continue;
-    const { node } = symbol;
-    const body = signature ? profile.findBodyNode(node) : undefined;
-    const text = body
-      ? node.text.slice(0, body.startIndex - node.startIndex).trimEnd()
-      : node.text.trimEnd();
+    const text = signature ? readSignature(symbol, profile) : symbol.node.text.trimEnd();
     return { path: symbol.path, symbol: symbol.name, text };
   }
 }

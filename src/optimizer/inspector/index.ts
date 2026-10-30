@@ -14,17 +14,13 @@ const inspect = defineTool({
   label: "Inspect",
   description: "Fetch one symbol's source or signature from a file.",
   parameters: Type.Object({
-    path: Type.String({
-      description: "File containing the symbol",
-    }),
+    path: Type.String({ description: "File containing the symbol" }),
     symbol: Type.String({
       description:
         "One declaration's name: function, class, or method (MyClass.method); <anonymous>, <imports>, or <exports>; name#1 for the second declaration with that name",
     }),
     signature: Type.Optional(
-      Type.Boolean({
-        description: "Return only the signature, without the body",
-      }),
+      Type.Boolean({ description: "Return only signatures, stripping function and method bodies" }),
     ),
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {

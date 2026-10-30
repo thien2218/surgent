@@ -94,12 +94,4 @@ export class ZigLanguageProfile extends RuleBasedLanguageProfile {
   isPublicSymbol(node: SyntaxNode) {
     return node.children.some((childNode) => childNode.type === "pub");
   }
-
-  findBodyNode(node: SyntaxNode) {
-    if (node.type !== "variable_declaration") return super.findBodyNode(node);
-
-    const value = this.readValue(node);
-    if (!value || !TYPE_VALUES.has(value.type)) return;
-    return value.children.find((childNode) => childNode.type === "{");
-  }
 }

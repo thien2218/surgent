@@ -4,7 +4,7 @@ import { RuleBasedLanguageProfile, type SymbolKindRule } from "../types.js";
 
 const RECEIVER_TYPES = new Set(["user_type", "nullable_type", "parenthesized_type"]);
 const VARIABLE_TYPES = new Set(["variable_declaration", "multi_variable_declaration"]);
-const BODY_TYPES = new Set(["block", "class_body", "enum_class_body", "function_body"]);
+const BODY_TYPES = new Set(["block", "function_body"]);
 const MEMBER_RULES: SymbolKindRule[] = [
   { kind: "method", container: "class_declaration" },
   { kind: "method", container: "object_declaration" },

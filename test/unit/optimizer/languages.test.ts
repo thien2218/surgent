@@ -477,27 +477,16 @@ describe("language profiles", () => {
   });
 
   it("finds the body a signature ends before", () => {
-    const token = (type: string) => Object.assign(makeNode(type), { isNamed: false });
     const block = makeNode("statement_block");
     const method = makeNode("method_definition", { fields: { body: block } });
     const functionBody = makeNode("function_body");
     const kotlinFunction = makeNode("function_declaration", {
       children: [makeNode("modifiers"), functionBody],
     });
-    const opening = token("{");
-    const struct = Object.assign(makeNode("struct_declaration"), {
-      isNamed: true, children: [token("struct"), opening, token("}")],
-    });
-    const count = Object.assign(makeNode("integer"), { isNamed: true });
-    const bind = (value: SyntaxNode) => Object.assign(makeNode("variable_declaration", { children: [value] }), {
-      children: [token("const"), token("="), value],
-    });
 
     expect(profile(".ts").findBodyNode(method)).toBe(block);
     expect(profile(".ts").findBodyNode(makeNode("variable_declarator"))).toBeUndefined();
     expect(profile(".kt").findBodyNode(kotlinFunction)).toBe(functionBody);
-    expect(profile(".zig").findBodyNode(bind(struct))).toBe(opening);
-    expect(profile(".zig").findBodyNode(bind(count))).toBeUndefined();
   });
 
   it("inspects the statement holding an import symbol rather than its enclosing block", () => {

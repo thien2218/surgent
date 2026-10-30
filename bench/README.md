@@ -2,24 +2,45 @@
 
 This benchmark measures how much context and cost surgent saves compared with codex and opencode. All three agents run the same model, at the same reasoning effort, through the same ChatGPT subscription, so any difference comes from the harness. Score is reported too, as a check that surgent doesn't make the model perform worse.
 
-Tasks come from two [Harbor](https://github.com/harbor-framework/harbor) datasets: DeepSWE (`datacurve/deep-swe`, 113 tasks) and Terminal-Bench 4.0 (`terminal-bench/terminal-bench@4.0.0`, 66 tasks).
+Tasks come from two [Harbor](https://github.com/harbor-framework/harbor) datasets: DeepSWE (`datacurve/deep-swe`, 104 tasks) and Terminal-Bench 4.0 (`terminal-bench/terminal-bench@4.0.0`, 66 tasks).
 
 ## Quick start
 
 You need Docker, Node.js, and `pnpm install` run at the repo root. DeepSWE blocks network access with nftables, so Docker's kernel needs `CONFIG_NFT_FIB_INET` (on WSL, run `wsl --update`).
 
+### Set up
+
 ```bash
 cd bench
-python3 -m venv .venv && .venv/bin/pip install -e .
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
 
-codex login                  # Sign in with ChatGPT
-surgent                      # /login → OpenAI Codex (legacy)
-opencode auth login          # OpenAI → ChatGPT Plus/Pro
+### Log in
 
-.venv/bin/surgent-bench preflight    # checks Docker and logins, builds surgent
-nohup .venv/bin/surgent-bench run > run.log 2>&1 &
-.venv/bin/surgent-bench collect      # writes results/*.csv
-.venv/bin/surgent-bench plot         # draws results/session.png
+Trials install their own pinned versions of codex and opencode, so their CLIs are only used to sign in. Install them, or run them through `npx` without installing.
+
+```bash
+# Installed
+npm install -g @openai/codex opencode-ai
+codex login                   # Sign in with ChatGPT
+opencode auth login           # OpenAI → ChatGPT Plus/Pro
+
+# Without installing
+npx @openai/codex login       # Sign in with ChatGPT
+npx opencode-ai auth login    # OpenAI → ChatGPT Plus/Pro
+
+surgent                       # /login → OpenAI Codex (legacy)
+```
+
+### Run the benchmark
+
+```bash
+surgent-bench preflight    # checks Docker and logins, builds surgent
+nohup surgent-bench run > run.log 2>&1 &
+surgent-bench collect      # writes results/*.csv
+surgent-bench plot         # draws results/session.png
 ```
 
 Run `preflight` again whenever you change the surgent checkout. `run --limit N` runs only the first N rounds, and `quota` shows how much of the weekly quota each round used.

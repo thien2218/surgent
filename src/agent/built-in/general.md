@@ -59,7 +59,7 @@ When changing tests:
 
 ## Report
 
-ONLY report when every verifiable requirement has passing check that fails if unmet, even if sustained work is required. Blocked by something outside task (missing access/deps, failure unrelated to change) → stop and report blocker, evidence, and what's done.
+ONLY report when every verifiable requirement has passing check that fails if unmet, even if sustained work is required. Blocker outside task confirmed to stop work → stop and report blocker, evidence, and what's done.
 
 ## Output style
 

@@ -4,10 +4,19 @@ import { resolveTargetPaths } from "./files.js";
 import {
   collectSymbols,
   formatSymbolName,
+  LANGUAGE_REGISTRY,
+  SHARED_KINDS,
   SYMBOL_KINDS,
   type LanguageSymbol,
 } from "../grammar/index.js";
 import { renderCallText } from "../../utils.js";
+
+const KINDS_DESCRIPTION = [
+  `Kinds to include (default: all). Shared: ${SHARED_KINDS.join(", ")}`,
+  ...LANGUAGE_REGISTRY.map(
+    ({ bucketName, profile }) => `${bucketName}: ${profile.extraKinds.join(", ")}`,
+  ),
+].join(". ");
 
 interface MapperResult {
   symbols: LanguageSymbol[];
@@ -59,14 +68,14 @@ export default function (pi: ExtensionAPI) {
         ),
         kinds: Type.Optional(
           Type.Array(Type.Union(SYMBOL_KINDS.map((kind) => Type.Literal(kind))), {
-            description: "Kinds to include (default: all)",
+            description: KINDS_DESCRIPTION,
           }),
         ),
       }),
       async execute(_toolCallId, params, signal, _onUpdate, ctx) {
         let outputPath = "";
         const outputLines: string[] = [];
-        const kinds = new Set(params.kinds ?? SYMBOL_KINDS);
+        const kinds = params.kinds ? new Set<string>(params.kinds) : undefined;
         const { files, denied, failed } = await resolveTargetPaths(
           pi,
           ctx,
@@ -93,7 +102,8 @@ export default function (pi: ExtensionAPI) {
             outputLines.push(symbol.path);
           }
 
-          let line = ` [${symbol.public ? "public " : ""}${symbol.kind}] ${symbol.name}`;
+          const modifier = symbol.public && symbol.kind !== "public" ? "public " : "";
+          let line = ` [${modifier}${symbol.kind}] ${symbol.name}`;
           if (symbol.range) {
             line += ` L${symbol.range[0]}-L${symbol.range[1]}`;
           }

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import type { SyntaxNode } from "tree-sitter";
 import { getLanguageProfile } from "./index.js";
-import type { LanguageSymbol, SymbolKind } from "./types.js";
+import type { LanguageSymbol } from "./types.js";
 import { extname, resolve } from "node:path";
 import Parser from "tree-sitter";
 
@@ -39,7 +39,7 @@ export function formatSymbolName(name: string, occurrence: number) {
   return occurrence > 1 ? `${name}#${occurrence - 1}` : name;
 }
 
-export async function collectSymbols(cwd: string, path: string, kinds: Set<SymbolKind>) {
+export async function collectSymbols(cwd: string, path: string, kinds?: ReadonlySet<string>) {
   const extension = extname(path).toLowerCase();
   const profile = getLanguageProfile(extension);
   if (!profile) return [];
@@ -63,9 +63,10 @@ export async function collectSymbols(cwd: string, path: string, kinds: Set<Symbo
     }
 
     const symbolKind = profile.resolveSymbolKind(currentNode);
-    if (!symbolKind || !kinds.has(symbolKind) || profile.shouldSkipSymbol(currentNode)) {
-      continue;
-    }
+    if (!symbolKind) continue;
+
+    const isPublic = profile.isPublicSymbol(currentNode);
+    if (kinds && !kinds.has(symbolKind) && !(isPublic && kinds.has("public"))) continue;
 
     const baseName = profile.readNodeName(currentNode);
     if (!baseName) continue;
@@ -86,7 +87,7 @@ export async function collectSymbols(cwd: string, path: string, kinds: Set<Symbo
       kind: symbolKind,
       node: currentNode,
       range: [startPosition.row + 1, endsAfterNewline ? endPosition.row : endPosition.row + 1],
-      public: profile.isPublicSymbol(currentNode),
+      public: isPublic,
     });
   }
 

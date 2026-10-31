@@ -3,13 +3,9 @@ import type { SyntaxNode } from "tree-sitter";
 import {
   collectSymbols,
   getLanguageProfile,
-  SYMBOL_KINDS,
   type LanguageProfile,
   type LanguageSymbol,
-  type SymbolKind,
 } from "../grammar/index.js";
-
-const METHOD_CONTAINER_KINDS = new Set<SymbolKind>(["class", "decl"]);
 
 function findMethodBodies(node: SyntaxNode, profile: LanguageProfile) {
   const bodies: SyntaxNode[] = [];
@@ -26,6 +22,7 @@ function findMethodBodies(node: SyntaxNode, profile: LanguageProfile) {
     }
     pendingNodes.push(...current.namedChildren.slice().reverse());
   }
+
   return bodies;
 }
 
@@ -35,7 +32,7 @@ function readSignature(symbol: LanguageSymbol, profile: LanguageProfile) {
   if (kind === "func" || kind === "method") {
     const body = profile.findBodyNode(node);
     if (body) bodies.push(body);
-  } else if (METHOD_CONTAINER_KINDS.has(kind)) {
+  } else {
     bodies.push(...findMethodBodies(node, profile));
   }
 
@@ -104,8 +101,7 @@ export async function inspectSymbol(
   if (signal?.aborted) {
     throw new Error("inspector aborted");
   }
-  const kinds = new Set(SYMBOL_KINDS);
-  const symbols = await collectSymbols(cwd, path, kinds);
+  const symbols = await collectSymbols(cwd, path);
   const profile = getLanguageProfile(extname(path).toLowerCase());
   if (!profile) return;
 

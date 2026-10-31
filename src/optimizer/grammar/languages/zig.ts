@@ -1,6 +1,11 @@
 import type { Language, SyntaxNode } from "tree-sitter";
 import { loadGrammarModule } from "../ensure.js";
-import { RuleBasedLanguageProfile, type SymbolKindRule } from "../types.js";
+import { readNodeText } from "../nodes.js";
+import { RuleBasedLanguageProfile } from "../profile.js";
+import type { SymbolKindRule } from "../types.js";
+
+const ZIG_KINDS = ["struct", "enum", "union", "type"] as const;
+type ZigKind = (typeof ZIG_KINDS)[number];
 
 const TYPE_VALUES = new Set([
   "struct_declaration",
@@ -11,29 +16,37 @@ const TYPE_VALUES = new Set([
 ]);
 const IMPORT_BUILTINS = new Set(["@import", "@cImport"]);
 
-export class ZigLanguageProfile extends RuleBasedLanguageProfile {
-  constructor() {
-    super(
-      new Set([".zig"]),
-      { __default__: "name" },
-      new Set(["source_file"]),
-      new Set<string>(),
-      new Map<string, SymbolKindRule[]>([
-        [
-          "function_declaration",
-          [
-            // Types are structs bound to constants, or returned by generic type functions.
-            { kind: "method", container: "variable_declaration" },
-            { kind: "method", container: "function_declaration" },
-            { kind: "func", topLevelOnly: true },
-          ],
-        ],
-        ["variable_declaration", [{ kind: "decl", topLevelOnly: true }]],
-        ["test_declaration", [{ kind: "func" }]],
-        ["using_namespace_declaration", [{ kind: "deps", topLevelOnly: true }]],
-      ]),
-    );
-  }
+export class ZigLanguageProfile extends RuleBasedLanguageProfile<ZigKind> {
+  readonly extensions = new Set([".zig"]);
+  readonly extraKinds = ZIG_KINDS;
+  protected readonly topLevelRoots = new Set(["source_file"]);
+  protected readonly containerTypes = new Set([
+    "function_declaration",
+    "variable_declaration",
+    "test_declaration",
+    "using_namespace_declaration",
+  ]);
+  protected readonly rules = new Map<string, SymbolKindRule<ZigKind>[]>([
+    [
+      "function_declaration",
+      [
+        // Types are structs bound to constants, or returned by generic type functions.
+        { kind: "method", container: "variable_declaration" },
+        { kind: "method", container: "function_declaration" },
+        { kind: "func", topLevelOnly: true },
+      ],
+    ],
+    [
+      "variable_declaration",
+      [
+        { kind: "type", match: (node) => TYPE_VALUES.has(this.readValue(node)?.type ?? "") },
+        { kind: "deps", topLevelOnly: true, match: (node) => this.bindsImport(node) },
+        { kind: "decl", topLevelOnly: true },
+      ],
+    ],
+    ["test_declaration", [{ kind: "func" }]],
+    ["using_namespace_declaration", [{ kind: "deps", topLevelOnly: true }]],
+  ]);
 
   async loadLanguage(_extension: string) {
     const languagePack = await loadGrammarModule("@tree-sitter-grammars/tree-sitter-zig");
@@ -43,14 +56,14 @@ export class ZigLanguageProfile extends RuleBasedLanguageProfile {
 
   readNodeName(node: SyntaxNode) {
     if (node.type === "variable_declaration") {
-      return this.readNodeText(node.namedChildren.find((childNode) => childNode.type === "identifier"));
+      return readNodeText(node.namedChildren.find((childNode) => childNode.type === "identifier"));
     }
     if (node.type === "test_declaration") {
       const label = node.namedChildren.find((childNode) => childNode.type !== "block");
       return label ? `test ${label.text}` : "test";
     }
     if (node.type === "using_namespace_declaration") {
-      return this.readNodeText(node.namedChild(0));
+      return readNodeText(node.namedChild(0));
     }
     return this.readNameField(node);
   }
@@ -59,6 +72,11 @@ export class ZigLanguageProfile extends RuleBasedLanguageProfile {
     const assignIndex = node.children.findIndex((childNode) => childNode.type === "=");
     if (assignIndex < 0) return;
     return node.children.slice(assignIndex + 1).find((childNode) => childNode.isNamed);
+  }
+
+  private bindsImport(node: SyntaxNode) {
+    const value = this.readValue(node);
+    return value && node.parent ? this.isImport(value, node.parent) : false;
   }
 
   private isImport(node: SyntaxNode, scope: SyntaxNode, seenNames = new Set<string>()): boolean {
@@ -78,17 +96,6 @@ export class ZigLanguageProfile extends RuleBasedLanguageProfile {
     );
     const value = binding && this.readValue(binding);
     return value ? this.isImport(value, scope, seenNames) : false;
-  }
-
-  resolveSymbolKind(node: SyntaxNode) {
-    if (node.type !== "variable_declaration") return super.resolveSymbolKind(node);
-
-    const value = this.readValue(node);
-    if (value && TYPE_VALUES.has(value.type)) return "class";
-
-    const kind = super.resolveSymbolKind(node);
-    if (!kind || !value || !node.parent) return kind;
-    return this.isImport(value, node.parent) ? "deps" : kind;
   }
 
   isPublicSymbol(node: SyntaxNode) {

@@ -1,41 +1,71 @@
 import type { Language, SyntaxNode } from "tree-sitter";
 import { loadGrammarModule } from "../ensure.js";
-import { RuleBasedLanguageProfile, type SymbolKindRule } from "../types.js";
+import { findAncestor, readFieldText, readNodeText } from "../nodes.js";
+import { RuleBasedLanguageProfile } from "../profile.js";
+import type { SymbolKindRule } from "../types.js";
 
-export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
-  constructor() {
-    super(
-      new Set([".ts", ".tsx", ".js", ".mjs", ".cjs", ".jsx"]),
-      { __default__: "name" },
-      new Set(["program"]),
-      new Set([
-        "lexical_declaration",
-        "variable_declaration",
-        "variable_declarator",
-        "export_statement",
-      ]),
-      new Map<string, SymbolKindRule[]>([
-        ["function_declaration", [{ kind: "func", topLevelOnly: true }]],
-        ["arrow_function", [{ kind: "func", topLevelOnly: true }]],
-        ["function_expression", [{ kind: "func", topLevelOnly: true }]],
-        ["abstract_class_declaration", [{ kind: "class" }]],
-        ["class_declaration", [{ kind: "class" }]],
-        ["abstract_method_signature", [{ kind: "method", parent: "class_body" }]],
-        [
-          "method_definition",
-          [
-            { kind: "method", parent: "class_body" },
-            { kind: "method", parent: "object" },
-          ],
-        ],
-        ["variable_declarator", [{ kind: "decl", topLevelOnly: true }]],
-        ["import_specifier", [{ kind: "deps" }]],
-        ["namespace_import", [{ kind: "deps" }]],
-        ["identifier", [{ kind: "deps", parent: "import_clause" }]],
-        ["export_statement", [{ kind: "public", topLevelOnly: true }]],
-      ]),
-    );
-  }
+const TYPESCRIPT_KINDS = ["class", "interface", "type", "enum", "callback"] as const;
+type TypeScriptKind = (typeof TYPESCRIPT_KINDS)[number];
+
+export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile<TypeScriptKind> {
+  readonly extensions = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs", ".jsx"]);
+  readonly extraKinds = TYPESCRIPT_KINDS;
+  protected readonly topLevelRoots = new Set(["program"]);
+  protected readonly topLevelParents = new Set([
+    "lexical_declaration",
+    "variable_declaration",
+    "variable_declarator",
+    "export_statement",
+  ]);
+  protected readonly containerTypes = new Set([
+    "function_declaration",
+    "arrow_function",
+    "function_expression",
+    "abstract_class_declaration",
+    "class_declaration",
+    "abstract_method_signature",
+    "method_definition",
+    "variable_declarator",
+    "import_specifier",
+    "namespace_import",
+    "identifier",
+    "export_statement",
+  ]);
+  protected readonly rules = new Map<string, SymbolKindRule<TypeScriptKind>[]>([
+    ["function_declaration", [{ kind: "func", topLevelOnly: true }]],
+    ["arrow_function", [{ kind: "func", topLevelOnly: true }]],
+    [
+      "function_expression",
+      [{ kind: "func", topLevelOnly: true, match: (node) => !node.childForFieldName("name") }],
+    ],
+    ["abstract_class_declaration", [{ kind: "class" }]],
+    ["class_declaration", [{ kind: "class" }]],
+    ["abstract_method_signature", [{ kind: "method", parent: "class_body" }]],
+    [
+      "method_definition",
+      [
+        { kind: "method", parent: "class_body" },
+        { kind: "method", parent: "object" },
+      ],
+    ],
+    [
+      "variable_declarator",
+      [
+        {
+          kind: "decl",
+          topLevelOnly: true,
+          match: (node) => node.childForFieldName("value")?.type !== "arrow_function",
+        },
+      ],
+    ],
+    ["import_specifier", [{ kind: "deps" }]],
+    ["namespace_import", [{ kind: "deps" }]],
+    ["identifier", [{ kind: "deps", parent: "import_clause" }]],
+    [
+      "export_statement",
+      [{ kind: "public", topLevelOnly: true, match: (node) => !wrapsDeclaration(node) }],
+    ],
+  ]);
 
   async loadLanguage(extension: string) {
     const languagePack = await loadGrammarModule("tree-sitter-typescript");
@@ -61,7 +91,7 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
     }
 
     if (node.type === "import_specifier") {
-      const aliasText = this.readFieldText(node, "alias");
+      const aliasText = readFieldText(node, "alias");
       if (aliasText) {
         return aliasText;
       }
@@ -73,11 +103,11 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
     }
 
     if (node.type === "namespace_import") {
-      return this.readNodeText(node.namedChild(0));
+      return readNodeText(node.namedChild(0));
     }
 
     if (node.type === "identifier") {
-      return this.readNodeText(node);
+      return readNodeText(node);
     }
 
     if (
@@ -87,7 +117,7 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
     ) {
       const declaratorNode = node.parent?.type === "variable_declarator" ? node.parent : undefined;
       if (declaratorNode) {
-        const declaratorName = this.readFieldText(declaratorNode, "name");
+        const declaratorName = readFieldText(declaratorNode, "name");
         if (declaratorName) {
           return declaratorName;
         }
@@ -98,29 +128,22 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile {
   }
 
   isPublicSymbol(node: SyntaxNode) {
-    return super.isPublicSymbol(
-      node.parent?.type === "variable_declarator" ? node.parent : node,
-    );
+    const declarationNode = node.parent?.type === "variable_declarator" ? node.parent : node;
+    return this.findContainerNode(declarationNode)?.type === "export_statement";
   }
 
   findImportNode(node: SyntaxNode) {
-    return this.findAncestor(node, "import_statement") ?? node;
+    return findAncestor(node, "import_statement") ?? node;
   }
+}
 
-  shouldSkipSymbol(node: SyntaxNode) {
-    if (node.type === "export_statement") {
-      const inlineNode = node.namedChild(0);
-      return (
-        node.childForFieldName("declaration") !== null ||
-        inlineNode?.type === "arrow_function" ||
-        inlineNode?.type === "function_expression" ||
-        inlineNode?.type === "function_declaration" ||
-        (inlineNode?.type === "class_declaration" && inlineNode.childForFieldName("name") !== null)
-      );
-    }
-    if (node.type === "variable_declarator") {
-      return node.childForFieldName("value")?.type === "arrow_function";
-    }
-    return node.type === "function_expression" && node.childForFieldName("name") !== null;
-  }
+function wrapsDeclaration(node: SyntaxNode) {
+  const inlineNode = node.namedChild(0);
+  return (
+    node.childForFieldName("declaration") !== null ||
+    inlineNode?.type === "arrow_function" ||
+    inlineNode?.type === "function_expression" ||
+    inlineNode?.type === "function_declaration" ||
+    (inlineNode?.type === "class_declaration" && inlineNode.childForFieldName("name") !== null)
+  );
 }

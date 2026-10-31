@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { ensureGrammarCache } from "./ensure.js";
-import type { LanguageProfile } from "./types.js";
+import { SHARED_KINDS, type LanguageProfile } from "./types.js";
 import { TypeScriptLanguageProfile } from "./languages/typescript.js";
 import { PythonLanguageProfile } from "./languages/python.js";
 import { GoLanguageProfile } from "./languages/go.js";
@@ -113,5 +113,8 @@ export default function (pi: ExtensionAPI) {
 }
 
 export { collectSymbols, formatSymbolName } from "./symbols.js";
-export type { LanguageProfile, LanguageSymbol, SymbolKind } from "./types.js";
-export const SYMBOL_KINDS = ["func", "class", "method", "decl", "deps", "public"] as const;
+export { SHARED_KINDS } from "./types.js";
+export type { LanguageProfile, LanguageSymbol } from "./types.js";
+export const SYMBOL_KINDS = [
+  ...new Set([...SHARED_KINDS, ...LANGUAGE_REGISTRY.flatMap(({ profile }) => profile.extraKinds)]),
+];

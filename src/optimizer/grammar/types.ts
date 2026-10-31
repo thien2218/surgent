@@ -1,31 +1,34 @@
 import type { Language, SyntaxNode } from "tree-sitter";
 
-export type SymbolKind = "func" | "class" | "method" | "decl" | "deps" | "public";
+export const SHARED_KINDS = ["func", "method", "decl", "deps", "public"] as const;
 
-export interface SymbolKindRule {
-  kind: SymbolKind;
+export type SharedKind = (typeof SHARED_KINDS)[number];
+
+export interface SymbolKindRule<Kind extends string = never> {
+  kind: SharedKind | Kind;
   parent?: string;
   container?: string;
   topLevelOnly?: boolean;
+  match?(node: SyntaxNode): boolean;
 }
 
 export interface LanguageSymbol {
   name: string;
   path: string;
-  kind: SymbolKind;
+  kind: string;
   node: SyntaxNode;
   range?: [number, number];
   public?: boolean;
 }
 
-export interface LanguageProfile {
-  extensions: Set<string>;
+export interface LanguageProfile<Kind extends string = string> {
+  readonly extensions: ReadonlySet<string>;
+  readonly extraKinds: readonly Kind[];
   loadLanguage(extension: string): Promise<Language>;
+  resolveSymbolKind(node: SyntaxNode): SharedKind | Kind | undefined;
   readNodeName(node: SyntaxNode): string | undefined;
   readContainerName(node: SyntaxNode): string | undefined;
   isPublicSymbol(node: SyntaxNode): boolean;
-  resolveSymbolKind(node: SyntaxNode): SymbolKind | undefined;
-  shouldSkipSymbol(node: SyntaxNode): boolean;
   findImportNode(node: SyntaxNode): SyntaxNode;
   findBodyNode(node: SyntaxNode): SyntaxNode | undefined;
 }
@@ -40,109 +43,4 @@ export interface SupportedLanguageBucket {
 export interface GrammarInstallSettings {
   allowedRepos?: string[];
   deniedRepos?: string[];
-}
-
-export abstract class RuleBasedLanguageProfile implements LanguageProfile {
-  constructor(
-    readonly extensions: Set<string>,
-    protected readonly nameFieldByType: { __default__: string } & Record<string, string>,
-    protected readonly topLevelRoots: Set<string>,
-    protected readonly topLevelParents: Set<string>,
-    protected readonly typeRule: Map<string, SymbolKindRule[]>,
-  ) {}
-
-  abstract loadLanguage(extension: string): Promise<Language>;
-
-  abstract readNodeName(node: SyntaxNode): string | undefined;
-
-  protected findContainerNode(node: SyntaxNode) {
-    let current = node.parent;
-    while (current) {
-      if (this.typeRule.has(current.type)) {
-        return current;
-      }
-      current = current.parent;
-    }
-  }
-
-  protected findAncestor(node: SyntaxNode, type: string) {
-    let current: SyntaxNode | null = node;
-    while (current && current.type !== type) {
-      current = current.parent;
-    }
-    return current ?? undefined;
-  }
-
-  protected matchesTopLevelRule(node: SyntaxNode) {
-    let current = node.parent;
-
-    while (current) {
-      if (this.topLevelRoots.has(current.type)) {
-        return true;
-      }
-      if (!this.topLevelParents.has(current.type)) {
-        return false;
-      }
-      current = current.parent;
-    }
-
-    return false;
-  }
-
-  protected readFieldText(node: SyntaxNode, fieldName: string) {
-    return this.readNodeText(node.childForFieldName(fieldName));
-  }
-
-  protected readNameField(node: SyntaxNode) {
-    const fieldName = this.nameFieldByType[node.type] ?? this.nameFieldByType.__default__;
-    return this.readFieldText(node, fieldName);
-  }
-
-  protected readNodeText(node: SyntaxNode | null | undefined) {
-    if (!node) return;
-    const nodeText = node.text.trim().replaceAll("\n", " ");
-    return nodeText.length > 0 ? nodeText : undefined;
-  }
-
-  readContainerName(node: SyntaxNode) {
-    const containerNode = this.findContainerNode(node);
-    return containerNode ? this.readNodeName(containerNode) : undefined;
-  }
-
-  isPublicSymbol(node: SyntaxNode) {
-    return this.findContainerNode(node)?.type === "export_statement";
-  }
-
-  resolveSymbolKind(node: SyntaxNode) {
-    const symbolKindRules = this.typeRule.get(node.type);
-    if (!symbolKindRules) return;
-
-    for (const symbolKindRule of symbolKindRules) {
-      if (symbolKindRule.parent && node.parent?.type !== symbolKindRule.parent) {
-        continue;
-      }
-      if (symbolKindRule.container) {
-        const containerNode = this.findContainerNode(node);
-        if (!containerNode || containerNode.type !== symbolKindRule.container) {
-          continue;
-        }
-      }
-      if (symbolKindRule.topLevelOnly && !this.matchesTopLevelRule(node)) {
-        continue;
-      }
-      return symbolKindRule.kind;
-    }
-  }
-
-  shouldSkipSymbol(_node: SyntaxNode) {
-    return false;
-  }
-
-  findImportNode(node: SyntaxNode) {
-    return node;
-  }
-
-  findBodyNode(node: SyntaxNode) {
-    return node.childForFieldName("body") ?? undefined;
-  }
 }

@@ -107,6 +107,7 @@ export function getAllLanguages() {
   return registry;
 }
 
+export { readLanguages } from "./ensure.js";
 export { collectSymbols, formatSymbolName } from "./symbols.js";
 export { SHARED_KINDS } from "./types.js";
 export type { LanguageProfile, LanguageSymbol } from "./types.js";

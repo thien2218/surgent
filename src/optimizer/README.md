@@ -15,7 +15,7 @@ pi list
 
 Then start or restart Pi in your project. Everything below works automatically; there is nothing to configure.
 
-The first time you start Pi in a Git repository with supported code, pi-optimizer asks to download code parsers for the languages it finds. Your answer is remembered for that repository.
+The first time you start Pi in a Git repository with supported code, pi-optimizer finds the repository's main languages, saves them as `languages` in `.pi/settings.json`, and asks to download code parsers for them. Your answer is remembered for that repository. To change which languages get parsers, edit that list using these names: `typescript`, `python`, `go`, `java`, `rust`, `c`, `cpp`, `csharp`, `ruby`, `kotlin`, `zig`.
 
 > **Using surgent?** pi-optimizer is already included. Do not install it separately, or the same tools will be registered twice.
 

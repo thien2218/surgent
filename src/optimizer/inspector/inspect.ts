@@ -2,7 +2,7 @@ import { extname } from "node:path";
 import type { SyntaxNode } from "tree-sitter";
 import {
   collectSymbols,
-  getLanguageProfile,
+  getLanguageByExt,
   type LanguageProfile,
   type LanguageSymbol,
 } from "../grammar/index.js";
@@ -102,7 +102,7 @@ export async function inspectSymbol(
     throw new Error("inspector aborted");
   }
   const symbols = await collectSymbols(cwd, path);
-  const profile = getLanguageProfile(extname(path).toLowerCase());
+  const { profile } = getLanguageByExt(extname(path).toLowerCase());
   if (!profile) return;
 
   const inspectedGroup = inspectGroupedSymbols(path, symbolName, symbols, profile);

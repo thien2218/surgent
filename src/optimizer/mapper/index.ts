@@ -4,7 +4,7 @@ import { resolveTargetPaths } from "./files.js";
 import {
   collectSymbols,
   formatSymbolName,
-  LANGUAGE_REGISTRY,
+  getAllLanguages,
   SHARED_KINDS,
   SYMBOL_KINDS,
   type LanguageSymbol,
@@ -13,8 +13,8 @@ import { renderCallText } from "../../utils.js";
 
 const KINDS_DESCRIPTION = [
   `Kinds to include (default: all). Shared: ${SHARED_KINDS.join(", ")}`,
-  ...LANGUAGE_REGISTRY.map(
-    ({ bucketName, profile }) => `${bucketName}: ${profile.extraKinds.join(", ")}`,
+  ...getAllLanguages().map(
+    ({ name, profile }) => `${name}: ${profile.extraKinds.join(", ")}`,
   ),
 ].join(". ");
 
@@ -67,7 +67,7 @@ export default function (pi: ExtensionAPI) {
           }),
         ),
         kinds: Type.Optional(
-          Type.Array(Type.Union(SYMBOL_KINDS.map((kind) => Type.Literal(kind))), {
+          Type.Array(Type.Union([...SYMBOL_KINDS].map((kind) => Type.Literal(kind))), {
             description: KINDS_DESCRIPTION,
           }),
         ),

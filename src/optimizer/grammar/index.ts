@@ -13,91 +13,107 @@ import { RubyLanguageProfile } from "./languages/ruby.js";
 import { KotlinLanguageProfile } from "./languages/kotlin.js";
 import { ZigLanguageProfile } from "./languages/zig.js";
 
-export const LANGUAGE_REGISTRY: Array<{
-  bucketName: string;
+type ProgrammingLanguage = {
+  name: string;
   packageName: string;
   version: string;
   profile: LanguageProfile;
-}> = [
+};
+
+const registry: ProgrammingLanguage[] = [
   {
-    bucketName: "typescript",
+    name: "typescript",
     packageName: "tree-sitter-typescript",
     version: "0.23.2",
     profile: new TypeScriptLanguageProfile(),
   },
   {
-    bucketName: "python",
+    name: "python",
     packageName: "tree-sitter-python",
     version: "0.25.0",
     profile: new PythonLanguageProfile(),
   },
   {
-    bucketName: "go",
+    name: "go",
     packageName: "tree-sitter-go",
     version: "0.25.0",
     profile: new GoLanguageProfile(),
   },
   {
-    bucketName: "java",
+    name: "java",
     packageName: "tree-sitter-java",
     version: "0.23.5",
     profile: new JavaLanguageProfile(),
   },
   {
-    bucketName: "rust",
+    name: "rust",
     packageName: "tree-sitter-rust",
     version: "0.24.0",
     profile: new RustLanguageProfile(),
   },
   {
-    bucketName: "c",
+    name: "c",
     packageName: "tree-sitter-c",
     version: "0.24.1",
     profile: new CLanguageProfile(),
   },
   {
-    bucketName: "cpp",
+    name: "cpp",
     packageName: "tree-sitter-cpp",
     version: "0.23.4",
     profile: new CppLanguageProfile(),
   },
   {
-    bucketName: "csharp",
+    name: "csharp",
     packageName: "tree-sitter-c-sharp",
     version: "0.23.5",
     profile: new CSharpLanguageProfile(),
   },
   {
-    bucketName: "ruby",
+    name: "ruby",
     packageName: "tree-sitter-ruby",
     version: "0.23.1",
     profile: new RubyLanguageProfile(),
   },
   {
-    bucketName: "kotlin",
+    name: "kotlin",
     packageName: "@tree-sitter-grammars/tree-sitter-kotlin",
     version: "1.1.0",
     profile: new KotlinLanguageProfile(),
   },
   {
-    bucketName: "zig",
+    name: "zig",
     packageName: "@tree-sitter-grammars/tree-sitter-zig",
     version: "1.1.2",
     profile: new ZigLanguageProfile(),
   },
 ];
 
-export function getLanguageProfile(extension: string) {
-  return LANGUAGE_REGISTRY.find(({ profile }) => profile.extensions.has(extension))?.profile;
+export function filterLanguages(items: any[]) {
+  const entries = [];
+  for (const item of items) {
+    if (typeof item !== "string") continue;
+    const entry = registry.find(({ name }) => name === item);
+    if (entry) entries.push(entry);
+  }
+  return entries;
 }
 
-export function getSupportedExtensions() {
-  const supported = new Set<string>();
-  LANGUAGE_REGISTRY.forEach(({ profile }) => {
-    profile.extensions.forEach((extension) => supported.add(extension));
-  });
-  return supported;
+export function getLanguageByExt(extension: string): Partial<ProgrammingLanguage> {
+  return registry.find(({ profile }) => profile.extensions.has(extension)) ?? {};
 }
+
+export function getAllLanguages() {
+  return registry;
+}
+
+export { collectSymbols, formatSymbolName } from "./symbols.js";
+export { SHARED_KINDS } from "./types.js";
+export type { LanguageProfile, LanguageSymbol } from "./types.js";
+export const SYMBOL_KINDS = new Set([
+  ...SHARED_KINDS,
+  ...registry.flatMap(({ profile }) => profile.extraKinds),
+]);
 
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
@@ -111,10 +127,3 @@ export default function (pi: ExtensionAPI) {
     }
   });
 }
-
-export { collectSymbols, formatSymbolName } from "./symbols.js";
-export { SHARED_KINDS } from "./types.js";
-export type { LanguageProfile, LanguageSymbol } from "./types.js";
-export const SYMBOL_KINDS = [
-  ...new Set([...SHARED_KINDS, ...LANGUAGE_REGISTRY.flatMap(({ profile }) => profile.extraKinds)]),
-];

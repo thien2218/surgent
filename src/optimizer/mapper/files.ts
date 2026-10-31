@@ -11,7 +11,7 @@ import { runCommand } from "../../utils.js";
 import type { FileCheck } from "../../permission/types.js";
 import { getState } from "../../state.js";
 import { askForPermission } from "../../permission/index.js";
-import { getSupportedExtensions } from "../grammar/index.js";
+import { getAllLanguages } from "../grammar/index.js";
 
 function normalizePath(path: string) {
   return path.replaceAll("\\", "/").replace(/\/+$/, "");
@@ -36,7 +36,7 @@ async function listDirectory(cwd: string, dirs: string[], glob?: string, signal?
 }
 
 async function findFiles(cwd: string, paths: string[], glob?: string, signal?: AbortSignal) {
-  const supported = getSupportedExtensions();
+  const languages = getAllLanguages();
   const files = new Set<string>();
   const dirs: string[] = [];
   const failed: string[] = [];
@@ -57,7 +57,7 @@ async function findFiles(cwd: string, paths: string[], glob?: string, signal?: A
 
   const listed = await listDirectory(cwd, dirs, glob, signal);
   for (const file of listed.files) {
-    if (supported.has(extname(file).toLowerCase())) {
+    if (languages.some(({ profile }) => profile.extensions.has(extname(file).toLowerCase()))) {
       files.add(normalizePath(file));
     }
   }

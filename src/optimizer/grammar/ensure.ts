@@ -2,7 +2,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { LANGUAGE_REGISTRY } from "./index.js";
+import { getAllLanguages } from "./index.js";
 import type { GrammarInstallSettings } from "./types.js";
 import { getPiPath, isMissingFileError, readJson, runCommand, writeJson } from "../../utils.js";
 import { createRequire } from "node:module";
@@ -59,17 +59,17 @@ async function selectSupportedBuckets(cwd: string) {
     if (!Number.isFinite(count) || count <= 0) continue;
 
     totalFileCount += count;
-    for (const languageEntry of LANGUAGE_REGISTRY) {
+    for (const languageEntry of getAllLanguages()) {
       if (!languageEntry.profile.extensions.has(extension)) continue;
-      const nextCount = bucketCounts.get(languageEntry.bucketName) ?? 0;
-      bucketCounts.set(languageEntry.bucketName, nextCount + count);
+      const nextCount = bucketCounts.get(languageEntry.name) ?? 0;
+      bucketCounts.set(languageEntry.name, nextCount + count);
       break;
     }
   }
 
   if (totalFileCount === 0) return [];
-  const rankedBuckets = LANGUAGE_REGISTRY.map((languageEntry) => ({
-    count: bucketCounts.get(languageEntry.bucketName) ?? 0,
+  const rankedBuckets = getAllLanguages().map((languageEntry) => ({
+    count: bucketCounts.get(languageEntry.name) ?? 0,
     packageName: languageEntry.packageName,
     version: languageEntry.version,
   }))

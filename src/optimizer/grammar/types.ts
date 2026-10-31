@@ -34,7 +34,7 @@ export interface LanguageProfile<Kind extends string = string> {
 }
 
 export interface SupportedLanguageBucket {
-  bucketName: string;
+  name: string;
   packageName: string;
   version: string;
   extensions: Set<string>;

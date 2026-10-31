@@ -1,17 +1,17 @@
 import { readFile } from "node:fs/promises";
 import type { SyntaxNode } from "tree-sitter";
-import { getLanguageProfile } from "./index.js";
+import { getLanguageByExt } from "./index.js";
 import type { LanguageSymbol } from "./types.js";
 import { extname, resolve } from "node:path";
 import Parser from "tree-sitter";
 
 async function createCodeParser(extension: string) {
-  const languageProfile = getLanguageProfile(extension);
-  if (!languageProfile) {
+  const { profile } = getLanguageByExt(extension);
+  if (!profile) {
     throw new Error(`missing grammar for extension: ${extension}`);
   }
   const parser = new Parser();
-  parser.setLanguage(await languageProfile.loadLanguage(extension));
+  parser.setLanguage(await profile.loadLanguage(extension));
   return parser;
 }
 
@@ -41,7 +41,7 @@ export function formatSymbolName(name: string, occurrence: number) {
 
 export async function collectSymbols(cwd: string, path: string, kinds?: ReadonlySet<string>) {
   const extension = extname(path).toLowerCase();
-  const profile = getLanguageProfile(extension);
+  const { profile } = getLanguageByExt(extension);
   if (!profile) return [];
 
   const root = await getRootNode(cwd, path);

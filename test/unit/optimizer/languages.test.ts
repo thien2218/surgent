@@ -1,9 +1,8 @@
 import type { SyntaxNode } from "tree-sitter";
 import { describe, expect, it } from "vitest";
 import {
-  getLanguageProfile,
-  getSupportedExtensions,
-  LANGUAGE_REGISTRY,
+  getAllLanguages,
+  getLanguageByExt,
   SHARED_KINDS,
   SYMBOL_KINDS,
 } from "../../../src/optimizer/grammar/index.js";
@@ -28,38 +27,60 @@ function makeNode(
 }
 
 function profile(extension: string) {
-  const result = getLanguageProfile(extension);
+  const result = getLanguageByExt(extension).profile;
   if (!result) throw new Error(`Missing profile: ${extension}`);
   return result;
 }
 
 describe("language profiles", () => {
   it("supports script variants without treating unknown extensions as code", () => {
-    expect([...getSupportedExtensions()].sort()).toEqual([
-      ".c", ".cc", ".cjs", ".cpp", ".cs", ".cxx", ".gemspec", ".go", ".h", ".hh", ".hpp", ".hxx",
-      ".java", ".js", ".jsx", ".kt", ".kts", ".mjs", ".py", ".rake", ".rb", ".rs", ".ts",
-      ".tsx", ".zig",
+    const extensions = getAllLanguages().flatMap(({ profile: language }) => [...language.extensions]);
+    expect(extensions.sort()).toEqual([
+      ".c",
+      ".cc",
+      ".cjs",
+      ".cpp",
+      ".cs",
+      ".cxx",
+      ".gemspec",
+      ".go",
+      ".h",
+      ".hh",
+      ".hpp",
+      ".hxx",
+      ".java",
+      ".js",
+      ".jsx",
+      ".kt",
+      ".kts",
+      ".mjs",
+      ".py",
+      ".rake",
+      ".rb",
+      ".rs",
+      ".ts",
+      ".tsx",
+      ".zig",
     ]);
     for (const extension of [".tsx", ".js", ".jsx", ".mjs", ".cjs"]) {
-      expect(getLanguageProfile(extension)).toBe(getLanguageProfile(".ts"));
+      expect(getLanguageByExt(extension).name).toBe("typescript");
     }
     for (const extension of [".cc", ".cxx", ".h", ".hh", ".hpp", ".hxx"]) {
-      expect(getLanguageProfile(extension)).toBe(getLanguageProfile(".cpp"));
+      expect(getLanguageByExt(extension).name).toBe("cpp");
     }
-    expect(getLanguageProfile(".c")).not.toBe(getLanguageProfile(".cpp"));
-    expect(getLanguageProfile(".txt")).toBeUndefined();
+    expect(getLanguageByExt(".c").name).toBe("c");
+    expect(getLanguageByExt(".txt")).toEqual({});
   });
 
   it("extends the shared kinds with distinct per-language kinds", () => {
-    const extraKinds = LANGUAGE_REGISTRY.flatMap(({ profile: language }) => {
+    const extraKinds = getAllLanguages().flatMap(({ profile: language }) => {
       expect(new Set(language.extraKinds).size).toBe(language.extraKinds.length);
       return language.extraKinds;
     });
 
     expect(extraKinds.filter((kind) => SHARED_KINDS.some((shared) => shared === kind))).toEqual([]);
-    expect(SYMBOL_KINDS.slice(0, SHARED_KINDS.length)).toEqual([...SHARED_KINDS]);
-    expect(new Set(SYMBOL_KINDS).size).toBe(SYMBOL_KINDS.length);
-    expect(new Set(SYMBOL_KINDS)).toEqual(new Set([...SHARED_KINDS, ...extraKinds]));
+    expect([...SYMBOL_KINDS].slice(0, SHARED_KINDS.length)).toEqual([...SHARED_KINDS]);
+    expect(SYMBOL_KINDS).toEqual(new Set([...SHARED_KINDS, ...extraKinds]));
   });
 
   it.each([
@@ -71,11 +92,21 @@ describe("language profiles", () => {
     [".ts", "export_statement", ["program"], "public"],
     [".py", "class_definition", ["module"], "class"],
     [".py", "function_definition", ["decorated_definition", "module"], "func"],
-    [".py", "function_definition", ["decorated_definition", "block", "class_definition", "module"], "method"],
+    [
+      ".py",
+      "function_definition",
+      ["decorated_definition", "block", "class_definition", "module"],
+      "method",
+    ],
     [".py", "assignment", ["expression_statement", "module"], "decl"],
     [".py", "import_from_statement", ["module"], "deps"],
     [".go", "function_declaration", ["source_file"], "func"],
-    [".go", "method_elem", ["interface_type", "type_spec", "type_declaration", "source_file"], "method"],
+    [
+      ".go",
+      "method_elem",
+      ["interface_type", "type_spec", "type_declaration", "source_file"],
+      "method",
+    ],
     [".go", "type_alias", ["type_declaration", "source_file"], "type"],
     [".go", "var_spec", ["var_spec_list", "var_declaration", "source_file"], "decl"],
     [".go", "import_spec", ["import_spec_list", "import_declaration", "source_file"], "deps"],
@@ -87,28 +118,88 @@ describe("language profiles", () => {
     [".rs", "use_declaration", ["source_file"], "deps"],
     [".java", "record_declaration", ["program"], "record"],
     [".java", "constructor_declaration", ["class_body", "class_declaration", "program"], "method"],
-    [".java", "method_declaration", ["interface_body", "interface_declaration", "program"], "method"],
+    [
+      ".java",
+      "method_declaration",
+      ["interface_body", "interface_declaration", "program"],
+      "method",
+    ],
     [".java", "import_declaration", ["program"], "deps"],
-    [".java", "exports_module_directive", ["module_body", "module_declaration", "program"], "public"],
+    [
+      ".java",
+      "exports_module_directive",
+      ["module_body", "module_declaration", "program"],
+      "public",
+    ],
     [".c", "function_definition", ["preproc_ifdef", "translation_unit"], "func"],
-    [".c", "preproc_include", ["declaration_list", "linkage_specification", "preproc_ifdef", "translation_unit"], "deps"],
-    [".cpp", "function_definition", ["declaration_list", "namespace_definition", "translation_unit"], "func"],
-    [".cpp", "function_definition", ["field_declaration_list", "struct_specifier", "template_declaration", "translation_unit"], "method"],
+    [
+      ".c",
+      "preproc_include",
+      ["declaration_list", "linkage_specification", "preproc_ifdef", "translation_unit"],
+      "deps",
+    ],
+    [
+      ".cpp",
+      "function_definition",
+      ["declaration_list", "namespace_definition", "translation_unit"],
+      "func",
+    ],
+    [
+      ".cpp",
+      "function_definition",
+      ["field_declaration_list", "struct_specifier", "template_declaration", "translation_unit"],
+      "method",
+    ],
     [".cpp", "alias_declaration", ["template_declaration", "translation_unit"], "type"],
-    [".cs", "method_declaration", ["declaration_list", "interface_declaration", "compilation_unit"], "method"],
-    [".cs", "using_directive", ["declaration_list", "namespace_declaration", "compilation_unit"], "deps"],
+    [
+      ".cs",
+      "method_declaration",
+      ["declaration_list", "interface_declaration", "compilation_unit"],
+      "method",
+    ],
+    [
+      ".cs",
+      "using_directive",
+      ["declaration_list", "namespace_declaration", "compilation_unit"],
+      "deps",
+    ],
     [".rb", "module", ["program"], "module"],
     [".rb", "method", ["program"], "func"],
-    [".rb", "method", ["body_statement", "singleton_class", "body_statement", "class", "program"], "method"],
+    [
+      ".rb",
+      "method",
+      ["body_statement", "singleton_class", "body_statement", "class", "program"],
+      "method",
+    ],
     [".rb", "singleton_method", ["body_statement", "module", "program"], "method"],
     [".kt", "function_declaration", ["source_file"], "func"],
-    [".kt", "function_declaration", ["class_body", "companion_object", "class_body", "class_declaration", "source_file"], "method"],
+    [
+      ".kt",
+      "function_declaration",
+      ["class_body", "companion_object", "class_body", "class_declaration", "source_file"],
+      "method",
+    ],
     [".kt", "object_declaration", ["source_file"], "object"],
     [".kt", "import", ["source_file"], "deps"],
     [".zig", "function_declaration", ["source_file"], "func"],
-    [".zig", "function_declaration", ["struct_declaration", "variable_declaration", "source_file"], "method"],
-    [".zig", "function_declaration", ["struct_declaration", "return_expression", "block", "function_declaration", "source_file"], "method"],
-    [".zig", "test_declaration", ["struct_declaration", "variable_declaration", "source_file"], "func"],
+    [
+      ".zig",
+      "function_declaration",
+      ["struct_declaration", "variable_declaration", "source_file"],
+      "method",
+    ],
+    [
+      ".zig",
+      "function_declaration",
+      ["struct_declaration", "return_expression", "block", "function_declaration", "source_file"],
+      "method",
+    ],
+    [
+      ".zig",
+      "test_declaration",
+      ["struct_declaration", "variable_declaration", "source_file"],
+      "func",
+    ],
     [".zig", "using_namespace_declaration", ["source_file"], "deps"],
   ] as const)("%s classifies %s through %j as %s", (extension, type, ancestors, kind) => {
     const node = makeNode(type);
@@ -120,7 +211,11 @@ describe("language profiles", () => {
 
   it.each([
     [".ts", "function_declaration", ["statement_block", "function_declaration", "program"]],
-    [".ts", "variable_declarator", ["lexical_declaration", "statement_block", "function_declaration", "program"]],
+    [
+      ".ts",
+      "variable_declarator",
+      ["lexical_declaration", "statement_block", "function_declaration", "program"],
+    ],
     [".ts", "identifier", ["expression_statement", "program"]],
     [".py", "function_definition", ["block", "function_definition", "module"]],
     [".py", "assignment", ["expression_statement", "block", "function_definition", "module"]],
@@ -129,10 +224,22 @@ describe("language profiles", () => {
     [".rs", "function_item", ["block", "function_item", "source_file"]],
     [".java", "method_declaration", ["program"]],
     [".c", "declaration", ["compound_statement", "function_definition", "translation_unit"]],
-    [".cpp", "field_declaration", ["field_declaration_list", "class_specifier", "translation_unit"]],
+    [
+      ".cpp",
+      "field_declaration",
+      ["field_declaration_list", "class_specifier", "translation_unit"],
+    ],
     [".rb", "method", ["body_statement", "method", "program"]],
-    [".kt", "property_declaration", ["block", "function_body", "function_declaration", "source_file"]],
-    [".zig", "using_namespace_declaration", ["struct_declaration", "variable_declaration", "source_file"]],
+    [
+      ".kt",
+      "property_declaration",
+      ["block", "function_body", "function_declaration", "source_file"],
+    ],
+    [
+      ".zig",
+      "using_namespace_declaration",
+      ["struct_declaration", "variable_declaration", "source_file"],
+    ],
   ] as const)("%s excludes %s in invalid context %j", (extension, type, ancestors) => {
     const node = makeNode(type);
     let parent = node;
@@ -173,9 +280,15 @@ describe("language profiles", () => {
     expect(language.resolveSymbolKind(exported)).toBe("public");
     expect(language.readNodeName(makeNode("function_expression"))).toBe("<anonymous>");
     expect(language.resolveSymbolKind(bind(makeNode("function_expression")))).toBe("func");
-    expect(language.resolveSymbolKind(bind(makeNode("function_expression", {
-      fields: { name: makeNode("identifier", { text: "localName" }) },
-    })))).toBeUndefined();
+    expect(
+      language.resolveSymbolKind(
+        bind(
+          makeNode("function_expression", {
+            fields: { name: makeNode("identifier", { text: "localName" }) },
+          }),
+        ),
+      ),
+    ).toBeUndefined();
   });
 
   it("uses import aliases and class containers for navigation names", () => {
@@ -186,7 +299,9 @@ describe("language profiles", () => {
         alias: makeNode("identifier", { text: "local" }),
       },
     });
-    const method = makeNode("method_definition", { fields: { name: makeNode("property_identifier", { text: "run" }) } });
+    const method = makeNode("method_definition", {
+      fields: { name: makeNode("property_identifier", { text: "run" }) },
+    });
     makeNode("class_declaration", {
       fields: { name: makeNode("type_identifier", { text: "Worker" }) },
       children: [makeNode("class_body", { children: [method] })],
@@ -195,37 +310,61 @@ describe("language profiles", () => {
     expect(language.readNodeName(imported)).toBe("local");
     expect(language.readNodeName(method)).toBe("run");
     expect(language.readContainerName(method)).toBe("Worker");
-    expect(language.readNodeName(makeNode("namespace_import", {
-      children: [makeNode("identifier", { text: "utilities" })],
-    }))).toBe("utilities");
+    expect(
+      language.readNodeName(
+        makeNode("namespace_import", {
+          children: [makeNode("identifier", { text: "utilities" })],
+        }),
+      ),
+    ).toBe("utilities");
   });
 
   it("recognizes Python __all__ only at module scope", () => {
-    const exported = makeNode("assignment", { fields: { left: makeNode("identifier", { text: "__all__" }) } });
+    const exported = makeNode("assignment", {
+      fields: { left: makeNode("identifier", { text: "__all__" }) },
+    });
     makeNode("module", { children: [makeNode("expression_statement", { children: [exported] })] });
     const language = profile(".py");
 
     expect(language.resolveSymbolKind(exported)).toBe("public");
     expect(language.readNodeName(exported)).toBe("__all__");
-    makeNode("module", { children: [makeNode("function_definition", {
-      children: [makeNode("block", { children: [makeNode("expression_statement", { children: [exported] })] })],
-    })] });
+    makeNode("module", {
+      children: [
+        makeNode("function_definition", {
+          children: [
+            makeNode("block", {
+              children: [makeNode("expression_statement", { children: [exported] })],
+            }),
+          ],
+        }),
+      ],
+    });
     expect(language.resolveSymbolKind(exported)).toBeUndefined();
   });
 
   it("uses Go import aliases and strips receiver pointers from method containers", () => {
     const language = profile(".go");
-    const imported = makeNode("import_spec", { fields: { path: makeNode("interpreted_string_literal", { text: '"net/http"' }) } });
-    const aliased = makeNode("import_spec", { fields: {
-      name: makeNode("package_identifier", { text: "web" }),
-      path: makeNode("interpreted_string_literal", { text: '"net/http"' }),
-    } });
-    const method = makeNode("method_declaration", { fields: {
-      name: makeNode("field_identifier", { text: "Serve" }),
-      receiver: makeNode("parameter_list", { children: [makeNode("parameter_declaration", {
-        fields: { type: makeNode("pointer_type", { text: "*Server" }) },
-      })] }),
-    } });
+    const imported = makeNode("import_spec", {
+      fields: { path: makeNode("interpreted_string_literal", { text: '"net/http"' }) },
+    });
+    const aliased = makeNode("import_spec", {
+      fields: {
+        name: makeNode("package_identifier", { text: "web" }),
+        path: makeNode("interpreted_string_literal", { text: '"net/http"' }),
+      },
+    });
+    const method = makeNode("method_declaration", {
+      fields: {
+        name: makeNode("field_identifier", { text: "Serve" }),
+        receiver: makeNode("parameter_list", {
+          children: [
+            makeNode("parameter_declaration", {
+              fields: { type: makeNode("pointer_type", { text: "*Server" }) },
+            }),
+          ],
+        }),
+      },
+    });
 
     expect(language.readNodeName(imported)).toBe("net/http");
     expect(language.readNodeName(aliased)).toBe("web");
@@ -249,38 +388,64 @@ describe("language profiles", () => {
     expect(language.resolveSymbolKind(method)).toBe("method");
     expect(language.isPublicSymbol(method)).toBe(true);
     expect(language.isPublicSymbol(makeNode("function_item"))).toBe(false);
-    expect(language.readNodeName(makeNode("use_declaration", {
-      fields: { argument: makeNode("scoped_identifier", { text: " std::\n  collections " }) },
-    }))).toBe("std::   collections");
+    expect(
+      language.readNodeName(
+        makeNode("use_declaration", {
+          fields: { argument: makeNode("scoped_identifier", { text: " std::\n  collections " }) },
+        }),
+      ),
+    ).toBe("std::   collections");
   });
 
   it("names Java static imports and exported packages without syntax wrappers", () => {
     const language = profile(".java");
 
-    expect(language.readNodeName(makeNode("import_declaration", {
-      text: "import static java.util.Collections.emptyList;",
-    }))).toBe("static java.util.Collections.emptyList");
-    expect(language.readNodeName(makeNode("exports_module_directive", {
-      fields: { package: makeNode("scoped_identifier", { text: "com.example.api" }) },
-    }))).toBe("com.example.api");
+    expect(
+      language.readNodeName(
+        makeNode("import_declaration", {
+          text: "import static java.util.Collections.emptyList;",
+        }),
+      ),
+    ).toBe("static java.util.Collections.emptyList");
+    expect(
+      language.readNodeName(
+        makeNode("exports_module_directive", {
+          fields: { package: makeNode("scoped_identifier", { text: "com.example.api" }) },
+        }),
+      ),
+    ).toBe("com.example.api");
     expect(language.readNodeName(makeNode("identifier", { text: " \n " }))).toBeUndefined();
   });
 
   it("names C functions through pointer declarators while keeping function pointers as variables", () => {
     const language = profile(".c");
-    const declare = (type: string, declarator: SyntaxNode) => makeNode(type, { fields: { declarator } });
-    const callable = (name: string) => makeNode("function_declarator", {
-      fields: { declarator: makeNode("identifier", { text: name }) },
-    });
-    const definition = declare("function_definition", makeNode("pointer_declarator", {
-      fields: { declarator: callable("name_of") },
-    }));
+    const declare = (type: string, declarator: SyntaxNode) =>
+      makeNode(type, { fields: { declarator } });
+    const callable = (name: string) =>
+      makeNode("function_declarator", {
+        fields: { declarator: makeNode("identifier", { text: name }) },
+      });
+    const definition = declare(
+      "function_definition",
+      makeNode("pointer_declarator", {
+        fields: { declarator: callable("name_of") },
+      }),
+    );
     const prototype = declare("declaration", callable("api"));
-    const pointer = declare("declaration", makeNode("function_declarator", { fields: {
-      declarator: makeNode("parenthesized_declarator", { children: [makeNode("pointer_declarator", {
-        fields: { declarator: makeNode("identifier", { text: "on_exit" }) },
-      })] }),
-    } }));
+    const pointer = declare(
+      "declaration",
+      makeNode("function_declarator", {
+        fields: {
+          declarator: makeNode("parenthesized_declarator", {
+            children: [
+              makeNode("pointer_declarator", {
+                fields: { declarator: makeNode("identifier", { text: "on_exit" }) },
+              }),
+            ],
+          }),
+        },
+      }),
+    );
     const root = makeNode("translation_unit", { children: [definition, prototype, pointer] });
     const tree = { rootNode: { descendantsOfType: () => [definition] } };
     for (const node of [root, definition, prototype, pointer]) Object.assign(node, { tree });
@@ -290,16 +455,25 @@ describe("language profiles", () => {
     expect(language.resolveSymbolKind(prototype)).toBe("func");
     expect(language.readNodeName(pointer)).toBe("on_exit");
     expect(language.resolveSymbolKind(pointer)).toBe("decl");
-    expect(language.readNodeName(makeNode("preproc_include", {
-      fields: { path: makeNode("system_lib_string", { text: "<stdio.h>" }) },
-    }))).toBe("stdio.h");
+    expect(
+      language.readNodeName(
+        makeNode("preproc_include", {
+          fields: { path: makeNode("system_lib_string", { text: "<stdio.h>" }) },
+        }),
+      ),
+    ).toBe("stdio.h");
   });
 
   it("lists forward-declared functions, typedef'd structs, and guard macros at most once", () => {
     const language = profile(".c");
-    const declare = (type: string, name: string) => makeNode(type, { fields: {
-      declarator: makeNode("function_declarator", { fields: { declarator: makeNode("identifier", { text: name }) } }),
-    } });
+    const declare = (type: string, name: string) =>
+      makeNode(type, {
+        fields: {
+          declarator: makeNode("function_declarator", {
+            fields: { declarator: makeNode("identifier", { text: name }) },
+          }),
+        },
+      });
     const definition = declare("function_definition", "helper");
     const forward = declare("declaration", "helper");
     const external = declare("declaration", "api");
@@ -307,21 +481,29 @@ describe("language profiles", () => {
     const tree = { rootNode: { descendantsOfType: () => [definition] } };
     for (const node of [root, definition, forward, external]) Object.assign(node, { tree });
     const struct = (name: string, typedef?: string) => {
-      const specifier = makeNode("struct_specifier", { fields: {
-        name: makeNode("type_identifier", { text: name }),
-        body: makeNode("field_declaration_list"),
-      } });
+      const specifier = makeNode("struct_specifier", {
+        fields: {
+          name: makeNode("type_identifier", { text: name }),
+          body: makeNode("field_declaration_list"),
+        },
+      });
       if (typedef) {
-        makeNode("type_definition", { fields: {
-          type: specifier, declarator: makeNode("type_identifier", { text: typedef }),
-        } });
+        makeNode("type_definition", {
+          fields: {
+            type: specifier,
+            declarator: makeNode("type_identifier", { text: typedef }),
+          },
+        });
       }
       return specifier;
     };
     const macro = (value?: SyntaxNode) => {
-      const directive = makeNode("preproc_def", { fields: {
-        name: makeNode("identifier", { text: "LIB_H" }), ...(value ? { value } : {}),
-      } });
+      const directive = makeNode("preproc_def", {
+        fields: {
+          name: makeNode("identifier", { text: "LIB_H" }),
+          ...(value ? { value } : {}),
+        },
+      });
       makeNode("translation_unit", { children: [directive] });
       return directive;
     };
@@ -330,34 +512,50 @@ describe("language profiles", () => {
     expect(language.resolveSymbolKind(external)).toBe("func");
     expect(language.resolveSymbolKind(struct("Point", "Point"))).toBeUndefined();
     expect(language.resolveSymbolKind(struct("node", "node_t"))).toBe("struct");
-    expect(language.resolveSymbolKind(makeNode("struct_specifier", {
-      fields: { name: makeNode("type_identifier", { text: "Node" }) },
-    }))).toBeUndefined();
+    expect(
+      language.resolveSymbolKind(
+        makeNode("struct_specifier", {
+          fields: { name: makeNode("type_identifier", { text: "Node" }) },
+        }),
+      ),
+    ).toBeUndefined();
     expect(language.resolveSymbolKind(macro())).toBeUndefined();
     expect(language.resolveSymbolKind(macro(makeNode("preproc_arg", { text: "1" })))).toBe("macro");
   });
 
   it("names out-of-line C++ members by their qualified scope", () => {
     const language = profile(".cpp");
-    const qualified = makeNode("qualified_identifier", { text: "app::Widget::~Widget", fields: {
-      scope: makeNode("namespace_identifier", { text: "app" }),
-      name: makeNode("qualified_identifier", { text: "Widget::~Widget", fields: {
-        scope: makeNode("namespace_identifier", { text: "Widget" }),
-        name: makeNode("destructor_name", { text: "~Widget" }),
-      } }),
-    } });
-    const outOfLine = makeNode("function_definition", { fields: {
-      declarator: makeNode("function_declarator", { fields: { declarator: qualified } }),
-    } });
-    const member = makeNode("field_declaration", { fields: {
-      declarator: makeNode("function_declarator", {
-        fields: { declarator: makeNode("field_identifier", { text: "draw" }) },
-      }),
-    } });
-    makeNode("class_specifier", { fields: {
-      name: makeNode("type_identifier", { text: "Widget" }),
-      body: makeNode("field_declaration_list", { children: [member] }),
-    } });
+    const qualified = makeNode("qualified_identifier", {
+      text: "app::Widget::~Widget",
+      fields: {
+        scope: makeNode("namespace_identifier", { text: "app" }),
+        name: makeNode("qualified_identifier", {
+          text: "Widget::~Widget",
+          fields: {
+            scope: makeNode("namespace_identifier", { text: "Widget" }),
+            name: makeNode("destructor_name", { text: "~Widget" }),
+          },
+        }),
+      },
+    });
+    const outOfLine = makeNode("function_definition", {
+      fields: {
+        declarator: makeNode("function_declarator", { fields: { declarator: qualified } }),
+      },
+    });
+    const member = makeNode("field_declaration", {
+      fields: {
+        declarator: makeNode("function_declarator", {
+          fields: { declarator: makeNode("field_identifier", { text: "draw" }) },
+        }),
+      },
+    });
+    makeNode("class_specifier", {
+      fields: {
+        name: makeNode("type_identifier", { text: "Widget" }),
+        body: makeNode("field_declaration_list", { children: [member] }),
+      },
+    });
     makeNode("translation_unit", { children: [outOfLine] });
     const tree = { rootNode: { descendantsOfType: () => [outOfLine] } };
     for (const node of [outOfLine, member]) Object.assign(node, { tree });
@@ -367,50 +565,88 @@ describe("language profiles", () => {
     expect(language.readContainerName(outOfLine)).toBe("app::Widget");
     expect(language.resolveSymbolKind(member)).toBe("method");
     expect(language.readContainerName(member)).toBe("Widget");
-    expect(language.readNodeName(makeNode("using_declaration", { text: "using namespace std;" })))
-      .toBe("namespace std");
+    expect(
+      language.readNodeName(makeNode("using_declaration", { text: "using namespace std;" })),
+    ).toBe("namespace std");
   });
 
   it("names C# destructors, operators, and usings while skipping auto-properties", () => {
     const language = profile(".cs");
-    const property = (fields: Record<string, SyntaxNode>) => makeNode("property_declaration", { fields });
-    const accessors = (...bodies: Array<SyntaxNode | undefined>) => makeNode("accessor_list", {
-      children: bodies.map((body) => makeNode("accessor_declaration", body ? { fields: { body } } : {})),
-    });
+    const property = (fields: Record<string, SyntaxNode>) =>
+      makeNode("property_declaration", { fields });
+    const accessors = (...bodies: Array<SyntaxNode | undefined>) =>
+      makeNode("accessor_list", {
+        children: bodies.map((body) =>
+          makeNode("accessor_declaration", body ? { fields: { body } } : {}),
+        ),
+      });
 
-    expect(language.resolveSymbolKind(property({ accessors: accessors(undefined, undefined) }))).toBeUndefined();
-    expect(language.resolveSymbolKind(property({ accessors: accessors(makeNode("block")) }))).toBe("method");
-    expect(language.resolveSymbolKind(property({ value: makeNode("arrow_expression_clause") }))).toBe("method");
-    expect(language.readNodeName(makeNode("destructor_declaration", {
-      fields: { name: makeNode("identifier", { text: "Circle" }) },
-    }))).toBe("~Circle");
-    expect(language.readNodeName(makeNode("operator_declaration", {
-      fields: { operator: makeNode("+", { text: "+" }) },
-    }))).toBe("operator+");
-    expect(language.readNodeName(makeNode("using_directive", { text: "global using static System.Math;" })))
-      .toBe("static System.Math");
-    expect(language.isPublicSymbol(makeNode("method_declaration", {
-      children: [makeNode("modifier", { text: "public" })],
-    }))).toBe(true);
+    expect(
+      language.resolveSymbolKind(property({ accessors: accessors(undefined, undefined) })),
+    ).toBeUndefined();
+    expect(language.resolveSymbolKind(property({ accessors: accessors(makeNode("block")) }))).toBe(
+      "method",
+    );
+    expect(
+      language.resolveSymbolKind(property({ value: makeNode("arrow_expression_clause") })),
+    ).toBe("method");
+    expect(
+      language.readNodeName(
+        makeNode("destructor_declaration", {
+          fields: { name: makeNode("identifier", { text: "Circle" }) },
+        }),
+      ),
+    ).toBe("~Circle");
+    expect(
+      language.readNodeName(
+        makeNode("operator_declaration", {
+          fields: { operator: makeNode("+", { text: "+" }) },
+        }),
+      ),
+    ).toBe("operator+");
+    expect(
+      language.readNodeName(
+        makeNode("using_directive", { text: "global using static System.Math;" }),
+      ),
+    ).toBe("static System.Math");
+    expect(
+      language.isPublicSymbol(
+        makeNode("method_declaration", {
+          children: [makeNode("modifier", { text: "public" })],
+        }),
+      ),
+    ).toBe(true);
   });
 
   it("indexes Ruby requires and constants while naming struct block methods by their constant", () => {
     const language = profile(".rb");
-    const call = (method: string, argument: string, receiver?: SyntaxNode) => makeNode("call", { fields: {
-      method: makeNode("identifier", { text: method }),
-      arguments: makeNode("argument_list", { children: [makeNode("string", { text: argument })] }),
-      ...(receiver ? { receiver } : {}),
-    } });
-    const assign = (left: SyntaxNode, children: SyntaxNode[] = []) => makeNode("assignment", { fields: { left }, children });
+    const call = (method: string, argument: string, receiver?: SyntaxNode) =>
+      makeNode("call", {
+        fields: {
+          method: makeNode("identifier", { text: method }),
+          arguments: makeNode("argument_list", {
+            children: [makeNode("string", { text: argument })],
+          }),
+          ...(receiver ? { receiver } : {}),
+        },
+      });
+    const assign = (left: SyntaxNode, children: SyntaxNode[] = []) =>
+      makeNode("assignment", { fields: { left }, children });
     const required = call("require_relative", '"support/helper"');
     const mixin = call("include", "Comparable");
     const scoped = call("require", '"json"', makeNode("constant", { text: "Kernel" }));
     const constant = assign(makeNode("constant", { text: "VERSION" }));
     const local = assign(makeNode("identifier", { text: "value" }));
-    const method = makeNode("method", { fields: { name: makeNode("identifier", { text: "to_s" }) } });
-    const struct = assign(makeNode("constant", { text: "Point" }), [makeNode("call", { children: [
-      makeNode("do_block", { children: [makeNode("body_statement", { children: [method] })] }),
-    ] })]);
+    const method = makeNode("method", {
+      fields: { name: makeNode("identifier", { text: "to_s" }) },
+    });
+    const struct = assign(makeNode("constant", { text: "Point" }), [
+      makeNode("call", {
+        children: [
+          makeNode("do_block", { children: [makeNode("body_statement", { children: [method] })] }),
+        ],
+      }),
+    ]);
     makeNode("program", { children: [required, mixin, scoped, constant, local, struct] });
 
     expect(language.resolveSymbolKind(required)).toBe("deps");
@@ -426,24 +662,39 @@ describe("language profiles", () => {
 
   it("names Kotlin extension functions by receiver and skips plain member properties", () => {
     const language = profile(".kt");
-    const placed = (node: SyntaxNode, startIndex: number) => Object.assign(node, { startIndex, endIndex: startIndex + 1 });
-    const declare = (name: string, children: SyntaxNode[]) => makeNode("function_declaration", {
-      fields: { name: placed(makeNode("identifier", { text: name }), 10) }, children,
-    });
+    const placed = (node: SyntaxNode, startIndex: number) =>
+      Object.assign(node, { startIndex, endIndex: startIndex + 1 });
+    const declare = (name: string, children: SyntaxNode[]) =>
+      makeNode("function_declaration", {
+        fields: { name: placed(makeNode("identifier", { text: name }), 10) },
+        children,
+      });
     const extension = declare("second", [
       placed(makeNode("nullable_type", { text: "List<T>?" }), 4),
       placed(makeNode("user_type", { text: "T" }), 20),
     ]);
     const plain = declare("helper", [placed(makeNode("user_type", { text: "Int" }), 20)]);
-    const property = (accessor: SyntaxNode) => makeNode("property_declaration", { children: [
-      makeNode("variable_declaration", { children: [makeNode("identifier", { text: "label" })] }), accessor,
-    ] });
+    const property = (accessor: SyntaxNode) =>
+      makeNode("property_declaration", {
+        children: [
+          makeNode("variable_declaration", {
+            children: [makeNode("identifier", { text: "label" })],
+          }),
+          accessor,
+        ],
+      });
     const stored = property(makeNode("setter"));
     const custom = property(makeNode("getter", { children: [makeNode("function_body")] }));
-    makeNode("source_file", { children: [extension, plain, makeNode("class_declaration", {
-      fields: { name: makeNode("identifier", { text: "Shape" }) },
-      children: [makeNode("class_body", { children: [stored, custom] })],
-    })] });
+    makeNode("source_file", {
+      children: [
+        extension,
+        plain,
+        makeNode("class_declaration", {
+          fields: { name: makeNode("identifier", { text: "Shape" }) },
+          children: [makeNode("class_body", { children: [stored, custom] })],
+        }),
+      ],
+    });
 
     expect(language.resolveSymbolKind(extension)).toBe("method");
     expect(language.readContainerName(extension)).toBe("List");
@@ -452,35 +703,61 @@ describe("language profiles", () => {
     expect(language.resolveSymbolKind(custom)).toBe("method");
     expect(language.readNodeName(custom)).toBe("label");
     expect(language.readContainerName(custom)).toBe("Shape");
-    expect(language.readNodeName(makeNode("import", { text: "import com.example.Thing as Alias" })))
-      .toBe("com.example.Thing as Alias");
-    expect(language.readNodeName(makeNode("type_alias", {
-      fields: { type: makeNode("identifier", { text: "Handler" }) },
-    }))).toBe("Handler");
+    expect(
+      language.readNodeName(makeNode("import", { text: "import com.example.Thing as Alias" })),
+    ).toBe("com.example.Thing as Alias");
+    expect(
+      language.readNodeName(
+        makeNode("type_alias", {
+          fields: { type: makeNode("identifier", { text: "Handler" }) },
+        }),
+      ),
+    ).toBe("Handler");
   });
 
   it("lists Zig struct constants as types, import aliases as deps, and tests by label", () => {
     const language = profile(".zig");
-    const token = (type: string) => Object.assign(makeNode(type, { text: type }), { isNamed: false });
+    const token = (type: string) =>
+      Object.assign(makeNode(type, { text: type }), { isNamed: false });
     const bind = (name: string, value: SyntaxNode, isPublic = false) => {
       const identifier = Object.assign(makeNode("identifier", { text: name }), { isNamed: true });
       const binding = makeNode("variable_declaration", { children: [identifier, value] });
       Object.assign(value, { isNamed: true });
       const keywords = isPublic ? [token("pub"), token("const")] : [token("const")];
-      return Object.assign(binding, { children: [...keywords, identifier, token("="), value, token(";")] });
+      return Object.assign(binding, {
+        children: [...keywords, identifier, token("="), value, token(";")],
+      });
     };
-    const method = makeNode("function_declaration", { fields: { name: makeNode("identifier", { text: "init" }) } });
+    const method = makeNode("function_declaration", {
+      fields: { name: makeNode("identifier", { text: "init" }) },
+    });
     const point = bind("Point", makeNode("struct_declaration", { children: [method] }), true);
-    const std = bind("std", makeNode("builtin_function", {
-      children: [makeNode("builtin_identifier", { text: "@import" })],
-    }));
-    const alias = bind("Allocator", makeNode("field_expression", { fields: {
-      object: makeNode("field_expression", { fields: { object: makeNode("identifier", { text: "std" }) } }),
-    } }));
-    const computed = bind("limit", makeNode("field_expression", { fields: { object: makeNode("call_expression") } }));
-    const member = bind("origin", makeNode("field_expression", {
-      fields: { object: makeNode("identifier", { text: "Point" }) },
-    }));
+    const std = bind(
+      "std",
+      makeNode("builtin_function", {
+        children: [makeNode("builtin_identifier", { text: "@import" })],
+      }),
+    );
+    const alias = bind(
+      "Allocator",
+      makeNode("field_expression", {
+        fields: {
+          object: makeNode("field_expression", {
+            fields: { object: makeNode("identifier", { text: "std" }) },
+          }),
+        },
+      }),
+    );
+    const computed = bind(
+      "limit",
+      makeNode("field_expression", { fields: { object: makeNode("call_expression") } }),
+    );
+    const member = bind(
+      "origin",
+      makeNode("field_expression", {
+        fields: { object: makeNode("identifier", { text: "Point" }) },
+      }),
+    );
     const constant = bind("max", makeNode("integer"));
     const local = bind("count", makeNode("integer"));
     makeNode("function_declaration", { children: [makeNode("block", { children: [local] })] });
@@ -523,9 +800,13 @@ describe("language profiles", () => {
 
   it("inspects the statement holding an import symbol rather than its enclosing block", () => {
     const specifier = makeNode("import_specifier");
-    const statement = makeNode("import_statement", { children: [makeNode("import_clause", {
-      children: [makeNode("named_imports", { children: [specifier] })],
-    })] });
+    const statement = makeNode("import_statement", {
+      children: [
+        makeNode("import_clause", {
+          children: [makeNode("named_imports", { children: [specifier] })],
+        }),
+      ],
+    });
     makeNode("program", { children: [statement] });
     const spec = makeNode("import_spec");
     const declaration = makeNode("import_declaration", {

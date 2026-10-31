@@ -4,23 +4,26 @@ import { resolveTargetPaths } from "./files.js";
 import {
   collectSymbols,
   formatSymbolName,
-  getAllLanguages,
+  readLanguages,
   SHARED_KINDS,
   SYMBOL_KINDS,
   type LanguageSymbol,
 } from "../grammar/index.js";
 import { renderCallText } from "../../utils.js";
 
-const KINDS_DESCRIPTION = [
-  `Kinds to include (default: all). Shared: ${SHARED_KINDS.join(", ")}`,
-  ...getAllLanguages().map(
-    ({ name, profile }) => `${name}: ${profile.extraKinds.join(", ")}`,
-  ),
-].join(". ");
-
 interface MapperResult {
   symbols: LanguageSymbol[];
   failed: string[];
+}
+
+async function loadKindsPrompt(cwd: string) {
+  const languages = (await readLanguages(cwd)) ?? [];
+  const list = languages.map(({ name, profile }) => `- ${name}: ${profile.extraKinds.join(", ")}`);
+  return [
+    "Values for code_map `kinds`, by language. Shared kinds apply to all languages.",
+    `- shared: ${SHARED_KINDS.join(", ")}`,
+    ...list,
+  ].join("\n");
 }
 
 function collapseGroupedSymbols(symbols: LanguageSymbol[]) {
@@ -49,6 +52,14 @@ function collapseGroupedSymbols(symbols: LanguageSymbol[]) {
 }
 
 export default function (pi: ExtensionAPI) {
+  pi.on("before_agent_start", async (event, ctx) => {
+    if (pi.getActiveTools().includes("code_map")) {
+      event.systemPromptOptions.sections.symbol_kinds = await loadKindsPrompt(ctx.cwd);
+    } else {
+      delete event.systemPromptOptions.sections.symbol_kinds;
+    }
+  });
+
   pi.registerTool(
     defineTool({
       name: "code_map",
@@ -62,20 +73,17 @@ export default function (pi: ExtensionAPI) {
           uniqueItems: true,
         }),
         glob: Type.Optional(
-          Type.String({
-            description: "Filter files found in directories, same as grep glob",
-          }),
+          Type.String({ description: "Filter files found in directories, same as grep glob" }),
         ),
         kinds: Type.Optional(
-          Type.Array(Type.Union([...SYMBOL_KINDS].map((kind) => Type.Literal(kind))), {
-            description: KINDS_DESCRIPTION,
-          }),
+          Type.Array(Type.String(), { description: "Filter symbols by kinds (default: all)" }),
         ),
       }),
       async execute(_toolCallId, params, signal, _onUpdate, ctx) {
         let outputPath = "";
         const outputLines: string[] = [];
-        const kinds = params.kinds ? new Set<string>(params.kinds) : undefined;
+        const kinds = params.kinds ? new Set(params.kinds) : undefined;
+        const unknownKinds = params.kinds?.filter((kind) => !SYMBOL_KINDS.has(kind)) ?? [];
         const { files, denied, failed } = await resolveTargetPaths(
           pi,
           ctx,
@@ -115,6 +123,9 @@ export default function (pi: ExtensionAPI) {
         }
         if (denied) {
           outputLines.push("[Code map results exclude files blocked by permission policy]");
+        }
+        if (unknownKinds.length > 0) {
+          outputLines.push(`[Unknown kinds: ${unknownKinds.join(", ")}]`);
         }
         if (outputLines.length === 0) {
           outputLines.push("(no symbols found)");

@@ -17,10 +17,10 @@ const inspect = defineTool({
     path: Type.String({ description: "File containing the symbol" }),
     symbol: Type.String({
       description:
-        "One declaration's name: function, class, or method (MyClass.method); <anonymous>, <imports>, or <exports>; name#1 for the second declaration with that name",
+        "Declaration's name or Type.method; <anonymous>, <imports>, or <exports>; append `#index` suffix for overloads (index starts from 1)",
     }),
     signature: Type.Optional(
-      Type.Boolean({ description: "Return only signatures, stripping function and method bodies" }),
+      Type.Boolean({ description: "Strip function and method bodies, return only signatures" }),
     ),
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {

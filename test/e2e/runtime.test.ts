@@ -33,7 +33,7 @@ describe("real CLI startup", () => {
       "read", "write", "edit", "bash", "grep", "code_map", "inspect", "subagent", "questionnaire",
       "web_search", "web_fetch",
     ]));
-    expect(await readdir(join(fixture.workspace, ".pi"))).toEqual(expect.arrayContaining(["agents"]));
+    expect(await readdir(join(fixture.workspace, ".pi"))).toEqual(expect.arrayContaining(["agents", "settings.json"]));
     const settingsPath = join(fixture.home, ".pi", "agent", "settings.json");
     const settings = JSON.parse(await readFile(settingsPath, "utf8"));
     settings.hideThinkingBlock = true;

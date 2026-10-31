@@ -118,8 +118,7 @@ export default function grep(pi: ExtensionAPI) {
       ...grepTool.parameters.properties,
       context: Type.Optional(
         Type.Number({
-          description:
-            "Number of lines to show before and after each match (default: 0). Context lines are later stripped to reduce optimize context; they're still shown when requested",
+          description: "Number of lines to show before and after each match (default: 0)",
           maximum: 2,
         }),
       ),

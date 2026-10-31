@@ -1,68 +1,62 @@
+import { extname } from "node:path";
 import type { SyntaxNode } from "tree-sitter";
-import type { LanguageSymbol } from "../languages/index.js";
-import { collectSymbols, SYMBOL_KINDS } from "../languages/index.js";
+import {
+  collectSymbols,
+  getLanguageByExt,
+  type LanguageProfile,
+  type LanguageSymbol,
+} from "../grammar/index.js";
 
-const BLOCK_TYPES = new Set([
-  "block",
-  "statement_block",
-  "class_body",
-  "interface_body",
-  "enum_body",
-  "constructor_body",
-  "declaration_list",
-  "switch_body",
-  "switch_block",
-  "expression_switch_statement",
-  "type_switch_statement",
-  "select_statement",
-]);
-
-function renderNode(node: SyntaxNode, depth?: number): string {
-  if (depth === undefined) return node.text;
-
-  const pendingNodes = [{ node, level: 0 }];
-  const replacements: Array<{ start: number; end: number; text: string }> = [];
+function findMethodBodies(node: SyntaxNode, profile: LanguageProfile) {
+  const bodies: SyntaxNode[] = [];
+  const pendingNodes = node.namedChildren.slice().reverse();
 
   while (pendingNodes.length > 0) {
     const current = pendingNodes.pop();
     if (!current) continue;
 
-    const isBlock = BLOCK_TYPES.has(current.node.type);
-    if (isBlock && current.level >= depth) {
-      const opening = current.node.children.find((child) => child.type === "{");
-      const closing = current.node.children.find((child) => child.type === "}");
-      replacements.push({
-        start: (opening?.endIndex ?? current.node.startIndex) - node.startIndex,
-        end: (closing?.startIndex ?? current.node.endIndex) - node.startIndex,
-        text: opening && closing ? " ... " : "...",
-      });
+    if (profile.resolveSymbolKind(current) === "method") {
+      const body = profile.findBodyNode(current);
+      if (body) bodies.push(body);
       continue;
     }
-
-    for (const child of current.node.namedChildren.slice().reverse()) {
-      pendingNodes.push({ node: child, level: current.level + Number(isBlock) });
-    }
+    pendingNodes.push(...current.namedChildren.slice().reverse());
   }
 
-  let text = node.text;
-  // Apply from the end so source offsets stay valid.
-  for (const replacement of replacements.reverse()) {
-    text = text.slice(0, replacement.start) + replacement.text + text.slice(replacement.end);
+  return bodies;
+}
+
+function readSignature(symbol: LanguageSymbol, profile: LanguageProfile) {
+  const { node, kind } = symbol;
+  const bodies: SyntaxNode[] = [];
+  if (kind === "func" || kind === "method") {
+    const body = profile.findBodyNode(node);
+    if (body) bodies.push(body);
+  } else {
+    bodies.push(...findMethodBodies(node, profile));
   }
-  return text;
+
+  const source = node.text;
+  let text = "";
+  let cursor = 0;
+  for (const body of bodies) {
+    text += source.slice(cursor, body.startIndex - node.startIndex).trimEnd();
+    cursor = body.endIndex - node.startIndex;
+  }
+  return text + source.slice(cursor).trimEnd();
 }
 
 function inspectGroupedSymbols(
   path: string,
   symbolName: string,
   symbols: LanguageSymbol[],
-  depth?: number,
+  profile: LanguageProfile,
 ): { path: string; symbol: string; text: string } | undefined {
-  const groupedSymbolsMatch = /^(imports|exports)~([1-9]\d*)$/.exec(symbolName);
+  const groupedSymbolsMatch = /^<(imports|exports)>(?:#([1-9]\d*))?$/.exec(symbolName);
   if (!groupedSymbolsMatch) return;
 
   const groupedSymbolKind = groupedSymbolsMatch[1] === "imports" ? "deps" : "public";
-  const requestedGroup = Number(groupedSymbolsMatch[2]);
+  const requestedGroup = Number(groupedSymbolsMatch[2] ?? 0) + 1;
   const groupedNodes: SyntaxNode[] = [];
   const groupedRanges = new Set<string>();
   let symbolsCollapsed = false;
@@ -79,12 +73,8 @@ function inspectGroupedSymbols(
     }
     if (symbolsGroupIndex !== requestedGroup) continue;
 
-    let groupedNode = symbol.node;
-    if (groupedSymbolKind === "deps") {
-      while (groupedNode.parent?.parent) {
-        groupedNode = groupedNode.parent;
-      }
-    }
+    const groupedNode =
+      groupedSymbolKind === "deps" ? profile.findImportNode(symbol.node) : symbol.node;
 
     const groupedRange = `${groupedNode.startIndex}-${groupedNode.endIndex}`;
     if (groupedRanges.has(groupedRange)) continue;
@@ -97,7 +87,7 @@ function inspectGroupedSymbols(
   return {
     path,
     symbol: symbolName,
-    text: groupedNodes.map((groupedNode) => renderNode(groupedNode, depth)).join("\n"),
+    text: groupedNodes.map((groupedNode) => groupedNode.text.trimEnd()).join("\n"),
   };
 }
 
@@ -105,25 +95,22 @@ export async function inspectSymbol(
   cwd: string,
   path: string,
   symbolName: string,
-  depth?: number,
+  signature?: boolean,
   signal?: AbortSignal,
 ): Promise<{ path: string; symbol: string; text: string } | undefined> {
   if (signal?.aborted) {
     throw new Error("inspector aborted");
   }
-  const kinds = new Set(SYMBOL_KINDS);
-  const symbols = await collectSymbols(cwd, path, kinds);
+  const symbols = await collectSymbols(cwd, path);
+  const { profile } = getLanguageByExt(extname(path).toLowerCase());
+  if (!profile) return;
 
-  const inspectedGroup = inspectGroupedSymbols(path, symbolName, symbols, depth);
+  const inspectedGroup = inspectGroupedSymbols(path, symbolName, symbols, profile);
   if (inspectedGroup) return inspectedGroup;
 
   for (const symbol of symbols) {
     if (symbol.name !== symbolName) continue;
-
-    return {
-      path: symbol.path,
-      symbol: symbol.name,
-      text: renderNode(symbol.node, depth),
-    };
+    const text = signature ? readSignature(symbol, profile) : symbol.node.text.trimEnd();
+    return { path: symbol.path, symbol: symbol.name, text };
   }
 }

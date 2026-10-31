@@ -1,17 +1,17 @@
 import { readFile } from "node:fs/promises";
 import type { SyntaxNode } from "tree-sitter";
-import { getLanguageProfile } from "./index.js";
-import type { LanguageSymbol, SymbolKind } from "./types.js";
+import { getLanguageByExt } from "./index.js";
+import type { LanguageSymbol } from "./types.js";
 import { extname, resolve } from "node:path";
 import Parser from "tree-sitter";
 
 async function createCodeParser(extension: string) {
-  const languageProfile = getLanguageProfile(extension);
-  if (!languageProfile) {
+  const { profile } = getLanguageByExt(extension);
+  if (!profile) {
     throw new Error(`missing grammar for extension: ${extension}`);
   }
   const parser = new Parser();
-  parser.setLanguage(await languageProfile.loadLanguage(extension));
+  parser.setLanguage(await profile.loadLanguage(extension));
   return parser;
 }
 
@@ -34,9 +34,14 @@ async function getRootNode(cwd: string, path: string) {
   return tree.rootNode;
 }
 
-export async function collectSymbols(cwd: string, path: string, kinds: Set<SymbolKind>) {
+// First occurrence keeps its bare name; later ones get #1, #2, ...
+export function formatSymbolName(name: string, occurrence: number) {
+  return occurrence > 1 ? `${name}#${occurrence - 1}` : name;
+}
+
+export async function collectSymbols(cwd: string, path: string, kinds?: ReadonlySet<string>) {
   const extension = extname(path).toLowerCase();
-  const profile = getLanguageProfile(extension);
+  const { profile } = getLanguageByExt(extension);
   if (!profile) return [];
 
   const root = await getRootNode(cwd, path);
@@ -58,9 +63,10 @@ export async function collectSymbols(cwd: string, path: string, kinds: Set<Symbo
     }
 
     const symbolKind = profile.resolveSymbolKind(currentNode);
-    if (!symbolKind || !kinds.has(symbolKind) || profile.shouldSkipSymbol(currentNode)) {
-      continue;
-    }
+    if (!symbolKind) continue;
+
+    const isPublic = profile.isPublicSymbol(currentNode);
+    if (kinds && !kinds.has(symbolKind) && !(isPublic && kinds.has("public"))) continue;
 
     const baseName = profile.readNodeName(currentNode);
     if (!baseName) continue;
@@ -71,15 +77,17 @@ export async function collectSymbols(cwd: string, path: string, kinds: Set<Symbo
 
     const symbolIdCount = (symbolIdCounts.get(symbolName) ?? 0) + 1;
     symbolIdCounts.set(symbolName, symbolIdCount);
-    const isAnonymous = symbolName === "anonymous" && !currentNode.childForFieldName("name");
+    const { startPosition, endPosition } = currentNode;
+    // Nodes such as C preprocessor lines end after their newline, at the next row.
+    const endsAfterNewline = endPosition.column === 0 && endPosition.row > startPosition.row;
 
     symbols.push({
-      name: isAnonymous || symbolIdCount > 1 ? `${symbolName}~${symbolIdCount}` : symbolName,
+      name: formatSymbolName(symbolName, symbolIdCount),
       path,
       kind: symbolKind,
       node: currentNode,
-      range: [currentNode.startPosition.row + 1, currentNode.endPosition.row + 1],
-      public: profile.isPublicSymbol(currentNode),
+      range: [startPosition.row + 1, endsAfterNewline ? endPosition.row : endPosition.row + 1],
+      public: isPublic,
     });
   }
 

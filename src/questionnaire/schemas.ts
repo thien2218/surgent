@@ -3,7 +3,7 @@ import Type from "typebox";
 export const QuestionOptionSchema = Type.Object({
   text: Type.String({ minLength: 1, pattern: "\\S", description: "Option text" }),
   description: Type.Optional(Type.String({ description: "Option helper text" })),
-  recommended: Type.Optional(Type.Boolean({ description: "Whether this option is recommended" })),
+  recommended: Type.Optional(Type.Boolean()),
   exclusive: Type.Optional(
     Type.Boolean({
       description: "If selected, clears other options",
@@ -12,36 +12,28 @@ export const QuestionOptionSchema = Type.Object({
 });
 
 export const QuestionSchema = Type.Object({
-  prompt: Type.String({ minLength: 1, pattern: "\\S", description: "Question text" }),
+  prompt: Type.String({ pattern: "\\S", description: "Question text" }),
   reason: Type.Optional(Type.String({ description: "Why answer matters" })),
   options: Type.Optional(Type.Array(QuestionOptionSchema, { description: "Suggested options" })),
-  placeholder: Type.String({
-    minLength: 1,
-    pattern: "\\S",
-    description: "Freeform input placeholder",
-    default: "Type your answer",
-  }),
+  placeholder: Type.Optional(
+    Type.String({ pattern: "\\S", description: "Freeform input placeholder" }),
+  ),
   multi: Type.Optional(
     Type.Boolean({
-      description: "Allow multiple selections when options exist; ignored for freeform questions",
+      description: "Allow selecting several options",
     }),
   ),
   minSelections: Type.Optional(
     Type.Integer({
       minimum: 1,
-      description: "Min options to select (if multi=true and options exist)",
+      description: "Min options when multi",
     }),
   ),
-  maxSelections: Type.Optional(
-    Type.Integer({ minimum: 1, description: "Max options to select (if multi=true)" }),
-  ),
+  maxSelections: Type.Optional(Type.Integer({ minimum: 1, description: "Max options when multi" })),
 });
 
 export const QuestionnaireParamsSchema = Type.Object({
-  questions: Type.Array(QuestionSchema, {
-    minItems: 1,
-    description: "Questions to ask",
-  }),
+  questions: Type.Array(QuestionSchema, { minItems: 1 }),
 });
 
 export const QuestionnaireResultSchema = Type.Object({

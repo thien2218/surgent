@@ -19,7 +19,7 @@ it("advertises native structured Bash with a required purpose", () => {
   expect(bash.outputSchema).toEqual(createBashToolDefinition(process.cwd()).outputSchema);
   expect(bash.prepareArguments).toBeUndefined();
   expect(bash.parameters.required).toContain("purpose");
-  expect(bash.parameters.properties.purpose).toMatchObject({ type: "string", minLength: 1, maxLength: 256, pattern: "\\S" });
+  expect(bash.parameters.properties.purpose).toMatchObject({ type: "string", maxLength: 256, pattern: "\\S" });
 });
 
 it.each([

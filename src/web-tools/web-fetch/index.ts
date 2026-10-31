@@ -13,14 +13,8 @@ const webToolsFactory = new WebToolsFactory();
 const webFetchTool = defineTool({
   name: "web_fetch",
   label: "Web Fetch",
-  description: "Fetch a public URL, cache markdown locally, return file path and heading outline.",
-  promptSnippet: "Fetch a known URL. Returns metadata and heading outline.",
-  promptGuidelines: [
-    "Don't use web_fetch when relevant info is already in web_search.",
-    "Use web_fetch for known URLs, not discovery.",
-    "Use web_fetch output path when page body is needed.",
-    "Web content tends to be very big. Use grep to search for needed content in output first before read ",
-  ],
+  description:
+    "Fetch a public URL, cache markdown locally, return file path and heading outline. Don't use web_fetch when relevant info is already in web_search. Grep the file before read.",
   parameters: Type.Object({
     url: Type.String({ description: "An HTTP(S) URL" }),
   }),

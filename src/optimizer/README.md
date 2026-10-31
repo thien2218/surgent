@@ -15,7 +15,7 @@ pi list
 
 Then start or restart Pi in your project. Everything below works automatically; there is nothing to configure.
 
-The first time you start Pi in a Git repository with supported code, pi-optimizer asks to download code parsers for the languages it finds. Your answer is remembered for that repository.
+The first time you start Pi in a Git repository with supported code, pi-optimizer finds the repository's main languages, saves them as `languages` in `.pi/settings.json`, and asks to download code parsers for them. Your answer is remembered for that repository. To change which languages get parsers, edit that list using these names: `typescript`, `python`, `go`, `java`, `rust`, `c`, `cpp`, `csharp`, `ruby`, `kotlin`, `zig`.
 
 > **Using surgent?** pi-optimizer is already included. Do not install it separately, or the same tools will be registered twice.
 
@@ -29,14 +29,30 @@ Agents often read a whole file to find one function. pi-optimizer gives the agen
 
 ```text
 src/web-tools/web-fetch/helpers.ts
-  [deps] imports~1
-  [public func] toCanonicalUrl L10-L17
-  [public func] getValidatedUrl L52-L66
+ [deps] <imports>
+ [public func] toCanonicalUrl L10-L17
+ [public func] getValidatedUrl L52-L66
 ```
 
 From the outline, the agent can fetch just the function it needs, or only its signature, instead of the whole file. Folder outlines skip files excluded by your `.gitignore`.
 
-The agent uses this through the `code_map` and `inspect` tools. Supported languages are TypeScript, JavaScript, Python, Go, Java, and Rust.
+The agent uses this through the `code_map` and `inspect` tools. They support these languages:
+
+| Language | File extensions                              | Parser package                             |
+| -------- | -------------------------------------------- | ------------------------------------------ |
+| JS/TS    | `.ts` `.tsx` `.js` `.jsx` `.mjs` `.cjs`      | `tree-sitter-typescript`                   |
+| Python   | `.py`                                        | `tree-sitter-python`                       |
+| Go       | `.go`                                        | `tree-sitter-go`                           |
+| Java     | `.java`                                      | `tree-sitter-java`                         |
+| Rust     | `.rs`                                        | `tree-sitter-rust`                         |
+| C        | `.c`                                         | `tree-sitter-c`                            |
+| C++      | `.cpp` `.cc` `.cxx` `.h` `.hpp` `.hh` `.hxx` | `tree-sitter-cpp`                          |
+| C#       | `.cs`                                        | `tree-sitter-c-sharp`                      |
+| Ruby     | `.rb` `.rake` `.gemspec`                     | `tree-sitter-ruby`                         |
+| Kotlin   | `.kt` `.kts`                                 | `@tree-sitter-grammars/tree-sitter-kotlin` |
+| Zig      | `.zig`                                       | `@tree-sitter-grammars/tree-sitter-zig`    |
+
+C headers (`.h`) are read with the C++ parser, which also understands C.
 
 ### Patch edits for GPT models
 
@@ -53,27 +69,18 @@ GPT models are trained to edit code with patches. The `patch` tool gives them th
 *** End Patch
 ```
 
-Every file in the patch is checked before anything is written, so a patch that does not match leaves all files unchanged. If a write fails partway, files already written are restored. Updated files keep their line endings and byte order mark.
+Every file in the patch is checked before anything is written, so a patch that does not match leaves all files unchanged. If a write fails partway, files already written are restored. Updated files keep their byte order mark, and lines outside the patched regions keep their line endings.
 
 In surgent, GPT models get `patch` in place of `edit` and `write` when the agent is allowed to write files; other models keep `edit` and `write`. In Pi, `patch` is available to every model alongside `edit` and `write`.
 
 ### Compact command output
 
-When a command prints a run of lines that differ by a single value, those lines are merged into one. This output:
+Command output reaches the model as it would read in a terminal, without the clutter that only matters on screen:
 
-```text
-request /health returned 204
-request /health returned 404
-request /health returned 500
-```
-
-reaches the model as:
-
-```text
-request /health returned {204, 404, 500}
-```
-
-Nothing is lost: the merged line keeps every value in order, and output is merged only when that makes it shorter.
+- Colors and other terminal escape codes are removed.
+- A line redrawn in place, such as a progress bar, keeps only its final state.
+- Trailing spaces and tabs are trimmed.
+- A line printed several times in a row appears once, followed by a note like `[above line repeated 12 more times]`. The note is used only when it is shorter than the repeats it replaces.
 
 ### Grouped search results
 

@@ -1,8 +1,10 @@
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
-import { loadGrammarModule } from "../../../src/optimizer/languages/grammar.js";
-import { TypeScriptLanguageProfile } from "../../../src/optimizer/languages/typescript.js";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ensureGrammarCache, loadGrammarModule } from "../../../src/optimizer/grammar/ensure.js";
+import { TypeScriptLanguageProfile } from "../../../src/optimizer/grammar/languages/typescript.js";
 import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
 let workspace: Workspace;
@@ -42,6 +44,56 @@ describe("grammar cache loading", () => {
 
     await expect(loadGrammarModule("broken-grammar"))
       .rejects.toThrow(/failed loading grammar module from cache .*broken-grammar\. fixture ABI mismatch/);
+  });
+});
+
+describe("project language detection", () => {
+  const settingsPath = () => join(workspace.cwd, ".pi", "settings.json");
+  const readSettings = async () => JSON.parse(await readFile(settingsPath(), "utf8"));
+
+  async function trackFiles(counts: Record<string, number>) {
+    for (const [extension, count] of Object.entries(counts)) {
+      for (let index = 0; index < count; index += 1) {
+        await writeFile(join(workspace.cwd, `file${index}${extension}`), "");
+      }
+    }
+    execFileSync("git", ["init", "-q"], { cwd: workspace.cwd });
+    execFileSync("git", ["add", "."], { cwd: workspace.cwd });
+  }
+
+  beforeEach(async () => {
+    await mkdir(join(workspace.home, ".pi", "agent", "grammars"), { recursive: true });
+  });
+
+  it("saves the main languages from supported files only and keeps other settings", async () => {
+    await writeFile(settingsPath(), JSON.stringify({ model: "fixture" }));
+    await trackFiles({ ".md": 20, ".ts": 9, ".py": 1 });
+
+    await ensureGrammarCache({ cwd: workspace.cwd, hasUI: false } as ExtensionContext);
+
+    expect(await readSettings()).toEqual({ model: "fixture", languages: ["typescript"] });
+  });
+
+  it("keeps saved languages instead of detecting again and still reports them", async () => {
+    await writeFile(settingsPath(), JSON.stringify({ languages: ["python"] }));
+    await trackFiles({ ".ts": 3 });
+    const ui = { setWidget: vi.fn(), notify: vi.fn(), confirm: vi.fn(async () => false) };
+
+    await ensureGrammarCache({ cwd: workspace.cwd, hasUI: true, ui } as unknown as ExtensionContext);
+
+    expect(await readSettings()).toEqual({ languages: ["python"] });
+    expect(ui.setWidget).not.toHaveBeenCalled();
+    expect(ui.notify).toHaveBeenCalledWith(expect.stringContaining("python"), "info");
+  });
+
+  it("shows a loader while detecting and reports the saved languages", async () => {
+    await trackFiles({ ".py": 2 });
+    const ui = { setWidget: vi.fn(), notify: vi.fn(), confirm: vi.fn(async () => false) };
+
+    await ensureGrammarCache({ cwd: workspace.cwd, hasUI: true, ui } as unknown as ExtensionContext);
+
+    expect(ui.setWidget.mock.calls).toEqual([["grammar", expect.any(Function)], ["grammar", undefined]]);
+    expect(ui.notify).toHaveBeenCalledWith(expect.stringContaining("python"), "info");
   });
 });
 

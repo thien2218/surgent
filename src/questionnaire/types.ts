@@ -10,7 +10,7 @@ export interface Question {
   reason?: string;
   options?: QuestionOption[];
 
-  placeholder: string;
+  placeholder?: string;
   /** Only applies when options exist; otherwise the question is freeform. */
   multi?: boolean;
 

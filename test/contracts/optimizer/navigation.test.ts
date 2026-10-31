@@ -1,9 +1,11 @@
 import { execFileSync } from "node:child_process";
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { BeforeAgentStartEvent } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import mapperExtension from "../../../src/optimizer/mapper/index.js";
 import { writeRules } from "../../../src/permission/storage.js";
+import { recordExtension } from "../../helpers/extension.js";
 import { makePermissionContext, makePermissionSession } from "../../helpers/permission.js";
 import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
@@ -204,5 +206,41 @@ describe("code_map permission boundary", () => {
 
     expect(await mapText(["../outside.txt"], undefined, context)).toBe("(no symbols found)");
     expect(context.ui.custom).not.toHaveBeenCalled();
+  });
+});
+
+describe("code_map symbol kinds", () => {
+  it("reports requested kinds outside the vocabulary", async () => {
+    await writeFile(join(workspace.cwd, "entry.ts"), "fixture source");
+
+    const result = await session.tool("code_map").execute(
+      "map-kinds", { paths: ["entry.ts"], kinds: ["func", "klass"] }, undefined, undefined,
+      makePermissionContext(workspace.cwd),
+    );
+    const output = result.content.map((block) => block.type === "text" ? block.text : "").join("\n");
+
+    expect(output).toContain("[Unknown kinds: klass]");
+  });
+
+  it("lists kinds for the saved project languages only while code_map is active", async () => {
+    await writeFile(join(workspace.cwd, ".pi", "settings.json"), JSON.stringify({ languages: ["python"] }));
+    let activeTools = ["code_map"];
+    const extension = recordExtension({ getActiveTools: () => activeTools });
+    mapperExtension(extension.api);
+    const sections: Record<string, string> = {};
+    const prompt = () => extension.event("before_agent_start")({
+      type: "before_agent_start", messageType: "user", prompt: "Task", systemPrompt: "",
+      systemPromptOptions: { cwd: workspace.cwd, sections },
+    } as unknown as BeforeAgentStartEvent, makePermissionContext(workspace.cwd));
+
+    await prompt();
+    const listed = sections.symbol_kinds?.split("\n")
+      .filter((line) => line.startsWith("- "))
+      .map((line) => line.slice(2, line.indexOf(":")));
+    expect(listed).toEqual(["shared", "python"]);
+
+    activeTools = ["read"];
+    await prompt();
+    expect(sections).not.toHaveProperty("symbol_kinds");
   });
 });

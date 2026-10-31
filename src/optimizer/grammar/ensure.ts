@@ -1,8 +1,9 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { Loader } from "@earendil-works/pi-tui";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
-import { LANGUAGE_REGISTRY } from "./index.js";
+import { mkdir, readFile } from "node:fs/promises";
+import { dirname, extname, resolve } from "node:path";
+import { filterLanguages, getLanguageByExt, getAllLanguages } from "./index.js";
 import type { GrammarInstallSettings } from "./types.js";
 import { getPiPath, isMissingFileError, readJson, runCommand, writeJson } from "../../utils.js";
 import { createRequire } from "node:module";
@@ -21,11 +22,7 @@ async function ensureGrammarCachePackage() {
     if (!isMissingFileError(error)) {
       throw error;
     }
-    await writeJson(jsonPath, {
-      name: "tree-sitter-grammars",
-      private: true,
-      dependencies: {},
-    });
+    await writeJson(jsonPath, { name: "tree-sitter-grammars", private: true, dependencies: {} });
   }
 }
 
@@ -37,62 +34,73 @@ async function getRepositoryRoot(cwd: string) {
   } catch {}
 }
 
-async function selectSupportedBuckets(cwd: string) {
+async function detectLanguages(cwd: string) {
   const bucketCounts = new Map<string, number>();
-  let totalFileCount = 0;
+  let supportedCount = 0;
 
-  const { stdout } = await runCommand(cwd, "bash", [
-    "-lc",
-    "git ls-files | sed 's/.*\\.//' | sort | uniq -c | sort -rn",
-  ]);
+  const { stdout } = await runCommand(cwd, "git", ["ls-files", "-z"]);
+  for (const filePath of stdout.split("\0")) {
+    const extension = extname(filePath).toLowerCase();
+    const { name } = getLanguageByExt(extension);
+    if (!name) continue;
 
-  for (const line of stdout.split(/\r?\n/)) {
-    const lineMatch = line.trim().match(/^(\d+)\s+(.+)$/);
-    if (!lineMatch) continue;
-
-    const rawCount = lineMatch[1];
-    const rawExtension = lineMatch[2];
-    if (!rawCount || !rawExtension) continue;
-
-    const count = Number.parseInt(rawCount, 10);
-    const extension = `.${rawExtension.toLowerCase()}`;
-    if (!Number.isFinite(count) || count <= 0) continue;
-
-    totalFileCount += count;
-    for (const languageEntry of LANGUAGE_REGISTRY) {
-      if (!languageEntry.profile.extensions.has(extension)) continue;
-      const nextCount = bucketCounts.get(languageEntry.bucketName) ?? 0;
-      bucketCounts.set(languageEntry.bucketName, nextCount + count);
-      break;
-    }
+    supportedCount += 1;
+    const nextCount = bucketCounts.get(name) ?? 0;
+    bucketCounts.set(name, nextCount + 1);
   }
 
-  if (totalFileCount === 0) return [];
-  const rankedBuckets = LANGUAGE_REGISTRY.map((languageEntry) => ({
-    count: bucketCounts.get(languageEntry.bucketName) ?? 0,
-    packageName: languageEntry.packageName,
-    version: languageEntry.version,
-  }))
-    .filter((bucket) => bucket.count > 0)
+  let coveredCount = 0;
+  const detected: string[] = [];
+  const rankedBuckets = getAllLanguages()
+    .map(({ name }) => ({ name, count: bucketCounts.get(name) ?? 0 }))
     .sort((leftBucket, rightBucket) => rightBucket.count - leftBucket.count);
 
-  let coveredCount = 0;
-  const pickedBuckets: Array<{ packageName: string; version: string }> = [];
   for (const bucket of rankedBuckets) {
-    if (coveredCount / totalFileCount >= GRAMMAR_COVERAGE_TARGET) break;
+    if (supportedCount === 0 || coveredCount / supportedCount >= GRAMMAR_COVERAGE_TARGET) break;
     coveredCount += bucket.count;
-    pickedBuckets.push({
-      packageName: bucket.packageName,
-      version: bucket.version,
+    detected.push(bucket.name);
+  }
+
+  return detected;
+}
+
+export async function readLanguages(cwd: string) {
+  const settings = await readJson<Record<string, unknown>>(getPiPath("settings", cwd), {});
+  const languages = settings["languages"];
+  if (!Array.isArray(languages)) return;
+  return filterLanguages(languages);
+}
+
+async function ensureLanguages(ctx: ExtensionContext) {
+  const languages = await readLanguages(ctx.cwd);
+  if (languages) return languages;
+
+  if (ctx.hasUI) {
+    ctx.ui.setWidget("grammar", (tui, theme) => {
+      const loader = new Loader(
+        tui,
+        (content) => theme.fg("accent", content),
+        (content) => theme.fg("muted", content),
+        "Detecting project languages...",
+      );
+      return Object.assign(loader, { dispose: () => loader.stop() });
     });
   }
 
-  return pickedBuckets;
+  try {
+    const detected = await detectLanguages(ctx.cwd);
+    const settingsPath = getPiPath("settings", ctx.cwd);
+    const settings = await readJson<Record<string, unknown>>(settingsPath, {});
+    await mkdir(dirname(settingsPath), { recursive: true });
+    await writeJson(settingsPath, { ...settings, languages: detected });
+    return filterLanguages(detected);
+  } finally {
+    if (ctx.hasUI) ctx.ui.setWidget("grammar", undefined);
+  }
 }
 
 function getMissingGrammarPackages(pickedBuckets: Array<{ packageName: string; version: string }>) {
   const grammarCacheDir = getPiPath("grammars");
-
   return pickedBuckets
     .filter((bucket) => {
       const packagePath = resolve(
@@ -135,41 +143,40 @@ export async function ensureGrammarCache(ctx: ExtensionContext) {
   const repoRoot = await getRepositoryRoot(ctx.cwd);
   if (!repoRoot) return;
 
+  const languages = await ensureLanguages(ctx);
+  if (ctx.hasUI) {
+    const message =
+      languages.length > 0
+        ? `Languages set for this project: ${languages.map(({ name }) => name).join(", ")}. Edit "languages" in .pi/settings.json to change.`
+        : 'No languages set for this project. Add them to "languages" in .pi/settings.json.';
+    ctx.ui.notify(message, "info");
+  }
+
   const settings = await readJson<Record<string, unknown>>(getPiPath("settings"), {});
   const installSettings = readGrammarInstallSettings(settings);
-  const allowed = new Set(installSettings.allowedRepos ?? []);
-  const denied = new Set(installSettings.deniedRepos ?? []);
-  if (denied.has(repoRoot)) return;
+  const allowedRepos = installSettings.allowedRepos ?? [];
+  const deniedRepos = installSettings.deniedRepos ?? [];
+  if (deniedRepos.includes(repoRoot)) return;
 
-  const pickedBuckets = await selectSupportedBuckets(ctx.cwd);
-  if (pickedBuckets.length === 0) return;
-
-  const missingPkgs = getMissingGrammarPackages(pickedBuckets);
+  const missingPkgs = getMissingGrammarPackages(languages);
   if (missingPkgs.length === 0) return;
 
-  let canInstall = allowed.has(repoRoot);
+  let canInstall = allowedRepos.includes(repoRoot);
   if (!canInstall) {
     if (!ctx.hasUI) return;
 
     canInstall = await ctx.ui.confirm(
       "Install tree-sitter grammars for this repo?",
-      "surgent installs missing parser grammars for optimized code read, input tokens and context optimizations.",
+      "surgent installs grammars for parsing code reads and context optimizations.",
     );
-
     if (!canInstall) {
-      denied.add(repoRoot);
-      await updateGrammarInstallSettings(settings, {
-        allowedRepos: [...allowed],
-        deniedRepos: [...denied],
-      });
+      deniedRepos.push(repoRoot);
+      await updateGrammarInstallSettings(settings, { allowedRepos, deniedRepos });
       return;
     }
 
-    allowed.add(repoRoot);
-    await updateGrammarInstallSettings(settings, {
-      allowedRepos: [...allowed],
-      deniedRepos: [...denied],
-    });
+    allowedRepos.push(repoRoot);
+    await updateGrammarInstallSettings(settings, { allowedRepos, deniedRepos });
   }
 
   await runCommand(getPiPath("grammars"), "npm", ["install", "--save-exact", ...missingPkgs]);

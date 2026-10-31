@@ -15,15 +15,15 @@ import {
 
 const BUILT_IN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "built-in");
 const SUBAGENT_PROMPT = `Use specialized subagent proactively for bounded work that would consume substantial context: broad code exploration, planning, diff review, documentation, tests, logs, etc.
-Select profile based on its description.
+Subagents cannot see parent conversation. Include all needed background in the task.
 Start every \`scout\` task with "Depth: quick", "Depth: standard", or "Depth: deep". Use standard by default; use deep only when cross-component uncertainty requires it.
 Before delegating, split task into immediate local work and independent side work. Keep tiny tasks and tightly coupled next actions local when handoff costs more than doing work.
-Include outcome, exact scope or write ownership, known paths and symbols, relevant evidence, constraints, expected output, and done condition. Subagent cannot see parent conversation.
+Include outcome, exact scope or write ownership, known paths and symbols, relevant evidence, constraints, expected output, and done condition.
 Emit independent calls in same assistant message so they run concurrently. Parallel writes must own disjoint files; otherwise sequence them.
 Do not repeat delegated research or edits. Continue non-overlapping work, then integrate returned result. Recheck only missing, conflicting, or safety-critical evidence.
 Subagent doesn't own sequencing, cross-task decisions, integration, final verification, and user response.
 
-Available subagents:`;
+Available subagents (pick by description):`;
 
 async function getAgentFiles(cwd: string, name?: string): Promise<string[]> {
   const seen = new Set<string>();

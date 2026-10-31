@@ -12,22 +12,15 @@ export interface InspectToolDetails {
 const inspect = defineTool({
   name: "inspect",
   label: "Inspect",
-  description:
-    "Fetch one symbol's body from one file, optionally collapsing nested code blocks to save context.",
+  description: "Fetch one symbol's source or signature from a file.",
   parameters: Type.Object({
-    path: Type.String({
-      description: "Exact file path containing target symbol (relative to cwd or absolute)",
-    }),
+    path: Type.String({ description: "File containing the symbol" }),
     symbol: Type.String({
       description:
-        "Exact symbol string for one declaration in file: function name, class name, method name (MyClass.method), synthetic anonymous name (anonymous~1), or duplicate form name~2",
+        "Declaration's name or Type.method; <anonymous>, <imports>, or <exports>; append `#index` suffix for overloads (index starts from 1)",
     }),
-    depth: Type.Optional(
-      Type.Integer({
-        minimum: 0,
-        description:
-          "Maximum code-block depth: 0 keeps signatures only, 1 keeps outer bodies. Omit for full source.",
-      }),
+    signature: Type.Optional(
+      Type.Boolean({ description: "Strip function and method bodies, return only signatures" }),
     ),
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
@@ -40,14 +33,14 @@ const inspect = defineTool({
         content: [
           {
             type: "text",
-            text: "inspect symbol format invalid. path/symbol must be non-empty. Use symbol name, e.g. name or name~2",
+            text: "inspect symbol format invalid. path/symbol must be non-empty. Use symbol name, e.g. name or name#1",
           },
         ],
       };
     }
 
     try {
-      const inspected = await inspectSymbol(ctx.cwd, path, symbol, params.depth, signal);
+      const inspected = await inspectSymbol(ctx.cwd, path, symbol, params.signature, signal);
       if (!inspected) {
         return {
           isError: true,
@@ -55,7 +48,7 @@ const inspect = defineTool({
           content: [
             {
               type: "text",
-              text: "inspect symbol not found. verify path/symbol; for duplicates use ~n suffix (name~2). then try container symbol. if still missing, run code_map with broader kinds",
+              text: "inspect symbol not found. verify path/symbol; for later duplicates use #n suffix (name#1). then try container symbol. if still missing, run code_map with broader kinds",
             },
           ],
         };

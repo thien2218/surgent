@@ -22,7 +22,6 @@ describe("questionnaire tool parameters", () => {
     expect(tool.exposure).toBe("model-only");
     expect(tool.description).toContain("clarifying");
     expect(properties).not.toHaveProperty("recommendedCount");
-    expect(properties.placeholder.default).toBe("Type your answer");
     expect(properties.options.items.properties.recommended.type).toBe("boolean");
   });
 
@@ -33,7 +32,6 @@ describe("questionnaire tool parameters", () => {
     { name: "missing prompt", params: { questions: [{ placeholder: "Answer" }] } },
     { name: "empty prompt", params: { questions: [{ ...question, prompt: "" }] } },
     { name: "whitespace prompt", params: { questions: [{ ...question, prompt: " \n\t" }] } },
-    { name: "missing placeholder", params: { questions: [{ prompt: "Question" }] } },
     { name: "empty placeholder", params: { questions: [{ ...question, placeholder: "" }] } },
     { name: "whitespace placeholder", params: { questions: [{ ...question, placeholder: "  " }] } },
     { name: "missing option text", params: { questions: [{ ...question, options: [{}] }] } },

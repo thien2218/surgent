@@ -1,12 +1,29 @@
 import { defineTool, truncateHead, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { resolveTargetPaths } from "./files.js";
-import { collectSymbols, SYMBOL_KINDS, type LanguageSymbol } from "../languages/index.js";
+import {
+  collectSymbols,
+  formatSymbolName,
+  readLanguages,
+  SHARED_KINDS,
+  SYMBOL_KINDS,
+  type LanguageSymbol,
+} from "../grammar/index.js";
 import { renderCallText } from "../../utils.js";
 
 interface MapperResult {
   symbols: LanguageSymbol[];
   failed: string[];
+}
+
+async function loadKindsPrompt(cwd: string) {
+  const languages = (await readLanguages(cwd)) ?? [];
+  const list = languages.map(({ name, profile }) => `- ${name}: ${profile.extraKinds.join(", ")}`);
+  return [
+    "Values for code_map `kinds`, by language. Shared kinds apply to all languages.",
+    `- shared: ${SHARED_KINDS.join(", ")}`,
+    ...list,
+  ].join("\n");
 }
 
 function collapseGroupedSymbols(symbols: LanguageSymbol[]) {
@@ -24,43 +41,49 @@ function collapseGroupedSymbols(symbols: LanguageSymbol[]) {
     groupedSymbolKind = symbol.kind;
     if (symbol.kind === "deps") {
       importsGroupIndex += 1;
-      return [{ ...symbol, name: `imports~${importsGroupIndex}`, range: undefined }];
+      const name = formatSymbolName("<imports>", importsGroupIndex);
+      return [{ ...symbol, name, range: undefined }];
     }
 
     exportsGroupIndex += 1;
-    return [{ ...symbol, name: `exports~${exportsGroupIndex}`, range: undefined }];
+    const name = formatSymbolName("<exports>", exportsGroupIndex);
+    return [{ ...symbol, name, range: undefined }];
   });
 }
 
 export default function (pi: ExtensionAPI) {
+  pi.on("before_agent_start", async (event, ctx) => {
+    if (pi.getActiveTools().includes("code_map")) {
+      event.systemPromptOptions.sections.symbol_kinds = await loadKindsPrompt(ctx.cwd);
+    } else {
+      delete event.systemPromptOptions.sections.symbol_kinds;
+    }
+  });
+
   pi.registerTool(
     defineTool({
       name: "code_map",
       label: "Code map",
       description:
-        "Fast symbol and code blocks offset/limit indexing. Best for: narrowing targets to inspect/read or code discovery.",
+        "List symbols and code blocks with line ranges, to pick inspect targets or read offset/limit.",
       parameters: Type.Object({
         paths: Type.Array(Type.String({ minLength: 1 }), {
-          description:
-            "File or directory paths to scan (relative to cwd or absolute). No globs. Keep scope narrow.",
+          description: "Files or directories to scan, no globs. Keep narrow",
           minItems: 1,
           uniqueItems: true,
         }),
         glob: Type.Optional(
-          Type.String({
-            description: "Filter files found in directories, same as grep glob.",
-          }),
+          Type.String({ description: "Filter files found in directories, same as grep glob" }),
         ),
         kinds: Type.Optional(
-          Type.Array(Type.Union(SYMBOL_KINDS.map((kind) => Type.Literal(kind))), {
-            description: "Abstraction kinds to include. Omit to include all supported.",
-          }),
+          Type.Array(Type.String(), { description: "Filter symbols by kinds (default: all)" }),
         ),
       }),
       async execute(_toolCallId, params, signal, _onUpdate, ctx) {
         let outputPath = "";
         const outputLines: string[] = [];
-        const kinds = new Set(params.kinds ?? SYMBOL_KINDS);
+        const kinds = params.kinds ? new Set(params.kinds) : undefined;
+        const unknownKinds = params.kinds?.filter((kind) => !SYMBOL_KINDS.has(kind)) ?? [];
         const { files, denied, failed } = await resolveTargetPaths(
           pi,
           ctx,
@@ -87,7 +110,8 @@ export default function (pi: ExtensionAPI) {
             outputLines.push(symbol.path);
           }
 
-          let line = `  [${symbol.public ? "public " : ""}${symbol.kind}] ${symbol.name}`;
+          const modifier = symbol.public && symbol.kind !== "public" ? "public " : "";
+          let line = ` [${modifier}${symbol.kind}] ${symbol.name}`;
           if (symbol.range) {
             line += ` L${symbol.range[0]}-L${symbol.range[1]}`;
           }
@@ -99,6 +123,9 @@ export default function (pi: ExtensionAPI) {
         }
         if (denied) {
           outputLines.push("[Code map results exclude files blocked by permission policy]");
+        }
+        if (unknownKinds.length > 0) {
+          outputLines.push(`[Unknown kinds: ${unknownKinds.join(", ")}]`);
         }
         if (outputLines.length === 0) {
           outputLines.push("(no symbols found)");

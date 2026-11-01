@@ -46,7 +46,7 @@ export default function (pi: ExtensionAPI) {
       ctx.ui.setTitle(getTitle(ctx, BRAILLE_FRAMES[frameIndex]!));
       frameIndex = (frameIndex + 1) % BRAILLE_FRAMES.length;
     };
-    titleTimer = setInterval(updateTitle, 50);
+    titleTimer = setInterval(updateTitle, 100);
   });
 
   pi.registerShortcut(BASH_MODE_HOTKEY, {

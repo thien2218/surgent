@@ -1,6 +1,14 @@
 # Symbol kinds
 
-Every symbol listed by `code_map` and fetched by `inspect` has a kind. Shared kinds apply across languages; each language adds its own.
+Every symbol listed by `code_map` and fetched by `inspect` has a kind, except import and export groups. Shared kinds apply across languages; each language adds its own.
+
+Symbols sit at module level, where namespace and module bodies count as module level. Only `method` and `field` also sit one level deeper: a method or field directly inside a module-level type or type-like container.
+
+Only definitions are listed. Declarations whose definition lives elsewhere are skipped: C/C++ function prototypes and `extern` variables, TS overload signatures and `declare` values (`declare function`, `declare const`, `declare class`), Rust `extern` block functions, and Zig `extern` functions and variables. Interface, trait, and abstract method signatures are listed, since they are part of their type's definition. Inside TS `declare` blocks, interfaces and type aliases are listed, and a `declare module` or `declare namespace` only when it holds one.
+
+A declaration of several names (`int x, y;`) lists each name; `inspect` on any of them returns the whole declaration.
+
+Unnamed TS/JS default exports are listed as `default`: `export default () => {}` is `[func] default`, and a new value such as `export default { … }` is `[decl] default`. A default export of an existing name (`export default config`) stays in `(exports)`.
 
 ## Shared kinds
 
@@ -9,10 +17,13 @@ Usable by any language, used only where they fit (e.g. no `func` in Java).
 | Kind | Definition |
 | --- | --- |
 | `func` | Named callable owned by no type, at module level. Includes module-level bindings to function literals (`const load = () => {}`). |
-| `method` | Callable owned by a type or type-like container: constructors, destructors, operators, accessors with bodies, interface/trait signatures, Go receiver methods, Kotlin extension functions, C++ out-of-line definitions (`Widget::draw`). Listed as `Container.name`. |
+| `method` | Callable owned by a type or type-like container: constructors, destructors, operators, accessors with bodies, interface/trait signatures, abstract and pure virtual methods, members bound to function literals (`handler = () => {}`), Go receiver methods, Kotlin extension functions, C++ out-of-line definitions (`Widget::draw`). Listed under its container, or as `Container.name` when apart from it; `inspect` takes `Container.name`. |
+| `field` | Variable or constant declared in a type or type-like container: instance and static fields, class constants, properties without accessor bodies, property signatures, constructor parameters declared as properties (TS `private db: Db`, Kotlin `val x`, record components), Ruby `attr_reader`/`attr_writer`/`attr_accessor`. Excludes enum members and object literal keys. Listed under its container, or as `Container.name` when apart from it; `inspect` takes `Container.name`. |
 | `decl` | Module-level variable or constant whose value is not a function, type, or import. Excludes fields inside types. |
-| `deps` | Import, include, use, or require of another file, module, or package. Consecutive ones collapse into `<imports>`. |
-| `public` | Export list or statement (`export { a, b }`, Python `__all__`, Java `exports`); consecutive ones collapse into `<exports>`. Also marks any other symbol importable from another file or module (`[public func] load`). Filtering by `public` returns both. |
+
+## Imports and exports
+
+Imports, includes, uses, and requires of another file, module, or package have no kind. They are listed only at the top level of a file, outside any block: imports inside `if`, `try`, `#ifdef`, or a namespace are skipped, while a C/C++ include guard and a Java module declaration don't count as blocks. Top-level imports separated only by blank lines or comments are listed as one `(imports)` entry, and export lists or statements (`export { a, b }`, Python `__all__`, Java `exports`) as one `(exports)` entry; any other code between them starts a new entry. Both appear only when `code_map` is called without `kinds`; `inspect` fetches them by name (`(imports)`, `(imports)#1`).
 
 ## Language kinds
 
@@ -20,7 +31,7 @@ Constructs only some languages have. Same name, same meaning across languages.
 
 | Kind | Definition |
 | --- | --- |
-| `class` | Type declared with `class`, incl. abstract, data, sealed, annotation classes. |
+| `class` | Type declared with `class`, incl. abstract, data, sealed, annotation classes, or bound from a Ruby class factory (`Point = Struct.new(:x)`). |
 | `interface` | Contract type declared with `interface`, incl. Java `@interface`, Kotlin `fun interface`. |
 | `struct` | Aggregate type declared with `struct`. |
 | `union` | Type declared with `union`; fields share storage. |
@@ -29,10 +40,9 @@ Constructs only some languages have. Same name, same meaning across languages.
 | `trait` | Rust `trait`. |
 | `object` | Kotlin `object`: named singleton. |
 | `module` | Named module body: Rust `mod`, Ruby `module`. |
-| `namespace` | C++ `namespace` block. |
+| `namespace` | Namespace block: C++ `namespace`, TypeScript `namespace` or `declare module`. |
 | `type` | Type alias, or named type no more specific kind covers (Go `type Celsius float64`, C# delegate, Zig opaque type or error set). |
-| `macro` | Macro definition: C/C++ `#define` (object- or function-like), Rust `macro_rules!`. |
-| `callback` | Module-level call passing a function literal or block (test suite, event handler, route), or such a call directly inside another callback's body. Symbol spans the whole call. |
+| `macro` | Macro definition: C/C++ `#define` with a value or parameters, Rust `macro_rules!`. |
 
 ## Kinds per language
 
@@ -40,15 +50,15 @@ Shared kinds that fit, plus:
 
 | Language | Language kinds |
 | --- | --- |
-| TypeScript, JavaScript | `class`, `interface`, `type`, `enum`, `callback` |
-| Python | `class` |
+| TypeScript, JavaScript | `class`, `interface`, `type`, `enum`, `namespace` |
+| Python | `class`, `type` |
 | Go | `struct`, `interface`, `type` |
 | Java | `class`, `interface`, `enum`, `record` |
 | Rust | `struct`, `enum`, `union`, `trait`, `type`, `module`, `macro` |
 | C | `struct`, `union`, `enum`, `type`, `macro` |
 | C++ | `class`, `struct`, `union`, `enum`, `namespace`, `type`, `macro` |
 | C# | `class`, `struct`, `interface`, `record`, `enum`, `type` |
-| Ruby | `class`, `module`, `callback` |
+| Ruby | `class`, `module` |
 | Kotlin | `class`, `interface`, `object`, `enum`, `type` |
 | Zig | `struct`, `enum`, `union`, `type` |
 

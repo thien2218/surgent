@@ -1,4 +1,4 @@
-import type { SyntaxNode, Tree } from "tree-sitter";
+import type { SyntaxNode } from "tree-sitter";
 import { readFieldText, readNodeText } from "../nodes.js";
 import { RuleBasedLanguageProfile } from "../profile.js";
 import type { SymbolKindRule } from "../types.js";
@@ -8,6 +8,14 @@ export const MEMBER_RULES: SymbolKindRule[] = [
   { kind: "method", container: "struct_specifier" },
   { kind: "method", container: "union_specifier" },
 ];
+export const C_MEMBER_PARENTS = [
+  "field_declaration_list",
+  "preproc_if",
+  "preproc_ifdef",
+  "preproc_else",
+  "preproc_elif",
+  "preproc_elifdef",
+];
 export const C_TOP_LEVEL_PARENTS = [
   "preproc_if",
   "preproc_ifdef",
@@ -16,6 +24,8 @@ export const C_TOP_LEVEL_PARENTS = [
   "preproc_elifdef",
   "linkage_specification",
   "declaration_list",
+  "declaration",
+  "type_definition",
 ];
 
 const NAME_TYPES = new Set([
@@ -33,16 +43,23 @@ const DECLARATOR_HOLDERS = new Set([
   "field_declaration",
   "type_definition",
 ]);
-const MEMBER_CONTAINERS = new Set(MEMBER_RULES.map((rule) => rule.container));
 
 export abstract class CFamilyLanguageProfile<
   Kind extends string,
 > extends RuleBasedLanguageProfile<Kind> {
-  private readonly definedNames = new WeakMap<Tree, Set<string>>();
+  protected readonly fieldRules = MEMBER_RULES.map((rule) => ({
+    ...rule,
+    kind: "field" as const,
+    match: (node: SyntaxNode) => this.declaresField(node),
+  }));
 
   protected readDeclarator(node: SyntaxNode) {
+    return this.walkDeclarator(node.childForFieldName("declarator"));
+  }
+
+  private walkDeclarator(declarator: SyntaxNode | null) {
     let isFunction = false;
-    let current = node.childForFieldName("declarator");
+    let current = declarator;
     while (current && !NAME_TYPES.has(current.type)) {
       // A function declarator around a parenthesized one declares a function pointer.
       if (current.type === "function_declarator") isFunction = true;
@@ -53,45 +70,53 @@ export abstract class CFamilyLanguageProfile<
   }
 
   protected splitName(nameNode: SyntaxNode) {
+    const scopes: string[] = [];
     let finalNode = nameNode;
     while (finalNode.type === "qualified_identifier") {
       const nextNode = finalNode.childForFieldName("name");
       if (!nextNode) break;
+      const scope = readBaseName(finalNode.childForFieldName("scope"));
+      if (scope) scopes.push(scope);
       finalNode = nextNode;
     }
-
-    const scope = nameNode.text
-      .slice(0, nameNode.text.length - finalNode.text.length)
-      .replace(/\s*::\s*$/, "");
-    const name =
-      finalNode.type === "template_function"
-        ? readFieldText(finalNode, "name")
-        : readNodeText(finalNode);
-    return { scope: scope || undefined, name };
+    return { scopes, name: readBaseName(finalNode) };
   }
 
   readNodeName(node: SyntaxNode) {
-    if (node.type === "preproc_include") {
-      return readFieldText(node, "path")?.replace(/^[<"](.*)[>"]$/, "$1");
-    }
     if (DECLARATOR_HOLDERS.has(node.type)) {
-      const { nameNode } = this.readDeclarator(node);
-      return nameNode ? this.splitName(nameNode).name : undefined;
+      return this.readNodeNames(node)[0];
     }
     return this.readNameField(node);
+  }
+
+  readNodeNames(node: SyntaxNode) {
+    if (!DECLARATOR_HOLDERS.has(node.type)) return super.readNodeNames(node);
+    return node.childrenForFieldName("declarator").flatMap((declarator) => {
+      const { nameNode } = this.walkDeclarator(declarator);
+      const name = nameNode ? this.splitName(nameNode).name : undefined;
+      return name ?? [];
+    });
   }
 
   readContainerName(node: SyntaxNode) {
     if (DECLARATOR_HOLDERS.has(node.type)) {
       const { nameNode } = this.readDeclarator(node);
-      const scope = nameNode ? this.splitName(nameNode).scope : undefined;
-      if (scope) return scope;
+      const owner = nameNode ? this.splitName(nameNode).scopes.at(-1) : undefined;
+      if (owner) return owner;
     }
-    return super.readContainerName(node);
+    const containerName = super.readContainerName(node);
+    if (containerName) return containerName;
+
+    const typedefNode = this.findContainerNode(node)?.parent;
+    return typedefNode?.type === "type_definition" ? this.readNodeName(typedefNode) : undefined;
   }
 
   protected declaresFunction(node: SyntaxNode) {
     return this.readDeclarator(node).isFunction;
+  }
+
+  protected declaresField(node: SyntaxNode) {
+    return node.childForFieldName("declarator") !== null && !this.declaresFunction(node);
   }
 
   protected declaresMethod(node: SyntaxNode) {
@@ -99,15 +124,18 @@ export abstract class CFamilyLanguageProfile<
     return isFunction && nameNode?.type === "qualified_identifier";
   }
 
-  protected isLonePrototype(node: SyntaxNode) {
-    return this.declaresFunction(node) && !this.hasDefinition(node);
+  protected declaresVariable(node: SyntaxNode) {
+    const isExtern = node.children.some(
+      (childNode) => childNode.type === "storage_class_specifier" && childNode.text === "extern",
+    );
+    return !isExtern && !this.declaresFunction(node);
   }
 
   protected definesSpecifier(node: SyntaxNode) {
     if (!node.childForFieldName("body")) return false;
     return (
       node.parent?.type !== "type_definition" ||
-      this.readNodeName(node.parent) !== this.readNodeName(node)
+      !this.readNodeNames(node.parent).includes(this.readNodeName(node) ?? "")
     );
   }
 
@@ -115,23 +143,23 @@ export abstract class CFamilyLanguageProfile<
     return node.childForFieldName("value") !== null;
   }
 
-  private hasDefinition(node: SyntaxNode) {
-    let names = this.definedNames.get(node.tree);
-    if (!names) {
-      names = new Set();
-      for (const definition of node.tree.rootNode.descendantsOfType("function_definition")) {
-        names.add(this.readSymbolKey(definition));
-      }
-      this.definedNames.set(node.tree, names);
-    }
-    return names.has(this.readSymbolKey(node));
+  protected isGroupParent(node: SyntaxNode) {
+    return isIncludeGuard(node) || super.isGroupParent(node);
   }
+}
 
-  private readSymbolKey(node: SyntaxNode) {
-    const name = this.readNodeName(node);
-    const isMethod =
-      this.declaresMethod(node) || MEMBER_CONTAINERS.has(this.findContainerNode(node)?.type);
-    const container = isMethod ? this.readContainerName(node) : undefined;
-    return container ? `${container}.${name}` : `${name}`;
-  }
+function isIncludeGuard(node: SyntaxNode) {
+  if (node.type !== "preproc_ifdef" || node.child(0)?.type !== "#ifndef") return false;
+  const definition = node.namedChildren
+    .slice(1)
+    .find((childNode) => childNode.type !== "comment");
+  return (
+    definition?.type === "preproc_def" &&
+    readFieldText(definition, "name") === readFieldText(node, "name")
+  );
+}
+
+function readBaseName(node: SyntaxNode | null) {
+  const isTemplate = node?.type === "template_type" || node?.type === "template_function";
+  return isTemplate ? readFieldText(node, "name") : readNodeText(node);
 }

@@ -28,7 +28,7 @@ vi.mock("tree-sitter", () => ({
       const children = [identifier, body];
       const fields: Record<string, unknown> = { name: identifier, body };
       const declaration = {
-        type: "function_declaration", text: source, parent: null as unknown,
+        type: "function_declaration", text: source, parent: null as unknown, tree: null as unknown,
         namedChildren: children, namedChildCount: children.length,
         namedChild: (index: number) => children[index] ?? null,
         childForFieldName: (field: string) => fields[field] ?? null,
@@ -42,10 +42,12 @@ vi.mock("tree-sitter", () => ({
         startIndex: 0, endIndex: source.length,
         startPosition: { row: 0, column: 0 }, endPosition: { row: 0, column: source.length },
       };
+      const tree = { rootNode: root };
       identifier.parent = declaration;
       body.parent = declaration;
       declaration.parent = root;
-      return { rootNode: root };
+      declaration.tree = tree;
+      return tree;
     }
   },
 }));

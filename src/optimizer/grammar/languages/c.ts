@@ -1,7 +1,7 @@
 import type { Language } from "tree-sitter";
 import { loadGrammarModule } from "../ensure.js";
 import type { SymbolKindRule } from "../types.js";
-import { CFamilyLanguageProfile, C_TOP_LEVEL_PARENTS } from "./c-family.js";
+import { CFamilyLanguageProfile, C_MEMBER_PARENTS, C_TOP_LEVEL_PARENTS } from "./c-family.js";
 
 const C_KINDS = ["struct", "union", "enum", "type", "macro"] as const;
 type CKind = (typeof C_KINDS)[number];
@@ -11,6 +11,7 @@ export class CLanguageProfile extends CFamilyLanguageProfile<CKind> {
   readonly extraKinds = C_KINDS;
   protected readonly topLevelRoots = new Set(["translation_unit"]);
   protected readonly topLevelParents = new Set(C_TOP_LEVEL_PARENTS);
+  protected readonly memberParents = new Set(C_MEMBER_PARENTS);
   protected readonly containerTypes = new Set([
     "function_definition",
     "declaration",
@@ -20,27 +21,21 @@ export class CLanguageProfile extends CFamilyLanguageProfile<CKind> {
     "enum_specifier",
     "preproc_function_def",
     "preproc_def",
-    "preproc_include",
   ]);
   protected readonly rules = new Map<string, SymbolKindRule<CKind>[]>([
-    ["function_definition", [{ kind: "func", topLevelOnly: true }]],
+    ["function_definition", [{ kind: "func" }]],
     [
       "declaration",
-      [
-        { kind: "func", topLevelOnly: true, match: (node) => this.isLonePrototype(node) },
-        { kind: "decl", topLevelOnly: true, match: (node) => !this.declaresFunction(node) },
-      ],
+      [{ kind: "decl", match: (node) => this.declaresVariable(node) }],
     ],
-    ["type_definition", [{ kind: "type", topLevelOnly: true }]],
+    ["field_declaration", this.fieldRules],
+    ["type_definition", [{ kind: "type" }]],
     ["struct_specifier", [{ kind: "struct", match: (node) => this.definesSpecifier(node) }]],
     ["union_specifier", [{ kind: "union", match: (node) => this.definesSpecifier(node) }]],
     ["enum_specifier", [{ kind: "enum", match: (node) => this.definesSpecifier(node) }]],
-    ["preproc_function_def", [{ kind: "macro", topLevelOnly: true }]],
-    [
-      "preproc_def",
-      [{ kind: "macro", topLevelOnly: true, match: (node) => this.definesMacro(node) }],
-    ],
-    ["preproc_include", [{ kind: "deps", topLevelOnly: true }]],
+    ["preproc_function_def", [{ kind: "macro" }]],
+    ["preproc_def", [{ kind: "macro", match: (node) => this.definesMacro(node) }]],
+    ["preproc_include", [{ kind: "import" }]],
   ]);
 
   async loadLanguage(_extension: string) {

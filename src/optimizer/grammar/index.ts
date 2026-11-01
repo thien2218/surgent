@@ -108,7 +108,7 @@ export function getAllLanguages() {
 }
 
 export { readLanguages } from "./ensure.js";
-export { collectSymbols, formatSymbolName } from "./symbols.js";
+export { collectSymbols } from "./symbols.js";
 export { SHARED_KINDS } from "./types.js";
 export type { LanguageProfile, LanguageSymbol } from "./types.js";
 export const SYMBOL_KINDS = new Set([

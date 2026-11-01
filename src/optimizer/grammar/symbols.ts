@@ -5,6 +5,12 @@ import type { LanguageSymbol } from "./types.js";
 import { extname, resolve } from "node:path";
 import Parser from "tree-sitter";
 
+const MEMBER_KINDS = new Set(["method", "field"]);
+const GROUP_NAMES = new Map([
+  ["import", "(imports)"],
+  ["export", "(exports)"],
+]);
+
 async function createCodeParser(extension: string) {
   const { profile } = getLanguageByExt(extension);
   if (!profile) {
@@ -34,8 +40,8 @@ async function getRootNode(cwd: string, path: string) {
   return tree.rootNode;
 }
 
-// First occurrence keeps its bare name; later ones get #1, #2, ...
-export function formatSymbolName(name: string, occurrence: number) {
+function formatSymbolName(name: string, occurrence: number) {
+  // First occurrence keeps its bare name; later ones get #1, #2, ...
   return occurrence > 1 ? `${name}#${occurrence - 1}` : name;
 }
 
@@ -50,6 +56,28 @@ export async function collectSymbols(cwd: string, path: string, kinds?: Readonly
   const symbols: LanguageSymbol[] = [];
   const pendingNodes: SyntaxNode[] = [root];
   const symbolIdCounts = new Map<string, number>();
+  const source = root.text;
+  let group: { symbol: LanguageSymbol; startNode: SyntaxNode } | undefined;
+
+  const nameSymbol = (name: string) => {
+    const symbolIdCount = (symbolIdCounts.get(name) ?? 0) + 1;
+    symbolIdCounts.set(name, symbolIdCount);
+    return formatSymbolName(name, symbolIdCount);
+  };
+
+  const isAdjacent = (lastNode: SyntaxNode, nextNode: SyntaxNode) => {
+    let index = lastNode.endIndex;
+    while (index < nextNode.startIndex) {
+      if (/\s/.test(source[index - root.startIndex] ?? "")) {
+        index += 1;
+        continue;
+      }
+      const gapNode = root.namedDescendantForIndex(index);
+      if (!gapNode.type.includes("comment")) return false;
+      index = gapNode.endIndex;
+    }
+    return true;
+  };
 
   while (pendingNodes.length > 0) {
     const currentNode = pendingNodes.pop();
@@ -65,31 +93,58 @@ export async function collectSymbols(cwd: string, path: string, kinds?: Readonly
     const symbolKind = profile.resolveSymbolKind(currentNode);
     if (!symbolKind) continue;
 
-    const isPublic = profile.isPublicSymbol(currentNode);
-    if (kinds && !kinds.has(symbolKind) && !(isPublic && kinds.has("public"))) continue;
+    const groupName = GROUP_NAMES.get(symbolKind);
+    if (groupName) {
+      const startNode = profile.findStartNode(currentNode);
+      if (group?.symbol.kind === symbolKind && isAdjacent(group.symbol.node, startNode)) {
+        group.symbol.node = currentNode;
+        group.symbol.range = readLineRange(group.startNode, currentNode);
+        continue;
+      }
 
-    const baseName = profile.readNodeName(currentNode);
-    if (!baseName) continue;
+      const symbol = {
+        name: nameSymbol(groupName),
+        baseName: groupName,
+        path,
+        kind: symbolKind,
+        node: currentNode,
+        startIndex: startNode.startIndex,
+        range: readLineRange(startNode, currentNode),
+      };
+      symbols.push(symbol);
+      group = { symbol, startNode };
+      continue;
+    }
 
-    const containerName = profile.readContainerName(currentNode);
-    const symbolName =
-      symbolKind === "method" && containerName ? `${containerName}.${baseName}` : baseName;
+    const baseNames = profile.readNodeNames(currentNode);
+    if (baseNames.length === 0) continue;
 
-    const symbolIdCount = (symbolIdCounts.get(symbolName) ?? 0) + 1;
-    symbolIdCounts.set(symbolName, symbolIdCount);
-    const { startPosition, endPosition } = currentNode;
-    // Nodes such as C preprocessor lines end after their newline, at the next row.
-    const endsAfterNewline = endPosition.column === 0 && endPosition.row > startPosition.row;
-
-    symbols.push({
-      name: formatSymbolName(symbolName, symbolIdCount),
-      path,
-      kind: symbolKind,
-      node: currentNode,
-      range: [startPosition.row + 1, endsAfterNewline ? endPosition.row : endPosition.row + 1],
-      public: isPublic,
-    });
+    group = undefined;
+    const container = MEMBER_KINDS.has(symbolKind)
+      ? profile.readContainerName(currentNode)
+      : undefined;
+    const startNode = profile.findStartNode(currentNode);
+    for (const baseName of baseNames) {
+      symbols.push({
+        name: nameSymbol(container ? `${container}.${baseName}` : baseName),
+        baseName,
+        container,
+        path,
+        kind: symbolKind,
+        node: currentNode,
+        startIndex: startNode.startIndex,
+        range: readLineRange(startNode, currentNode),
+      });
+    }
   }
 
-  return symbols;
+  return kinds ? symbols.filter((symbol) => kinds.has(symbol.kind)) : symbols;
+}
+
+function readLineRange(startNode: SyntaxNode, endNode: SyntaxNode): [number, number] {
+  const { startPosition } = startNode;
+  const { endPosition } = endNode;
+  // Nodes such as C preprocessor lines end after their newline, at the next row.
+  const endsAfterNewline = endPosition.column === 0 && endPosition.row > startPosition.row;
+  return [startPosition.row + 1, endsAfterNewline ? endPosition.row : endPosition.row + 1];
 }

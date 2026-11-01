@@ -15,9 +15,8 @@ function findMethodBodies(node: SyntaxNode, profile: LanguageProfile) {
     const current = pendingNodes.pop();
     if (!current) continue;
 
-    if (profile.resolveSymbolKind(current) === "method") {
-      const body = profile.findBodyNode(current);
-      if (body) bodies.push(body);
+    if (profile.isMethod(current)) {
+      bodies.push(...profile.findBodyNodes(current));
       continue;
     }
     pendingNodes.push(...current.namedChildren.slice().reverse());
@@ -26,69 +25,31 @@ function findMethodBodies(node: SyntaxNode, profile: LanguageProfile) {
   return bodies;
 }
 
+function readSymbolText(symbol: LanguageSymbol) {
+  const root = symbol.node.tree.rootNode;
+  return root.text.slice(symbol.startIndex - root.startIndex, symbol.node.endIndex - root.startIndex);
+}
+
 function readSignature(symbol: LanguageSymbol, profile: LanguageProfile) {
-  const { node, kind } = symbol;
+  const { node, kind, startIndex } = symbol;
   const bodies: SyntaxNode[] = [];
   if (kind === "func" || kind === "method") {
-    const body = profile.findBodyNode(node);
-    if (body) bodies.push(body);
+    bodies.push(...profile.findBodyNodes(node));
   } else {
     bodies.push(...findMethodBodies(node, profile));
   }
 
-  const source = node.text;
+  const source = readSymbolText(symbol);
   let text = "";
   let cursor = 0;
   for (const body of bodies) {
-    text += source.slice(cursor, body.startIndex - node.startIndex).trimEnd();
-    cursor = body.endIndex - node.startIndex;
+    text += source
+      .slice(cursor, body.startIndex - startIndex)
+      .trimEnd()
+      .replace(/\s*=>$/, "");
+    cursor = body.endIndex - startIndex;
   }
   return text + source.slice(cursor).trimEnd();
-}
-
-function inspectGroupedSymbols(
-  path: string,
-  symbolName: string,
-  symbols: LanguageSymbol[],
-  profile: LanguageProfile,
-): { path: string; symbol: string; text: string } | undefined {
-  const groupedSymbolsMatch = /^<(imports|exports)>(?:#([1-9]\d*))?$/.exec(symbolName);
-  if (!groupedSymbolsMatch) return;
-
-  const groupedSymbolKind = groupedSymbolsMatch[1] === "imports" ? "deps" : "public";
-  const requestedGroup = Number(groupedSymbolsMatch[2] ?? 0) + 1;
-  const groupedNodes: SyntaxNode[] = [];
-  const groupedRanges = new Set<string>();
-  let symbolsCollapsed = false;
-  let symbolsGroupIndex = 0;
-
-  for (const symbol of symbols) {
-    if (symbol.kind !== groupedSymbolKind) {
-      symbolsCollapsed = false;
-      continue;
-    }
-    if (!symbolsCollapsed) {
-      symbolsCollapsed = true;
-      symbolsGroupIndex += 1;
-    }
-    if (symbolsGroupIndex !== requestedGroup) continue;
-
-    const groupedNode =
-      groupedSymbolKind === "deps" ? profile.findImportNode(symbol.node) : symbol.node;
-
-    const groupedRange = `${groupedNode.startIndex}-${groupedNode.endIndex}`;
-    if (groupedRanges.has(groupedRange)) continue;
-
-    groupedRanges.add(groupedRange);
-    groupedNodes.push(groupedNode);
-  }
-
-  if (groupedNodes.length === 0) return;
-  return {
-    path,
-    symbol: symbolName,
-    text: groupedNodes.map((groupedNode) => groupedNode.text.trimEnd()).join("\n"),
-  };
 }
 
 export async function inspectSymbol(
@@ -105,12 +66,9 @@ export async function inspectSymbol(
   const { profile } = getLanguageByExt(extname(path).toLowerCase());
   if (!profile) return;
 
-  const inspectedGroup = inspectGroupedSymbols(path, symbolName, symbols, profile);
-  if (inspectedGroup) return inspectedGroup;
-
   for (const symbol of symbols) {
     if (symbol.name !== symbolName) continue;
-    const text = signature ? readSignature(symbol, profile) : symbol.node.text.trimEnd();
+    const text = signature ? readSignature(symbol, profile) : readSymbolText(symbol).trimEnd();
     return { path: symbol.path, symbol: symbol.name, text };
   }
 }

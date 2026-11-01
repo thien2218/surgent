@@ -1,36 +1,39 @@
 import type { Language, SyntaxNode } from "tree-sitter";
 
-export const SHARED_KINDS = ["func", "method", "decl", "deps", "public"] as const;
+export const SHARED_KINDS = ["func", "method", "field", "decl"] as const;
 
 export type SharedKind = (typeof SHARED_KINDS)[number];
+export type GroupKind = "import" | "export";
 
 export interface SymbolKindRule<Kind extends string = never> {
-  kind: SharedKind | Kind;
+  kind: SharedKind | GroupKind | Kind;
   parent?: string;
   container?: string;
-  topLevelOnly?: boolean;
   match?(node: SyntaxNode): boolean;
 }
 
 export interface LanguageSymbol {
   name: string;
+  baseName: string;
+  container?: string;
   path: string;
   kind: string;
   node: SyntaxNode;
-  range?: [number, number];
-  public?: boolean;
+  startIndex: number;
+  range: [number, number];
 }
 
 export interface LanguageProfile<Kind extends string = string> {
   readonly extensions: ReadonlySet<string>;
   readonly extraKinds: readonly Kind[];
   loadLanguage(extension: string): Promise<Language>;
-  resolveSymbolKind(node: SyntaxNode): SharedKind | Kind | undefined;
+  resolveSymbolKind(node: SyntaxNode): SharedKind | GroupKind | Kind | undefined;
+  isMethod(node: SyntaxNode): boolean;
   readNodeName(node: SyntaxNode): string | undefined;
+  readNodeNames(node: SyntaxNode): string[];
   readContainerName(node: SyntaxNode): string | undefined;
-  isPublicSymbol(node: SyntaxNode): boolean;
-  findImportNode(node: SyntaxNode): SyntaxNode;
-  findBodyNode(node: SyntaxNode): SyntaxNode | undefined;
+  findBodyNodes(node: SyntaxNode): SyntaxNode[];
+  findStartNode(node: SyntaxNode): SyntaxNode;
 }
 
 export interface SupportedLanguageBucket {

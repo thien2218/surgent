@@ -4,8 +4,10 @@ import { readFieldText, readNodeText } from "../nodes.js";
 import { RuleBasedLanguageProfile } from "../profile.js";
 import type { SymbolKindRule } from "../types.js";
 
-const PYTHON_KINDS = ["class"] as const;
+const PYTHON_KINDS = ["class", "type"] as const;
 type PythonKind = (typeof PYTHON_KINDS)[number];
+
+const NAME_LIST_TYPES = new Set(["pattern_list", "tuple_pattern"]);
 
 export class PythonLanguageProfile extends RuleBasedLanguageProfile<PythonKind> {
   readonly extensions = new Set([".py"]);
@@ -13,43 +15,48 @@ export class PythonLanguageProfile extends RuleBasedLanguageProfile<PythonKind> 
   protected readonly nameFieldByType = {
     __default__: "name",
     assignment: "left",
-    future_import_statement: "name",
-    import_from_statement: "name",
-    import_statement: "name",
+    type_alias_statement: "left",
   };
   protected readonly topLevelRoots = new Set(["module"]);
-  protected readonly topLevelParents = new Set(["decorated_definition", "expression_statement"]);
+  protected readonly topLevelParents = new Set([
+    "decorated_definition",
+    "expression_statement",
+    "block",
+    "if_statement",
+    "elif_clause",
+    "else_clause",
+    "try_statement",
+    "except_clause",
+    "finally_clause",
+  ]);
+  protected readonly memberParents = new Set([
+    "block",
+    "decorated_definition",
+    "expression_statement",
+  ]);
+  protected readonly groupParents = new Set(["expression_statement"]);
   protected readonly containerTypes = new Set([
     "class_definition",
     "function_definition",
     "assignment",
-    "future_import_statement",
-    "import_from_statement",
-    "import_statement",
   ]);
   protected readonly rules = new Map<string, SymbolKindRule<PythonKind>[]>([
     ["class_definition", [{ kind: "class" }]],
-    [
-      "function_definition",
-      [
-        { kind: "method", container: "class_definition" },
-        { kind: "func", topLevelOnly: true },
-      ],
-    ],
+    ["function_definition", [{ kind: "method", container: "class_definition" }, { kind: "func" }]],
     [
       "assignment",
       [
-        {
-          kind: "public",
-          topLevelOnly: true,
-          match: (node) => readFieldText(node, "left") === "__all__",
-        },
-        { kind: "decl", topLevelOnly: true },
+        { kind: "export", match: (node) => readFieldText(node, "left") === "__all__" },
+        { kind: "func", match: bindsLambda },
+        { kind: "decl", match: (node) => readFieldText(node, "left") !== "__all__" },
+        { kind: "method", container: "class_definition", match: bindsLambda },
+        { kind: "field", container: "class_definition" },
       ],
     ],
-    ["future_import_statement", [{ kind: "deps", topLevelOnly: true }]],
-    ["import_from_statement", [{ kind: "deps", topLevelOnly: true }]],
-    ["import_statement", [{ kind: "deps", topLevelOnly: true }]],
+    ["type_alias_statement", [{ kind: "type" }]],
+    ["import_statement", [{ kind: "import" }]],
+    ["import_from_statement", [{ kind: "import" }]],
+    ["future_import_statement", [{ kind: "import" }]],
   ]);
 
   async loadLanguage(_extension: string) {
@@ -59,6 +66,10 @@ export class PythonLanguageProfile extends RuleBasedLanguageProfile<PythonKind> 
   }
 
   readNodeName(node: SyntaxNode) {
+    if (node.type === "type_alias_statement") {
+      return this.readNameField(node)?.replace(/\[.*$/s, "");
+    }
+
     const nodeName = this.readNameField(node);
     if (nodeName) {
       return nodeName;
@@ -68,4 +79,20 @@ export class PythonLanguageProfile extends RuleBasedLanguageProfile<PythonKind> 
       return readNodeText(node);
     }
   }
+
+  readNodeNames(node: SyntaxNode) {
+    const targetNode = node.type === "assignment" ? node.childForFieldName("left") : null;
+    if (!NAME_LIST_TYPES.has(targetNode?.type ?? "")) return super.readNodeNames(node);
+    return (targetNode?.namedChildren ?? []).flatMap((childNode) =>
+      childNode.type === "identifier" ? [childNode.text] : [],
+    );
+  }
+
+  findStartNode(node: SyntaxNode) {
+    return node.parent?.type === "decorated_definition" ? node.parent : node;
+  }
+}
+
+function bindsLambda(node: SyntaxNode) {
+  return node.childForFieldName("right")?.type === "lambda";
 }

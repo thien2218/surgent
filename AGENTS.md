@@ -56,14 +56,14 @@ Multi-file extensions live as a directory under `src/` with an `index.ts` entry 
 
 ## After implementation
 
-Run type checking to validate the change:
+Run type check to validate ONLY code changes:
 
 ```bash
 pnpm tsc --noEmit
 ```
 
 Then tell the user what to manually test, why and how.
-Run this command exactly once, as-is, with no chaining, flags, or extra shell modifiers, and only after all write/edit operations are finalized.
+Run this command as-is, with no chaining, flags, or extra shell modifiers, and only after write/edit calls are finalized.
 
 ## Guideline
 

@@ -58,6 +58,12 @@ prometheus-transactional-reload-status = [
 pest-character-class-coalescing = [
     "printf '[cache]\\nauto-clean-frequency = \"never\"\\n' >> ~/.cargo/config.toml",
 ]
+boa-hierarchical-evaluation-cancellation = [
+    "printf '[cache]\\nauto-clean-frequency = \"never\"\\n' >> ~/.cargo/config.toml",
+]
+wasmi-trap-coredumps = [
+    "printf '[cache]\\nauto-clean-frequency = \"never\"\\n' >> ~/.cargo/config.toml",
+]
 # Jest sizes its pool from the host's cores, not the trial's 2 CPUs, and the base timing tests fail under that load.
 kea-atomic-signal-selectors = [
     "cd /app && npm pkg set jest.maxWorkers=2 --json",

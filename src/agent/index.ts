@@ -7,6 +7,13 @@ import { cycleMode } from "../permission/helpers.js";
 import { readAgentMode } from "../permission/storage.js";
 import { createState, getState, type AppState } from "../state.js";
 import { findSubsession } from "../subagent/storage.js";
+import type { AgentMode } from "./types.js";
+
+const MODE_HINTS: Record<AgentMode, string> = {
+  assistant: "auto-approve read/write operations on project files",
+  restricted: "auto-approve read-only operations on project files",
+  yolo: "CAUTION: auto-approve all, unless already denied or blocked",
+};
 
 export default function (pi: ExtensionAPI) {
   let state: AppState | undefined;
@@ -37,7 +44,7 @@ export default function (pi: ExtensionAPI) {
         .setMode(nextMode)
         .then(() => {
           updateStatus?.();
-          ctx.ui.notify(`Mode: ${nextMode}`, "info");
+          ctx.ui.notify(`${nextMode} mode - ${MODE_HINTS[nextMode]}`, "info");
         })
         .catch(() => ctx.ui.notify("Failed to change mode, please try again", "error"));
     },

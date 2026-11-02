@@ -1,4 +1,3 @@
-import { VERSION as PI_VERSION } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key } from "@earendil-works/pi-tui";
 import ModeIndicatorEditor from "./components/input-mode-indicator.js";
@@ -59,12 +58,12 @@ export default function (pi: ExtensionAPI) {
 
     ctx.ui.setTitle(getTitle(ctx, "π"));
 
-    ctx.ui.setHeader((_tui, theme) => ({
-      render: () => [
-        `${theme.bold(theme.fg("accent", APP_NAME))}${theme.fg("dim", ` v${APP_VERSION} · built on top of pi v${PI_VERSION}`)}`,
-      ],
-      invalidate() {},
-    }));
+    if (ctx.mode === "tui") {
+      const appText = ctx.ui.theme.fg("accent", `${APP_NAME} v${APP_VERSION}`);
+      const separator = ctx.ui.theme.fg("dim", "•");
+      // Pi sorts status keys; keep branding before "agent".
+      ctx.ui.setStatus("0-surgent", `${appText} ${separator}`);
+    }
 
     ctx.ui.setEditorComponent((tui, theme, keybindings) => {
       activeEditor = new ModeIndicatorEditor(tui, theme, keybindings, ctx.ui.theme);

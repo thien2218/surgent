@@ -29,7 +29,7 @@ HIDDEN_TOOLS = (
     "subagent",
     "web_fetch",
     "web_search",
-    # "questionnaire", # TODO: uncomment this on next run
+    "questionnaire",
 )
 
 # Surgent skips git-excluding `.pi/` in json mode; graders diff the repo.
@@ -151,7 +151,7 @@ class Surgent(BenchAgent, Pi):
         repo_root = lines[-1].strip() if lines else ""
         settings = {
             "agent": {"mode": "yolo"},
-            "defaultTools": ["+grep", "+find", "+ls", "+codemode"], # TODO: remove codemode on next run
+            "defaultTools": ["+grep", "+find", "+ls"],
             "grammarInstall": {"allowedRepos": [repo_root] if repo_root else []},
         }
         await place_home_file(

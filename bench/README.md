@@ -108,12 +108,14 @@ To combine results, copy every machine's `jobs/<suite>/<task>/` folders into one
 
 Some tasks are left out because the task itself is flawed, never because it's hard. A task is excluded when it has:
 
-- **Flaky tests**: the reference solution itself sometimes fails.
+- **Flaky tests\***: the reference solution itself sometimes fails.
 - **Overly strict tests**: the tests reject behavior the instruction allows.
 - **An underspecified prompt**: the tests require behavior the instruction never asks for.
 - **A grader issue**: grading can fail a correct solution for reasons outside the agent's work.
 
 A task that fails only because its environment is incomplete, such as a dependency missing from the image that the offline grader can't download, is fixed instead of excluded. Its `setup_commands` in `config.toml` install or pin what's missing before the agent starts, and each fix has a comment explaining it.
+
+_\*Observed failed test were mostly time sensitive assertions and failures are caused by clock jumps, though exact root cause has not been identified._
 
 ### DeepSWE
 

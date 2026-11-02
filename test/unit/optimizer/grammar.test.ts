@@ -69,31 +69,37 @@ describe("project language detection", () => {
     await writeFile(settingsPath(), JSON.stringify({ model: "fixture" }));
     await trackFiles({ ".md": 20, ".ts": 9, ".py": 1 });
 
-    await ensureGrammarCache({ cwd: workspace.cwd, hasUI: false } as ExtensionContext);
+    await ensureGrammarCache({ cwd: workspace.cwd, mode: "print", hasUI: false } as ExtensionContext);
 
     expect(await readSettings()).toEqual({ model: "fixture", languages: ["typescript"] });
   });
 
-  it("keeps saved languages instead of detecting again and still reports them", async () => {
+  it.each(["tui", "print", "rpc", "json"] as const)("keeps saved languages and reports them only in TUI mode (%s)", async (mode) => {
     await writeFile(settingsPath(), JSON.stringify({ languages: ["python"] }));
     await trackFiles({ ".ts": 3 });
     const ui = { setWidget: vi.fn(), notify: vi.fn(), confirm: vi.fn(async () => false) };
 
-    await ensureGrammarCache({ cwd: workspace.cwd, hasUI: true, ui } as unknown as ExtensionContext);
+    await ensureGrammarCache({ cwd: workspace.cwd, mode, hasUI: true, ui } as unknown as ExtensionContext);
 
     expect(await readSettings()).toEqual({ languages: ["python"] });
     expect(ui.setWidget).not.toHaveBeenCalled();
-    expect(ui.notify).toHaveBeenCalledWith(expect.stringContaining("python"), "info");
+    if (mode === "tui") {
+      expect(ui.notify).toHaveBeenCalledWith(expect.stringContaining("python"), "info");
+    } else {
+      expect(ui.notify).not.toHaveBeenCalled();
+    }
   });
 
-  it("shows a loader while detecting and reports the saved languages", async () => {
+  it.each(["tui", "print"] as const)("detects languages with a loader only in TUI mode (%s)", async (mode) => {
     await trackFiles({ ".py": 2 });
     const ui = { setWidget: vi.fn(), notify: vi.fn(), confirm: vi.fn(async () => false) };
 
-    await ensureGrammarCache({ cwd: workspace.cwd, hasUI: true, ui } as unknown as ExtensionContext);
+    await ensureGrammarCache({ cwd: workspace.cwd, mode, hasUI: true, ui } as unknown as ExtensionContext);
 
-    expect(ui.setWidget.mock.calls).toEqual([["grammar", expect.any(Function)], ["grammar", undefined]]);
-    expect(ui.notify).toHaveBeenCalledWith(expect.stringContaining("python"), "info");
+    expect(ui.setWidget.mock.calls).toEqual(mode === "tui"
+      ? [["grammar", expect.any(Function)], ["grammar", undefined]]
+      : []);
+    expect(await readSettings()).toEqual({ languages: ["python"] });
   });
 });
 

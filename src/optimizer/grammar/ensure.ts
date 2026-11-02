@@ -75,7 +75,7 @@ async function ensureLanguages(ctx: ExtensionContext) {
   const languages = await readLanguages(ctx.cwd);
   if (languages) return languages;
 
-  if (ctx.hasUI) {
+  if (ctx.mode === "tui") {
     ctx.ui.setWidget("grammar", (tui, theme) => {
       const loader = new Loader(
         tui,
@@ -95,7 +95,7 @@ async function ensureLanguages(ctx: ExtensionContext) {
     await writeJson(settingsPath, { ...settings, languages: detected });
     return filterLanguages(detected);
   } finally {
-    if (ctx.hasUI) ctx.ui.setWidget("grammar", undefined);
+    if (ctx.mode === "tui") ctx.ui.setWidget("grammar", undefined);
   }
 }
 
@@ -144,7 +144,7 @@ export async function ensureGrammarCache(ctx: ExtensionContext) {
   if (!repoRoot) return;
 
   const languages = await ensureLanguages(ctx);
-  if (ctx.hasUI) {
+  if (ctx.mode === "tui") {
     const message =
       languages.length > 0
         ? `Languages set for this project: ${languages.map(({ name }) => name).join(", ")}. Edit "languages" in .pi/settings.json to change.`

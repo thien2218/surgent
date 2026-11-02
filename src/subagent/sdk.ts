@@ -115,7 +115,7 @@ export async function createSdkSession(
 
   try {
     await session.bindExtensions({
-      mode: request.ctx.mode,
+      mode: "print",
       uiContext: request.ctx.hasUI ? request.ctx.ui : undefined,
     });
   } catch (error) {

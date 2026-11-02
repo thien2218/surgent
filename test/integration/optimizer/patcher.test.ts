@@ -82,6 +82,23 @@ describe("patch file changes", () => {
     expect(await fixture.exists("obsolete.txt")).toBe(false);
   });
 
+  it("includes only three surrounding lines in the user-facing diff", async () => {
+    const fixture = await setup();
+    await writeFile(fixture.path("a.txt"), "before1\nbefore2\nbefore3\nbefore4\nold\nafter1\nafter2\nafter3\nafter4\n");
+
+    const result = await fixture.run(patch("*** Update File: a.txt", "@@", "-old", "+new"));
+
+    const diff = result.details.files[0]?.diff;
+    for (const line of ["before2", "before3", "before4", "old", "new", "after1", "after2", "after3"]) {
+      expect(diff).toContain(line);
+    }
+    expect(diff).not.toContain("before1");
+    expect(diff).not.toContain("after4");
+    expect(result.content).toEqual([
+      { type: "text", text: "Success. Updated the following files:\nM a.txt" },
+    ]);
+  });
+
   it("preserves a byte order mark on update and move", async () => {
     const fixture = await setup();
     await writeFile(fixture.path("a.txt"), "﻿one\n");

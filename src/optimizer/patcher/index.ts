@@ -258,7 +258,7 @@ export const applyPatch = defineTool({
       type: change.type,
       path: relative(ctx.cwd, change.movePath ?? change.filePath).replaceAll("\\", "/"),
       // Carriage returns would move the cursor when the TUI renders the diff.
-      diff: generateDiffString(normalizeToLF(change.oldContent), normalizeToLF(change.newContent)).diff,
+      diff: generateDiffString(normalizeToLF(change.oldContent), normalizeToLF(change.newContent), 3).diff,
     }));
     const summaryLines = files.map((file) => `${SUMMARY_CODES[file.type]} ${file.path}`);
 

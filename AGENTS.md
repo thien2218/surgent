@@ -14,6 +14,7 @@
 ├── package.json
 ├── pnpm-lock.yaml
 ├── pnpm-workspace.yaml
+├── bench
 ├── src
 │   ├── agent
 │   ├── checkpoint
@@ -28,6 +29,7 @@
 │   ├── ui
 │   ├── utils.ts
 │   └── web-tools
+├── test
 └── tsconfig.json
 ```
 
@@ -75,3 +77,4 @@ Run this command as-is, with no chaining, flags, or extra shell modifiers, and o
 - Avoid nested ternary operators.
 - Always use `npm version` to bump surgent version
 - Edits to built-in agents (`src/agent/built-in/*.md`) must match the file's existing prose and output style: terse fragments in `general.md`, full sentences in the others.
+- Use at least 8 workers for running tests to avoid tests run taking too long.

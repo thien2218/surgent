@@ -17,7 +17,7 @@ const inspect = defineTool({
     path: Type.String({ description: "File containing the symbol" }),
     symbol: Type.String({
       description:
-        "Declaration's name or Type.member; `(imports)` or `(exports)`. If name repeats in file, first one is bare and later ones are `name#1`, `name#2`, … in order",
+        "Declaration's name or Type.member; `(imports)` or `(exports)`. If name repeats in file, first one is bare and later ones are `name#1`, `name#2`, …",
     }),
     signature: Type.Optional(
       Type.Boolean({ description: "Strip function and method bodies, return only signatures" }),

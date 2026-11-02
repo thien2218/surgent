@@ -9,7 +9,7 @@ const DESCRIPTION = [
   "List symbols with line ranges, in source order under each file path:",
   "",
   "- `[<kind>]` applies to every `;`-separated symbol on its line.",
-  "- Indented symbols are members of the line above. Inspect them as `Type.member`.",
+  "- Indented symbols are declared members of the line above.",
   "",
   "Example:",
   "",
@@ -18,9 +18,7 @@ const DESCRIPTION = [
   " (imports) L1-L7",
   " [struct] Server L9-L12",
   "  [field] Host L10; port L11",
-  "  [method] Get L15",
   " [method] Server.Start L18-L22",
-  " [func] NewServer L24-L26; main L28-L31",
   "```",
 ].join("\n");
 

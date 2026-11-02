@@ -80,12 +80,12 @@ async function openAgentConfigEditor(ctx: ExtensionCommandContext, agent: Agent)
     editor.onSave = async (updatedMeta) => {
       await writeAgentMeta(agent, updatedMeta);
       agent.meta = updatedMeta;
-      ctx.ui.notify(`Agent "${agent.name}" config updated`, "info");
+      ctx.ui.notify(`Updated config for agent "${agent.name}"`, "info");
       done();
     };
     editor.onSaveError = (error) => {
       const message = error instanceof Error ? error.message : String(error);
-      ctx.ui.notify(`Failed to update agent config: ${message}`, "error");
+      ctx.ui.notify(`Failed to update config for agent "${agent.name}": ${message}`, "error");
     };
 
     return editor;

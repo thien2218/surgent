@@ -178,7 +178,7 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile<TypeScri
     return body ? [body] : [];
   }
 
-  findStartNode(node: SyntaxNode) {
+  protected findDeclarationStart(node: SyntaxNode) {
     if (node.type === "variable_declarator") return findDeclarationStart(node);
     if (node.parent?.type === "variable_declarator") return findDeclarationStart(node.parent);
     if (node.parent?.type === "export_statement") return node.parent;

@@ -92,7 +92,7 @@ export class RustLanguageProfile extends RuleBasedLanguageProfile<RustKind> {
     }
   }
 
-  findStartNode(node: SyntaxNode) {
+  protected findDeclarationStart(node: SyntaxNode) {
     let startNode = node;
     while (startNode.previousNamedSibling?.type === "attribute_item") {
       startNode = startNode.previousNamedSibling;

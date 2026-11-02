@@ -54,6 +54,33 @@ export abstract class RuleBasedLanguageProfile<
   }
 
   findStartNode(node: SyntaxNode) {
+    const root = node.tree.rootNode;
+    const source = root.text;
+    let startNode = this.findDeclarationStart(node);
+
+    while (true) {
+      const comment = startNode.previousNamedSibling;
+      if (!comment?.type.includes("comment")) break;
+      // Inner documentation belongs to the enclosing scope, not the following symbol.
+      if (comment.childForFieldName("inner")) break;
+
+      const commentStart = comment.startIndex - root.startIndex;
+      const lineStart = source.lastIndexOf("\n", commentStart - 1) + 1;
+      if (source.slice(lineStart, commentStart).trim()) break;
+
+      const lastRow =
+        comment.endPosition.column === 0 ? comment.endPosition.row - 1 : comment.endPosition.row;
+      const gap = source.slice(comment.endIndex - root.startIndex, startNode.startIndex - root.startIndex);
+      if (startNode.startPosition.row - lastRow > 1 || gap.trim()) break;
+
+      // Comments can separate decorators or attributes; retain those wrappers too.
+      startNode = this.findDeclarationStart(comment);
+    }
+
+    return startNode;
+  }
+
+  protected findDeclarationStart(node: SyntaxNode) {
     return node;
   }
 

@@ -87,7 +87,7 @@ export class CppLanguageProfile extends CFamilyLanguageProfile<CppKind> {
     });
   }
 
-  findStartNode(node: SyntaxNode) {
+  protected findDeclarationStart(node: SyntaxNode) {
     let startNode = node;
     while (startNode.parent?.type === "template_declaration") {
       startNode = startNode.parent;

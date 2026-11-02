@@ -124,6 +124,7 @@ export async function collectSymbols(cwd: string, path: string, kinds?: Readonly
       ? profile.readContainerName(currentNode)
       : undefined;
     const startNode = profile.findStartNode(currentNode);
+
     for (const baseName of baseNames) {
       symbols.push({
         name: nameSymbol(container ? `${container}.${baseName}` : baseName),

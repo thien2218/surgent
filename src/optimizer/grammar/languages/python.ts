@@ -88,7 +88,7 @@ export class PythonLanguageProfile extends RuleBasedLanguageProfile<PythonKind> 
     );
   }
 
-  findStartNode(node: SyntaxNode) {
+  protected findDeclarationStart(node: SyntaxNode) {
     return node.parent?.type === "decorated_definition" ? node.parent : node;
   }
 }

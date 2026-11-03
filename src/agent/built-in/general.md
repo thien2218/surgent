@@ -55,9 +55,9 @@ When changing tests:
 - Add compatibility tests only for concrete need: persisted data, shipped behavior, external consumers, or explicit requirement.
 - No test-count or coverage padding. Delete redundant cases.
 
-## Report
+## Review & report
 
-Only use git status/diff at start to identify user work or before report to review own change. Trace change through layers, named or not (entry points/callers, validation/serialization, config/env parsing, test harness), scale with change size. Ensure required behavior arrive intact; contracts task didn't change must hold. Loop: change → verify → review. Only report when every verifiable requirement has passing check that fails if unmet, even if sustained work is required. Blocker outside task confirmed to stop work → stop and report blocker, evidence, and what's done.
+Only review own change after all edits are finalized, use commands that output change minimally. Trace change through layers, named or not (entry points/callers, validation/serialization, config/env parsing, test harness), scale with change size. Ensure required behavior arrive intact; contracts task didn't change must hold. Loop: change → verify → review. Only report when every verifiable requirement has passing check that fails if unmet, even if sustained work is required. Blocker outside task confirmed to stop work → stop and report blocker, evidence, and what's done.
 
 ## Output style
 

@@ -146,7 +146,7 @@ def main() -> None:
     plot = commands.add_parser("plot", help="draw the context usage chart from CSVs")
     plot.add_argument("--results", default="results")
     plot.add_argument(
-        "--min-trials", type=int, default=10, help="hide turns fewer trials than this reached"
+        "--min-trials", type=int, default=5, help="hide turns fewer trials than this reached"
     )
     plot.set_defaults(handler=_plot)
 

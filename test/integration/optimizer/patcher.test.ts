@@ -15,7 +15,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
   return { ...original, writeFile: vi.fn(original.writeFile) };
 });
 
-const patch = (...lines: string[]) => ["*** Begin Patch", ...lines, "*** End Patch"].join("\n");
+const patch = (...lines: string[]) => ["*** Begin", ...lines, "*** End"].join("\n");
 
 async function setup() {
   const workspace = await createWorkspace({ prefix: "surgent-patcher-" });
@@ -45,20 +45,20 @@ describe("patch file changes", () => {
 
     const result = await fixture.run(
       patch(
-        "*** Add File: docs/new/hello.txt",
+        "*** Add: docs/new/hello.txt",
         "+Hello",
         "+world",
-        "*** Update File: app.py",
+        "*** Update: app.py",
         "@@ def greet():",
         '-    print("Hi")',
         '+    print("Hello")',
-        "*** Update File: old.txt",
+        "*** Update: old.txt",
         "*** Move to: moved/renamed.txt",
         "@@",
         " keep",
         "-old",
         "+new",
-        "*** Delete File: obsolete.txt",
+        "*** Delete: obsolete.txt",
       ),
     );
 
@@ -84,12 +84,24 @@ describe("patch file changes", () => {
 
   it("includes only three surrounding lines in the user-facing diff", async () => {
     const fixture = await setup();
-    await writeFile(fixture.path("a.txt"), "before1\nbefore2\nbefore3\nbefore4\nold\nafter1\nafter2\nafter3\nafter4\n");
+    await writeFile(
+      fixture.path("a.txt"),
+      "before1\nbefore2\nbefore3\nbefore4\nold\nafter1\nafter2\nafter3\nafter4\n",
+    );
 
-    const result = await fixture.run(patch("*** Update File: a.txt", "@@", "-old", "+new"));
+    const result = await fixture.run(patch("*** Update: a.txt", "@@", "-old", "+new"));
 
     const diff = result.details.files[0]?.diff;
-    for (const line of ["before2", "before3", "before4", "old", "new", "after1", "after2", "after3"]) {
+    for (const line of [
+      "before2",
+      "before3",
+      "before4",
+      "old",
+      "new",
+      "after1",
+      "after2",
+      "after3",
+    ]) {
       expect(diff).toContain(line);
     }
     expect(diff).not.toContain("before1");
@@ -106,11 +118,11 @@ describe("patch file changes", () => {
 
     await fixture.run(
       patch(
-        "*** Update File: a.txt",
+        "*** Update: a.txt",
         "@@",
         "-one",
         "+ONE",
-        "*** Update File: b.txt",
+        "*** Update: b.txt",
         "*** Move to: c.txt",
         "@@",
         "-two",
@@ -126,7 +138,7 @@ describe("patch file changes", () => {
     const fixture = await setup();
     await writeFile(fixture.path("a.txt"), "one\r\ntwo\r\nthree\r\n");
 
-    const result = await fixture.run(patch("*** Update File: a.txt", "@@", " one", "-two", "+TWO"));
+    const result = await fixture.run(patch("*** Update: a.txt", "@@", " one", "-two", "+TWO"));
 
     expect(await fixture.read("a.txt")).toBe("one\nTWO\nthree\r\n");
     expect(result.details.files[0]?.diff).not.toContain("\r");
@@ -137,14 +149,10 @@ describe("patch file changes", () => {
     await writeFile(fixture.path("a.txt"), "one\ntwo\n");
 
     await fixture.run(
-      patch(
-        "*** Update File: a.txt",
-        "@@",
-        "-one",
-        "+ONE",
-        "*** Add File: b.txt",
-        "+new",
-      ).replaceAll("\n", "\r\n"),
+      patch("*** Update: a.txt", "@@", "-one", "+ONE", "*** Add: b.txt", "+new").replaceAll(
+        "\n",
+        "\r\n",
+      ),
     );
 
     expect(await fixture.read("a.txt")).toBe("ONE\r\ntwo\n");
@@ -155,7 +163,7 @@ describe("patch file changes", () => {
     const fixture = await setup();
     await writeFile(fixture.path("a.txt"), "x\ny\nx\n");
 
-    await fixture.run(patch("*** Update File: a.txt", "@@", "-x", "+X", "*** End of File"));
+    await fixture.run(patch("*** Update: a.txt", "@@", "-x", "+X", "*** End of File"));
 
     expect(await fixture.read("a.txt")).toBe("x\ny\nX\n");
   });
@@ -165,9 +173,9 @@ describe("patch file changes", () => {
 
     const result = await fixture.run(
       patch(
-        "*** Add File: ../outside.txt",
+        "*** Add: ../outside.txt",
         "+relative",
-        `*** Add File: ${join(fixture.root, "absolute.txt")}`,
+        `*** Add: ${join(fixture.root, "absolute.txt")}`,
         "+absolute",
       ),
     );
@@ -179,11 +187,11 @@ describe("patch file changes", () => {
     });
   });
 
-  it("replaces an existing file named by Add File", async () => {
+  it("replaces an existing file named by Add", async () => {
     const fixture = await setup();
     await writeFile(fixture.path("a.txt"), "old\n");
 
-    await fixture.run(patch("*** Add File: a.txt", "+new"));
+    await fixture.run(patch("*** Add: a.txt", "+new"));
 
     expect(await fixture.read("a.txt")).toBe("new\n");
   });
@@ -193,21 +201,21 @@ describe("patch verification", () => {
   it.each([
     [
       "missing context",
-      ["*** Update File: a.txt", "@@ nowhere", "-one", "+two"],
+      ["*** Update: a.txt", "@@ nowhere", "-one", "+two"],
       "Failed to find context 'nowhere'",
     ],
     [
       "missing lines",
-      ["*** Update File: a.txt", "@@", "-nope", "+two"],
+      ["*** Update: a.txt", "@@", "-nope", "+two"],
       "Failed to find expected lines",
     ],
     [
       "a missing file to update",
-      ["*** Update File: missing.txt", "@@", "-x", "+y"],
+      ["*** Update: missing.txt", "@@", "-x", "+y"],
       "Failed to read file to update",
     ],
-    ["a missing file to delete", ["*** Delete File: missing.txt"], "Failed to read file to delete"],
-    ["a directory", ["*** Update File: dir", "@@", "-x", "+y"], "Not a regular file"],
+    ["a missing file to delete", ["*** Delete: missing.txt"], "Failed to read file to delete"],
+    ["a directory", ["*** Update: dir", "@@", "-x", "+y"], "Not a regular file"],
   ])("changes nothing when a later section has %s", async (_case, failing, message) => {
     const fixture = await setup();
     await writeFile(fixture.path("a.txt"), "one\n");
@@ -216,15 +224,7 @@ describe("patch verification", () => {
 
     await expect(
       fixture.run(
-        patch(
-          "*** Update File: b.txt",
-          "@@",
-          "-keep",
-          "+changed",
-          "*** Add File: new.txt",
-          "+x",
-          ...failing,
-        ),
+        patch("*** Update: b.txt", "@@", "-keep", "+changed", "*** Add: new.txt", "+x", ...failing),
       ),
     ).rejects.toThrow(message);
 
@@ -240,7 +240,7 @@ describe("patch verification", () => {
 
     await expect(
       fixture.run(
-        patch("*** Update File: b.txt", "@@", "-keep", "+changed", "*** Add File: new.txt", "+x"),
+        patch("*** Update: b.txt", "@@", "-keep", "+changed", "*** Add: new.txt", "+x"),
         controller.signal,
       ),
     ).rejects.toThrow();
@@ -256,16 +256,7 @@ describe("patch sections on one file", () => {
     await writeFile(fixture.path("a.txt"), "one\ntwo\n");
 
     const result = await fixture.run(
-      patch(
-        "*** Update File: a.txt",
-        "@@",
-        "-one",
-        "+ONE",
-        "*** Update File: a.txt",
-        "@@",
-        "-two",
-        "+TWO",
-      ),
+      patch("*** Update: a.txt", "@@", "-one", "+ONE", "*** Update: a.txt", "@@", "-two", "+TWO"),
     );
 
     expect(await fixture.read("a.txt")).toBe("ONE\nTWO\n");
@@ -277,9 +268,7 @@ describe("patch sections on one file", () => {
   it("updates a file added earlier in the patch", async () => {
     const fixture = await setup();
 
-    await fixture.run(
-      patch("*** Add File: a.txt", "+one", "*** Update File: a.txt", "@@", "-one", "+two"),
-    );
+    await fixture.run(patch("*** Add: a.txt", "+one", "*** Update: a.txt", "@@", "-one", "+two"));
 
     expect(await fixture.read("a.txt")).toBe("two\n");
   });
@@ -288,7 +277,7 @@ describe("patch sections on one file", () => {
     const fixture = await setup();
     await writeFile(fixture.path("a.txt"), "old\n");
 
-    await fixture.run(patch("*** Delete File: a.txt", "*** Add File: a.txt", "+new"));
+    await fixture.run(patch("*** Delete: a.txt", "*** Add: a.txt", "+new"));
 
     expect(await fixture.read("a.txt")).toBe("new\n");
   });
@@ -296,7 +285,7 @@ describe("patch sections on one file", () => {
   it("leaves nothing for a file added and deleted in the same patch", async () => {
     const fixture = await setup();
 
-    await fixture.run(patch("*** Add File: a.txt", "+tmp", "*** Delete File: a.txt"));
+    await fixture.run(patch("*** Add: a.txt", "+tmp", "*** Delete: a.txt"));
 
     expect(await fixture.exists("a.txt")).toBe(false);
   });
@@ -306,7 +295,7 @@ describe("patch sections on one file", () => {
     await writeFile(fixture.path("a.txt"), "one\n");
 
     await expect(
-      fixture.run(patch("*** Delete File: a.txt", "*** Update File: a.txt", "@@", "-one", "+two")),
+      fixture.run(patch("*** Delete: a.txt", "*** Update: a.txt", "@@", "-one", "+two")),
     ).rejects.toThrow("Failed to read file to update");
 
     expect(await fixture.read("a.txt")).toBe("one\n");
@@ -319,7 +308,7 @@ describe("patch moves", () => {
     await writeFile(fixture.path("a.txt"), "one\n");
 
     const result = await fixture.run(
-      patch("*** Update File: a.txt", `*** Move to: ${destination}`, "@@", "-one", "+two"),
+      patch("*** Update: a.txt", `*** Move to: ${destination}`, "@@", "-one", "+two"),
     );
 
     expect(await fixture.read("a.txt")).toBe("two\n");
@@ -333,7 +322,7 @@ describe("patch moves", () => {
     await writeFile(fixture.path("a.txt"), "one\n");
     await writeFile(fixture.path("b.txt"), "existing\n");
 
-    await fixture.run(patch("*** Update File: a.txt", "*** Move to: b.txt", "@@", "-one", "+two"));
+    await fixture.run(patch("*** Update: a.txt", "*** Move to: b.txt", "@@", "-one", "+two"));
 
     expect(await fixture.read("b.txt")).toBe("two\n");
     expect(await fixture.exists("a.txt")).toBe(false);
@@ -349,11 +338,11 @@ describe("patch symlinks", () => {
     await expect(
       fixture.run(
         patch(
-          "*** Update File: link.txt",
+          "*** Update: link.txt",
           "@@",
           "-one",
           "+two",
-          "*** Update File: real.txt",
+          "*** Update: real.txt",
           "@@",
           "-one",
           "+three",
@@ -371,7 +360,7 @@ describe("patch symlinks", () => {
     await writeFile(fixture.path("real.txt"), "one\n");
     await symlink(fixture.path("real.txt"), fixture.path("link.txt"));
 
-    await fixture.run(patch("*** Update File: link.txt", "@@", "-one", "+two"));
+    await fixture.run(patch("*** Update: link.txt", "@@", "-one", "+two"));
 
     expect(await fixture.read("real.txt")).toBe("two\n");
     expect((await lstat(fixture.path("link.txt"))).isSymbolicLink()).toBe(true);
@@ -384,8 +373,8 @@ describe("patch concurrent writers", () => {
     await writeFile(fixture.path("a.txt"), "one\ntwo\n");
 
     await Promise.all([
-      fixture.run(patch("*** Update File: a.txt", "@@", "-one", "+ONE")),
-      fixture.run(patch("*** Update File: a.txt", "@@", "-two", "+TWO")),
+      fixture.run(patch("*** Update: a.txt", "@@", "-one", "+ONE")),
+      fixture.run(patch("*** Update: a.txt", "@@", "-two", "+TWO")),
     ]);
 
     expect(await fixture.read("a.txt")).toBe("ONE\nTWO\n");
@@ -410,7 +399,7 @@ describe("patch concurrent writers", () => {
     });
     await holding;
 
-    const patching = fixture.run(patch("*** Update File: real.txt", "@@", "-two", "+three"));
+    const patching = fixture.run(patch("*** Update: real.txt", "@@", "-two", "+three"));
     release();
     await Promise.all([holder, patching]);
 
@@ -429,14 +418,14 @@ describe("patch rollback", () => {
     await expect(
       fixture.run(
         patch(
-          "*** Update File: a.txt",
+          "*** Update: a.txt",
           "@@",
           "-one",
           "+two",
-          "*** Delete File: run.sh",
-          "*** Add File: nested/deep/x.txt",
+          "*** Delete: run.sh",
+          "*** Add: nested/deep/x.txt",
           "+x",
-          "*** Add File: blocker/child.txt",
+          "*** Add: blocker/child.txt",
           "+y",
         ),
       ),
@@ -457,12 +446,12 @@ describe("patch rollback", () => {
     await expect(
       fixture.run(
         patch(
-          "*** Update File: a.txt",
+          "*** Update: a.txt",
           "*** Move to: b.txt",
           "@@",
           "-one",
           "+two",
-          "*** Add File: blocker/child.txt",
+          "*** Add: blocker/child.txt",
           "+y",
         ),
       ),
@@ -490,11 +479,11 @@ describe("patch rollback", () => {
     await expect(
       fixture.run(
         patch(
-          "*** Update File: a.txt",
+          "*** Update: a.txt",
           "@@",
           "-one",
           "+two",
-          "*** Update File: b.txt",
+          "*** Update: b.txt",
           "@@",
           "-keep",
           "+changed",

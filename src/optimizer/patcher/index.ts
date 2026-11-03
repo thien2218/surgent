@@ -12,35 +12,35 @@ import { deriveNewContent, joinBom, normalizeToLF, parsePatch, splitBom } from "
 import { renderCallText } from "../../utils.js";
 import type { Hunk, FileChange, PatchedFile, PatchPlan, Snapshot, WriteStep } from "./types.js";
 
-const FILE_HEADER = /^\*\*\* (?:Add|Update|Delete) File:\s*(.+)$/gm;
+const FILE_HEADER = /^\*\*\* (?:Add|Update|Delete):\s*(.+)$/gm;
 const SUMMARY_CODES = { add: "A", update: "M", move: "M", delete: "D" } as const;
 
 const DESCRIPTION = [
   "Edit files with stripped-down, file-oriented diff format. Wrap file sections in envelope:",
   "",
-  "*** Begin Patch",
-  "[ one or more file sections ]",
-  "*** End Patch",
+  "*** Begin",
+  "[ 1+ file sections ]",
+  "*** End",
   "",
   "Each section starts with one of three headers:",
   "",
-  "*** Add File: <path> - create file. Every following line is + line (initial contents).",
-  "*** Delete File: <path> - remove existing file. Nothing follows.",
-  "*** Update File: <path> - patch existing file in place, optionally with rename.",
+  "*** Add: <path> - create file. Every following line is + line (initial contents)",
+  "*** Delete: <path> - remove existing file, nothing follows",
+  "*** Update: <path> - patch existing file in place, optionally with rename",
   "",
   "Example:",
   "",
   "```",
-  "*** Begin Patch",
-  "*** Add File: hello.txt",
+  "*** Begin",
+  "*** Add: hello.txt",
   "+Hello world",
-  "*** Update File: src/app.py",
+  "*** Update: src/app.py",
   "*** Move to: src/main.py",
   "@@ def greet():",
   '-print("Hi")',
   '+print("Hello, world!")',
-  "*** Delete File: obsolete.txt",
-  "*** End Patch",
+  "*** Delete: obsolete.txt",
+  "*** End",
   "```",
   "",
 ].join("\n");
@@ -132,10 +132,7 @@ async function planChange(hunk: Hunk, cwd: string, plan: PatchPlan): Promise<Fil
         // Removed before the destination is set, so moving a file onto itself keeps it.
         plan.files.set(filePath, null);
       }
-      plan.files.set(
-        movePath ?? filePath,
-        joinBom(newContent, source.bom),
-      );
+      plan.files.set(movePath ?? filePath, joinBom(newContent, source.bom));
 
       return {
         filePath,
@@ -236,7 +233,7 @@ export const applyPatch = defineTool({
     }
 
     if (hunks.length === 0) {
-      if (normalizeToLF(params.patchText).trim() === "*** Begin Patch\n*** End Patch") {
+      if (normalizeToLF(params.patchText).trim() === "*** Begin\n*** End") {
         throw new Error("patch rejected: empty patch");
       }
       throw new Error("patch verification failed: no hunks found");
@@ -258,7 +255,11 @@ export const applyPatch = defineTool({
       type: change.type,
       path: relative(ctx.cwd, change.movePath ?? change.filePath).replaceAll("\\", "/"),
       // Carriage returns would move the cursor when the TUI renders the diff.
-      diff: generateDiffString(normalizeToLF(change.oldContent), normalizeToLF(change.newContent), 3).diff,
+      diff: generateDiffString(
+        normalizeToLF(change.oldContent),
+        normalizeToLF(change.newContent),
+        3,
+      ).diff,
     }));
     const summaryLines = files.map((file) => `${SUMMARY_CODES[file.type]} ${file.path}`);
 

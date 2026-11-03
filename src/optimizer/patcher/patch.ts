@@ -1,10 +1,10 @@
 import type { Comparator, Hunk, Replacement, UpdateChunk } from "./types.js";
 
-const BEGIN_MARKER = "*** Begin Patch";
-const END_MARKER = "*** End Patch";
-const ADD_HEADER = "*** Add File:";
-const DELETE_HEADER = "*** Delete File:";
-const UPDATE_HEADER = "*** Update File:";
+const BEGIN_MARKER = "*** Begin";
+const END_MARKER = "*** End";
+const ADD_HEADER = "*** Add:";
+const DELETE_HEADER = "*** Delete:";
+const UPDATE_HEADER = "*** Update:";
 const MOVE_HEADER = "*** Move to:";
 const EOF_MARKER = "*** End of File";
 const BOM = "﻿";

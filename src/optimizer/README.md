@@ -57,14 +57,14 @@ C headers (`.h`) are read with the C++ parser, which also understands C.
 GPT models are trained to edit code with patches. The `patch` tool gives them that format: one patch that can add, update, move, and delete several files, so a change that would otherwise take several edit calls takes one:
 
 ```text
-*** Begin Patch
-*** Update File: src/app.py
+*** Begin
+*** Update: src/app.py
 @@ def greet():
 -    print("Hi")
 +    print("Hello")
-*** Add File: docs/hello.txt
+*** Add: docs/hello.txt
 +Hello
-*** End Patch
+*** End
 ```
 
 Every file in the patch is checked before anything is written, so a patch that does not match leaves all files unchanged. If a write fails partway, files already written are restored. Updated files keep their byte order mark, and lines outside the patched regions keep their line endings.

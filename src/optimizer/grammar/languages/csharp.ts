@@ -1,21 +1,24 @@
 import type { Language, SyntaxNode } from "tree-sitter";
 import { loadGrammarModule } from "../ensure.js";
 import { readFieldText, readNodeText } from "../nodes.js";
-import { RuleBasedLanguageProfile } from "../profile.js";
+import { nestRule, RuleBasedLanguageProfile } from "../profile.js";
 import type { SymbolKindRule } from "../types.js";
 
 const CSHARP_KINDS = ["class", "struct", "interface", "record", "enum", "type"] as const;
 type CSharpKind = (typeof CSHARP_KINDS)[number];
 
-const MEMBER_RULES: SymbolKindRule[] = [
-  { kind: "method", container: "class_declaration" },
-  { kind: "method", container: "struct_declaration" },
-  { kind: "method", container: "interface_declaration" },
-  { kind: "method", container: "record_declaration" },
+const TYPE_CONTAINERS = [
+  "class_declaration",
+  "struct_declaration",
+  "interface_declaration",
+  "record_declaration",
 ];
+const MEMBER_RULES: SymbolKindRule[] = TYPE_CONTAINERS.map((container) => ({
+  kind: "method",
+  container,
+}));
+const METHOD_RULES = MEMBER_RULES.map((rule) => ({ ...rule, match: hasBody }));
 const PROPERTY_RULES = MEMBER_RULES.map((rule) => ({ ...rule, match: hasAccessorBody }));
-const FIELD_RULES = MEMBER_RULES.map((rule) => ({ ...rule, kind: "field" as const }));
-const FIELD_TYPES = new Set(["field_declaration", "event_field_declaration"]);
 
 export class CSharpLanguageProfile extends RuleBasedLanguageProfile<CSharpKind> {
   readonly extensions = new Set([".cs"]);
@@ -26,7 +29,7 @@ export class CSharpLanguageProfile extends RuleBasedLanguageProfile<CSharpKind> 
     "declaration_list",
     "global_statement",
   ]);
-  protected readonly memberParents = new Set(["declaration_list", "parameter_list"]);
+  protected readonly memberParents = new Set(["declaration_list"]);
   protected readonly containerTypes = new Set([
     "class_declaration",
     "struct_declaration",
@@ -42,24 +45,21 @@ export class CSharpLanguageProfile extends RuleBasedLanguageProfile<CSharpKind> 
     "property_declaration",
   ]);
   protected readonly rules = new Map<string, SymbolKindRule<CSharpKind>[]>([
-    ["class_declaration", [{ kind: "class" }]],
-    ["struct_declaration", [{ kind: "struct" }]],
-    ["interface_declaration", [{ kind: "interface" }]],
-    ["record_declaration", [{ kind: "record" }]],
-    ["enum_declaration", [{ kind: "enum" }]],
-    ["delegate_declaration", [{ kind: "type" }]],
-    ["method_declaration", MEMBER_RULES],
-    ["constructor_declaration", MEMBER_RULES],
-    ["destructor_declaration", MEMBER_RULES],
-    ["operator_declaration", MEMBER_RULES],
-    ["conversion_operator_declaration", MEMBER_RULES],
-    ["property_declaration", [...PROPERTY_RULES, ...FIELD_RULES]],
-    ["field_declaration", FIELD_RULES],
-    ["event_field_declaration", FIELD_RULES],
-    ["parameter", [{ kind: "field", container: "record_declaration", parent: "parameter_list" }]],
+    ["class_declaration", nestRule({ kind: "class" }, TYPE_CONTAINERS)],
+    ["struct_declaration", nestRule({ kind: "struct" }, TYPE_CONTAINERS)],
+    ["interface_declaration", nestRule({ kind: "interface" }, TYPE_CONTAINERS)],
+    ["record_declaration", nestRule({ kind: "record" }, TYPE_CONTAINERS)],
+    ["enum_declaration", nestRule({ kind: "enum" }, TYPE_CONTAINERS)],
+    ["delegate_declaration", nestRule({ kind: "type" }, TYPE_CONTAINERS)],
+    ["method_declaration", METHOD_RULES],
+    ["constructor_declaration", METHOD_RULES],
+    ["destructor_declaration", METHOD_RULES],
+    ["operator_declaration", METHOD_RULES],
+    ["conversion_operator_declaration", METHOD_RULES],
+    ["property_declaration", PROPERTY_RULES],
     ["indexer_declaration", PROPERTY_RULES],
     ["event_declaration", PROPERTY_RULES],
-    ["local_function_statement", [{ kind: "func" }]],
+    ["local_function_statement", [{ kind: "func", match: hasBody }]],
     ["using_directive", [{ kind: "import" }]],
   ]);
 
@@ -87,16 +87,10 @@ export class CSharpLanguageProfile extends RuleBasedLanguageProfile<CSharpKind> 
     }
     return this.readNameField(node);
   }
+}
 
-  readNodeNames(node: SyntaxNode) {
-    if (!FIELD_TYPES.has(node.type)) return super.readNodeNames(node);
-    const declaration = node.namedChildren.find(
-      (childNode) => childNode.type === "variable_declaration",
-    );
-    return (declaration?.namedChildren ?? []).flatMap((childNode) =>
-      childNode.type === "variable_declarator" ? (readFieldText(childNode, "name") ?? []) : [],
-    );
-  }
+function hasBody(node: SyntaxNode) {
+  return node.childForFieldName("body") !== null;
 }
 
 function hasAccessorBody(node: SyntaxNode) {

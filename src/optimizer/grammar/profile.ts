@@ -1,6 +1,13 @@
 import type { Language, SyntaxNode } from "tree-sitter";
 import { readFieldText } from "./nodes.js";
-import type { GroupKind, LanguageProfile, SharedKind, SymbolKindRule } from "./types.js";
+import type { LanguageProfile, SymbolKindRule } from "./types.js";
+
+export function nestRule<Kind extends string>(
+  rule: SymbolKindRule<Kind>,
+  containers: readonly string[],
+): SymbolKindRule<Kind>[] {
+  return [rule, ...containers.map((container) => ({ ...rule, container }))];
+}
 
 export abstract class RuleBasedLanguageProfile<
   Kind extends string,
@@ -19,8 +26,8 @@ export abstract class RuleBasedLanguageProfile<
 
   abstract loadLanguage(extension: string): Promise<Language>;
 
-  resolveSymbolKind(node: SyntaxNode): SharedKind | GroupKind | Kind | undefined {
-    return this.rules.get(node.type)?.find((rule) => this.matchesRule(node, rule))?.kind;
+  resolveSymbolRule(node: SyntaxNode) {
+    return this.rules.get(node.type)?.find((rule) => this.matchesRule(node, rule));
   }
 
   isMethod(node: SyntaxNode) {
@@ -46,6 +53,10 @@ export abstract class RuleBasedLanguageProfile<
   readContainerName(node: SyntaxNode) {
     const containerNode = this.findContainerNode(node);
     return containerNode ? this.readNodeName(containerNode) : undefined;
+  }
+
+  readScopeName(_node: SyntaxNode): string | undefined {
+    return undefined;
   }
 
   findBodyNodes(node: SyntaxNode) {

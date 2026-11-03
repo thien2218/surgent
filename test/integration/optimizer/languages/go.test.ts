@@ -4,7 +4,7 @@ import { inspectFixture, mapFixture, useGrammarCache } from "../../../helpers/la
 useGrammarCache();
 
 describe("Go symbols", () => {
-  it("groups imports and lists struct fields and methods named by receiver type", async () => {
+  it("groups imports and lists methods named by receiver type without interface methods or bodyless functions", async () => {
     expect(await mapFixture("main.go")).toEqual([
       "(imports) L3-L7",
       "[decl] Version L10",
@@ -15,16 +15,8 @@ describe("Go symbols", () => {
       "[type] ID L18",
       "[type] Celsius L20",
       "[struct] Server L22-L28",
-      "[field] Server.Name L23",
-      "[field] Server.Host L23",
-      "[field] Server.port L24",
-      "[field] Server.Config L25",
-      "[field] Server.Handler L26",
-      "[field] Server.inner L27",
       "[struct] List L30-L32",
-      "[field] List.items L31",
       "[interface] Store L34-L37",
-      "[method] Store.Get L36",
       "[method] Server.Start L39-L43",
       "[method] List.Push L45",
       "[func] NewServer L47-L49",

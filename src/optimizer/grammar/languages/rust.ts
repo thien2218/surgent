@@ -1,11 +1,13 @@
 import type { Language, SyntaxNode } from "tree-sitter";
 import { loadGrammarModule } from "../ensure.js";
 import { readNodeText } from "../nodes.js";
-import { RuleBasedLanguageProfile } from "../profile.js";
+import { nestRule, RuleBasedLanguageProfile } from "../profile.js";
 import type { SymbolKindRule } from "../types.js";
 
 const RUST_KINDS = ["struct", "enum", "union", "trait", "type", "module", "macro"] as const;
 type RustKind = (typeof RUST_KINDS)[number];
+
+const TYPE_CONTAINERS = ["impl_item", "trait_item"];
 
 export class RustLanguageProfile extends RuleBasedLanguageProfile<RustKind> {
   readonly extensions = new Set([".rs"]);
@@ -16,10 +18,9 @@ export class RustLanguageProfile extends RuleBasedLanguageProfile<RustKind> {
     "foreign_mod_item",
     "mod_item",
   ]);
-  protected readonly memberParents = new Set(["declaration_list", "field_declaration_list"]);
+  protected readonly memberParents = new Set(["declaration_list"]);
   protected readonly containerTypes = new Set([
     "function_item",
-    "function_signature_item",
     "struct_item",
     "enum_item",
     "union_item",
@@ -40,29 +41,14 @@ export class RustLanguageProfile extends RuleBasedLanguageProfile<RustKind> {
         { kind: "func" },
       ],
     ],
-    ["function_signature_item", [{ kind: "method", container: "trait_item" }]],
     ["struct_item", [{ kind: "struct" }]],
     ["enum_item", [{ kind: "enum" }]],
     ["union_item", [{ kind: "union" }]],
     ["trait_item", [{ kind: "trait" }]],
-    ["type_item", [{ kind: "type" }]],
+    ["type_item", nestRule({ kind: "type" }, TYPE_CONTAINERS)],
     ["mod_item", [{ kind: "module" }]],
     ["macro_definition", [{ kind: "macro" }]],
-    [
-      "const_item",
-      [
-        { kind: "decl" },
-        { kind: "field", container: "impl_item" },
-        { kind: "field", container: "trait_item" },
-      ],
-    ],
-    [
-      "field_declaration",
-      [
-        { kind: "field", container: "struct_item" },
-        { kind: "field", container: "union_item" },
-      ],
-    ],
+    ["const_item", [{ kind: "decl" }]],
     ["static_item", [{ kind: "decl" }]],
     ["use_declaration", [{ kind: "import" }]],
     ["extern_crate_declaration", [{ kind: "import" }]],

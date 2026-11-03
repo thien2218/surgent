@@ -2,9 +2,9 @@
 
 Every symbol listed by `code_map` and fetched by `inspect` has a kind, except import and export groups. Shared kinds apply across languages; each language adds its own.
 
-Symbols sit at module level, where namespace and module bodies count as module level. Only `method` and `field` also sit one level deeper: a method or field directly inside a module-level type or type-like container.
+Symbols sit at module level, where namespace and module bodies count as module level. Methods and nested types also sit one level deeper, directly inside a module-level type or type-like container. They are listed under their container, or as `Container.name` when defined apart from it; `inspect` takes `Container.name`.
 
-Only definitions are listed. Declarations whose definition lives elsewhere are skipped: C/C++ function prototypes and `extern` variables, TS overload signatures and `declare` values (`declare function`, `declare const`, `declare class`), Rust `extern` block functions, and Zig `extern` functions and variables. Interface, trait, and abstract method signatures are listed, since they are part of their type's definition. Inside TS `declare` blocks, interfaces and type aliases are listed, and a `declare module` or `declare namespace` only when it holds one.
+Only definitions are listed. Functions and methods without a body, such as prototypes and interface or abstract methods, are skipped, along with `extern` and TS `declare` values. Inside TS `declare` blocks, interfaces and type aliases are listed, and a `declare module` or `declare namespace` only when it holds one.
 
 A declaration of several names (`int x, y;`) lists each name; `inspect` on any of them returns the whole declaration.
 
@@ -16,10 +16,9 @@ Usable by any language, used only where they fit (e.g. no `func` in Java).
 
 | Kind | Definition |
 | --- | --- |
-| `func` | Named callable owned by no type, at module level. Includes module-level bindings to function literals (`const load = () => {}`). |
-| `method` | Callable owned by a type or type-like container: constructors, destructors, operators, accessors with bodies, interface/trait signatures, abstract and pure virtual methods, members bound to function literals (`handler = () => {}`), Go receiver methods, Kotlin extension functions, C++ out-of-line definitions (`Widget::draw`). Listed under its container, or as `Container.name` when apart from it; `inspect` takes `Container.name`. |
-| `field` | Variable or constant declared in a type or type-like container: instance and static fields, class constants, properties without accessor bodies, property signatures, constructor parameters declared as properties (TS `private db: Db`, Kotlin `val x`, record components), Ruby `attr_reader`/`attr_writer`/`attr_accessor`. Excludes enum members and object literal keys. Listed under its container, or as `Container.name` when apart from it; `inspect` takes `Container.name`. |
-| `decl` | Module-level variable or constant whose value is not a function, type, or import. Excludes fields inside types. |
+| `func` | Named callable owned by no type, at module level. |
+| `method` | Callable owned by a type or type-like container. |
+| `decl` | Module-level variable or constant whose value is not a function, type, or import. |
 
 ## Imports and exports
 

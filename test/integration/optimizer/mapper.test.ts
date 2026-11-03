@@ -6,39 +6,35 @@ useGrammarCache();
 
 describe("code_map layout", () => {
   it("nests members under their type and joins consecutive symbols of one kind", async () => {
-    expect(formatSymbols(await collectFixture("main.go"))).toEqual([
-      "main.go",
-      " (imports) L3-L7",
-      " [decl] Version L10; maxRetries L11; low L14; high L14",
-      " [func] handle L16",
-      " [type] ID L18; Celsius L20",
-      " [struct] Server L22-L28",
-      "  [field] Name L23; Host L23; port L24; Config L25; Handler L26; inner L27",
-      " [struct] List L30-L32",
-      "  [field] items L31",
-      " [interface] Store L34-L37",
-      "  [method] Get L36",
-      " [method] Server.Start L39-L43; List.Push L45",
-      " [func] NewServer L47-L49; main L51-L54",
+    expect(formatSymbols(await collectFixture("Main.java"))).toEqual([
+      "Main.java",
+      " (imports) L3-L5",
+      " [class] Main L7-L24",
+      "  [method] Main L11; toString L13-L19",
+      "  [class] Nested L21-L23",
+      " [interface] Shape L26-L34",
+      "  [method] label L31-L33",
+      " [enum] Color L36-L49",
+      "  [method] Color L42-L44; code L46-L48",
+      " [record] Point L51-L59",
+      "  [method] Point L52-L54; sum L56-L58",
+      " [interface] Marker L61-L63",
     ]);
   });
 
-  it("starts a new line for a symbol whose members follow it", async () => {
-    expect(formatSymbols(await collectFixture("main.c")).slice(0, 7)).toEqual([
-      "main.c",
-      " (imports) L1-L2",
-      " [macro] BUFFER_SIZE L4; MAX L5",
-      " [type] uint L8",
-      " [type] Point L10-L12",
-      "  [field] x L11; y L11",
-      " [type] Size L14-L16",
+  it("starts a new line for a symbol whose members follow it, including types defined outside it", async () => {
+    expect(formatSymbols(await collectFixture("main.cpp")).slice(-4)).toEqual([
+      " [struct] Shape L76-L78",
+      " [struct] Tree L80-L84",
+      "  [type] Key L81",
+      "  [struct] Node L86-L88",
     ]);
   });
 
   it("keeps Type.member names when their types are filtered out", async () => {
     expect(formatSymbols(await collectFixture("main.go", ["method"]))).toEqual([
       "main.go",
-      " [method] Store.Get L36; Server.Start L39-L43; List.Push L45",
+      " [method] Server.Start L39-L43; List.Push L45",
     ]);
   });
 
@@ -52,7 +48,6 @@ describe("code_map layout", () => {
       " (imports) L4",
       " [macro] LIMIT L6",
       " [type] buffer L8-L11",
-      "  [field] length L9; data L10",
     ]);
   });
 });

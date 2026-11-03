@@ -52,3 +52,5 @@ func main() {
 	run := func() {}
 	run()
 }
+
+func nanotime() int64

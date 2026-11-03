@@ -76,3 +76,11 @@ fn main() {
     fn helper() {}
     let local = 1;
 }
+
+impl Iterator for Pair {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<u32> {
+        None
+    }
+}

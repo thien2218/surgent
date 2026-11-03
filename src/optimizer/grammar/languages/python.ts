@@ -1,13 +1,14 @@
 import type { Language, SyntaxNode } from "tree-sitter";
 import { loadGrammarModule } from "../ensure.js";
 import { readFieldText, readNodeText } from "../nodes.js";
-import { RuleBasedLanguageProfile } from "../profile.js";
+import { nestRule, RuleBasedLanguageProfile } from "../profile.js";
 import type { SymbolKindRule } from "../types.js";
 
 const PYTHON_KINDS = ["class", "type"] as const;
 type PythonKind = (typeof PYTHON_KINDS)[number];
 
 const NAME_LIST_TYPES = new Set(["pattern_list", "tuple_pattern"]);
+const TYPE_CONTAINERS = ["class_definition"];
 
 export class PythonLanguageProfile extends RuleBasedLanguageProfile<PythonKind> {
   readonly extensions = new Set([".py"]);
@@ -41,7 +42,7 @@ export class PythonLanguageProfile extends RuleBasedLanguageProfile<PythonKind> 
     "assignment",
   ]);
   protected readonly rules = new Map<string, SymbolKindRule<PythonKind>[]>([
-    ["class_definition", [{ kind: "class" }]],
+    ["class_definition", nestRule({ kind: "class" }, TYPE_CONTAINERS)],
     ["function_definition", [{ kind: "method", container: "class_definition" }, { kind: "func" }]],
     [
       "assignment",
@@ -50,10 +51,9 @@ export class PythonLanguageProfile extends RuleBasedLanguageProfile<PythonKind> 
         { kind: "func", match: bindsLambda },
         { kind: "decl", match: (node) => readFieldText(node, "left") !== "__all__" },
         { kind: "method", container: "class_definition", match: bindsLambda },
-        { kind: "field", container: "class_definition" },
       ],
     ],
-    ["type_alias_statement", [{ kind: "type" }]],
+    ["type_alias_statement", nestRule({ kind: "type" }, TYPE_CONTAINERS)],
     ["import_statement", [{ kind: "import" }]],
     ["import_from_statement", [{ kind: "import" }]],
     ["future_import_statement", [{ kind: "import" }]],

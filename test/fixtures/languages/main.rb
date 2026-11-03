@@ -56,3 +56,7 @@ end
 task :build do
   puts "build"
 end
+
+class Point::Formatter
+  def call; end
+end

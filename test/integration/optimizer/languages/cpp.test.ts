@@ -4,7 +4,7 @@ import { inspectFixture, mapFixture, useGrammarCache } from "../../../helpers/la
 useGrammarCache();
 
 describe("C++ symbols", () => {
-  it("lists namespaces, class members, definitions without their prototypes, templates, and lambdas", async () => {
+  it("lists namespaces, nested types, methods with bodies, templates, and lambdas without prototypes", async () => {
     expect(await mapFixture("main.cpp")).toEqual([
       "(imports) L1-L6",
       "[macro] LOG L8",
@@ -12,27 +12,23 @@ describe("C++ symbols", () => {
       "[type] Size L11",
       "[namespace] app L13-L43",
       "[class] Widget L15-L33",
-      "[field] Widget.MAX L17",
-      "[field] Widget.width L18",
-      "[field] Widget.callback L19",
       "[method] Widget.area L25",
-      "[field] Widget.label L32",
+      "[class] Widget.Part L27-L29",
       "[method] Widget.Widget L35",
       "[method] Widget.~Widget L37",
       "[method] Widget.draw L39",
       "[struct] Box L45-L51",
-      "[field] Box.value L47",
       "[method] Box.get L48",
       "[method] Box.put L53-L55",
       "[func] largest L57-L60",
       "[union] Number L62-L65",
-      "[field] Number.i L63",
-      "[field] Number.f L64",
       "[enum] Color L67",
       "[func] add L69",
       "[func] main L71-L74",
       "[struct] Shape L76-L78",
-      "[method] Shape.area L77",
+      "[struct] Tree L80-L84",
+      "[type] Tree.Key L81",
+      "[struct] Tree.Node L86-L88",
     ]);
   });
 
@@ -41,9 +37,13 @@ describe("C++ symbols", () => {
       "(imports) L4",
       "[macro] LIMIT L6",
       "[type] buffer L8-L11",
-      "[field] buffer.length L9",
-      "[field] buffer.data L10",
     ]);
+  });
+
+  it("inspects a nested type defined outside its container by its container-qualified name", async () => {
+    expect(await inspectFixture("main.cpp", "Tree.Node")).toBe(
+      ["struct Tree::Node {", "  Key key;", "}"].join("\n"),
+    );
   });
 
   it("strips inline method bodies from a class signature", async () => {

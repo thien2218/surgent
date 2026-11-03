@@ -1,6 +1,6 @@
 import type { Language, SyntaxNode } from "tree-sitter";
 
-export const SHARED_KINDS = ["func", "method", "field", "decl"] as const;
+export const SHARED_KINDS = ["func", "method", "decl"] as const;
 
 export type SharedKind = (typeof SHARED_KINDS)[number];
 export type GroupKind = "import" | "export";
@@ -27,11 +27,12 @@ export interface LanguageProfile<Kind extends string = string> {
   readonly extensions: ReadonlySet<string>;
   readonly extraKinds: readonly Kind[];
   loadLanguage(extension: string): Promise<Language>;
-  resolveSymbolKind(node: SyntaxNode): SharedKind | GroupKind | Kind | undefined;
+  resolveSymbolRule(node: SyntaxNode): SymbolKindRule<Kind> | undefined;
   isMethod(node: SyntaxNode): boolean;
   readNodeName(node: SyntaxNode): string | undefined;
   readNodeNames(node: SyntaxNode): string[];
   readContainerName(node: SyntaxNode): string | undefined;
+  readScopeName(node: SyntaxNode): string | undefined;
   findBodyNodes(node: SyntaxNode): SyntaxNode[];
   findStartNode(node: SyntaxNode): SyntaxNode;
 }

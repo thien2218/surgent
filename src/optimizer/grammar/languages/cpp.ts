@@ -1,15 +1,19 @@
 import type { Language, SyntaxNode } from "tree-sitter";
 import { loadGrammarModule } from "../ensure.js";
+import { nestRule } from "../profile.js";
 import type { SymbolKindRule } from "../types.js";
 import {
   CFamilyLanguageProfile,
   C_MEMBER_PARENTS,
   C_TOP_LEVEL_PARENTS,
   MEMBER_RULES,
+  TYPE_CONTAINERS,
 } from "./c-family.js";
 
 const CPP_KINDS = ["class", "struct", "union", "enum", "namespace", "type", "macro"] as const;
 type CppKind = (typeof CPP_KINDS)[number];
+
+const METHOD_RULES = MEMBER_RULES.map((rule) => ({ ...rule, match: hasBody }));
 
 export class CppLanguageProfile extends CFamilyLanguageProfile<CppKind> {
   // C headers parse as C++ too, while the C grammar breaks on C++ headers.
@@ -25,7 +29,6 @@ export class CppLanguageProfile extends CFamilyLanguageProfile<CppKind> {
   protected readonly containerTypes = new Set([
     "function_definition",
     "declaration",
-    "field_declaration",
     "type_definition",
     "alias_declaration",
     "class_specifier",
@@ -36,17 +39,13 @@ export class CppLanguageProfile extends CFamilyLanguageProfile<CppKind> {
     "preproc_function_def",
     "preproc_def",
   ]);
-  private readonly abstractMethods = MEMBER_RULES.map((rule) => ({
-    ...rule,
-    match: (node: SyntaxNode) => this.declaresFunction(node) && isPureVirtual(node),
-  }));
   protected readonly rules = new Map<string, SymbolKindRule<CppKind>[]>([
     [
       "function_definition",
       [
-        ...MEMBER_RULES,
-        { kind: "method", match: (node) => this.declaresMethod(node) },
-        { kind: "func" },
+        ...METHOD_RULES,
+        { kind: "method", match: (node) => hasBody(node) && this.declaresMethod(node) },
+        { kind: "func", match: hasBody },
       ],
     ],
     [
@@ -56,13 +55,12 @@ export class CppLanguageProfile extends CFamilyLanguageProfile<CppKind> {
         { kind: "decl", match: (node) => this.declaresVariable(node) },
       ],
     ],
-    ["field_declaration", [...this.abstractMethods, ...this.fieldRules]],
-    ["type_definition", [{ kind: "type" }]],
-    ["alias_declaration", [{ kind: "type" }]],
-    ["class_specifier", [{ kind: "class", match: (node) => this.definesSpecifier(node) }]],
-    ["struct_specifier", [{ kind: "struct", match: (node) => this.definesSpecifier(node) }]],
-    ["union_specifier", [{ kind: "union", match: (node) => this.definesSpecifier(node) }]],
-    ["enum_specifier", [{ kind: "enum", match: (node) => this.definesSpecifier(node) }]],
+    ["type_definition", nestRule({ kind: "type" }, TYPE_CONTAINERS)],
+    ["alias_declaration", nestRule({ kind: "type" }, TYPE_CONTAINERS)],
+    ["class_specifier", this.nestSpecifier("class")],
+    ["struct_specifier", this.nestSpecifier("struct")],
+    ["union_specifier", this.nestSpecifier("union")],
+    ["enum_specifier", this.nestSpecifier("enum")],
     ["namespace_definition", [{ kind: "namespace" }]],
     ["preproc_function_def", [{ kind: "macro" }]],
     ["preproc_def", [{ kind: "macro", match: (node) => this.definesMacro(node) }]],
@@ -96,8 +94,8 @@ export class CppLanguageProfile extends CFamilyLanguageProfile<CppKind> {
   }
 }
 
-function isPureVirtual(node: SyntaxNode) {
-  return node.childForFieldName("default_value")?.text === "0";
+function hasBody(node: SyntaxNode) {
+  return node.childForFieldName("body") !== null;
 }
 
 function bindsLambda(node: SyntaxNode) {

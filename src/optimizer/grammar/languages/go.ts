@@ -1,13 +1,13 @@
 import type { Language, SyntaxNode } from "tree-sitter";
 import { loadGrammarModule } from "../ensure.js";
-import { readFieldText, readNodeText } from "../nodes.js";
+import { readNodeText } from "../nodes.js";
 import { RuleBasedLanguageProfile } from "../profile.js";
 import type { SymbolKindRule } from "../types.js";
 
 const GO_KINDS = ["struct", "interface", "type"] as const;
 type GoKind = (typeof GO_KINDS)[number];
 
-const NAME_LIST_TYPES = new Set(["const_spec", "var_spec", "field_declaration"]);
+const NAME_LIST_TYPES = new Set(["const_spec", "var_spec"]);
 
 export class GoLanguageProfile extends RuleBasedLanguageProfile<GoKind> {
   readonly extensions = new Set([".go"]);
@@ -19,25 +19,17 @@ export class GoLanguageProfile extends RuleBasedLanguageProfile<GoKind> {
     "var_declaration",
     "var_spec_list",
   ]);
-  protected readonly memberParents = new Set([
-    "interface_type",
-    "struct_type",
-    "field_declaration_list",
-  ]);
   protected readonly containerTypes = new Set([
     "function_declaration",
     "method_declaration",
-    "method_elem",
     "const_spec",
     "type_alias",
     "type_spec",
     "var_spec",
   ]);
   protected readonly rules = new Map<string, SymbolKindRule<GoKind>[]>([
-    ["function_declaration", [{ kind: "func" }]],
-    ["method_declaration", [{ kind: "method" }]],
-    ["method_elem", [{ kind: "method", container: "type_spec" }]],
-    ["field_declaration", [{ kind: "field", container: "type_spec" }]],
+    ["function_declaration", [{ kind: "func", match: hasBody }]],
+    ["method_declaration", [{ kind: "method", match: hasBody }]],
     ["const_spec", [{ kind: "decl" }]],
     ["type_alias", [{ kind: "type" }]],
     [
@@ -76,12 +68,10 @@ export class GoLanguageProfile extends RuleBasedLanguageProfile<GoKind> {
 
   readNodeNames(node: SyntaxNode) {
     if (!NAME_LIST_TYPES.has(node.type)) return super.readNodeNames(node);
-    const nameNodes = node.childrenForFieldName("name").filter((nameNode) => nameNode.isNamed);
-    if (nameNodes.length > 0) return nameNodes.map((nameNode) => nameNode.text);
-    if (node.type !== "field_declaration") return [];
-    // An embedded field is named by its type without package or type arguments.
-    const typeName = readFieldText(node, "type")?.replace(/\[.*$/s, "").split(".").at(-1);
-    return typeName ? [typeName] : [];
+    return node
+      .childrenForFieldName("name")
+      .filter((nameNode) => nameNode.isNamed)
+      .map((nameNode) => nameNode.text);
   }
 
   findBodyNodes(node: SyntaxNode) {
@@ -105,6 +95,10 @@ export class GoLanguageProfile extends RuleBasedLanguageProfile<GoKind> {
 
     return super.readContainerName(node);
   }
+}
+
+function hasBody(node: SyntaxNode) {
+  return node.childForFieldName("body") !== null;
 }
 
 function hasType(node: SyntaxNode, typeName: string) {

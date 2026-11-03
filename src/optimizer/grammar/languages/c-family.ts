@@ -1,15 +1,16 @@
 import type { SyntaxNode } from "tree-sitter";
 import { readFieldText, readNodeText } from "../nodes.js";
-import { RuleBasedLanguageProfile } from "../profile.js";
+import { nestRule, RuleBasedLanguageProfile } from "../profile.js";
 import type { SymbolKindRule } from "../types.js";
 
-export const MEMBER_RULES: SymbolKindRule[] = [
-  { kind: "method", container: "class_specifier" },
-  { kind: "method", container: "struct_specifier" },
-  { kind: "method", container: "union_specifier" },
-];
+export const TYPE_CONTAINERS = ["class_specifier", "struct_specifier", "union_specifier"];
+export const MEMBER_RULES: SymbolKindRule[] = TYPE_CONTAINERS.map((container) => ({
+  kind: "method",
+  container,
+}));
 export const C_MEMBER_PARENTS = [
   "field_declaration_list",
+  "field_declaration",
   "preproc_if",
   "preproc_ifdef",
   "preproc_else",
@@ -47,12 +48,6 @@ const DECLARATOR_HOLDERS = new Set([
 export abstract class CFamilyLanguageProfile<
   Kind extends string,
 > extends RuleBasedLanguageProfile<Kind> {
-  protected readonly fieldRules = MEMBER_RULES.map((rule) => ({
-    ...rule,
-    kind: "field" as const,
-    match: (node: SyntaxNode) => this.declaresField(node),
-  }));
-
   protected readDeclarator(node: SyntaxNode) {
     return this.walkDeclarator(node.childForFieldName("declarator"));
   }
@@ -86,6 +81,10 @@ export abstract class CFamilyLanguageProfile<
     if (DECLARATOR_HOLDERS.has(node.type)) {
       return this.readNodeNames(node)[0];
     }
+    const nameNode = node.childForFieldName("name");
+    if (nameNode?.type === "qualified_identifier") {
+      return this.splitName(nameNode).name;
+    }
     return this.readNameField(node);
   }
 
@@ -111,12 +110,15 @@ export abstract class CFamilyLanguageProfile<
     return typedefNode?.type === "type_definition" ? this.readNodeName(typedefNode) : undefined;
   }
 
-  protected declaresFunction(node: SyntaxNode) {
-    return this.readDeclarator(node).isFunction;
+  readScopeName(node: SyntaxNode) {
+    const nameNode = node.childForFieldName("name");
+    return nameNode?.type === "qualified_identifier"
+      ? this.splitName(nameNode).scopes.at(-1)
+      : undefined;
   }
 
-  protected declaresField(node: SyntaxNode) {
-    return node.childForFieldName("declarator") !== null && !this.declaresFunction(node);
+  protected declaresFunction(node: SyntaxNode) {
+    return this.readDeclarator(node).isFunction;
   }
 
   protected declaresMethod(node: SyntaxNode) {
@@ -137,6 +139,10 @@ export abstract class CFamilyLanguageProfile<
       node.parent?.type !== "type_definition" ||
       !this.readNodeNames(node.parent).includes(this.readNodeName(node) ?? "")
     );
+  }
+
+  protected nestSpecifier(kind: Kind) {
+    return nestRule<Kind>({ kind, match: (node) => this.definesSpecifier(node) }, TYPE_CONTAINERS);
   }
 
   protected definesMacro(node: SyntaxNode) {

@@ -4,7 +4,7 @@ import { inspectFixture, mapFixture, useGrammarCache } from "../../../helpers/la
 useGrammarCache();
 
 describe("Ruby symbols", () => {
-  it("groups requires and lists module bindings, class members, and struct factories", async () => {
+  it("groups requires and lists module bindings, class methods, nested classes, and struct factories", async () => {
     expect(await mapFixture("main.rb")).toEqual([
       "(imports) L1-L4",
       "[decl] VERSION L8",
@@ -16,17 +16,15 @@ describe("Ruby symbols", () => {
       "[decl] TIMEOUT L18",
       "[method] Config.load L20",
       "[class] Store L22-L41",
-      "[field] Store.name L23",
-      "[field] Store.size L23",
-      "[field] Store.limit L24",
-      "[field] Store.MAX L25",
-      "[field] Store.@@count L26",
       "[method] Store.HANDLER L27",
       "[method] Store.initialize L30-L32",
       "[method] Store.build L34",
       "[method] Store.default L37",
+      "[class] Store.Entry L40",
       "[class] Point L44-L48",
       "[method] Point.to_s L45-L47",
+      "[class] Point.Formatter L60-L62",
+      "[method] Formatter.call L61",
     ]);
   });
 

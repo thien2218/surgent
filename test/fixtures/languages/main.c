@@ -52,3 +52,9 @@ int helper(int value) {
 char *name_of(struct node *item) {
   return 0;
 }
+
+struct tree {
+  struct leaf {
+    int value;
+  } first;
+};

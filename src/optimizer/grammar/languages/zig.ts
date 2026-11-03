@@ -1,21 +1,20 @@
 import type { Language, SyntaxNode } from "tree-sitter";
 import { loadGrammarModule } from "../ensure.js";
 import { readNodeText } from "../nodes.js";
-import { RuleBasedLanguageProfile } from "../profile.js";
+import { nestRule, RuleBasedLanguageProfile } from "../profile.js";
 import type { SymbolKindRule } from "../types.js";
 
 const ZIG_KINDS = ["struct", "enum", "union", "type"] as const;
 type ZigKind = (typeof ZIG_KINDS)[number];
 
 const TYPE_VALUES = new Set(["opaque_declaration", "error_set_declaration"]);
-const DECLARATION_VALUES = new Set([
-  ...TYPE_VALUES,
+const CONTAINER_VALUES = new Set([
   "struct_declaration",
   "enum_declaration",
   "union_declaration",
+  "opaque_declaration",
 ]);
-const FIELD_PARENTS = new Set(["struct_declaration", "union_declaration"]);
-const CONSTANT_PARENTS = new Set([...FIELD_PARENTS, "enum_declaration", "opaque_declaration"]);
+const TYPE_CONTAINERS = ["variable_declaration", "function_declaration"];
 const IMPORT_BUILTINS = new Set(["@import", "@cImport"]);
 
 export class ZigLanguageProfile extends RuleBasedLanguageProfile<ZigKind> {
@@ -49,29 +48,24 @@ export class ZigLanguageProfile extends RuleBasedLanguageProfile<ZigKind> {
     [
       "variable_declaration",
       [
-        { kind: "struct", match: (node) => this.readValue(node)?.type === "struct_declaration" },
-        { kind: "enum", match: (node) => this.readValue(node)?.type === "enum_declaration" },
-        { kind: "union", match: (node) => this.readValue(node)?.type === "union_declaration" },
-        { kind: "type", match: (node) => TYPE_VALUES.has(this.readValue(node)?.type ?? "") },
+        ...nestRule(
+          { kind: "struct", match: (node) => this.readValue(node)?.type === "struct_declaration" },
+          TYPE_CONTAINERS,
+        ),
+        ...nestRule(
+          { kind: "enum", match: (node) => this.readValue(node)?.type === "enum_declaration" },
+          TYPE_CONTAINERS,
+        ),
+        ...nestRule(
+          { kind: "union", match: (node) => this.readValue(node)?.type === "union_declaration" },
+          TYPE_CONTAINERS,
+        ),
+        ...nestRule(
+          { kind: "type", match: (node) => TYPE_VALUES.has(this.readValue(node)?.type ?? "") },
+          TYPE_CONTAINERS,
+        ),
         { kind: "import", match: (node) => this.bindsImport(node) },
         { kind: "decl", match: (node) => !isExtern(node) && !this.bindsImport(node) },
-        {
-          kind: "field",
-          container: "variable_declaration",
-          match: (node) => this.isMemberConstant(node),
-        },
-        {
-          kind: "field",
-          container: "function_declaration",
-          match: (node) => this.isMemberConstant(node),
-        },
-      ],
-    ],
-    [
-      "container_field",
-      [
-        { kind: "field", container: "variable_declaration", match: isField },
-        { kind: "field", container: "function_declaration", match: isField },
       ],
     ],
     ["test_declaration", [{ kind: "func" }]],
@@ -101,12 +95,10 @@ export class ZigLanguageProfile extends RuleBasedLanguageProfile<ZigKind> {
     return node.children.slice(assignIndex + 1).find((childNode) => childNode.isNamed);
   }
 
-  private isMemberConstant(node: SyntaxNode) {
-    return (
-      CONSTANT_PARENTS.has(node.parent?.type ?? "") &&
-      !DECLARATION_VALUES.has(this.readValue(node)?.type ?? "") &&
-      !this.bindsImport(node)
-    );
+  protected matchesRule(node: SyntaxNode, rule: SymbolKindRule<ZigKind>) {
+    // Function bodies reach generic type containers, but their own declarations are locals.
+    if (rule.container && !CONTAINER_VALUES.has(node.parent?.type ?? "")) return false;
+    return super.matchesRule(node, rule);
   }
 
   private bindsImport(node: SyntaxNode) {
@@ -140,8 +132,4 @@ function hasBody(node: SyntaxNode) {
 
 function isExtern(node: SyntaxNode) {
   return node.children.some((childNode) => childNode.type === "extern");
-}
-
-function isField(node: SyntaxNode) {
-  return FIELD_PARENTS.has(node.parent?.type ?? "");
 }

@@ -1,7 +1,7 @@
 import type { Language, SyntaxNode } from "tree-sitter";
 import { loadGrammarModule } from "../ensure.js";
 import { readNodeText } from "../nodes.js";
-import { RuleBasedLanguageProfile } from "../profile.js";
+import { nestRule, RuleBasedLanguageProfile } from "../profile.js";
 import type { SymbolKindRule } from "../types.js";
 
 const KOTLIN_KINDS = ["class", "interface", "object", "enum", "type"] as const;
@@ -11,26 +11,26 @@ const RECEIVER_TYPES = new Set(["user_type", "nullable_type", "parenthesized_typ
 const VARIABLE_TYPES = new Set(["variable_declaration", "multi_variable_declaration"]);
 const BODY_TYPES = new Set(["block", "function_body"]);
 const FUNCTION_TYPES = new Set(["lambda_literal", "anonymous_function"]);
-const MEMBER_RULES: SymbolKindRule[] = [
-  { kind: "method", container: "class_declaration" },
-  { kind: "method", container: "object_declaration" },
-];
+const TYPE_CONTAINERS = ["class_declaration", "object_declaration"];
+const MEMBER_RULES: SymbolKindRule[] = TYPE_CONTAINERS.map((container) => ({
+  kind: "method",
+  container,
+}));
+const METHOD_RULES = MEMBER_RULES.map((rule) => ({ ...rule, match: hasBody }));
 const PROPERTY_RULES = MEMBER_RULES.map((rule) => ({ ...rule, match: hasAccessorBody }));
 const LAMBDA_RULES = MEMBER_RULES.map((rule) => ({ ...rule, match: bindsFunction }));
-const FIELD_RULES = MEMBER_RULES.map((rule) => ({ ...rule, kind: "field" as const }));
+const CLASS_RULES: SymbolKindRule<KotlinKind>[] = [
+  { kind: "interface", match: isInterface },
+  { kind: "enum", match: isEnum },
+  { kind: "class" },
+];
 
 export class KotlinLanguageProfile extends RuleBasedLanguageProfile<KotlinKind> {
   readonly extensions = new Set([".kt", ".kts"]);
   readonly extraKinds = KOTLIN_KINDS;
   protected readonly nameFieldByType = { __default__: "name", type_alias: "type" };
   protected readonly topLevelRoots = new Set(["source_file"]);
-  protected readonly memberParents = new Set([
-    "class_body",
-    "enum_class_body",
-    "companion_object",
-    "primary_constructor",
-    "class_parameters",
-  ]);
+  protected readonly memberParents = new Set(["class_body", "enum_class_body", "companion_object"]);
   protected readonly containerTypes = new Set([
     "class_declaration",
     "object_declaration",
@@ -40,22 +40,15 @@ export class KotlinLanguageProfile extends RuleBasedLanguageProfile<KotlinKind> 
     "property_declaration",
   ]);
   protected readonly rules = new Map<string, SymbolKindRule<KotlinKind>[]>([
-    [
-      "class_declaration",
-      [
-        { kind: "interface", match: isInterface },
-        { kind: "enum", match: isEnum },
-        { kind: "class" },
-      ],
-    ],
-    ["object_declaration", [{ kind: "object" }]],
-    ["type_alias", [{ kind: "type" }]],
+    ["class_declaration", CLASS_RULES.flatMap((rule) => nestRule(rule, TYPE_CONTAINERS))],
+    ["object_declaration", nestRule({ kind: "object" }, TYPE_CONTAINERS)],
+    ["type_alias", nestRule({ kind: "type" }, TYPE_CONTAINERS)],
     [
       "function_declaration",
       [
-        ...MEMBER_RULES,
-        { kind: "method", match: (node) => Boolean(this.readReceiver(node)) },
-        { kind: "func" },
+        ...METHOD_RULES,
+        { kind: "method", match: (node) => hasBody(node) && Boolean(this.readReceiver(node)) },
+        { kind: "func", match: hasBody },
       ],
     ],
     ["secondary_constructor", MEMBER_RULES],
@@ -64,15 +57,10 @@ export class KotlinLanguageProfile extends RuleBasedLanguageProfile<KotlinKind> 
       [
         ...PROPERTY_RULES,
         ...LAMBDA_RULES,
-        ...FIELD_RULES,
         { kind: "method", match: (node) => Boolean(this.readReceiver(node)) },
         { kind: "func", match: bindsFunction },
         { kind: "decl" },
       ],
-    ],
-    [
-      "class_parameter",
-      [{ kind: "field", container: "class_declaration", match: declaresProperty }],
     ],
     ["import", [{ kind: "import" }]],
   ]);
@@ -85,9 +73,6 @@ export class KotlinLanguageProfile extends RuleBasedLanguageProfile<KotlinKind> 
 
   readNodeName(node: SyntaxNode) {
     if (node.type === "secondary_constructor") return "constructor";
-    if (node.type === "class_parameter") {
-      return readNodeText(node.namedChildren.find((childNode) => childNode.type === "identifier"));
-    }
     if (node.type === "property_declaration") {
       const variable = node.namedChildren.find((childNode) => VARIABLE_TYPES.has(childNode.type));
       return variable?.type === "variable_declaration"
@@ -129,8 +114,8 @@ function hasAccessorBody(node: SyntaxNode) {
   );
 }
 
-function declaresProperty(node: SyntaxNode) {
-  return node.children.some((childNode) => childNode.type === "val" || childNode.type === "var");
+function hasBody(node: SyntaxNode) {
+  return node.namedChildren.some((childNode) => BODY_TYPES.has(childNode.type));
 }
 
 function isInterface(node: SyntaxNode) {

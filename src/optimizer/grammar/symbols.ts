@@ -5,7 +5,6 @@ import type { LanguageSymbol } from "./types.js";
 import { extname, resolve } from "node:path";
 import Parser from "tree-sitter";
 
-const MEMBER_KINDS = new Set(["method", "field"]);
 const GROUP_NAMES = new Map([
   ["import", "(imports)"],
   ["export", "(exports)"],
@@ -90,13 +89,14 @@ export async function collectSymbols(cwd: string, path: string, kinds?: Readonly
       }
     }
 
-    const symbolKind = profile.resolveSymbolKind(currentNode);
-    if (!symbolKind) continue;
+    const symbolRule = profile.resolveSymbolRule(currentNode);
+    if (!symbolRule) continue;
+    const { kind } = symbolRule;
 
-    const groupName = GROUP_NAMES.get(symbolKind);
+    const groupName = GROUP_NAMES.get(kind);
     if (groupName) {
       const startNode = profile.findStartNode(currentNode);
-      if (group?.symbol.kind === symbolKind && isAdjacent(group.symbol.node, startNode)) {
+      if (group?.symbol.kind === kind && isAdjacent(group.symbol.node, startNode)) {
         group.symbol.node = currentNode;
         group.symbol.range = readLineRange(group.startNode, currentNode);
         continue;
@@ -106,7 +106,7 @@ export async function collectSymbols(cwd: string, path: string, kinds?: Readonly
         name: nameSymbol(groupName),
         baseName: groupName,
         path,
-        kind: symbolKind,
+        kind: kind,
         node: currentNode,
         startIndex: startNode.startIndex,
         range: readLineRange(startNode, currentNode),
@@ -120,9 +120,10 @@ export async function collectSymbols(cwd: string, path: string, kinds?: Readonly
     if (baseNames.length === 0) continue;
 
     group = undefined;
-    const container = MEMBER_KINDS.has(symbolKind)
+    const isMember = kind === "method" || symbolRule.container !== undefined;
+    const container = isMember
       ? profile.readContainerName(currentNode)
-      : undefined;
+      : profile.readScopeName(currentNode);
     const startNode = profile.findStartNode(currentNode);
 
     for (const baseName of baseNames) {
@@ -131,7 +132,7 @@ export async function collectSymbols(cwd: string, path: string, kinds?: Readonly
         baseName,
         container,
         path,
-        kind: symbolKind,
+        kind: kind,
         node: currentNode,
         startIndex: startNode.startIndex,
         range: readLineRange(startNode, currentNode),

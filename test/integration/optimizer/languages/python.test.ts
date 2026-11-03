@@ -4,7 +4,7 @@ import { inspectFixture, mapFixture, useGrammarCache } from "../../../helpers/la
 useGrammarCache();
 
 describe("Python symbols", () => {
-  it("groups top-level imports and lists module bindings and class members from their decorators", async () => {
+  it("groups top-level imports and lists module bindings, class methods, and nested classes from their decorators", async () => {
     expect(await mapFixture("main.py")).toEqual([
       "(imports) L1-L5",
       "(exports) L15",
@@ -16,12 +16,10 @@ describe("Python symbols", () => {
       "[func] load L24-L29",
       "[func] fetch L32-L34",
       "[class] Point L37-L52",
-      "[field] Point.x L39",
-      "[field] Point.y L40",
-      "[field] Point.tags L41",
       "[method] Point.scale L42",
       "[method] Point.__init__ L44-L45",
       "[method] Point.origin L47-L49",
+      "[class] Point.Meta L51-L52",
     ]);
   });
 

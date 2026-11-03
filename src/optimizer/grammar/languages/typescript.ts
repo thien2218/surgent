@@ -13,19 +13,10 @@ const MEMBER_RULES: SymbolKindRule[] = [
   { kind: "method", container: "variable_declarator" },
   { kind: "method", container: "export_statement" },
 ];
-const FIELD_RULES: SymbolKindRule[] = [
+const PROPERTY_RULES: SymbolKindRule<TypeScriptKind>[] = [
   ...MEMBER_RULES.map((rule) => ({ ...rule, match: bindsFunction })),
-  ...MEMBER_RULES.map((rule) => ({
-    ...rule,
-    kind: "field" as const,
-    match: (node: SyntaxNode) => !bindsClass(node),
-  })),
+  ...MEMBER_RULES.map((rule) => ({ ...rule, kind: "class" as const, match: bindsClass })),
 ];
-const PARAMETER_RULES = MEMBER_RULES.map((rule) => ({
-  ...rule,
-  kind: "field" as const,
-  match: isParameterProperty,
-}));
 const FUNCTION_RULES: SymbolKindRule[] = [
   { kind: "func", parent: "variable_declarator" },
   { kind: "func", parent: "export_statement" },
@@ -34,17 +25,10 @@ const FUNCTION_TYPES = new Set(["arrow_function", "function_expression", "genera
 const NAMESPACE_TYPES = new Set(["internal_module", "module", "ambient_declaration"]);
 const TYPE_DECLARATIONS = ["interface_declaration", "type_alias_declaration"];
 const REFERENCE_TYPES = new Set(["identifier", "member_expression"]);
-const PARAMETER_TYPES = new Set(["required_parameter", "optional_parameter"]);
-const PARAMETER_MODIFIERS = new Set(["accessibility_modifier", "override_modifier", "readonly"]);
 
 export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile<TypeScriptKind> {
   readonly extensions = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs", ".jsx"]);
   readonly extraKinds = TYPESCRIPT_KINDS;
-  protected readonly nameFieldByType = {
-    __default__: "name",
-    required_parameter: "pattern",
-    optional_parameter: "pattern",
-  };
   protected readonly topLevelRoots = new Set(["program"]);
   protected readonly topLevelParents = new Set([
     "lexical_declaration",
@@ -56,24 +40,13 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile<TypeScri
     "internal_module",
     "module",
   ]);
-  protected readonly memberParents = new Set([
-    "class_body",
-    "class",
-    "object",
-    "interface_body",
-    "object_type",
-    "method_definition",
-    "formal_parameters",
-  ]);
+  protected readonly memberParents = new Set(["class_body", "class", "object"]);
   protected readonly containerTypes = new Set([
     "function_declaration",
     "arrow_function",
     "function_expression",
     "abstract_class_declaration",
     "class_declaration",
-    "interface_declaration",
-    "type_alias_declaration",
-    "abstract_method_signature",
     "method_definition",
     "variable_declarator",
     "export_statement",
@@ -98,25 +71,8 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile<TypeScri
     ["enum_declaration", [{ kind: "enum" }]],
     ["internal_module", [{ kind: "namespace" }]],
     ["module", [{ kind: "namespace" }]],
-    ["abstract_method_signature", [{ kind: "method", container: "abstract_class_declaration" }]],
     ["method_definition", MEMBER_RULES],
-    ["public_field_definition", FIELD_RULES],
-    ["required_parameter", PARAMETER_RULES],
-    ["optional_parameter", PARAMETER_RULES],
-    [
-      "method_signature",
-      [
-        { kind: "method", container: "interface_declaration" },
-        { kind: "method", container: "type_alias_declaration" },
-      ],
-    ],
-    [
-      "property_signature",
-      [
-        { kind: "field", container: "interface_declaration" },
-        { kind: "field", container: "type_alias_declaration" },
-      ],
-    ],
+    ["public_field_definition", PROPERTY_RULES],
     ["variable_declarator", [{ kind: "decl", match: bindsValue }]],
     ["import_statement", [{ kind: "import" }]],
     ["lexical_declaration", [{ kind: "import", match: requiresModule }]],
@@ -164,11 +120,6 @@ export class TypeScriptLanguageProfile extends RuleBasedLanguageProfile<TypeScri
     if (node.parent?.type === "export_statement") {
       return "default";
     }
-  }
-
-  readContainerName(node: SyntaxNode) {
-    const memberNode = PARAMETER_TYPES.has(node.type) ? node.parent?.parent : node;
-    return super.readContainerName(memberNode ?? node);
   }
 
   findBodyNodes(node: SyntaxNode) {
@@ -235,10 +186,6 @@ function bindsValue(node: SyntaxNode) {
 
 function bindsFunction(node: SyntaxNode) {
   return FUNCTION_TYPES.has(node.childForFieldName("value")?.type ?? "");
-}
-
-function isParameterProperty(node: SyntaxNode) {
-  return node.children.some((childNode) => PARAMETER_MODIFIERS.has(childNode.type));
 }
 
 function bindsClass(node: SyntaxNode) {

@@ -4,7 +4,7 @@ import { inspectFixture, mapFixture, useGrammarCache } from "../../../helpers/la
 useGrammarCache();
 
 describe("Kotlin symbols", () => {
-  it("groups imports and lists extension functions, constructor properties, and class and companion members", async () => {
+  it("groups imports and lists extension functions, nested classes, and class and companion members with bodies", async () => {
     expect(await mapFixture("main.kt")).toEqual([
       "(imports) L3-L4",
       "[decl] VERSION L6",
@@ -16,24 +16,16 @@ describe("Kotlin symbols", () => {
       "[method] String.shout L19",
       "[method] String.initial L21-L22",
       "[class] Point L24-L39",
-      "[field] Point.x L24",
-      "[field] Point.y L24",
-      "[field] Point.sum L25",
       "[method] Point.onMove L26",
       "[method] Point.label L27-L28",
       "[method] Point.distance L30",
-      "[field] Point.ORIGIN L33",
       "[method] Point.origin L35",
+      "[class] Point.Builder L38",
       "[interface] Shape L41-L45",
-      "[field] Shape.sides L42",
-      "[method] Shape.area L44",
       "[interface] Action L47-L49",
-      "[method] Action.run L48",
       "[enum] Color L51-L56",
-      "[field] Color.hex L51",
       "[method] Color.describe L55",
       "[object] Registry L58-L62",
-      "[field] Registry.items L59",
       "[method] Registry.register L61",
     ]);
   });

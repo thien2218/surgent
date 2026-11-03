@@ -4,7 +4,7 @@ import { inspectFixture, mapFixture, useGrammarCache } from "../../../helpers/la
 useGrammarCache();
 
 describe("TypeScript symbols", () => {
-  it("lists declarations, class and interface members, and default exports with line ranges", async () => {
+  it("lists definitions, class members, class-valued properties, and default exports with line ranges", async () => {
     expect(await mapFixture("main.ts")).toEqual([
       "(imports) L1-L6",
       "(exports) L8-L9",
@@ -18,32 +18,21 @@ describe("TypeScript symbols", () => {
       "[func] overload L29-L31",
       "(imports)#1 L35",
       "[class] Store L37-L56",
-      "[field] Store.count L38",
-      "[field] Store.items L39",
-      "[field] Store.#secret L40",
+      "[class] Store.Inner L41",
       "[method] Store.onChange L42",
       "[method] Store.constructor L44-L48",
-      "[field] Store.db L45",
-      "[field] Store.name L46",
       "[method] Store.size L50-L53",
       "[method] Store.size#1 L55",
       "[class] Base L58-L61",
-      "[field] Base.label L59",
-      "[method] Base.run L60",
       "[class] Anonymous L63-L65",
       "[method] Anonymous.run L64",
       "[interface] Shape L67-L70",
-      "[field] Shape.kind L68",
-      "[method] Shape.area L69",
       "[type] Point L72",
-      "[field] Point.x L72",
-      "[field] Point.y L72",
       "[type] Result L73",
       "[enum] Color L75-L78",
       "[namespace] Geometry L80-L82",
       "[func] distance L81",
       "[interface] Window L89-L91",
-      "[field] Window.store L90",
       "[decl] routes L94-L97",
       "[method] routes.home L95",
       "[decl] default L107-L110",

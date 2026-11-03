@@ -76,3 +76,13 @@ int main() {
 struct Shape {
   virtual double area() const = 0;
 };
+
+struct Tree {
+  using Key = int;
+  Tree() = default;
+  struct Node;
+};
+
+struct Tree::Node {
+  Key key;
+};

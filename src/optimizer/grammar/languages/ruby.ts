@@ -1,7 +1,7 @@
 import type { Language, SyntaxNode } from "tree-sitter";
 import { loadGrammarModule } from "../ensure.js";
-import { readFieldText } from "../nodes.js";
-import { RuleBasedLanguageProfile } from "../profile.js";
+import { readFieldText, readNodeText } from "../nodes.js";
+import { nestRule, RuleBasedLanguageProfile } from "../profile.js";
 import type { SymbolKindRule } from "../types.js";
 
 const RUBY_KINDS = ["class", "module"] as const;
@@ -9,22 +9,17 @@ type RubyKind = (typeof RUBY_KINDS)[number];
 
 const REQUIRE_METHODS = new Set(["require", "require_relative", "load", "autoload"]);
 const LAMBDA_METHODS = new Set(["lambda", "proc"]);
-const ATTRIBUTE_METHODS = new Set(["attr_reader", "attr_writer", "attr_accessor"]);
 const TYPE_FACTORIES = new Set(["Struct.new", "Class.new", "Data.define"]);
 const CONSTANT_TYPES = new Set(["constant", "scope_resolution"]);
 const VARIABLE_TYPES = new Set([...CONSTANT_TYPES, "identifier", "global_variable"]);
 const FIELD_TYPES = new Set(["constant", "class_variable"]);
+const TYPE_CONTAINERS = ["class"];
 // Point = Struct.new(:x) do ... end names its methods Point.method too.
 const METHOD_RULES: SymbolKindRule[] = [
   { kind: "method", container: "class" },
   { kind: "method", container: "module" },
   { kind: "method", container: "assignment" },
   { kind: "func" },
-];
-const ATTRIBUTE_RULES: SymbolKindRule[] = [
-  { kind: "field", container: "class", match: isAttribute },
-  { kind: "field", container: "module", match: isAttribute },
-  { kind: "field", container: "assignment", match: isAttribute },
 ];
 
 export class RubyLanguageProfile extends RuleBasedLanguageProfile<RubyKind> {
@@ -49,14 +44,14 @@ export class RubyLanguageProfile extends RuleBasedLanguageProfile<RubyKind> {
     "assignment",
   ]);
   protected readonly rules = new Map<string, SymbolKindRule<RubyKind>[]>([
-    ["class", [{ kind: "class" }]],
-    ["module", [{ kind: "module" }]],
+    ["class", nestRule({ kind: "class" }, TYPE_CONTAINERS)],
+    ["module", nestRule({ kind: "module" }, TYPE_CONTAINERS)],
     ["method", METHOD_RULES],
     ["singleton_method", METHOD_RULES],
     [
       "assignment",
       [
-        { kind: "class", match: bindsType },
+        ...nestRule({ kind: "class", match: bindsType }, TYPE_CONTAINERS),
         { kind: "func", match: bindsLambda },
         {
           kind: "decl",
@@ -67,14 +62,9 @@ export class RubyLanguageProfile extends RuleBasedLanguageProfile<RubyKind> {
           container: "class",
           match: (node) => assignsField(node) && bindsLambda(node),
         },
-        {
-          kind: "field",
-          container: "class",
-          match: (node) => assignsField(node) && !bindsType(node),
-        },
       ],
     ],
-    ["call", [{ kind: "import", match: isRequire }, ...ATTRIBUTE_RULES]],
+    ["call", [{ kind: "import", match: isRequire }]],
   ]);
 
   async loadLanguage(_extension: string) {
@@ -92,12 +82,17 @@ export class RubyLanguageProfile extends RuleBasedLanguageProfile<RubyKind> {
     return body ? [body] : [];
   }
 
-  readNodeNames(node: SyntaxNode) {
-    if (node.type !== "call" || !isAttribute(node)) return super.readNodeNames(node);
-    const argumentNodes = node.childForFieldName("arguments")?.namedChildren ?? [];
-    return argumentNodes.flatMap((argumentNode) =>
-      argumentNode.type === "simple_symbol" ? [argumentNode.text.slice(1)] : [],
-    );
+  readNodeName(node: SyntaxNode) {
+    const nameNode = node.childForFieldName("name");
+    if (nameNode?.type === "scope_resolution") return readFieldText(nameNode, "name");
+    return super.readNodeName(node);
+  }
+
+  readScopeName(node: SyntaxNode) {
+    const scopeNode = node.childForFieldName("name")?.childForFieldName("scope");
+    return scopeNode?.type === "scope_resolution"
+      ? readFieldText(scopeNode, "name")
+      : readNodeText(scopeNode);
   }
 }
 
@@ -125,14 +120,6 @@ function bindsLambda(node: SyntaxNode) {
     !valueNode.childForFieldName("receiver") &&
     LAMBDA_METHODS.has(readFieldText(valueNode, "method") ?? "") &&
     hasBlock(valueNode)
-  );
-}
-
-function isAttribute(node: SyntaxNode) {
-  return (
-    !node.childForFieldName("receiver") &&
-    !hasBlock(node) &&
-    ATTRIBUTE_METHODS.has(readFieldText(node, "method") ?? "")
   );
 }
 

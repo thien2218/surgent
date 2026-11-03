@@ -16,7 +16,7 @@ const FILE_HEADER = /^\*\*\* (?:Add|Update|Delete):\s*(.+)$/gm;
 const SUMMARY_CODES = { add: "A", update: "M", move: "M", delete: "D" } as const;
 
 const DESCRIPTION = [
-  "Edit files with stripped-down, file-oriented diff format. Wrap file sections in envelope:",
+  "Use for all file edits. Edit files with stripped-down, file-oriented diff format. Wrap file sections in envelope:",
   "",
   "*** Begin",
   "[ 1+ file sections ]",

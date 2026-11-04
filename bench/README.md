@@ -39,7 +39,7 @@ surgent # /login → OpenAI → Sign in with ChatGPT
 surgent-bench preflight    # checks Docker and logins, builds surgent
 nohup surgent-bench run > run.log 2>&1 &
 surgent-bench collect      # writes results/*.csv
-surgent-bench plot         # draws results/session.png
+surgent-bench plot         # draws results/session-*.svg
 ```
 
 Run `preflight` again whenever you change the surgent checkout. `run --limit N` runs only the first N rounds, and `quota` shows how much of the weekly quota each round used.
@@ -77,12 +77,12 @@ To combine results, copy every machine's `jobs/<suite>/<task>/` folders into one
 
 `collect` writes its reports to `results/`. On each task, it compares the same number of trials for every agent: as many as all of them have finished. It reports a single surgent build: the one `preflight` built, or the one given with `--surgent-build`, either by version or by the start of its hash.
 
-| File                  | Contents                                                                                                                         |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `results/summary.csv` | Per agent: score, cache hit rate, and cost and tokens as totals, as averages per task, and as the 90th percentile cost per task. |
-| `results/trials.csv`  | One row per trial.                                                                                                               |
-| `results/calls.csv`   | One row per model call.                                                                                                          |
-| `results/session.png` | How context grows over a session: median context size per turn, with a band for the middle 50% of trials.                        |
+| File                    | Contents                                                                                                                         |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `results/summary.csv`   | Per agent: score, cache hit rate, and cost and tokens as totals, as averages per task, and as the 90th percentile cost per task. |
+| `results/trials.csv`    | One row per trial.                                                                                                               |
+| `results/calls.csv`     | One row per model call.                                                                                                          |
+| `results/session-*.svg` | Per agent: peak context length and turns per task, one chart each for average, median, and 90th percentile.                      |
 
 | Metric         | Meaning                                                                                                                                                          |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |

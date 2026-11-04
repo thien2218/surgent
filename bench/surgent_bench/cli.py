@@ -117,7 +117,7 @@ def _collect(config: BenchConfig, args: argparse.Namespace) -> None:
 def _plot(_config: BenchConfig, args: argparse.Namespace) -> None:
     from surgent_bench.plot import plot_all
 
-    for path in plot_all(resolve_path(args.results), args.min_trials):
+    for path in plot_all(resolve_path(args.results)):
         print(path)
 
 
@@ -143,11 +143,8 @@ def main() -> None:
     )
     collect.set_defaults(handler=_collect)
 
-    plot = commands.add_parser("plot", help="draw the context usage chart from CSVs")
+    plot = commands.add_parser("plot", help="draw the context usage charts from CSVs")
     plot.add_argument("--results", default="results")
-    plot.add_argument(
-        "--min-trials", type=int, default=5, help="hide turns fewer trials than this reached"
-    )
     plot.set_defaults(handler=_plot)
 
     args = parser.parse_args()

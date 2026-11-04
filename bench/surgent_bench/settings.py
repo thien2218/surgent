@@ -14,8 +14,8 @@ DEFAULT_CONFIG = BENCH_DIR / "config.toml"
 HARNESSES = ("surgent", "codex", "opencode")
 SURGENT_PREFIX = "surgent-"
 BUILD_PATTERN = r"(?P<version>v.+)-(?P<digest>[0-9a-f]{16})"
-# pi's legacy Codex provider calls chatgpt.com, the backend codex and opencode use.
-SURGENT_PROVIDER = "openai-codex"
+# pi's Sign in with ChatGPT provider, which calls api.openai.com like codex and opencode.
+SURGENT_PROVIDER = "openai"
 
 
 def trial_folder(harness: str, build: str, attempt: int = 1) -> str:
@@ -127,9 +127,9 @@ def load_config(path: Path = DEFAULT_CONFIG) -> BenchConfig:
             if harness != "surgent"
         },
         auth=AuthPaths(
-            codex=resolve_path(auth.get("codex", "~/.codex/auth.json")),
+            codex=resolve_path(auth.get("codex", ".auth/codex/auth.json")),
             surgent=resolve_path(auth.get("surgent", "~/.pi/agent/auth.json")),
-            opencode=resolve_path(auth.get("opencode", "~/.local/share/opencode/auth.json")),
+            opencode=resolve_path(auth.get("opencode", ".auth/opencode/opencode.db")),
         ),
         jobs_dir=resolve_path(run.get("jobs_dir", "jobs")),
         agent_timeout_multiplier=float(run.get("agent_timeout_multiplier", 1.0)),

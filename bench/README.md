@@ -19,19 +19,18 @@ pip install -e .
 
 ### Log in
 
-Trials install their own pinned versions of codex and opencode, so their CLIs are only used to sign in. Install them, or run them through `npx` without installing.
-
 ```bash
-# Installed
-npm install -g @openai/codex opencode-ai
-codex login                   # Sign in with ChatGPT
-opencode auth login           # OpenAI → ChatGPT Plus/Pro
+mkdir -p .auth/codex .auth/opencode
 
-# Without installing
-npx @openai/codex login       # Sign in with ChatGPT
-npx opencode-ai auth login    # OpenAI → ChatGPT Plus/Pro
+# codex
+cd .auth/codex && npx @earendil-works/pi-ai login openai
 
-surgent                       # /login → OpenAI Codex (legacy)
+# opencode
+OPENCODE_DB="$PWD/.auth/opencode/opencode.db" \
+  npx -p @opencode/cli opencode --standalone auth login openai --method chatgpt-token-sharing
+
+# surgent
+surgent # /login → OpenAI → Sign in with ChatGPT
 ```
 
 ### Run the benchmark

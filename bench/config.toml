@@ -4,19 +4,20 @@ effort = "high"
 
 [agents]
 codex_version = "0.164.0"
-opencode_version = "1.19.0"
+opencode_version = "2.2.5"
 
+# Separate Sign in with ChatGPT logins: a refresh replaces the refresh token.
 [auth]
-codex = "~/.codex/auth.json"
+codex = ".auth/codex/auth.json"
 surgent = "~/.pi/agent/auth.json"
-opencode = "~/.local/share/opencode/auth.json"
+opencode = ".auth/opencode/opencode.db"
 
 [run]
-jobs_dir = "jobs"
+jobs_dir = "jobs/api"
 agent_timeout_multiplier = 1.0
 stall_minutes = 20
 n_concurrent = 3
-agent_hosts = ["chatgpt.com", "auth.openai.com", "models.dev"]
+agent_hosts = ["api.openai.com", "auth.openai.com", "models.dev"]
 seed = 7
 max_trials = 3
 max_retries = 2

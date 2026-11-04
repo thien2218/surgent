@@ -5,9 +5,12 @@ from __future__ import annotations
 import json
 import os
 import shlex
+import sqlite3
+import tempfile
 import time
+from contextlib import closing
 from pathlib import Path, PurePosixPath
-from typing import override
+from typing import Any, override
 
 from harbor.agents.installed.base import BaseInstalledAgent
 from harbor.agents.options import InstalledAgentOptions
@@ -22,6 +25,8 @@ PUBLIC = NetworkPolicy(network_mode=NetworkMode.PUBLIC)
 GIT = "git -c safe.directory='*' -c core.quotePath=false"
 # Outlasts any pi auth write, so proper-lockfile never treats the lock as stale.
 LOCK_WAIT_SEC = 10.0
+# opencode's Sign in with ChatGPT method; its other OpenAI methods use the legacy backend.
+TOKEN_SHARING = "chatgpt-token-sharing"
 # Rust is left out: its integration tests compile as separate crates.
 TEST_FILE = r"_test\.go$|(^|/)test_[^/]*\.py$|_test\.py$|\.(test|tests|spec)\.[cm]?[jt]sx?$"
 
@@ -146,6 +151,51 @@ def store_login(path: Path, provider: str, login: dict) -> bool:
         return True
     finally:
         lock.rmdir()
+
+
+def read_credential(path: Path, integration: str) -> dict[str, Any]:
+    """The active Sign in with ChatGPT login in opencode's database, as `auth export` prints it."""
+    if not path.is_file():
+        raise ValueError(f"Login file not found: {path}")
+    with closing(sqlite3.connect(f"file:{path}?mode=ro", uri=True)) as connection:
+        rows = connection.execute(
+            "SELECT id, label, value FROM credential WHERE integration_id = ? AND active = 1",
+            (integration,),
+        ).fetchall()
+    for credential_id, label, value in rows:
+        login = json.loads(value)
+        if login.get("methodID") == TOKEN_SHARING:
+            return {
+                "id": credential_id,
+                "integrationID": integration,
+                "label": label,
+                "active": True,
+                "value": login,
+            }
+    raise ValueError(f"{path} has no '{integration}' login")
+
+
+def store_credential(path: Path, credential_id: str, login: dict[str, Any]) -> bool:
+    """Save a refreshed opencode login to the host unless the stored one expires later."""
+    with closing(sqlite3.connect(f"file:{path}?mode=rw", uri=True)) as connection, connection:
+        row = connection.execute(
+            "SELECT value FROM credential WHERE id = ?", (credential_id,)
+        ).fetchone()
+        if row is None or login.get("expires", 0) <= json.loads(row[0]).get("expires", 0):
+            return False
+        connection.execute(
+            "UPDATE credential SET value = ?, time_updated = ? WHERE id = ?",
+            (json.dumps(login), int(time.time() * 1000), credential_id),
+        )
+        return True
+
+
+async def download_json(environment: BaseEnvironment, remote_path: str) -> Any:
+    """Copied, not printed: command output reaches the trial logs."""
+    with tempfile.TemporaryDirectory(prefix="bench-login-") as temp_dir:
+        local = Path(temp_dir) / PurePosixPath(remote_path).name
+        await environment.download_file(remote_path, local)
+        return json.loads(local.read_text())
 
 
 async def place_home_file(

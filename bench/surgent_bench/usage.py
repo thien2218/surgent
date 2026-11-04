@@ -232,10 +232,42 @@ def _opencode_db(agent_dir: Path) -> Path | None:
     return candidates[0] if candidates else None
 
 
+def _opencode_call(role: str, when: datetime, tokens: dict[str, Any], effort: Any, model: Any) -> Call:
+    cache = tokens.get("cache") or {}
+    reasoning = _int(tokens.get("reasoning"))
+    return Call(
+        role=role,
+        timestamp=when,
+        # opencode excludes cache from input and reasoning from output.
+        uncached=_int(tokens.get("input")),
+        cached=_int(cache.get("read")),
+        cache_write=_int(cache.get("write")),
+        output=_int(tokens.get("output")) + reasoning,
+        reasoning=reasoning,
+        effort=effort,
+        model=model,
+    )
+
+
+def _opencode_stream(agent_dir: Path) -> list[Call]:
+    """Calls from `run --format json`: V2's database holds the login, so it stays out of the logs."""
+    output = agent_dir / "opencode.txt"
+    if not output.is_file():
+        return []
+    calls: list[Call] = []
+    for event in _jsonl(output):
+        when = _millis(event.get("timestamp"))
+        part = event.get("part") or {}
+        if event.get("type") == "step_finish" and when is not None:
+            # Subagents are denied, so every call is the main session's.
+            calls.append(_opencode_call(MAIN, when, part.get("tokens") or {}, None, None))
+    return calls
+
+
 def opencode_calls(agent_dir: Path) -> list[Call]:
     database = _opencode_db(agent_dir)
     if database is None:
-        return []
+        return _opencode_stream(agent_dir)
     with tempfile.TemporaryDirectory(prefix="bench-opencode-") as temp_dir:
         # With WAL sidecars, so uncheckpointed writes are visible.
         for source in database.parent.glob(f"{database.name}*"):
@@ -259,8 +291,6 @@ def opencode_calls(agent_dir: Path) -> list[Call]:
         when = _millis((message.get("time") or {}).get("created"))
         if when is None:
             continue
-        tokens = part.get("tokens") or {}
-        cache = tokens.get("cache") or {}
         agent = str(message.get("agent") or "")
         if parents.get(session_id):
             role = SUBAGENT
@@ -268,19 +298,9 @@ def opencode_calls(agent_dir: Path) -> list[Call]:
             role = agent
         else:
             role = MAIN
-        reasoning = _int(tokens.get("reasoning"))
         calls.append(
-            Call(
-                role=role,
-                timestamp=when,
-                # opencode excludes cache from input and reasoning from output.
-                uncached=_int(tokens.get("input")),
-                cached=_int(cache.get("read")),
-                cache_write=_int(cache.get("write")),
-                output=_int(tokens.get("output")) + reasoning,
-                reasoning=reasoning,
-                effort=message.get("variant"),
-                model=message.get("modelID"),
+            _opencode_call(
+                role, when, part.get("tokens") or {}, message.get("variant"), message.get("modelID")
             )
         )
     return calls

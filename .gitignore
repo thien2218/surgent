@@ -4,6 +4,7 @@ temp/
 # benchmark
 bench/results/
 bench/jobs/
+bench/.auth/
 .venv/
 __pycache__/
 *.egg-info/

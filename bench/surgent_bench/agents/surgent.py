@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
 from typing import Annotated, override
 
@@ -17,6 +16,7 @@ from pydantic import Field, model_validator
 from surgent_bench.agents.common import (
     BenchAgent,
     BenchOptions,
+    download_json,
     place_home_file,
     read_login,
     store_login,
@@ -134,11 +134,8 @@ class Surgent(BenchAgent, Pi):
         path, provider = self._login()
         try:
             probe = await self.exec_as_agent(environment, command='printf %s "$HOME"')
-            with tempfile.TemporaryDirectory(prefix="bench-login-") as temp_dir:
-                local = Path(temp_dir) / "auth.json"
-                # Copied, not printed: command output reaches the trial logs.
-                await environment.download_file(f"{(probe.stdout or '').strip()}/{LOGIN_FILE}", local)
-                login = json.loads(local.read_text()).get(provider)
+            logins = await download_json(environment, f"{(probe.stdout or '').strip()}/{LOGIN_FILE}")
+            login = logins.get(provider)
             if login and store_login(path, provider, login):
                 self.logger.info("Saved the container's refreshed login to the host")
         except Exception:

@@ -115,7 +115,6 @@ def agent_entry(config: BenchConfig, harness: str, current: Round, build: str) -
     commands = current.suite.commands_for(current.task.get_task_id().get_name())
     if commands:
         kwargs[SETUP_COMMANDS] = list(commands)
-    env: dict[str, str] = {}
     model = f"openai/{config.model}"
     if harness == "surgent":
         model = f"{SURGENT_PROVIDER}/{config.model}"
@@ -123,8 +122,7 @@ def agent_entry(config: BenchConfig, harness: str, current: Round, build: str) -
         kwargs["login_path"] = str(config.auth.surgent)
         kwargs["prebuilt"] = str(prebuilt_archive(build))
     elif harness == "codex":
-        kwargs.update(NO_WEB, reasoning_effort=config.effort)
-        env["CODEX_AUTH_JSON_PATH"] = str(config.auth.codex)
+        kwargs.update(NO_WEB, reasoning_effort=config.effort, login_path=str(config.auth.codex))
     else:
         kwargs.update(NO_WEB, variant=config.effort, login_path=str(config.auth.opencode))
     version = config.versions.get(harness)
@@ -135,8 +133,6 @@ def agent_entry(config: BenchConfig, harness: str, current: Round, build: str) -
         "model_name": model,
         "kwargs": kwargs,
     }
-    if env:
-        entry["env"] = env
     if config.agent_hosts:
         entry["extra_allowed_hosts"] = list(config.agent_hosts)
     return entry

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, override
 
 from harbor.agents.installed.codex import Codex, CodexOptions
@@ -21,16 +21,14 @@ from surgent_bench.agents.common import (
 from surgent_bench.settings import BENCH_DIR
 
 DEFAULT_LOGIN = BENCH_DIR / ".auth" / "codex" / "auth.json"
-# `multi_agent_v2` overrides `[agents] enabled = false`.
 NO_SUBAGENTS = {
     "agents": {"enabled": False},
     "features": {"multi_agent": False, "multi_agent_v2": False},
 }
-SECRETS_DIR = Codex._REMOTE_CODEX_SECRETS_DIR
+SECRETS_DIR = PurePosixPath("/tmp/codex-bench")
 LOGIN_FILE = SECRETS_DIR / "login.json"
 REFRESHER_FILE = SECRETS_DIR / "refresh-login.mjs"
 PROVIDER = "chatgpt_plan"
-# OpenAI's documented setup for ChatGPT plan tokens; a command supplies them as they expire hourly.
 CHATGPT_PLAN = {
     "name": "OpenAI (ChatGPT plan)",
     "base_url": "https://api.openai.com/v1",
@@ -148,6 +146,7 @@ class CodexBench(BenchAgent, Codex):
         path, provider = self._login()
         try:
             login = await download_json(environment, LOGIN_FILE.as_posix())
+            await self.exec_as_agent(environment, command=f"rm -rf {SECRETS_DIR}")
             if store_login(path, provider, login):
                 self.logger.info("Saved the container's refreshed login to the host")
         except Exception:

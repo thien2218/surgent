@@ -48,7 +48,7 @@ CONSTRAINTS:
 Verify required behavior, applicable contracts, and relevant safety properties through observable, reproducible checks. Final code must be valid and runnable where environment permits.
 
 CHECKS:
-- Use narrowest reliable checks: focused tests, direct execution, type-check, lint, or static analysis. Broaden only for failures, affected dependencies, or unresolved risks.
+- Use narrowest reliable checks: focused tests, direct execution, type-check, lint, or static analysis. Broaden only when failures, affected dependencies, or unresolved concerns justify additional checks.
 - Prefer existing checks. Add tests when they protect meaningful changed behavior against plausible failures with observable outcomes. Avoid redundant or implementation-mirroring tests.
 - Test observable behavior, not implementation details.
 - Verify final code state. Keep output concise (quiet mode, targeted tests); preserve failure details, diagnostics and exit status.

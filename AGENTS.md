@@ -56,19 +56,9 @@ The three kinds of extensions used in this project:
 
 Multi-file extensions live as a directory under `src/` with an `index.ts` entry point. Single-concern additions can be a single `.ts` file.
 
-## After implementation
-
-Run type check to validate ONLY code changes:
-
-```bash
-pnpm tsc --noEmit
-```
-
-Then tell the user what to manually test, why and how.
-Run this command as-is, with no chaining, flags, or extra shell modifiers, and only after write/edit calls are finalized.
-
 ## Guideline
 
+- Run `pnpm test` without a max workers limit. Run E2E tests separately with `pnpm test:e2e` only when affected by the changes.
 - Single char variable names are strictly forbidden.
 - When fixing a tool, don't call it to validate. Tools need to be manually reloaded by user first for a fix to work.
 - Names should use as few words as possible and have no more than 4 words.
@@ -77,4 +67,3 @@ Run this command as-is, with no chaining, flags, or extra shell modifiers, and o
 - Avoid nested ternary operators.
 - Always use `npm version` to bump surgent version
 - Edits to built-in agents (`src/agent/built-in/*.md`) must match the file's existing prose and output style: terse fragments in `general.md`, full sentences in the others.
-- Use at least 8 workers for running tests to avoid tests run taking too long.

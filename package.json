@@ -13,7 +13,8 @@
   "scripts": {
     "build": "node ./bin/build.mjs",
     "prepack": "npm run build",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests --exclude '**/e2e/**'",
+    "test:e2e": "vitest run --passWithNoTests test/e2e"
   },
   "engines": {
     "node": ">=22.19"

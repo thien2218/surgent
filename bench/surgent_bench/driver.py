@@ -94,11 +94,11 @@ def suite_tasks(suite: Suite, seed: int) -> list[TaskConfig]:
     return [tasks[name] for name in order[suite.offset : suite.offset + suite.limit]]
 
 
-def plan_rounds(config: BenchConfig) -> list[Round]:
+def plan_rounds(config: BenchConfig, max_trials: int) -> list[Round]:
     """One pass over every suite's tasks per attempt, alternating suites within a pass."""
     tasks = [suite_tasks(suite, config.seed) for suite in config.suites]
     rounds = []
-    for attempt in range(1, config.max_trials + 1):
+    for attempt in range(1, max_trials + 1):
         queues = [
             [Round(suite, task, attempt) for task in suite_list]
             for suite, suite_list in zip(config.suites, tasks)
@@ -183,12 +183,12 @@ def _setup(
     return setup
 
 
-def check_setup(config: BenchConfig, current: Round, build: str) -> None:
+def check_setup(config: BenchConfig, current: Round, build: str, max_trials: int) -> None:
     """Exit when this round's setup differs from a recorded trial of the same build."""
     folders = {
         trial_folder(harness, build, attempt): harness
         for harness in HARNESSES
-        for attempt in range(1, config.max_trials + 1)
+        for attempt in range(1, max_trials + 1)
     }
     recorded = [
         (path, harness, TrialConfig.model_validate_json(path.read_text()))
@@ -422,23 +422,23 @@ def run_round(config: BenchConfig, current: Round, build: str) -> None:
         log(f"{current.label}: giving up on {', '.join(failed)} after retries")
 
 
-def run_all(config: BenchConfig, limit: int | None = None) -> None:
+def run_all(config: BenchConfig, max_trials: int, limit: int | None = None) -> None:
     # Ctrl+C or `kill <pid>` lets trials clean up, even when started in the background.
     for stop in (signal.SIGINT, signal.SIGTERM):
         signal.signal(stop, signal.default_int_handler)
     try:
-        run_rounds(config, limit)
+        run_rounds(config, max_trials, limit)
     except KeyboardInterrupt:
         log("Stopped; unfinished trials rerun on restart")
         raise SystemExit(EXIT_INTERRUPTED) from None
 
 
-def run_rounds(config: BenchConfig, limit: int | None) -> None:
-    rounds = plan_rounds(config)
-    pass_size = len(rounds) // config.max_trials
+def run_rounds(config: BenchConfig, max_trials: int, limit: int | None) -> None:
+    rounds = plan_rounds(config, max_trials)
+    pass_size = len(rounds) // max_trials
     if limit is not None:
         rounds = rounds[:limit]
-    log(f"{len(rounds)} rounds planned; each of the {config.max_trials} passes covers {pass_size} tasks")
+    log(f"{len(rounds)} rounds planned; each of the {max_trials} passes covers {pass_size} tasks")
     build = ""
     if rounds:
         build = find_build() or ""
@@ -451,7 +451,7 @@ def run_rounds(config: BenchConfig, limit: int | None) -> None:
         if not prebuilt_archive(build).is_file():
             log("surgent's build changed since the run started; restart the driver")
             raise SystemExit(EXIT_SETUP)
-        check_setup(config, current, build)
+        check_setup(config, current, build, max_trials)
         log(f"Round {position}/{len(rounds)}: {current.label}")
         run_round(config, current, build)
     log("All rounds finished")

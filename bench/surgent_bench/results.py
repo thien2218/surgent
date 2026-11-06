@@ -265,13 +265,16 @@ def load_trial(result_path: Path, attempt: int) -> Trial | None:
     return trial
 
 
-def find_trials(jobs_dir: Path, build: str, max_trials: int) -> list[Trial]:
+def find_trials(jobs_dir: Path, build: str) -> list[Trial]:
     """Codex and opencode trials, and surgent's from one build."""
     paths = [
-        (path, attempt)
+        (path, int(match[1] or 1))
         for harness in HARNESSES
-        for attempt in range(1, max_trials + 1)
-        for path in jobs_dir.glob(f"*/*/{trial_folder(harness, build, attempt)}/result.json")
+        for path in jobs_dir.glob(f"*/*/{trial_folder(harness, build)}*/result.json")
+        if (match := re.fullmatch(
+            rf"{re.escape(trial_folder(harness, build))}(?:-([2-9]|[1-9]\d+))?",
+            path.parent.name,
+        ))
     ]
     trials = []
     for result_path, attempt in sorted(paths):

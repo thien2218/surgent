@@ -75,7 +75,7 @@ def _quota(config: BenchConfig, _args: argparse.Namespace) -> None:
 def _run(config: BenchConfig, args: argparse.Namespace) -> None:
     from surgent_bench.driver import run_all
 
-    run_all(config, limit=args.limit)
+    run_all(config, max_trials=args.max_trials, limit=args.limit)
 
 
 def _surgent_build(config: BenchConfig, requested: str | None) -> str:
@@ -104,7 +104,7 @@ def _collect(config: BenchConfig, args: argparse.Namespace) -> None:
     out_dir = resolve_path(args.results)
     build = _surgent_build(config, args.surgent_build)
     print(f"surgent build {build}")
-    frames = collect(config.jobs_dir, out_dir, config.suites, build, config.max_trials)
+    frames = collect(config.jobs_dir, out_dir, config.suites, build)
     if frames["trials"].empty:
         print(f"No trials in {config.jobs_dir}; left {out_dir} unchanged")
         return
@@ -133,6 +133,7 @@ def main() -> None:
 
     run = commands.add_parser("run", help="run interleaved rounds")
     run.add_argument("--limit", type=int, help="run only the first N rounds")
+    run.add_argument("--max-trials", type=int, default=3, help="attempts per agent per task (default: 3)")
     run.set_defaults(handler=_run)
 
     collect = commands.add_parser("collect", help="parse jobs into CSVs")
@@ -148,6 +149,8 @@ def main() -> None:
     plot.set_defaults(handler=_plot)
 
     args = parser.parse_args()
+    if args.command == "run" and args.max_trials < 1:
+        parser.error("--max-trials must be at least 1")
     args.handler(load_config(args.config), args)
 
 

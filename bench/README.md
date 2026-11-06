@@ -42,12 +42,12 @@ surgent-bench collect      # writes results/*.csv
 surgent-bench plot         # draws results/session-*.svg
 ```
 
-Run `preflight` again whenever you change the surgent checkout. `run --limit N` runs only the first N rounds, and `quota` shows how much of the weekly quota each round used.
+Run `preflight` again whenever you change the surgent checkout. `run --max-trials N` sets attempts per agent per task (default: 3). `run --limit N` runs only the first N rounds, and `quota` shows how much of the weekly quota each round used.
 
 ## How a run works
 
 - **Task selection.** Each suite's tasks are shuffled into a fixed order based on `run.seed`. Excluded tasks are removed, and the run takes `limit` tasks starting at position `offset`. A suite with `limit = 0` is skipped.
-- **Trials.** Every agent attempts every task up to `run.max_trials` times, 3 by default. A round is one task attempted once by all three agents at the same time, each in its own Harbor trial. The run goes through all tasks once before starting the next attempt.
+- **Trials.** Every agent attempts every task up to `run --max-trials N` times, 3 by default. A round is one task attempted once by all three agents at the same time, each in its own Harbor trial. The run goes through all tasks once before starting the next attempt.
 - **Output.** Each trial gets its own folder in `jobs/<suite>/<task>/`: `codex`, `codex-2`, `codex-3` and so on, and likewise for `opencode` and `surgent-<version>-<build>`.
 - **Stalled agents.** An agent that produces no output for 20 minutes (`run.stall_minutes`) is stopped and graded on what it has done so far, recorded as `AgentStalledError`. Normal trials have gone at most about 10 minutes without output.
 - **Surgent builds.** Surgent runs from this repository. `preflight` packs the checkout into `surgent-<version>-<build>.tgz`, where `<version>` is surgent's package version and `<build>` is a hash of its contents. Changing the checkout creates a new build: only surgent's trials run again, and results from earlier builds are kept for comparison.
@@ -55,14 +55,14 @@ Run `preflight` again whenever you change the surgent checkout. `run --limit N` 
 
 ## Configuration
 
-Everything is set in `config.toml`:
+Shared settings are set in `config.toml`; attempts per task are set with `run --max-trials`:
 
 | Section      | What it controls                                                                                                                                                                                                                                 |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `[model]`    | Model name and reasoning effort.                                                                                                                                                                                                                 |
 | `[agents]`   | Pinned codex and opencode versions.                                                                                                                                                                                                              |
 | `[auth]`     | Where each agent's login file is on the host.                                                                                                                                                                                                    |
-| `[run]`      | Jobs folder, concurrency, time limits, stall limit, allowed network hosts, shuffle seed, trials per task, retries, and an instruction added to every task.                                                                                       |
+| `[run]`      | Jobs folder, concurrency, time limits, stall limit, allowed network hosts, shuffle seed, retries, and an instruction added to every task.                                                                                       |
 | `[[suites]]` | Dataset, which tasks to run (`offset` and `limit`), time limits, [excluded tasks](#excluded-tasks) (`exclude`), environment fixes (`setup_commands`), and whether tests written by the agent are set aside before grading (`strip_agent_tests`). |
 
 ## Running on several machines

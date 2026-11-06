@@ -43,12 +43,12 @@ def valid_mask(trials: pd.DataFrame) -> pd.Series:
 
 
 def collect(
-    jobs_dir: Path, out_dir: Path, suites: list[Suite], build: str, max_trials: int
+    jobs_dir: Path, out_dir: Path, suites: list[Suite], build: str
 ) -> dict[str, pd.DataFrame]:
     suites_by_name = {suite.name: suite for suite in suites}
     call_rows: list[dict[str, Any]] = []
     trial_rows: list[dict[str, Any]] = []
-    for trial in find_trials(jobs_dir, build, max_trials):
+    for trial in find_trials(jobs_dir, build):
         suite = suites_by_name.get(_suite(trial))
         trial_price = price_for(trial.model or "")
         calls = harness_calls(trial.harness, trial.agent_dir)

@@ -29,10 +29,12 @@ describe("real CLI startup", () => {
     ].map((name) => expect.objectContaining({ name, source: "extension" }))));
     await first.close();
 
-    expect(JSON.parse(await readFile(toolsPath, "utf8"))).toEqual(expect.arrayContaining([
-      "read", "write", "edit", "bash", "grep", "code_map", "inspect", "subagent", "questionnaire",
+    const activeTools = JSON.parse(await readFile(toolsPath, "utf8"));
+    expect(activeTools).toEqual(expect.arrayContaining([
+      "read", "write", "edit", "bash", "code_map", "inspect", "subagent", "questionnaire",
       "web_search", "web_fetch",
     ]));
+    expect(activeTools).not.toContain("grep");
     expect(await readdir(join(fixture.workspace, ".pi"))).toEqual(expect.arrayContaining(["agents", "settings.json"]));
     const settingsPath = join(fixture.home, ".pi", "agent", "settings.json");
     const settings = JSON.parse(await readFile(settingsPath, "utf8"));

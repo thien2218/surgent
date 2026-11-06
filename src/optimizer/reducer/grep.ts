@@ -114,6 +114,7 @@ export default function grep(pi: ExtensionAPI) {
 
   pi.registerTool({
     ...grepTool,
+    defaultActive: false,
     parameters: Type.Object({
       ...grepTool.parameters.properties,
       context: Type.Optional(

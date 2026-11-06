@@ -13,17 +13,7 @@ export default function (pi: ExtensionAPI) {
       label: "Questionnaire",
       exposure: "model-only",
       description:
-        "Ask user focused clarifying question(s) when answer changes next step. Prefer over guessing.",
-      promptSnippet:
-        "Clarify material unknowns with user. Ask 1 question or a small batch before committing.",
-      promptGuidelines: [
-        "Use when answer changes design, safety, scope, or next step.",
-        "If multiple viable approaches remain, ask before choosing.",
-        "If user invites questions, lower threshold.",
-        "Ask 1 focused question or a small related batch.",
-        "Prefer questionnaire over plain-text follow-up when UI is available.",
-        "Do not ask what repo or prior answers already provide.",
-      ],
+        "Ask user focused clarifying question(s) when answer changes next step. Prefer questionnaire over plain-text follow-up or guessing.",
       parameters: QuestionnaireParamsSchema,
       async execute(_toolCallId, params, signal, _onUpdate, ctx) {
         if (!ctx.hasUI) {

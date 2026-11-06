@@ -25,13 +25,6 @@ export default function (pi: ExtensionAPI) {
     exposure: "model-only",
     description:
       "Run or resume a task in a separate session using a configured agent and return its result and session ID.",
-    promptSnippet: "Offload bounded, context-heavy work to configured agents",
-    promptGuidelines: [
-      "Choose a profile by its description. Batch independent calls and do not duplicate delegated work.",
-      "New subagents start with fresh context and cannot see the parent conversation. Include all needed background in the task.",
-      "Reuse the returned session ID for follow-up tasks. Resumed subagents retain their conversation and configured profile.",
-      "Agent profile instructions are already loaded. Provide task-specific work and constraints, not repeated role responsibilities or rules.",
-    ],
     parameters: Type.Object({
       id: Type.Optional(
         Type.String({
@@ -39,11 +32,8 @@ export default function (pi: ExtensionAPI) {
             "Session ID from a previous subagent result to resume; omit to start a new session",
         }),
       ),
-      agent: Type.String({ description: "Configured agent profile selected by its description" }),
-      task: Type.String({
-        description:
-          "Task-specific objective, scope, needed background, expected output, and completion criteria",
-      }),
+      agent: Type.String({ description: "Agent profile name" }),
+      task: Type.String({ description: "Self-contained task brief" }),
     }),
     execute: (toolCallId, params, signal, onUpdate, ctx) =>
       withFileMutationQueue(

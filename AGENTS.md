@@ -14,6 +14,7 @@
 ├── package.json
 ├── pnpm-lock.yaml
 ├── pnpm-workspace.yaml
+├── bench
 ├── src
 │   ├── agent
 │   ├── checkpoint
@@ -28,6 +29,7 @@
 │   ├── ui
 │   ├── utils.ts
 │   └── web-tools
+├── test
 └── tsconfig.json
 ```
 
@@ -56,14 +58,14 @@ Multi-file extensions live as a directory under `src/` with an `index.ts` entry 
 
 ## After implementation
 
-Run type checking to validate the change:
+Run type check to validate ONLY code changes:
 
 ```bash
 pnpm tsc --noEmit
 ```
 
 Then tell the user what to manually test, why and how.
-Run this command exactly once, as-is, with no chaining, flags, or extra shell modifiers, and only after all write/edit operations are finalized.
+Run this command as-is, with no chaining, flags, or extra shell modifiers, and only after write/edit calls are finalized.
 
 ## Guideline
 
@@ -75,3 +77,4 @@ Run this command exactly once, as-is, with no chaining, flags, or extra shell mo
 - Avoid nested ternary operators.
 - Always use `npm version` to bump surgent version
 - Edits to built-in agents (`src/agent/built-in/*.md`) must match the file's existing prose and output style: terse fragments in `general.md`, full sentences in the others.
+- Use at least 8 workers for running tests to avoid tests run taking too long.

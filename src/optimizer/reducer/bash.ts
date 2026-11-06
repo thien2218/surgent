@@ -7,18 +7,21 @@ import Type from "typebox";
 
 const localBash = createLocalBashOperations();
 
-// Escape literal braces and preceding backslash runs; leave other backslashes unchanged.
-function escapeLiteral(text: string) {
-  return text.replaceAll("{", "\\{").replaceAll("}", "\\}");
+// 7-bit escapes only: in Latin-1 text, 0x9B may be a UTF-8 continuation byte rather than a CSI.
+const ANSI_ESCAPE = /\x1b(?:\[[0-?]*[ -\/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[()*+][ -~]|[0-~])/g;
+
+// Keep what a terminal leaves on the line: no escape codes, the last carriage-return overwrite, no trailing blanks.
+function render(body: string) {
+  const segments = body.replace(ANSI_ESCAPE, "").split("\r");
+  const shown = segments.findLast((segment) => segment.length > 0) ?? "";
+  return shown.replace(/[ \t]+$/, "");
 }
 
 class BashResultReducer {
   private readonly onData: (data: Buffer) => void;
   private currentLine = "";
-  private lines: string[][] = [];
-  private ending = "\n";
-  private varying = -1;
-  private size = 0;
+  private previous = "";
+  private repeats = 0;
 
   constructor(onData: (data: Buffer) => void) {
     this.onData = onData;
@@ -39,72 +42,37 @@ class BashResultReducer {
   }
 
   finish() {
-    this.flushPending();
-    // Never fold an unterminated final line into a terminated group.
+    this.flushRepeats();
+    // Never fold an unterminated final line into a terminated run.
     if (this.currentLine.length > 0) {
-      this.onData(Buffer.from(escapeLiteral(this.currentLine), "latin1"));
+      this.write(render(this.currentLine));
       this.currentLine = "";
     }
   }
 
   private emit(line: string) {
     const ending = line.endsWith("\r\n") ? "\r\n" : "\n";
-    const body = line.slice(0, -ending.length);
-    const tokens = body.split(/([A-Za-z0-9]+)/);
-    // Terminal controls and tokenless lines pass through without factoring.
-    if (/[\x00-\x1f\x7f]/.test(body) || tokens.length < 3) {
-      this.flushPending();
-      this.onData(Buffer.from(escapeLiteral(line), "latin1"));
+    const rendered = render(line.slice(0, -ending.length)) + ending;
+    if (rendered === this.previous) {
+      this.repeats++;
       return;
     }
-
-    const first = this.lines[0];
-    if (first) {
-      let varying = this.varying;
-      let matches = ending === this.ending && tokens.length === first.length;
-      if (matches) {
-        for (let index = 0; index < tokens.length; index++) {
-          if (tokens[index] === first[index]) continue;
-          if (index % 2 === 0 || (varying !== -1 && varying !== index)) {
-            matches = false;
-            break;
-          }
-          varying = index;
-        }
-      }
-      // Bound group buffering even for an endless run of matching lines.
-      if (!matches || this.size + line.length > 64 * 1024) {
-        this.flushPending();
-      } else {
-        this.varying = varying;
-      }
-    }
-    this.lines.push(tokens);
-    this.ending = ending;
-    this.size += line.length;
+    this.flushRepeats();
+    this.previous = rendered;
+    this.write(rendered);
   }
 
-  private flushPending() {
-    const first = this.lines[0];
-    if (!first) return;
+  private flushRepeats() {
+    if (this.repeats === 0) return;
+    const unit = this.repeats === 1 ? "time" : "times";
+    const marker = `[above line repeated ${this.repeats} more ${unit}]\n`;
+    const repeated = this.previous.repeat(this.repeats);
+    this.write(marker.length < repeated.length ? marker : repeated);
+    this.repeats = 0;
+  }
 
-    const original = this.lines.map((tokens) => tokens.join("") + this.ending).join("");
-    let output = escapeLiteral(original);
-    if (this.lines.length > 1) {
-      // Exact repeats use the last alphanumeric token and retain every value.
-      const varying = this.varying === -1 ? first.length - 2 : this.varying;
-      const values = this.lines.map((tokens) => tokens[varying]);
-      // Backslashes before the generated opening brace must also remain literal.
-      const prefix = escapeLiteral(first.slice(0, varying).join("")).replace(/\\+$/, "$&$&");
-      const suffix = escapeLiteral(first.slice(varying + 1).join(""));
-      const template = `${prefix}{${values.join(", ")}}${suffix}`;
-      const compressed = template + this.ending;
-      if (compressed.length < original.length) output = compressed;
-    }
-    this.onData(Buffer.from(output, "latin1"));
-    this.lines = [];
-    this.varying = -1;
-    this.size = 0;
+  private write(text: string) {
+    this.onData(Buffer.from(text, "latin1"));
   }
 }
 
@@ -128,12 +96,10 @@ export default function bash(pi: ExtensionAPI) {
   pi.registerTool({
     ...bashTool,
     prepareArguments: undefined,
-    description: `${bashTool.description} Output losslessly group similar consecutive lines with braces: 'status {200, 404, 500}' represents three lines 'status 200', 'status 404', 'status 500'. Expand one line per value, preserving order, duplicates, and line endings. Literal braces are escaped with backslash. Decode once.`,
     parameters: Type.Object({
       ...bashTool.parameters.properties,
       purpose: Type.String({
-        description: "Briefly explain what this command will do and why before running it",
-        minLength: 1,
+        description: "What the command does and why, briefly",
         maxLength: 256,
         pattern: "\\S",
       }),

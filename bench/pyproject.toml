@@ -1,0 +1,20 @@
+[project]
+name = "surgent-bench"
+version = "0.1.0"
+description = "Harbor harness that benchmarks surgent against codex and opencode"
+requires-python = ">=3.12"
+dependencies = [
+  "harbor==0.24.0",
+  "matplotlib>=3.9",
+  "pandas>=2.2",
+]
+
+[project.scripts]
+surgent-bench = "surgent_bench.cli:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["surgent_bench*"]

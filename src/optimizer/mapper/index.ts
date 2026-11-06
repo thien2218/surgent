@@ -1,66 +1,62 @@
 import { defineTool, truncateHead, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { resolveTargetPaths } from "./files.js";
-import { collectSymbols, SYMBOL_KINDS, type LanguageSymbol } from "../languages/index.js";
+import { formatSymbols, loadKindsPrompt } from "./helpers.js";
+import { collectSymbols, SYMBOL_KINDS, type LanguageSymbol } from "../grammar/index.js";
 import { renderCallText } from "../../utils.js";
+
+const DESCRIPTION = [
+  "List symbols with line ranges, in source order under each file path:",
+  "",
+  "- `[<kind>]` applies to every `;`-separated symbol on its line",
+  "- Indented symbols are members of the line above",
+  "",
+  "Example:",
+  "",
+  "```",
+  "src/server.cpp",
+  " (imports) L1-L4",
+  " [class] Server L6-L20",
+  "  [method] start L13-L15; stop L17-L19",
+  " [method] Server.restart L22-L25",
+  "```",
+].join("\n");
 
 interface MapperResult {
   symbols: LanguageSymbol[];
   failed: string[];
 }
 
-function collapseGroupedSymbols(symbols: LanguageSymbol[]) {
-  let groupedSymbolKind: "deps" | "public" | undefined;
-  let importsGroupIndex = 0;
-  let exportsGroupIndex = 0;
-
-  return symbols.flatMap((symbol) => {
-    if (symbol.kind !== "deps" && symbol.kind !== "public") {
-      groupedSymbolKind = undefined;
-      return [symbol];
-    }
-    if (symbol.kind === groupedSymbolKind) return [];
-
-    groupedSymbolKind = symbol.kind;
-    if (symbol.kind === "deps") {
-      importsGroupIndex += 1;
-      return [{ ...symbol, name: `imports~${importsGroupIndex}`, range: undefined }];
-    }
-
-    exportsGroupIndex += 1;
-    return [{ ...symbol, name: `exports~${exportsGroupIndex}`, range: undefined }];
-  });
-}
-
 export default function (pi: ExtensionAPI) {
+  pi.on("before_agent_start", async (event, ctx) => {
+    if (pi.getActiveTools().includes("code_map")) {
+      event.systemPromptOptions.sections.symbol_kinds = await loadKindsPrompt(ctx.cwd);
+    } else {
+      delete event.systemPromptOptions.sections.symbol_kinds;
+    }
+  });
+
   pi.registerTool(
     defineTool({
       name: "code_map",
       label: "Code map",
-      description:
-        "Fast symbol and code blocks offset/limit indexing. Best for: narrowing targets to inspect/read or code discovery.",
+      description: DESCRIPTION,
       parameters: Type.Object({
         paths: Type.Array(Type.String({ minLength: 1 }), {
-          description:
-            "File or directory paths to scan (relative to cwd or absolute). No globs. Keep scope narrow.",
+          description: "Files or directories to scan, no globs. Keep narrow",
           minItems: 1,
           uniqueItems: true,
         }),
         glob: Type.Optional(
-          Type.String({
-            description: "Filter files found in directories, same as grep glob.",
-          }),
+          Type.String({ description: "Filter files found in directories, same as grep" }),
         ),
         kinds: Type.Optional(
-          Type.Array(Type.Union(SYMBOL_KINDS.map((kind) => Type.Literal(kind))), {
-            description: "Abstraction kinds to include. Omit to include all supported.",
-          }),
+          Type.Array(Type.String(), { description: "Filter symbols by kinds (default: all)" }),
         ),
       }),
       async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-        let outputPath = "";
-        const outputLines: string[] = [];
-        const kinds = new Set(params.kinds ?? SYMBOL_KINDS);
+        const kinds = params.kinds ? new Set(params.kinds) : undefined;
+        const unknownKinds = params.kinds?.filter((kind) => !SYMBOL_KINDS.has(kind)) ?? [];
         const { files, denied, failed } = await resolveTargetPaths(
           pi,
           ctx,
@@ -73,32 +69,22 @@ export default function (pi: ExtensionAPI) {
         for (const file of files) {
           signal?.throwIfAborted();
           try {
-            const symbols = collapseGroupedSymbols(await collectSymbols(ctx.cwd, file, kinds));
-            result.symbols.push(...symbols);
+            result.symbols.push(...(await collectSymbols(ctx.cwd, file, kinds)));
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             result.failed.push(`${file}: ${message}`);
           }
         }
 
-        for (const symbol of result.symbols) {
-          if (symbol.path !== outputPath) {
-            outputPath = symbol.path;
-            outputLines.push(symbol.path);
-          }
-
-          let line = `  [${symbol.public ? "public " : ""}${symbol.kind}] ${symbol.name}`;
-          if (symbol.range) {
-            line += ` L${symbol.range[0]}-L${symbol.range[1]}`;
-          }
-          outputLines.push(line);
-        }
-
+        const outputLines = formatSymbols(result.symbols);
         if (result.failed.length > 0) {
           outputLines.push(...result.failed);
         }
         if (denied) {
           outputLines.push("[Code map results exclude files blocked by permission policy]");
+        }
+        if (unknownKinds.length > 0) {
+          outputLines.push(`[Unknown kinds: ${unknownKinds.join(", ")}]`);
         }
         if (outputLines.length === 0) {
           outputLines.push("(no symbols found)");
@@ -114,7 +100,6 @@ export default function (pi: ExtensionAPI) {
         const paths = Array.isArray(args.paths) ? args.paths.join(", ") : "";
         const glob = typeof args.glob === "string" ? args.glob : "";
         const kinds = Array.isArray(args.kinds) ? args.kinds.join(", ") : "default";
-
         return renderCallText(
           `${theme.fg("toolTitle", "code_map")} ${theme.fg("accent", paths)}${glob ? ` ${theme.fg("dim", `/${glob}/`)}` : ""} ${theme.fg("dim", `(${kinds})`)}`,
           isPartial,

@@ -13,7 +13,8 @@ export interface Workspace {
 export async function createWorkspace({
   prefix = "surgent-workspace-",
   changeCwd = false,
-}: { prefix?: string; changeCwd?: boolean } = {}): Promise<Workspace> {
+  restoreAfterTest = true,
+}: { prefix?: string; changeCwd?: boolean; restoreAfterTest?: boolean } = {}): Promise<Workspace> {
   const oldHome = process.env.HOME;
   const oldProfile = process.env.USERPROFILE;
   const oldCwd = process.cwd();
@@ -32,7 +33,7 @@ export async function createWorkspace({
   })();
 
   try {
-    onTestFinished(restore);
+    if (restoreAfterTest) onTestFinished(restore);
     const home = join(root, "home");
     const cwd = join(root, "work");
     await mkdir(join(home, ".pi", "agent"), { recursive: true });

@@ -8,55 +8,41 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import {
-  deriveNewContent,
-  detectLineEnding,
-  joinBom,
-  normalizeToLF,
-  parsePatch,
-  restoreLineEndings,
-  splitBom,
-} from "./patch.js";
+import { deriveNewContent, joinBom, normalizeToLF, parsePatch, splitBom } from "./patch.js";
 import { renderCallText } from "../../utils.js";
 import type { Hunk, FileChange, PatchedFile, PatchPlan, Snapshot, WriteStep } from "./types.js";
 
-const FILE_HEADER = /^\*\*\* (?:Add|Update|Delete) File:\s*(.+)$/gm;
+const FILE_HEADER = /^\*\*\* (?:Add|Update|Delete):\s*(.+)$/gm;
 const SUMMARY_CODES = { add: "A", update: "M", move: "M", delete: "D" } as const;
 
 const DESCRIPTION = [
-  "Use the tool to edit files. Your patch language is a stripped-down, file-oriented diff format designed to be easy to parse and safe to apply. You can think of it as a high-level envelope:",
+  "Use this tool to edit files. Edit with stripped-down, file-oriented diff format. Wrap file sections in envelope:",
   "",
-  "*** Begin Patch",
-  "[ one or more file sections ]",
-  "*** End Patch",
+  "*** Begin",
+  "[ 1+ file sections ]",
+  "*** End",
   "",
-  "Within that envelope, you get a sequence of file operations.",
-  "You MUST include a header to specify the action you are taking.",
-  "Each operation starts with one of three headers:",
+  "Each section starts with one of three headers:",
   "",
-  "*** Add File: <path> - create a new file. Every following line is a + line (the initial contents).",
-  "*** Delete File: <path> - remove an existing file. Nothing follows.",
-  "*** Update File: <path> - patch an existing file in place (optionally with a rename).",
+  "*** Add: <path> - create file. Every following line is + line (initial contents)",
+  "*** Delete: <path> - remove existing file, nothing follows",
+  "*** Update: <path> - patch existing file in place, optionally with rename",
   "",
-  "Example patch:",
+  "Example:",
   "",
   "```",
-  "*** Begin Patch",
-  "*** Add File: hello.txt",
+  "*** Begin",
+  "*** Add: hello.txt",
   "+Hello world",
-  "*** Update File: src/app.py",
+  "*** Update: src/app.py",
   "*** Move to: src/main.py",
   "@@ def greet():",
   '-print("Hi")',
   '+print("Hello, world!")',
-  "*** Delete File: obsolete.txt",
-  "*** End Patch",
+  "*** Delete: obsolete.txt",
+  "*** End",
   "```",
   "",
-  "It is important to remember:",
-  "",
-  "- You must include a header with your intended action (Add/Delete/Update)",
-  "- You must prefix new lines with `+` even when creating a new file",
 ].join("\n");
 
 function patchTargets(hunks: Hunk[], cwd: string): string[] {
@@ -132,8 +118,7 @@ async function planChange(hunk: Hunk, cwd: string, plan: PatchPlan): Promise<Fil
       }
 
       const source = splitBom(current);
-      const ending = detectLineEnding(source.text);
-      const oldContent = normalizeToLF(source.text);
+      const oldContent = source.text;
       let newContent: string;
       try {
         newContent = deriveNewContent(filePath, hunk.chunks, oldContent);
@@ -147,10 +132,7 @@ async function planChange(hunk: Hunk, cwd: string, plan: PatchPlan): Promise<Fil
         // Removed before the destination is set, so moving a file onto itself keeps it.
         plan.files.set(filePath, null);
       }
-      plan.files.set(
-        movePath ?? filePath,
-        joinBom(restoreLineEndings(newContent, ending), source.bom),
-      );
+      plan.files.set(movePath ?? filePath, joinBom(newContent, source.bom));
 
       return {
         filePath,
@@ -168,7 +150,7 @@ async function planChange(hunk: Hunk, cwd: string, plan: PatchPlan): Promise<Fil
       }
 
       plan.files.set(filePath, null);
-      const oldContent = normalizeToLF(splitBom(current).text);
+      const oldContent = splitBom(current).text;
       return { filePath, oldContent, newContent: "", type: "delete" };
     }
   }
@@ -236,9 +218,7 @@ export const applyPatch = defineTool({
   label: "patch",
   description: DESCRIPTION,
   parameters: Type.Object({
-    patchText: Type.String({
-      description: "The full patch text that describes all changes to be made",
-    }),
+    patchText: Type.String({ description: "Full patch text with all changes" }),
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
     if (!params.patchText) {
@@ -253,7 +233,7 @@ export const applyPatch = defineTool({
     }
 
     if (hunks.length === 0) {
-      if (normalizeToLF(params.patchText).trim() === "*** Begin Patch\n*** End Patch") {
+      if (normalizeToLF(params.patchText).trim() === "*** Begin\n*** End") {
         throw new Error("patch rejected: empty patch");
       }
       throw new Error("patch verification failed: no hunks found");
@@ -274,7 +254,12 @@ export const applyPatch = defineTool({
     const files: PatchedFile[] = changes.map((change) => ({
       type: change.type,
       path: relative(ctx.cwd, change.movePath ?? change.filePath).replaceAll("\\", "/"),
-      diff: generateDiffString(change.oldContent, change.newContent).diff,
+      // Carriage returns would move the cursor when the TUI renders the diff.
+      diff: generateDiffString(
+        normalizeToLF(change.oldContent),
+        normalizeToLF(change.newContent),
+        3,
+      ).diff,
     }));
     const summaryLines = files.map((file) => `${SUMMARY_CODES[file.type]} ${file.path}`);
 

@@ -4,7 +4,7 @@ import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
-  keyHint,
+  type KeybindingHints,
   SettingsManager,
   Theme,
   truncateToVisualLines,
@@ -196,7 +196,12 @@ export function renderCallText(text: string, isPartial: boolean) {
   return container;
 }
 
-export function renderResultText(text: string, theme: Theme, expanded: boolean) {
+export function renderResultText(
+  text: string,
+  theme: Theme,
+  expanded: boolean,
+  keyHint: KeybindingHints["keyHint"],
+) {
   if (expanded) {
     return new Text(theme.fg("toolOutput", text), 0, 0);
   }

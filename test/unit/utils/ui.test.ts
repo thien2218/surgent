@@ -1,12 +1,9 @@
-import { keyHint, type Theme } from "@earendil-works/pi-coding-agent";
+import type { KeybindingHints, Theme } from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { customText, renderCallText, renderResultText } from "../../../src/utils.js";
 
-vi.mock("@earendil-works/pi-coding-agent", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@earendil-works/pi-coding-agent")>(),
-  keyHint: vi.fn(() => "[expand]"),
-}));
+const keyHint = vi.fn<KeybindingHints["keyHint"]>(() => "[expand]");
 
 let theme: Theme;
 
@@ -42,14 +39,14 @@ describe("tool result rendering", () => {
   it("shows every line when expanded", () => {
     const text = Array.from({ length: 12 }, (_value, index) => `line ${index + 1}`).join("\n");
 
-    expect(lines(renderResultText(text, theme, true))).toEqual(text.split("\n"));
+    expect(lines(renderResultText(text, theme, true, keyHint))).toEqual(text.split("\n"));
     expect(theme.fg).toHaveBeenCalledWith("toolOutput", text);
     expect(keyHint).not.toHaveBeenCalled();
   });
 
   it.each([1, 10])("shows %s lines without an expand hint when nothing is hidden", (count) => {
     const text = Array.from({ length: count }, (_value, index) => `line ${index + 1}`).join("\n");
-    const component = renderResultText(text, theme, false);
+    const component = renderResultText(text, theme, false, keyHint);
 
     expect(lines(component)).toEqual(text.split("\n"));
     component.invalidate();
@@ -60,7 +57,7 @@ describe("tool result rendering", () => {
   it("keeps the last ten collapsed lines and reports hidden lines with the expand shortcut", () => {
     const text = Array.from({ length: 12 }, (_value, index) => `line ${index + 1}`).join("\n");
 
-    const rendered = lines(renderResultText(text, theme, false));
+    const rendered = lines(renderResultText(text, theme, false, keyHint));
 
     expect(rendered.slice(0, 10)).toEqual(text.split("\n").slice(-10));
     expect(rendered[10]).toBe("... (2 more lines, [expand])");
@@ -69,7 +66,7 @@ describe("tool result rendering", () => {
   });
 
   it("counts wrapped visual lines and recalculates when width changes", () => {
-    const component = renderResultText("ab".repeat(12), theme, false);
+    const component = renderResultText("ab".repeat(12), theme, false, keyHint);
 
     expect(lines(component, 2)).toEqual([...Array<string>(10).fill("ab"), "... (2 more lines, [expand])"]);
     expect(lines(component, 24)).toEqual(["ab".repeat(12)]);

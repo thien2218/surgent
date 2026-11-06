@@ -35,7 +35,7 @@ export async function checkpointWorkspace() {
       cwd: options?.cwd ?? workspace.cwd, env, encoding: "utf8", timeout: 10_000,
     });
     if (result.error) throw result.error;
-    return { stdout: result.stdout, stderr: result.stderr, code: result.status ?? 1, killed: false };
+    return { stdout: result.stdout, stderr: result.stderr, code: result.status ?? 1, killed: false, truncated: false };
   };
   git(workspace.cwd, ["init", "--quiet"]);
   const projectRoot = git(workspace.cwd, ["rev-parse", "--show-toplevel"]);

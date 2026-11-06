@@ -12,6 +12,7 @@ function execution(failure?: string, stdout = "") {
     stderr: args.includes(failure ?? "never") ? "git failed" : "",
     code: args.includes(failure ?? "never") ? 1 : 0,
     killed: false,
+    truncated: false,
   }));
   return recordExtension({ exec }).api;
 }

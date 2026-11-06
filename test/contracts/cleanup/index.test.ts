@@ -45,7 +45,7 @@ describe("cleanup lifecycle", () => {
     const context = makePermissionContext(workspace.cwd);
     vi.spyOn(context.sessionManager, "getSessionId").mockReturnValue(parent.getSessionId());
     const extension = recordExtension({
-      exec: async () => ({ stdout: "", stderr: "not a repository", code: 128, killed: false }),
+      exec: async () => ({ stdout: "", stderr: "not a repository", code: 128, killed: false, truncated: false }),
     });
     cleanup(extension.api);
     const storePath = getPiPath("subsessions", workspace.cwd);
@@ -158,7 +158,7 @@ describe("cleanup lifecycle", () => {
     const extension = recordExtension({
       exec: async () => {
         await blocked;
-        return { stdout: "", stderr: "not a repository", code: 128, killed: false };
+        return { stdout: "", stderr: "not a repository", code: 128, killed: false, truncated: false };
       },
     });
     cleanup(extension.api);

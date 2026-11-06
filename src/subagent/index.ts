@@ -105,7 +105,7 @@ export default function (pi: ExtensionAPI) {
       if (!isPartial) {
         const output = result.content[0];
         const text = output?.type === "text" ? output.text : "";
-        return renderResultText(text, theme, expanded);
+        return renderResultText(text, theme, expanded, ctx.keyHint);
       }
 
       const snapshot = result.details as SubsessionSnapshot | undefined;

@@ -115,13 +115,13 @@ describe("checkpoint repository", () => {
         : failure === "seed" ? args.includes("read-tree")
         : failure === "marker" ? args.includes("surgent.checkpointSource")
         : args.includes("core.autocrlf");
-      return rejected ? { code: 1, stdout: "", stderr: "injected Git failure", killed: false } : workspace.exec(command, args, options);
+      return rejected ? { code: 1, stdout: "", stderr: "injected Git failure", killed: false, truncated: false } : workspace.exec(command, args, options);
     };
     expect(await openCheckpointRepo(recordExtension({ exec }).api, workspace.cwd)).toBeUndefined();
   });
 
   it("rejects empty discovery output even when Git reports success", async () => {
-    const api = recordExtension({ exec: async () => ({ code: 0, stdout: " \n", stderr: "", killed: false }) }).api;
+    const api = recordExtension({ exec: async () => ({ code: 0, stdout: " \n", stderr: "", killed: false, truncated: false }) }).api;
     expect(await getCheckpointRepo(api, "/unused")).toBeUndefined();
   });
 });

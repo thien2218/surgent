@@ -83,13 +83,13 @@ const webSearchTool = defineTool({
       isPartial,
     );
   },
-  renderResult(result, { expanded, isPartial }, theme) {
+  renderResult(result, { expanded, isPartial }, theme, ctx) {
     if (isPartial) {
       return new Text(theme.fg("warning", "Searching..."), 0, 0);
     }
     const details = result.details as { results: WebSearchResult[] } | undefined;
     const text = (details?.results.map((item) => item.url) ?? ["No search results"]).join("\n");
-    return renderResultText(text, theme, expanded);
+    return renderResultText(text, theme, expanded, ctx.keyHint);
   },
 });
 

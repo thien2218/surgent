@@ -45,3 +45,19 @@ it.each([false, true])("renders result URLs with expanded=%s", expanded => {
   const missing = tool.renderResult?.({ content: [], details: undefined }, options, theme, {} as Parameters<NonNullable<typeof tool.renderResult>>[3]);
   expect(stripTerminalSequences(missing?.render(80).join("\n") ?? "").trimEnd()).toBe("No search results");
 });
+it("uses host keybindings when search output is collapsed", () => {
+  const { extension, theme } = setup();
+  const tool = extension.tool("web_search");
+  const results = Array.from({ length: 12 }, (_value, index) => ({
+    title: "Title", url: `https://example.invalid/${index}`, description: "Summary",
+  }));
+  const context = {
+    keyHint: () => "ctrl+e to expand",
+  } as unknown as Parameters<NonNullable<typeof tool.renderResult>>[3];
+
+  const rendered = tool.renderResult!({ content: [], details: { results } },
+    { isPartial: false, expanded: false }, theme, context);
+
+  expect(stripTerminalSequences(rendered!.render(80).join("\n")))
+    .toContain("2 more lines, ctrl+e to expand");
+});

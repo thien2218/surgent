@@ -103,7 +103,7 @@ describe("checkpoint session lifecycle", () => {
   it.each(["write-tree", "update-ref"])("does not persist a startup checkpoint when %s fails", async (failure) => {
     const fixture = await setup();
     fixture.exec.mockImplementation((command, args, options) => args.includes(failure)
-      ? Promise.resolve({ code: 1, stdout: "", stderr: "injected failure", killed: false })
+      ? Promise.resolve({ code: 1, stdout: "", stderr: "injected failure", killed: false, truncated: false })
       : fixture.api.exec(command, args, options));
     await fixture.emit("session_start", { reason: "startup" });
     expect(await fixture.saved()).toEqual({});
@@ -114,7 +114,7 @@ describe("checkpoint session lifecycle", () => {
     const before = await fixture.saved();
     const leaf = fixture.session.appendMessage(assistantMessage("failed turn"));
     fixture.exec.mockImplementation((command, args, options) => args.includes("update-ref")
-      ? Promise.resolve({ code: 1, stdout: "", stderr: "ref locked", killed: false })
+      ? Promise.resolve({ code: 1, stdout: "", stderr: "ref locked", killed: false, truncated: false })
       : fixture.api.exec(command, args, options));
     await writeFile(join(fixture.cwd, "file"), "not retained");
     await fixture.emit("before_agent_start");
@@ -463,7 +463,7 @@ describe("checkpoint restore hooks", () => {
     fixture.exec.mockImplementation((command, args, options) => {
       if (!args.includes("read-tree")) return fixture.api.exec(command, args, options);
       if (failure === "throw") return Promise.reject(new Error("restore denied"));
-      return Promise.resolve({ code: 1, stderr: "restore denied", stdout: "", killed: false });
+      return Promise.resolve({ code: 1, stderr: "restore denied", stdout: "", killed: false, truncated: false });
     });
     fixture.session.branch(fixture.first);
 
@@ -503,7 +503,7 @@ describe("checkpoint restore hooks", () => {
     const fixture = await history();
     fixture.ui.select.mockResolvedValue("Yes, restore code to that point");
     fixture.exec.mockImplementation((command, args, options) => args.includes("read-tree")
-      ? Promise.resolve({ code: 1, stderr, stdout, killed: false })
+      ? Promise.resolve({ code: 1, stderr, stdout, killed: false, truncated: false })
       : fixture.api.exec(command, args, options));
     expect(await fixture.emit("session_before_fork", { entryId: fixture.first, position: "at" })).toEqual({ cancel: true });
     expect(fixture.ui.notify).toHaveBeenCalledWith(expect.stringContaining(reason), "error");
@@ -513,7 +513,7 @@ describe("checkpoint restore hooks", () => {
   it("does not prompt when startup cannot create any checkpoint", async () => {
     const fixture = await setup();
     fixture.exec.mockImplementation((command, args, options) => args.includes("write-tree")
-      ? Promise.resolve({ code: 1, stdout: "", stderr: "failed", killed: false })
+      ? Promise.resolve({ code: 1, stdout: "", stderr: "failed", killed: false, truncated: false })
       : fixture.api.exec(command, args, options));
     await fixture.emit("session_start", { reason: "startup" });
     await fixture.emit("session_before_fork", { entryId: "missing", position: "at" });

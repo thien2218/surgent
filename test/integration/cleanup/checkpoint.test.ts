@@ -63,7 +63,7 @@ describe("checkpoint cleanup", () => {
   it("does nothing outside a Git repository", async () => {
     const workspace = await cleanupWorkspace();
     const api = recordExtension({
-      exec: async () => ({ stdout: "", stderr: "not a repository", code: 128, killed: false }),
+      exec: async () => ({ stdout: "", stderr: "not a repository", code: 128, killed: false, truncated: false }),
     }).api;
 
     await expect(cleanupCheckpoints(api, workspace.cwd, new Set())).resolves.toBeUndefined();

@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdir, symlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import type { BeforeAgentStartEvent } from "@earendil-works/pi-coding-agent";
+import { delimiter, join } from "node:path";
+import { getAgentDir, type BeforeAgentStartEvent } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import mapperExtension from "../../../src/optimizer/mapper/index.js";
 import { writeRules } from "../../../src/permission/storage.js";
@@ -11,10 +11,13 @@ import { createWorkspace, type Workspace } from "../../helpers/workspace.js";
 
 let workspace: Workspace;
 let session: ReturnType<typeof makePermissionSession>;
+const toolsDir = join(getAgentDir(), "bin");
 
 beforeEach(async () => {
   workspace = await createWorkspace({ prefix: "surgent-navigation-" });
   onTestFinished(() => { vi.unstubAllEnvs(); });
+  // Keep Pi's cached rg available after HOME is isolated by createWorkspace.
+  vi.stubEnv("PATH", [toolsDir, process.env.PATH].filter(Boolean).join(delimiter));
   // Production auto-allows tmpdir reads; keep outside-root fixtures outside that grant.
   vi.stubEnv("TMPDIR", join(workspace.root, "tmp"));
   session = makePermissionSession();

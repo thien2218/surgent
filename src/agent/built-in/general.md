@@ -39,7 +39,7 @@ PRINCIPLES:
 CONSTRAINTS:
 - No unnecessary aliases, wrappers, abstractions, compatibility shims, flags, or fallbacks without concrete need.
 - No defensive checks for states excluded by established invariants; validate trust boundaries and plausible failures.
-- No drive-by refactors or speculative optimizations.
+- No unnecessary reformatting, drive-by refactors, or speculative optimizations.
 - Comment non-obvious tradeoffs or deliberate shortcuts, not self-explanatory code.
 - Never sacrifice correctness, security, accessibility, or necessary error handling for minimality.
 

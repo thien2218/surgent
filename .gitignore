@@ -1,5 +1,6 @@
 # general
 temp/
+.claude/
 
 # benchmark
 bench/results/

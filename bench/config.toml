@@ -3,7 +3,7 @@ name = "gpt-6.1-sol"
 effort = "high"
 
 [agents]
-codex_version = "0.164.0"
+codex_version = "0.166.0"
 opencode_version = "2.2.5"
 
 # Separate Sign in with ChatGPT logins: a refresh replaces the refresh token.
@@ -21,7 +21,7 @@ agent_hosts = ["api.openai.com", "auth.openai.com", "models.dev"]
 seed = 7
 max_trials = 3
 max_retries = 2
-extra_instruction = "You are running non-interactively: nobody will answer questions or approve plans. Make reasonable assumptions, complete the task end to end, and verify your work before finishing."
+extra_instruction = "You are running non-interactively: nobody will answer questions or approve plans. Make reasonable assumptions."
 
 # DeepSWE: 113 tasks
 [[suites]]

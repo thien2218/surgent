@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import json
-import shutil
 import sqlite3
-import tempfile
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -229,11 +227,6 @@ def codex_calls(agent_dir: Path) -> list[Call]:
     return calls
 
 
-def _opencode_db(agent_dir: Path) -> Path | None:
-    candidates = sorted((agent_dir / "opencode" / "xdg-data" / "opencode").glob("opencode*.db"))
-    return candidates[0] if candidates else None
-
-
 def _opencode_call(role: str, when: datetime, tokens: dict[str, Any], effort: Any, model: Any) -> Call:
     cache = tokens.get("cache") or {}
     reasoning = _int(tokens.get("reasoning"))
@@ -263,7 +256,7 @@ def _opencode_messages(agent_dir: Path) -> tuple[dict[str, dict[str, Any]], dict
     return {message_id: json.loads(data) for message_id, data in rows}, parents
 
 
-def _opencode_stream(agent_dir: Path) -> list[Call]:
+def opencode_calls(agent_dir: Path) -> list[Call]:
     output = agent_dir / "opencode.txt"
     if not output.is_file():
         return []
@@ -285,48 +278,6 @@ def _opencode_stream(agent_dir: Path) -> list[Call]:
             role = MAIN
         calls.append(
             _opencode_call(role, when, part.get("tokens") or {}, model.get("variant"), model.get("id"))
-        )
-    return calls
-
-
-def opencode_calls(agent_dir: Path) -> list[Call]:
-    database = _opencode_db(agent_dir)
-    if database is None:
-        return _opencode_stream(agent_dir)
-    with tempfile.TemporaryDirectory(prefix="bench-opencode-") as temp_dir:
-        # With WAL sidecars, so uncheckpointed writes are visible.
-        for source in database.parent.glob(f"{database.name}*"):
-            shutil.copy2(source, Path(temp_dir) / source.name)
-        connection = sqlite3.connect(Path(temp_dir) / database.name)
-        try:
-            parents = dict(connection.execute("SELECT id, parent_id FROM session").fetchall())
-            rows = connection.execute(
-                "SELECT part.session_id, part.data, message.data FROM part "
-                "JOIN message ON message.id = part.message_id ORDER BY part.id"
-            ).fetchall()
-        finally:
-            connection.close()
-
-    calls: list[Call] = []
-    for session_id, part_text, message_text in rows:
-        part = json.loads(part_text)
-        if part.get("type") != "step-finish":
-            continue
-        message = json.loads(message_text)
-        when = _millis((message.get("time") or {}).get("created"))
-        if when is None:
-            continue
-        agent = str(message.get("agent") or "")
-        if parents.get(session_id):
-            role = SUBAGENT
-        elif agent in OPENCODE_AUX_AGENTS:
-            role = agent
-        else:
-            role = MAIN
-        calls.append(
-            _opencode_call(
-                role, when, part.get("tokens") or {}, message.get("variant"), message.get("modelID")
-            )
         )
     return calls
 

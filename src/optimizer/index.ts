@@ -7,6 +7,7 @@ import inspect from "./inspector/index.js";
 import grammar from "./grammar/index.js";
 import patch from "./patcher/index.js";
 import move from "./experiment/mover/index.js";
+import callTree from "./experiment/tracer/index.js";
 
 export default function (pi: ExtensionAPI) {
   reducer(pi);
@@ -16,7 +17,8 @@ export default function (pi: ExtensionAPI) {
   mapper(pi);
 
   pi.registerTool(inspect);
-  pi.registerTool(patch); // reduce reasoning tokens per edit for GPT models
+  pi.registerTool(patch);
   // Experiments
   pi.registerTool(move);
+  pi.registerTool(callTree);
 }

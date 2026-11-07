@@ -49,7 +49,7 @@ const patch = defineTool({
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
     signal?.throwIfAborted();
     if (!params.edits.length) throw new Error("patch requires at least one edit");
-    const file = normalizeToolPath(params.file, ctx.cwd, "edit");
+    const file = normalizeToolPath(params.file, ctx.cwd);
 
     return withFileMutationQueue(file, async () => {
       signal?.throwIfAborted();

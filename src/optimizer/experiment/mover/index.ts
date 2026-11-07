@@ -44,8 +44,8 @@ const move = defineTool({
   parameters: moveSchema,
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
     signal?.throwIfAborted();
-    const source = normalizeToolPath(params.source.file, ctx.cwd, "edit");
-    const dest = normalizeToolPath(params.dest.file, ctx.cwd, "edit");
+    const source = normalizeToolPath(params.source.file, ctx.cwd);
+    const dest = normalizeToolPath(params.dest.file, ctx.cwd);
 
     return withLocks([...new Set([source, dest])].sort(), async () => {
       signal?.throwIfAborted();

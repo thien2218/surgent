@@ -24,7 +24,7 @@ const inspect = defineTool({
     ),
   }),
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-    const path = normalizeToolPath(params.path, ctx.cwd, "inspect");
+    const path = normalizeToolPath(params.path, ctx.cwd);
     const symbol = params.symbol.trim();
     if (symbol.length === 0) {
       return {

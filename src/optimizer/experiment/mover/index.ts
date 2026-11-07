@@ -2,7 +2,7 @@ import { isUtf8 } from "node:buffer";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { defineTool, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
-import { findAnchor } from "./match.js";
+import { findAnchor, findRange } from "./match.js";
 import { normalizeToolPath } from "../../../utils.js";
 
 function withLocks<Result>(paths: string[], work: () => Promise<Result>): Promise<Result> {
@@ -14,11 +14,11 @@ const moveSchema = Type.Object({
   source: Type.Object({
     file: Type.String({ description: "Existing source file, relative to cwd or absolute" }),
     start: Type.String({
-      description: "Unique literal beginning of block (included)",
+      description: "Literal beginning of block (included); start or end must be unique",
       minLength: 1,
     }),
     end: Type.String({
-      description: "First literal match after start (included); cannot reuse start occurrence",
+      description: "Literal end of block (included). Unique start selects first end after it; otherwise unique end selects nearest start before it",
       minLength: 1,
     }),
   }),
@@ -66,21 +66,20 @@ const move = defineTool({
 
       const original = sourceBytes.toString("utf8");
       const destination = destBytes.toString("utf8");
-      const start = findAnchor(original, params.source.start, "source.start");
-      const end = findAnchor(original, params.source.end, "source.end", start.end, true);
+      const range = findRange(original, params.source.start, params.source.end, "source");
       const insertion = findAnchor(destination, params.dest.after, "dest.after").end;
-      const block = original.slice(start.start, end.end);
+      const block = original.slice(range.start, range.end);
       const changes = new Map<string, { before: string; after: string }>();
 
       if (source === dest) {
         let content = original;
         let position = insertion;
         if (!params.duplicate) {
-          if (insertion > start.start && insertion < end.end) {
+          if (insertion > range.start && insertion < range.end) {
             throw new Error("Cannot cut a block into itself");
           }
-          content = original.slice(0, start.start) + original.slice(end.end);
-          if (insertion >= end.end) position -= end.end - start.start;
+          content = original.slice(0, range.start) + original.slice(range.end);
+          if (insertion >= range.end) position -= range.end - range.start;
         }
         changes.set(source, {
           before: original,
@@ -94,7 +93,7 @@ const move = defineTool({
         if (!params.duplicate) {
           changes.set(source, {
             before: original,
-            after: original.slice(0, start.start) + original.slice(end.end),
+            after: original.slice(0, range.start) + original.slice(range.end),
           });
         }
       }

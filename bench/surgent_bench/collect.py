@@ -200,7 +200,7 @@ def agent_summary(trials: pd.DataFrame) -> pd.DataFrame:
 
 
 def summarize(trials: pd.DataFrame) -> str:
-    """summary.csv as text, with the count of trials it leaves out."""
+    """summary.csv as text."""
     if trials.empty:
         return "No trials found."
     summary = agent_summary(trials)
@@ -215,12 +215,6 @@ def summarize(trials: pd.DataFrame) -> str:
         lines.append(
             f"{'':9} per task: avg ${row.avg_task_cost_usd:.2f}, p90 ${row.p90_task_cost_usd:.2f} | "
             f"avg {row.avg_task_input_tokens:,} in, {row.avg_task_output_tokens:,} out"
-        )
-    left_out = len(trials) - int(summary["trials"].sum())
-    if left_out:
-        lines.append(
-            f"{left_out} trials left out: excluded task, infra, no usage, "
-            "or beyond what every agent has finished on that task"
         )
     return "\n".join(lines)
 

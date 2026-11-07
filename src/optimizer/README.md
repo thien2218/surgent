@@ -52,6 +52,44 @@ The agent uses this through the `code_map` and `inspect` tools. They support the
 
 C headers (`.h`) are read with the C++ parser, which also understands C.
 
+### Experimental call trees
+
+The experimental `call_tree` tool follows callers (`incoming`) or callees (`outgoing`) of a function or method. Start with `code_map` or `inspect` to find the symbol's name.
+
+```typescript
+{ mode: 'incoming' | 'outgoing', symbol: string, file: string, maxDepth?: number }
+```
+
+- `mode`, `symbol`, and `file` are required. Only functions and methods are accepted.
+- `symbol` uses existing `inspect` names, including `Type.member` and duplicate-name suffixes such as `#1`.
+- `file` identifies the file containing the root symbol.
+- `maxDepth` defaults to `3` and must be an integer of at least `1`. It counts edges from the root, not nodes.
+
+The tool reads supported, non-ignored workspace files from disk without read-grant prompts. The root file is explicitly loaded even if it is ignored.
+
+The tree is built breadth-first. A `Files:` table assigns IDs such as `F1` to paths; tree entries include those IDs and line ranges. For example, an outgoing tree might show:
+
+```text
+Files:
+F1 - src/example.ts
+
+Tree:
+start (F1 L1-L5) (outgoing)
+└─ run (F1 L7-L12)
+   └─ start (F1 L1-L5) [cycle]
+```
+
+Repeated symbols on separate, noncyclic branches expand again. Only a return to an ancestor on the current branch gets `[cycle]` and stops expanding.
+
+This is a Tree-sitter heuristic, not a complete usage search or impact analysis:
+
+- Module-level calls are excluded. The nearest supported enclosing function or method owns each call; calls inside unsupported nested functions are attributed to that supported enclosing callable.
+- Resolution is conservative: simple local calls and explicit same-file container, `self`, or `this` calls are supported across the existing parsers.
+- TS/JS relative ES imports support default, namespace, and named imports with aliases, plus explicit aliased reexports, including classes. Python supports relative and workspace-root imports, including module aliases.
+- Dynamic receivers, package/path aliases, wildcard exports, CommonJS, and other-language cross-file imports can remain unresolved.
+
+Output reports unresolved calls in expanded symbols, skipped files or discovery errors, and truncation when encountered. Missing parsers or unreadable files can hide calls. A 500-node cap and a 32 KiB output budget limit the tree independently of `maxDepth`; no resolved callers or callees does not prove there are none.
+
 ### Patch edits for GPT models
 
 GPT models are trained to edit code with patches. The `patch` tool gives them that format: one patch that can add, update, move, and delete several files, so a change that would otherwise take several edit calls takes one:

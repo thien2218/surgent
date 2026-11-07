@@ -211,8 +211,8 @@ def summarize(trials: pd.DataFrame) -> str:
             f"cost ${row.cost_usd:.2f} | cache hit {row.cache_hit_rate:.1%}"
         )
         lines.append(
-            f"{'':9} per task: avg ${row.avg_task_cost_usd:.2f}, p90 ${row.p90_task_cost_usd:.2f} | "
-            f"avg {row.avg_task_input_tokens:,} in, {row.avg_task_output_tokens:,} out"
+            f"{'':9} per task: avg ${row.avg_task_cost_usd:.2f}; p90 ${row.p90_task_cost_usd:.2f} | "
+            f"avg {row.avg_task_input_tokens:,} in; {row.avg_task_output_tokens:,} out"
         )
     return "\n".join(lines)
 

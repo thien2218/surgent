@@ -35,7 +35,7 @@ async function listDirectory(cwd: string, dirs: string[], glob?: string, signal?
   };
 }
 
-async function findFiles(cwd: string, paths: string[], glob?: string, signal?: AbortSignal) {
+export async function findFiles(cwd: string, paths: string[], glob?: string, signal?: AbortSignal) {
   const languages = getAllLanguages();
   const files = new Set<string>();
   const dirs: string[] = [];

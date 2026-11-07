@@ -42,13 +42,10 @@ SANDBOX_TYPES = {
     "VerifierOutputParseError",
     "VerifierTimeoutError",
 }
-# Trials still running when the driver stops.
 INTERRUPTED_TYPES = {"CancelledError"}
-# The driver leaves this file in a trial whose agent it stopped for giving no output.
 STALL_MARKER = "stalled.txt"
 STALLED = "AgentStalledError"
 USAGE_LIMIT = re.compile(r"usage[ _]limit|subscription_sharing_usage_unavailable", re.IGNORECASE)
-# Matched only against the error that ended the run: agents retry transient ones.
 QUOTA_PATTERN = re.compile(
     r"rate[ _]limit|too many requests|\b429\b|quota exceeded", re.IGNORECASE
 )
@@ -59,7 +56,6 @@ AUTH_PATTERN = re.compile(
     r"|subscription_sharing_(?!usage_)\w+|chatpass_v2_\w+|provider auth command",
     re.IGNORECASE,
 )
-# Error events only: tool output may quote repo text about rate limits.
 ERROR_EVENT = re.compile(
     r'"(?:type|stopReason)"\s*:\s*"(?:error|turn\.failed)"|"(?:error|errorMessage)"\s*:\s*[{"]'
 )

@@ -234,7 +234,7 @@ export function getCurrentDate(): string {
 export function normalizeToolPath(
   sourcePath: string,
   cwd: string,
-  tool: "read" | "write" | "edit" | "inspect",
+  isRead: boolean = false,
 ): string {
   let path = sourcePath.replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ");
   if (path.startsWith("@")) path = path.slice(1);
@@ -254,7 +254,7 @@ export function normalizeToolPath(
   if (path.startsWith("file://")) path = fileURLToPath(path);
   path = resolve(cwd, path);
 
-  if (tool === "read") {
+  if (isRead) {
     const decomposed = path.normalize("NFD");
     const candidates = [
       path,

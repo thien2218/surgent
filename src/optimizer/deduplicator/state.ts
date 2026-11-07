@@ -62,7 +62,7 @@ export function buildDeduplicatorState(
 
     let path: string;
     try {
-      path = normalizeToolPath(input, cwd, raw.toolName);
+      path = normalizeToolPath(input, cwd, raw.toolName === "read");
     } catch {
       continue;
     }

@@ -6,6 +6,7 @@ import mapper from "./mapper/index.js";
 import inspect from "./inspector/index.js";
 import grammar from "./grammar/index.js";
 import patch from "./patcher/index.js";
+import move from "./experiment/mover/index.js";
 
 export default function (pi: ExtensionAPI) {
   reducer(pi);
@@ -16,4 +17,6 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerTool(inspect);
   pi.registerTool(patch); // reduce reasoning tokens per edit for GPT models
+  // Experiments
+  pi.registerTool(move);
 }

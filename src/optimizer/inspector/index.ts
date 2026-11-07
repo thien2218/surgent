@@ -2,7 +2,7 @@ import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { inspectSymbol } from "./inspect.js";
-import { normalizeToolPath } from "../deduplicator/resources.js";
+import { normalizeToolPath } from "../../utils.js";
 
 export interface InspectToolDetails {
   path: string;

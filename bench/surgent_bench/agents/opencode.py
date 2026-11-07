@@ -4,10 +4,7 @@ from __future__ import annotations
 
 import json
 import shlex
-import sqlite3
-import tempfile
-from contextlib import closing
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import override
 
 from harbor.agents.installed.base import NonZeroAgentExitCodeError, with_prompt_template
@@ -27,7 +24,7 @@ from surgent_bench.agents.common import (
 )
 from surgent_bench.pricing import COST_DIGITS, calls_cost
 from surgent_bench.settings import BENCH_DIR
-from surgent_bench.usage import OPENCODE_SESSIONS, opencode_calls
+from surgent_bench.usage import opencode_calls
 
 DEFAULT_LOGIN = BENCH_DIR / ".auth" / "opencode" / "opencode.db"
 # Outside the trial logs, where Harbor points XDG_DATA_HOME: the database holds the login.
@@ -109,7 +106,6 @@ class OpenCodeV2(OpenCode):
             )
         finally:
             await self._keep_login(environment, env, credential_id)
-            await self._save_sessions(environment)
 
         if messages := self._error_messages():
             raise NonZeroAgentExitCodeError(
@@ -159,31 +155,6 @@ class OpenCodeV2(OpenCode):
         except Exception:
             # Raising would hide the agent's own outcome, such as a timeout.
             self.logger.warning("Could not save the container's login to the host", exc_info=True)
-
-    async def _save_sessions(self, environment: BaseEnvironment) -> None:
-        try:
-            with tempfile.TemporaryDirectory(prefix="bench-opencode-") as temp_dir:
-                await environment.download_dir(LOGIN_DIR, temp_dir)
-                copy_sessions(
-                    Path(temp_dir) / PurePosixPath(DATABASE).name, self.logs_dir / OPENCODE_SESSIONS
-                )
-        except Exception:
-            self.logger.warning("Could not save opencode's sessions", exc_info=True)
-
-
-def copy_sessions(database: Path, target: Path) -> None:
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.unlink(missing_ok=True)
-    with closing(sqlite3.connect(database)) as connection:
-        connection.execute("ATTACH DATABASE ? AS kept", (str(target),))
-        connection.execute(
-            "CREATE TABLE kept.session_v2 AS SELECT id, parent_id, agent, model FROM session_v2"
-        )
-        connection.execute(
-            "CREATE TABLE kept.session_message AS "
-            "SELECT id, session_id, type, seq, time_created, data FROM session_message"
-        )
-        connection.commit()
 
 
 class OpenCodeBench(BenchAgent, OpenCodeV2):

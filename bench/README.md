@@ -95,7 +95,7 @@ To combine results, copy every machine's `jobs/<suite>/<task>/` folders into one
 
 ## Fairness
 
-- All agents use the same model, reasoning effort, subscription and backend. `collect` checks each agent's logs to confirm the model and effort.
+- All agents use the same model, reasoning effort, subscription and backend. `collect` checks codex's and surgent's logs to confirm the model and effort. opencode's logs don't record either.
 - Each agent runs as shipped: surgent's `general` agent, codex's default agent and opencode's `build` agent.
 - No agent can use subagents or web tools.
 - All agents get the same added instruction, time limits and allowed network hosts.

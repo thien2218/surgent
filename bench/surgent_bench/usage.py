@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import json
-import sqlite3
-from contextlib import closing
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,8 +10,6 @@ from typing import Any, Iterator
 
 MAIN = "main"
 SUBAGENT = "subagent"
-OPENCODE_AUX_AGENTS = {"compaction", "summary", "title"}
-OPENCODE_SESSIONS = Path("opencode") / "sessions.db"
 
 
 @dataclass
@@ -227,11 +223,11 @@ def codex_calls(agent_dir: Path) -> list[Call]:
     return calls
 
 
-def _opencode_call(role: str, when: datetime, tokens: dict[str, Any], effort: Any, model: Any) -> Call:
+def _opencode_call(when: datetime, tokens: dict[str, Any]) -> Call:
     cache = tokens.get("cache") or {}
     reasoning = _int(tokens.get("reasoning"))
     return Call(
-        role=role,
+        role=MAIN,
         timestamp=when,
         # opencode excludes cache from input and reasoning from output.
         uncached=_int(tokens.get("input")),
@@ -239,46 +235,19 @@ def _opencode_call(role: str, when: datetime, tokens: dict[str, Any], effort: An
         cache_write=_int(cache.get("write")),
         output=_int(tokens.get("output")) + reasoning,
         reasoning=reasoning,
-        effort=effort,
-        model=model,
     )
-
-
-def _opencode_messages(agent_dir: Path) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
-    database = agent_dir / OPENCODE_SESSIONS
-    if not database.is_file():
-        return {}, {}
-    with closing(sqlite3.connect(f"file:{database}?mode=ro", uri=True)) as connection:
-        parents = dict(connection.execute("SELECT id, parent_id FROM session_v2").fetchall())
-        rows = connection.execute(
-            "SELECT id, data FROM session_message WHERE type = 'assistant'"
-        ).fetchall()
-    return {message_id: json.loads(data) for message_id, data in rows}, parents
 
 
 def opencode_calls(agent_dir: Path) -> list[Call]:
     output = agent_dir / "opencode.txt"
     if not output.is_file():
         return []
-    messages, parents = _opencode_messages(agent_dir)
     calls: list[Call] = []
     for event in _jsonl(output):
         when = _millis(event.get("timestamp"))
         part = event.get("part") or {}
-        if event.get("type") != "step_finish" or when is None:
-            continue
-        message = messages.get(str(part.get("messageID")), {})
-        model = message.get("model") or {}
-        agent = message.get("agent")
-        if parents.get(event.get("sessionID")):
-            role = SUBAGENT
-        elif agent in OPENCODE_AUX_AGENTS:
-            role = str(agent)
-        else:
-            role = MAIN
-        calls.append(
-            _opencode_call(role, when, part.get("tokens") or {}, model.get("variant"), model.get("id"))
-        )
+        if event.get("type") == "step_finish" and when is not None:
+            calls.append(_opencode_call(when, part.get("tokens") or {}))
     return calls
 
 

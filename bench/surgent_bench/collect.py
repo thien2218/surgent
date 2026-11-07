@@ -13,8 +13,6 @@ from surgent_bench.results import Trial, find_trials
 from surgent_bench.settings import Suite
 from surgent_bench.usage import SUBAGENT, harness_calls
 
-UNRECORDED = "unrecorded"
-
 
 def _suite(trial: Trial) -> str:
     return trial.job_name.split("/", 1)[0]
@@ -238,8 +236,8 @@ def consistency_warnings(trials: pd.DataFrame) -> list[str]:
             warnings.append(f"{label}: subagent calls found ({row.subagent_calls})")
         requested_model = str(row.model).split("/")[-1]
         effort = _text(row.observed_efforts)
-        if effort != row.effort:
-            warnings.append(f"{label}: effort {effort or UNRECORDED} (requested {row.effort})")
+        if effort and effort != row.effort:
+            warnings.append(f"{label}: effort {effort} (requested {row.effort})")
         model = _text(row.observed_models)
         if model and model.split("/")[-1] != requested_model:
             warnings.append(f"{label}: model {model} (requested {requested_model})")

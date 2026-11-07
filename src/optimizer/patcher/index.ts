@@ -213,7 +213,7 @@ function patchedPaths(patchText: string): string[] {
   return [...patchText.matchAll(FILE_HEADER)].map((match) => match[1]!.trim());
 }
 
-export const applyPatch = defineTool({
+const patch = defineTool({
   name: "patch",
   label: "patch",
   description: DESCRIPTION,
@@ -294,3 +294,5 @@ export const applyPatch = defineTool({
     return new Text(blocks.join("\n\n"), 0, 0);
   },
 });
+
+export default patch;

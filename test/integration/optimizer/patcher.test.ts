@@ -6,7 +6,7 @@ import {
   type ExtensionToolContext,
 } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { applyPatch } from "../../../src/optimizer/patcher/index.js";
+import patchTool from "../../../src/optimizer/patcher/index.js";
 import type { PatchedFile } from "../../../src/optimizer/patcher/types.js";
 import { createWorkspace } from "../../helpers/workspace.js";
 
@@ -24,7 +24,7 @@ async function setup() {
     ...workspace,
     path,
     run: (patchText: string, signal?: AbortSignal) =>
-      applyPatch.execute("call", { patchText }, signal, undefined, {
+      patchTool.execute("call", { patchText }, signal, undefined, {
         cwd: workspace.cwd,
       } as ExtensionToolContext) as Promise<AgentToolResult<{ files: PatchedFile[] }>>,
     read: (name: string) => readFile(path(name), "utf8"),

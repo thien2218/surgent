@@ -52,8 +52,7 @@ QUOTA_PATTERN = re.compile(
 AUTH_PATTERN = re.compile(
     r"\b401\b|unauthorized|refresh_token_reused|invalid_grant|token (?:has )?expired"
     r"|sign in again|not logged in|no '[\w-]+' login|login file not found"
-    # Sign in with ChatGPT refusing the account or request, and codex's token command failing.
-    r"|subscription_sharing_(?!usage_)\w+|chatpass_v2_\w+|provider auth command",
+    r"|subscription_sharing_(?!usage_)\w+|chatpass_v2_\w+",
     re.IGNORECASE,
 )
 ERROR_EVENT = re.compile(

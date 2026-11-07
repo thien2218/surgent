@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import sqlite3
 from dataclasses import dataclass
@@ -15,7 +16,6 @@ from surgent_bench.settings import SURGENT_PROVIDER, AuthPaths
 ROLLOUT_GLOB = "*/*/*/**/sessions/**/rollout-*.jsonl"
 RECENT_ROLLOUTS = 12
 WEEK_MINUTES = 7 * 24 * 60
-# codex and opencode key their logins by the model's provider.
 MODEL_PROVIDER = "openai"
 
 
@@ -118,6 +118,18 @@ def round_usage(jobs_dir: Path) -> list[tuple[str, float]]:
     return deltas
 
 
+def _jwt_expiry(token: Any) -> datetime | None:
+    if not isinstance(token, str):
+        return None
+    try:
+        segment = token.split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(segment + "=" * (-len(segment) % 4)))
+    except (IndexError, ValueError):
+        return None
+    expiry = claims.get("exp") if isinstance(claims, dict) else None
+    return datetime.fromtimestamp(expiry, tz=UTC) if isinstance(expiry, (int, float)) else None
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text())
@@ -128,10 +140,10 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 def login_expiries(auth: AuthPaths) -> dict[str, datetime | None]:
     """Access-token expiry per harness login; None when missing or unreadable."""
-    codex_login = _read_json(auth.codex).get(MODEL_PROVIDER) or {}
+    codex_tokens = _read_json(auth.codex).get("tokens") or {}
     surgent_login = _surgent_login(auth)
     return {
-        "codex": _millis(codex_login.get("expires")),
+        "codex": _jwt_expiry(codex_tokens.get("access_token")),
         "surgent": _millis(surgent_login.get("expires")),
         "opencode": _opencode_expiry(auth.opencode),
     }

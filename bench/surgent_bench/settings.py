@@ -15,7 +15,6 @@ JOBS_DIR = BENCH_DIR / "jobs"
 HARNESSES = ("surgent", "codex", "opencode")
 SURGENT_PREFIX = "surgent-"
 BUILD_PATTERN = r"(?P<version>v.+)-(?P<digest>[0-9a-f]{16})"
-# pi's Sign in with ChatGPT provider, which calls api.openai.com like codex and opencode.
 SURGENT_PROVIDER = "openai"
 
 

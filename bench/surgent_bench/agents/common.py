@@ -9,6 +9,7 @@ import sqlite3
 import tempfile
 import time
 from contextlib import closing
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, override
 
@@ -143,14 +144,32 @@ def store_login(path: Path, provider: str, login: dict) -> bool:
         if login.get("expires", 0) <= (logins.get(provider) or {}).get("expires", 0):
             return False
         logins[provider] = login
-        staging = path.with_name(f"{path.name}.bench")
-        descriptor = os.open(staging, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(descriptor, "w") as handle:
-            json.dump(logins, handle, indent=2)
-        os.replace(staging, path)
+        _write_private(path, logins)
         return True
     finally:
         lock.rmdir()
+
+
+def store_codex_login(path: Path, login: dict[str, Any]) -> bool:
+    if _refreshed_at(login) <= _refreshed_at(json.loads(path.read_text())):
+        return False
+    _write_private(path, login)
+    return True
+
+
+def _refreshed_at(login: dict[str, Any]) -> datetime:
+    stamp = login.get("last_refresh")
+    if not isinstance(stamp, str):
+        return datetime.min.replace(tzinfo=UTC)
+    return datetime.fromisoformat(stamp)
+
+
+def _write_private(path: Path, data: Any) -> None:
+    staging = path.with_name(f"{path.name}.bench")
+    descriptor = os.open(staging, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(descriptor, "w") as handle:
+        json.dump(data, handle, indent=2)
+    os.replace(staging, path)
 
 
 def read_credential(path: Path, integration: str) -> dict[str, Any]:

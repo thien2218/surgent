@@ -23,7 +23,7 @@ pip install -e .
 mkdir -p .auth/codex .auth/opencode
 
 # codex
-cd .auth/codex && npx @earendil-works/pi-ai login openai
+CODEX_HOME="$PWD/.auth/codex" npx @openai/codex login
 
 # opencode
 OPENCODE_DB="$PWD/.auth/opencode/opencode.db" \
@@ -95,7 +95,7 @@ To combine results, copy every machine's `jobs/<suite>/<task>/` folders into one
 
 ## Fairness
 
-- All agents use the same model, reasoning effort, subscription and backend. `collect` checks codex's and surgent's logs to confirm the model and effort. opencode's logs don't record either.
+- All agents use the same model, reasoning effort and subscription, each through its official login and backend: codex calls chatgpt.com, and surgent and opencode call api.openai.com. `collect` checks codex's and surgent's logs to confirm the model and effort. opencode's logs don't record either.
 - Each agent runs as shipped: surgent's `general` agent, codex's default agent and opencode's `build` agent.
 - No agent can use subagents or web tools.
 - All agents get the same added instruction, time limits and allowed network hosts.

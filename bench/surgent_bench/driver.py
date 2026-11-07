@@ -27,6 +27,7 @@ from surgent_bench.results import STALL_MARKER, Trial, load_trial
 from surgent_bench.settings import (
     BENCH_DIR,
     HARNESSES,
+    JOBS_DIR,
     SURGENT_PROVIDER,
     BenchConfig,
     Suite,
@@ -142,7 +143,7 @@ def trial_config(config: BenchConfig, current: Round, harness: str, build: str) 
     data: dict[str, Any] = {
         "task": current.task.model_dump(mode="json", exclude_defaults=True),
         "trial_name": trial_folder(harness, build, current.attempt),
-        "trials_dir": str(config.jobs_dir / current.path),
+        "trials_dir": str(JOBS_DIR / current.path),
         "agent_timeout_multiplier": current.suite.agent_timeout_multiplier
         or config.agent_timeout_multiplier,
         "agent": agent_entry(config, harness, current, build),
@@ -153,7 +154,7 @@ def trial_config(config: BenchConfig, current: Round, harness: str, build: str) 
 
 
 def trial_dir(config: BenchConfig, current: Round, harness: str, build: str) -> Path:
-    return config.jobs_dir / current.path / trial_folder(harness, build, current.attempt)
+    return JOBS_DIR / current.path / trial_folder(harness, build, current.attempt)
 
 
 def round_results(config: BenchConfig, current: Round, build: str) -> dict[str, Trial]:
@@ -193,7 +194,7 @@ def check_setup(config: BenchConfig, current: Round, build: str, max_trials: int
     recorded = [
         (path, harness, TrialConfig.model_validate_json(path.read_text()))
         for folder, harness in folders.items()
-        for path in sorted(config.jobs_dir.glob(f"*/*/{folder}/config.json"))
+        for path in sorted(JOBS_DIR.glob(f"*/*/{folder}/config.json"))
     ]
     for harness in HARNESSES:
         planned = TrialConfig.model_validate(trial_config(config, current, harness, build))
@@ -206,9 +207,9 @@ def check_setup(config: BenchConfig, current: Round, build: str, max_trials: int
             changed = [key for key in expected if expected[key] != found[key]]
             if changed:
                 folder = current.path / trial_folder(harness, build, current.attempt)
-                other = path.parent.relative_to(config.jobs_dir)
+                other = path.parent.relative_to(JOBS_DIR)
                 log(f"{folder}: setup differs from {other} in {', '.join(changed)}")
-                log("Restore those settings, or set a new run.jobs_dir for a separate experiment")
+                log("Restore those settings")
                 raise SystemExit(EXIT_SETUP)
 
 
@@ -403,7 +404,7 @@ def run_round(config: BenchConfig, current: Round, build: str) -> None:
             if harness in results:
                 log(f"{current.label}: {harness} {outcome(results[harness])}")
             elif code != 0:
-                other = trial_dirs[harness].relative_to(config.jobs_dir)
+                other = trial_dirs[harness].relative_to(JOBS_DIR)
                 log(f"{other}: harbor exited with code {code}; see its output above")
                 raise SystemExit(EXIT_HARBOR)
         failures = {results[harness].infra for harness in pending if harness in results}

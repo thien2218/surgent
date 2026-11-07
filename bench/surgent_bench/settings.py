@@ -11,6 +11,7 @@ from typing import Any
 BENCH_DIR = Path(__file__).resolve().parent.parent
 REPO_DIR = Path(os.environ.get("SURGENT_REPO", BENCH_DIR.parent)).resolve()
 DEFAULT_CONFIG = BENCH_DIR / "config.toml"
+JOBS_DIR = BENCH_DIR / "jobs"
 HARNESSES = ("surgent", "codex", "opencode")
 SURGENT_PREFIX = "surgent-"
 BUILD_PATTERN = r"(?P<version>v.+)-(?P<digest>[0-9a-f]{16})"
@@ -60,7 +61,6 @@ class BenchConfig:
     effort: str
     versions: dict[str, str]
     auth: AuthPaths
-    jobs_dir: Path
     agent_timeout_multiplier: float
     # Minutes without agent output before the driver stops the agent; 0 turns it off.
     stall_minutes: float
@@ -126,7 +126,6 @@ def load_config(path: Path = DEFAULT_CONFIG) -> BenchConfig:
             surgent=resolve_path(auth.get("surgent", "~/.pi/agent/auth.json")),
             opencode=resolve_path(auth.get("opencode", ".auth/opencode/opencode.db")),
         ),
-        jobs_dir=resolve_path(run.get("jobs_dir", "jobs")),
         agent_timeout_multiplier=float(run.get("agent_timeout_multiplier", 1.0)),
         stall_minutes=float(run.get("stall_minutes", 20)),
         n_concurrent=int(run.get("n_concurrent", 3)),

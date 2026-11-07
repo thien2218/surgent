@@ -62,7 +62,7 @@ Shared settings are set in `config.toml`; attempts per task are set with `run --
 | `[model]`    | Model name and reasoning effort.                                                                                                                                                                                                                 |
 | `[agents]`   | Pinned codex and opencode versions.                                                                                                                                                                                                              |
 | `[auth]`     | Where each agent's login file is on the host.                                                                                                                                                                                                    |
-| `[run]`      | Jobs folder, concurrency, time limits, stall limit, allowed network hosts, shuffle seed, retries, and an instruction added to every task.                                                                                       |
+| `[run]`      | Concurrency, time limits, stall limit, allowed network hosts, shuffle seed, retries, and an instruction added to every task.                                                                                                                     |
 | `[[suites]]` | Dataset, which tasks to run (`offset` and `limit`), time limits, [excluded tasks](#excluded-tasks) (`exclude`), environment fixes (`setup_commands`), and whether tests written by the agent are set aside before grading (`strip_agent_tests`). |
 
 ## Running on several machines
@@ -136,7 +136,7 @@ When the driver stops on its own, its exit code says why:
 
 - **2**: A login was rejected. Log in again with that agent's CLI, then restart.
 - **3**: The quota ran out. Restart once it resets.
-- **4**: Surgent isn't built (run `preflight`), or a setting differs from the one used by trials already recorded. Change the setting back, or set a new `run.jobs_dir`.
+- **4**: Surgent isn't built (run `preflight`), or a setting differs from the one used by trials already recorded. Change the setting back.
 - **5**: Harbor couldn't start a trial. Its error is printed just above.
 - **130**: The run was stopped with Ctrl+C or `kill`.
 

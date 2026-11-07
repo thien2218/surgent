@@ -13,7 +13,6 @@ surgent = "~/.pi/agent/auth.json"
 opencode = ".auth/opencode/opencode.db"
 
 [run]
-jobs_dir = "jobs/api"
 agent_timeout_multiplier = 1.0
 stall_minutes = 20
 n_concurrent = 3

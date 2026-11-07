@@ -13,6 +13,7 @@ from pathlib import Path
 from surgent_bench.settings import (
     BUILD_PATTERN,
     DEFAULT_CONFIG,
+    JOBS_DIR,
     SURGENT_PREFIX,
     BenchConfig,
     load_config,
@@ -61,8 +62,8 @@ def _preflight(config: BenchConfig, _args: argparse.Namespace) -> None:
 def _quota(config: BenchConfig, _args: argparse.Namespace) -> None:
     from surgent_bench.quota import latest_rate_limits, round_usage
 
-    limits = latest_rate_limits(config.jobs_dir)
-    usage = round_usage(config.jobs_dir)
+    limits = latest_rate_limits(JOBS_DIR)
+    usage = round_usage(JOBS_DIR)
     for round_name, delta in usage:
         print(f"  {round_name}: {delta:.2f}% of weekly")
     if usage and limits is not None and limits.weekly is not None:
@@ -89,12 +90,12 @@ def _surgent_build(config: BenchConfig, requested: str | None) -> str:
         return build
     builds = {
         match[1]
-        for path in config.jobs_dir.glob(f"*/*/{SURGENT_PREFIX}*")
+        for path in JOBS_DIR.glob(f"*/*/{SURGENT_PREFIX}*")
         if (match := TRIAL_FOLDER.fullmatch(path.name))
         and (requested in (match["version"], match["version"][1:]) or match["digest"].startswith(requested))
     }
     if len(builds) != 1:
-        raise SystemExit(f"--surgent-build {requested} matches {len(builds)} builds in {config.jobs_dir}")
+        raise SystemExit(f"--surgent-build {requested} matches {len(builds)} builds in {JOBS_DIR}")
     return builds.pop()
 
 
@@ -104,9 +105,9 @@ def _collect(config: BenchConfig, args: argparse.Namespace) -> None:
     out_dir = resolve_path(args.results)
     build = _surgent_build(config, args.surgent_build)
     print(f"surgent build {build}")
-    frames = collect(config.jobs_dir, out_dir, config.suites, build)
+    frames = collect(JOBS_DIR, out_dir, config.suites, build)
     if frames["trials"].empty:
-        print(f"No trials in {config.jobs_dir}; left {out_dir} unchanged")
+        print(f"No trials in {JOBS_DIR}; left {out_dir} unchanged")
         return
     print(summarize(frames["trials"]))
     for warning in consistency_warnings(frames["trials"]):

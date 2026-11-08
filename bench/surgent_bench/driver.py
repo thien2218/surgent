@@ -544,14 +544,9 @@ def run_rounds(config: BenchConfig, max_trials: int, limit: int | None) -> None:
                 # Re-materializing the same task could replace files used by current trials.
                 image_path.write_text(image or "")
                 next_task = None
-            finished = False
-            try:
-                with prefetch_image(next_task, image_path):
-                    run_round(config, current, build)
-                finished = True
-            finally:
-                next_image = image_path.read_text() if finished and image_path.is_file() else None
-                # Keep shared images only when actually advancing to the next task.
-                if image is not None and image != next_image:
-                    remove_image(image)
+            with prefetch_image(next_task, image_path):
+                run_round(config, current, build)
+            next_image = image_path.read_text() if image_path.is_file() else None
+            if image is not None and image != next_image:
+                remove_image(image)
     log("All rounds finished")

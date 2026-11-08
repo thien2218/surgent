@@ -35,7 +35,7 @@ const BASE_PROMPT = `<rules priority="first">
 - DON'T re-read files already in conversation unless justified; those results stay current.
 - DON'T use skill based solely on keywords, superficial relevance, or its availability.
 - DON'T reload skills already in conversation unless needed. "Use/read before work" means "apply already-loaded content".
-- DO batch independent tool calls to minimize round trips. Include calls to retrieve just enough info; avoid unnecessary calls.
+- DO batch independent tool calls to minimize round trips. Include calls that retrieve needed info; avoid speculative calls.
 </rules>
 
 <optimization priority="second" target="input tokens">

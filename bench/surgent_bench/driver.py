@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import random
 import re
 import shutil
@@ -12,6 +13,8 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,7 +22,9 @@ from typing import Any
 
 from harbor.environments.docker.docker import _sanitize_docker_compose_project_name
 from harbor.models.job.config import DatasetConfig
+from harbor.models.task.task import Task
 from harbor.models.trial.config import TaskConfig, TrialConfig
+from harbor.tasks.client import TaskClient
 
 from surgent_bench.prebuild import find_build, prebuilt_archive
 from surgent_bench.pricing import COST_DIGITS
@@ -375,14 +380,18 @@ def outcome(trial: Trial) -> str:
     return ", ".join(parts)
 
 
+def pending_agents(results: dict[str, Trial]) -> list[str]:
+    return [
+        harness
+        for harness in HARNESSES
+        if harness not in results or results[harness].infra is not None
+    ]
+
+
 def run_round(config: BenchConfig, current: Round, build: str) -> None:
     for retry in range(config.max_retries + 1):
         results = round_results(config, current, build)
-        pending = [
-            harness
-            for harness in HARNESSES
-            if harness not in results or results[harness].infra is not None
-        ]
+        pending = pending_agents(results)
         if not pending:
             return
         names = ", ".join(pending)
@@ -423,6 +432,69 @@ def run_round(config: BenchConfig, current: Round, build: str) -> None:
         log(f"{current.label}: giving up on {', '.join(failed)} after retries")
 
 
+def task_image(task: TaskConfig) -> str | None:
+    async def load() -> str | None:
+        downloaded = await TaskClient().download_tasks(
+            task_ids=[task.get_task_id()],
+            overwrite=task.overwrite,
+            output_dir=task.download_dir,
+        )
+        return Task(downloaded.results[0].path).config.environment.docker_image
+
+    try:
+        return asyncio.run(load())
+    except Exception as error:
+        log(f"Could not resolve image for {task.get_task_id().get_name()}: {error}")
+        return None
+
+
+@contextmanager
+def prefetch_image(task: TaskConfig | None, image_path: Path) -> Iterator[None]:
+    if task is None:
+        yield
+        return
+    name = task.get_task_id().get_name()
+    log(f"Prefetching image for {name}")
+    try:
+        process = subprocess.Popen(
+            [sys.executable, "-m", "surgent_bench.images", task.model_dump_json(), str(image_path)],
+            start_new_session=True,
+        )
+    except OSError as error:
+        log(f"Could not prefetch {name}: {error}; Harbor will retry when needed")
+        yield
+        return
+    try:
+        yield
+        if process.wait() != 0:
+            log(f"Prefetch failed for {name}; Harbor will retry when needed")
+    finally:
+        if process.poll() is None:
+            # Stop both task materialization and its Docker pull child.
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGTERM)
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                with suppress(ProcessLookupError):
+                    os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+
+
+def remove_image(image: str) -> None:
+    try:
+        done = subprocess.run(
+            ["docker", "image", "rm", "--", image],
+            capture_output=True, text=True, timeout=120,
+        )
+        if done.returncode:
+            log(f"Could not remove {image}: {done.stderr.strip()}")
+        else:
+            log(f"Removed {image}")
+    except (OSError, subprocess.SubprocessError) as error:
+        log(f"Could not remove {image}: {error}")
+
+
 def run_all(config: BenchConfig, max_trials: int, limit: int | None = None) -> None:
     # Ctrl+C or `kill <pid>` lets trials clean up, even when started in the background.
     for stop in (signal.SIGINT, signal.SIGTERM):
@@ -454,5 +526,32 @@ def run_rounds(config: BenchConfig, max_trials: int, limit: int | None) -> None:
             raise SystemExit(EXIT_SETUP)
         check_setup(config, current, build, max_trials)
         log(f"Round {position}/{len(rounds)}: {current.label}")
-        run_round(config, current, build)
+        if not pending_agents(round_results(config, current, build)):
+            continue
+        upcoming = next(
+            (
+                candidate
+                for candidate in rounds[position:]
+                if pending_agents(round_results(config, candidate, build))
+            ),
+            None,
+        )
+        image = task_image(current.task)
+        with tempfile.TemporaryDirectory(prefix="bench-image-") as temp_dir:
+            image_path = Path(temp_dir) / "image"
+            next_task = upcoming.task if upcoming is not None else None
+            if next_task is not None and next_task.get_task_id() == current.task.get_task_id():
+                # Re-materializing the same task could replace files used by current trials.
+                image_path.write_text(image or "")
+                next_task = None
+            finished = False
+            try:
+                with prefetch_image(next_task, image_path):
+                    run_round(config, current, build)
+                finished = True
+            finally:
+                next_image = image_path.read_text() if finished and image_path.is_file() else None
+                # Keep shared images only when actually advancing to the next task.
+                if image is not None and image != next_image:
+                    remove_image(image)
     log("All rounds finished")

@@ -48,6 +48,7 @@ Run `preflight` again whenever you change the surgent checkout. `run --max-trial
 
 - **Task selection.** Each suite's tasks are shuffled into a fixed order based on `run.seed`. Excluded tasks are removed, and the run takes `limit` tasks starting at position `offset`. A suite with `limit = 0` is skipped.
 - **Trials.** Every agent attempts every task up to `run --max-trials N` times, 3 by default. A round is one task attempted once by all three agents at the same time, each in its own Harbor trial. The run goes through all tasks once before starting the next attempt.
+- **Task images.** While the current round runs, the driver pulls the next unfinished round's declared `docker_image` in the background, then waits for the pull before advancing. After all agents and infrastructure retries in the current round finish, it tries to remove that round's exact image reference with non-force `docker image rm`, unless the next unfinished round uses the same reference. Tasks with only a Dockerfile keep Harbor's existing build behavior; they aren't explicitly prefetched.
 - **Output.** Each trial gets its own folder in `jobs/<suite>/<task>/`: `codex`, `codex-2`, `codex-3` and so on, and likewise for `opencode` and `surgent-<version>-<build>`.
 - **Stalled agents.** An agent that produces no output for 20 minutes (`run.stall_minutes`) is stopped and graded on what it has done so far, recorded as `AgentStalledError`. Normal trials have gone at most about 10 minutes without output.
 - **Surgent builds.** Surgent runs from this repository. `preflight` packs the checkout into `surgent-<version>-<build>.tgz`, where `<version>` is surgent's package version and `<build>` is a hash of its contents. Changing the checkout creates a new build: only surgent's trials run again, and results from earlier builds are kept for comparison.
@@ -140,4 +141,6 @@ When the driver stops on its own, its exit code says why:
 - **5**: Harbor couldn't start a trial. Its error is printed just above.
 - **130**: The run was stopped with Ctrl+C or `kill`.
 
-Docker keeps every task image it pulls, so run `docker image prune -a` if disk space runs low. Trial folders can contain credentials an agent wrote, so check `jobs/` before sharing it.
+Image pull and removal failures are logged. A failed prefetch leaves Harbor to start the task with its normal startup retries; stopping the run terminates any background pull. Image removal isn't forced, and the driver never runs a global prune or removes unrelated images. Removing images lets Docker reuse disk space, but on Windows the Docker/WSL VHDX may need compaction before that space is returned to the host.
+
+Trial folders can contain credentials an agent wrote, so check `jobs/` before sharing it.

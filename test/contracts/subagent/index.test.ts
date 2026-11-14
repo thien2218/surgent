@@ -39,7 +39,6 @@ describe("subagent tool contract", () => {
     } });
     expect(tool.exposure).toBe("model-only");
     expect(tool.description).toContain("separate session");
-    expect(tool.promptSnippet).toContain("configured agents");
   });
 
   it("returns child output, session ID and progress, runs supplied task, and persists before disposal", async () => {
@@ -194,9 +193,13 @@ describe("subagent rendering", () => {
   it("truncates collapsed output while expanded output shows every line", async () => {
     const { tool, ui } = await setup();
     const result = { content: [{ type: "text" as const, text: Array.from({ length: 15 }, (_, index) => `Line ${index + 1}`).join("\n") }], details: undefined };
-    const context = { args: { agent: "worker", task: "Task" } } as Parameters<NonNullable<typeof tool.renderResult>>[3];
+    const context = {
+      args: { agent: "worker", task: "Task" },
+      keyHint: () => "ctrl+e to expand",
+    } as unknown as Parameters<NonNullable<typeof tool.renderResult>>[3];
     const collapsed = text(tool.renderResult!(result, { expanded: false, isPartial: false }, ui.theme, context));
     expect(collapsed).toContain("more lines");
+    expect(collapsed).toContain("ctrl+e to expand");
     expect(collapsed).not.toMatch(/Line 1\s/);
     const expanded = text(tool.renderResult!(result, { expanded: true, isPartial: false }, ui.theme, context));
     expect(expanded).toMatch(/Line 1\s/);

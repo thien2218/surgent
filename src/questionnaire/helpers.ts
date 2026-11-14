@@ -136,6 +136,7 @@ export function normalizeQuestion(question: Question): NormalizedQuestion {
   const minSelections = multi ? (question.minSelections ?? 1) : 1;
   const maxSelections = multi ? (question.maxSelections ?? options.length) : 1;
   const recommendations = options.filter((option) => option.recommended);
+  const placeholder = question.placeholder?.trim() || "Type your answer";
 
   if (multi && maxSelections < minSelections) {
     throw new Error(`Question "${prompt}" has minSelections greater than maxSelections.`);
@@ -156,7 +157,7 @@ export function normalizeQuestion(question: Question): NormalizedQuestion {
     prompt,
     reason: question.reason?.trim(),
     options,
-    placeholder: question.placeholder.trim(),
+    placeholder,
     multi,
     minSelections,
     maxSelections,

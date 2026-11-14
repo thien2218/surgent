@@ -1,12 +1,19 @@
-import { generateDiffString, initTheme, type ExtensionToolContext, type Theme } from "@earendil-works/pi-coding-agent";
+import {
+  generateDiffString,
+  initTheme,
+  type ExtensionToolContext,
+  type Theme,
+} from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { beforeAll, describe, expect, it } from "vitest";
 import optimizer from "../../../src/optimizer/index.js";
 import { recordExtension } from "../../helpers/extension.js";
 
-beforeAll(() => { initTheme("dark", false); });
+beforeAll(() => {
+  initTheme("dark", false);
+});
 
-const patch = (...lines: string[]) => ["*** Begin Patch", ...lines, "*** End Patch"].join("\n");
+const patch = (...lines: string[]) => ["*** Begin", ...lines, "*** End"].join("\n");
 
 function setup() {
   const extension = recordExtension();
@@ -18,10 +25,14 @@ function setup() {
   const renderCall = (args: Record<string, unknown>, isPartial = false) =>
     text(tool.renderCall?.(args, theme, { isPartial } as CallOptions));
   const renderResult = (result: Record<string, unknown>, isError = false) =>
-    text(tool.renderResult?.(
-      { content: [], details: undefined, ...result }, { isPartial: false, expanded: false }, theme,
-      { isError } as ResultContext,
-    ));
+    text(
+      tool.renderResult?.(
+        { content: [], details: undefined, ...result },
+        { isPartial: false, expanded: false },
+        theme,
+        { isError } as ResultContext,
+      ),
+    );
   return { tool, renderCall, renderResult };
 }
 
@@ -34,25 +45,37 @@ describe("patch registration", () => {
     const { tool } = setup();
 
     expect(tool.parameters).toMatchObject({
-      type: "object", required: ["patchText"], properties: { patchText: { type: "string" } },
+      type: "object",
+      required: ["patchText"],
+      properties: { patchText: { type: "string" } },
     });
-    expect(tool.description).toContain("*** Begin Patch");
-    expect(tool.description).toContain("*** Update File: <path>");
+    expect(tool.description).toContain("*** Begin");
+    expect(tool.description).toContain("*** Update: <path>");
   });
 
   it.each([
     ["", "patchText is required"],
-    ["*** Add File: a.txt\n+x", "patch verification failed: Error: Invalid patch format: missing Begin/End markers"],
+    [
+      "*** Add: a.txt\n+x",
+      "patch verification failed: Error: Invalid patch format: missing Begin/End markers",
+    ],
     [patch(), "patch rejected: empty patch"],
-    ["*** Begin Patch\r\n*** End Patch\r\n", "patch rejected: empty patch"],
+    ["*** Begin\r\n*** End\r\n", "patch rejected: empty patch"],
     [patch("not a header"), "patch verification failed: no hunks found"],
   ])("rejects %j before reading the session context", async (patchText, message) => {
     const { tool } = setup();
-    const ctx = new Proxy({}, {
-      get(_target, property) { throw new Error(`Unexpected context access: ${String(property)}`); },
-    }) as ExtensionToolContext;
+    const ctx = new Proxy(
+      {},
+      {
+        get(_target, property) {
+          throw new Error(`Unexpected context access: ${String(property)}`);
+        },
+      },
+    ) as ExtensionToolContext;
 
-    await expect(tool.execute("call", { patchText }, undefined, undefined, ctx)).rejects.toThrow(message);
+    await expect(tool.execute("call", { patchText }, undefined, undefined, ctx)).rejects.toThrow(
+      message,
+    );
   });
 });
 
@@ -60,9 +83,14 @@ describe("patch rendering", () => {
   it.each([false, true])("lists every file header in the call with partial=%s", (isPartial) => {
     const { renderCall } = setup();
     const patchText = patch(
-      "*** Update File: src/a.ts", "*** Move to: src/b.ts", "@@", "-x", "+y",
-      "*** Add File: c.txt", "+z",
-      "*** Delete File: d.txt",
+      "*** Update: src/a.ts",
+      "*** Move to: src/b.ts",
+      "@@",
+      "-x",
+      "+y",
+      "*** Add: c.txt",
+      "+z",
+      "*** Delete: d.txt",
     );
 
     expect(renderCall({ patchText }, isPartial)).toBe("patch src/a.ts, c.txt, d.txt");
@@ -70,7 +98,7 @@ describe("patch rendering", () => {
 
   it.each([
     [{}, "patch"],
-    [{ patchText: "*** Begin Patch\n*** Update File: src/a" }, "patch src/a"],
+    [{ patchText: "*** Begin\n*** Update: src/a" }, "patch src/a"],
   ])("renders streaming arguments %j", (args, expected) => {
     const { renderCall } = setup();
     expect(renderCall(args, true)).toBe(expected);
@@ -87,7 +115,16 @@ describe("patch rendering", () => {
 
     const output = renderResult({ details: { files } });
 
-    for (const expected of ["M a.txt", "one", "two", "M moved.txt", "A added.txt", "fresh", "D gone.txt", "gone"]) {
+    for (const expected of [
+      "M a.txt",
+      "one",
+      "two",
+      "M moved.txt",
+      "A added.txt",
+      "fresh",
+      "D gone.txt",
+      "gone",
+    ]) {
       expect(output).toContain(expected);
     }
   });

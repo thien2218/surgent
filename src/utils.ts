@@ -1,10 +1,12 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { existsSync, realpathSync } from "node:fs";
 import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, normalize, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
-  keyHint,
+  type KeybindingHints,
   SettingsManager,
   Theme,
   truncateToVisualLines,
@@ -196,7 +198,12 @@ export function renderCallText(text: string, isPartial: boolean) {
   return container;
 }
 
-export function renderResultText(text: string, theme: Theme, expanded: boolean) {
+export function renderResultText(
+  text: string,
+  theme: Theme,
+  expanded: boolean,
+  keyHint: KeybindingHints["keyHint"],
+) {
   if (expanded) {
     return new Text(theme.fg("toolOutput", text), 0, 0);
   }
@@ -221,4 +228,48 @@ export function getCurrentDate(): string {
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+// Mirror Pi's built-in input conventions without importing private modules.
+export function normalizeToolPath(
+  sourcePath: string,
+  cwd: string,
+  isRead: boolean = false,
+): string {
+  let path = sourcePath.replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ");
+  if (path.startsWith("@")) path = path.slice(1);
+  if (
+    process.platform === "win32" &&
+    path.startsWith("/") &&
+    !path.startsWith("//") &&
+    !path.includes("\\")
+  ) {
+    const drive = path.match(/^\/(?:mnt\/|cygdrive\/)?([a-z])(?:\/(.*))?$/i);
+    if (drive) path = `${drive[1]!.toUpperCase()}:\\${drive[2]?.replaceAll("/", "\\") ?? ""}`;
+  }
+  if (path === "~") path = homedir();
+  else if (path.startsWith("~/") || (process.platform === "win32" && path.startsWith("~\\"))) {
+    path = join(homedir(), path.slice(2));
+  }
+  if (path.startsWith("file://")) path = fileURLToPath(path);
+  path = resolve(cwd, path);
+
+  if (isRead) {
+    const decomposed = path.normalize("NFD");
+    const candidates = [
+      path,
+      path.replace(/ (AM|PM)\./gi, "\u202f$1."),
+      decomposed,
+      path.replace(/'/g, "\u2019"),
+      decomposed.replace(/'/g, "\u2019"),
+    ];
+    path = candidates.find(existsSync) ?? path;
+  }
+
+  const absolutePath = resolve(cwd, path);
+  try {
+    return normalize(realpathSync(absolutePath));
+  } catch {
+    return normalize(absolutePath);
+  }
 }

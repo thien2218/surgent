@@ -148,7 +148,7 @@ describe("checkpoint staging and restore", () => {
     const workspace = await openCheckpointWorkspace();
     await writeFile(join(workspace.cwd, "new"), "content");
     const exec: ExtensionAPI["exec"] = (command, args, options) => args.includes("add")
-      ? Promise.resolve({ code: 1, stderr: "index locked", stdout: "", killed: false })
+      ? Promise.resolve({ code: 1, stderr: "index locked", stdout: "", killed: false, truncated: false })
       : workspace.exec(command, args, options);
     expect(await createSnapshot(recordExtension({ exec }).api, workspace.repo)).toBeUndefined();
     expect(await readFile(join(workspace.cwd, "new"), "utf8")).toBe("content");

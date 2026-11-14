@@ -1,7 +1,7 @@
 import type { ToolCall } from "@earendil-works/pi-ai";
 import type { ProjectedSessionEntry, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { getEligibleResult } from "../entries.js";
-import { normalizeToolPath } from "./resources.js";
+import { normalizeToolPath } from "../../utils.js";
 
 function isPathTool(toolName: string) {
   return (
@@ -62,7 +62,7 @@ export function buildDeduplicatorState(
 
     let path: string;
     try {
-      path = normalizeToolPath(input, cwd, raw.toolName);
+      path = normalizeToolPath(input, cwd, raw.toolName === "read");
     } catch {
       continue;
     }

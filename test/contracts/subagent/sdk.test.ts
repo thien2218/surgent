@@ -39,15 +39,15 @@ async function bridgeSetup() {
 }
 
 describe("SDK session configuration", () => {
-  it("uses parent model, thinking level and UI with a persistent session", async () => {
+  it.each(["tui", "rpc"] as const)("binds a background session with parent model, thinking level, and dialogs (%s parent)", async (mode) => {
     const fixture = await setup();
-    fixture.request.ctx = { ...fixture.ctx, model: fixture.model, thinkingLevel: "low" };
+    fixture.request.ctx = { ...fixture.ctx, mode, model: fixture.model, thinkingLevel: "low" };
     await createSdkSession(fixture.request, fixture.runtime);
     const options = vi.mocked(createAgentSession).mock.calls[0]![0]!;
     expect(options).toMatchObject({ cwd: fixture.cwd, model: fixture.request.ctx.model, thinkingLevel: "low" });
     expect(options.sessionManager!.getSessionDir()).toBe(join(fixture.cwd, ".pi", "subsessions"));
     expect(options.sessionManager!.getSessionFile()).toEqual(expect.any(String));
-    expect(fixture.sessions[0]!.bindExtensions).toHaveBeenCalledWith({ mode: fixture.ctx.mode, uiContext: fixture.ui });
+    expect(fixture.sessions[0]!.bindExtensions).toHaveBeenCalledWith({ mode: "print", uiContext: fixture.ui });
     expect(fixture.sessions[0]!.setActiveToolsByName).toHaveBeenCalledWith(["read", "bash"]);
   });
 
@@ -94,7 +94,7 @@ describe("SDK session configuration", () => {
     fixture.request.ctx = { ...fixture.ctx, hasUI: false };
     await createSdkSession(fixture.request, fixture.runtime);
     expect(fixture.sessions[0]!.setActiveToolsByName).toHaveBeenCalledWith([]);
-    expect(fixture.sessions[0]!.bindExtensions).toHaveBeenCalledWith({ mode: fixture.ctx.mode, uiContext: undefined });
+    expect(fixture.sessions[0]!.bindExtensions).toHaveBeenCalledWith({ mode: "print", uiContext: undefined });
   });
 
   it("rejects unknown configured models before creating a session", async () => {

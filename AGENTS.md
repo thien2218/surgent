@@ -14,6 +14,7 @@
 ├── package.json
 ├── pnpm-lock.yaml
 ├── pnpm-workspace.yaml
+├── bench
 ├── src
 │   ├── agent
 │   ├── checkpoint
@@ -28,6 +29,7 @@
 │   ├── ui
 │   ├── utils.ts
 │   └── web-tools
+├── test
 └── tsconfig.json
 ```
 
@@ -54,19 +56,9 @@ The three kinds of extensions used in this project:
 
 Multi-file extensions live as a directory under `src/` with an `index.ts` entry point. Single-concern additions can be a single `.ts` file.
 
-## After implementation
-
-Run type checking to validate the change:
-
-```bash
-pnpm tsc --noEmit
-```
-
-Then tell the user what to manually test, why and how.
-Run this command exactly once, as-is, with no chaining, flags, or extra shell modifiers, and only after all write/edit operations are finalized.
-
 ## Guideline
 
+- Run `pnpm test` without a max workers limit. Run E2E tests separately with `pnpm test:e2e` only when affected by the changes.
 - Single char variable names are strictly forbidden.
 - When fixing a tool, don't call it to validate. Tools need to be manually reloaded by user first for a fix to work.
 - Names should use as few words as possible and have no more than 4 words.

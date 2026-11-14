@@ -1,13 +1,16 @@
-# General
+# general
 temp/
+.claude/
 
-# Python
+# benchmark
+bench/results/
 bench/jobs/
+bench/.auth/
 .venv/
 __pycache__/
 *.egg-info/
 *.tgz
 
-# TS/JS
+# main
 node_modules/
 dist/

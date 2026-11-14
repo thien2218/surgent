@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { CustomEditor, VERSION as PI_VERSION } from "@earendil-works/pi-coding-agent";
+import { CustomEditor } from "@earendil-works/pi-coding-agent";
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { Key, KeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
 import type { EditorTheme, TUI } from "@earendil-works/pi-tui";
@@ -16,11 +16,13 @@ function setup() {
     bold: (text: string) => text,
   } satisfies Pick<Theme, "fg" | "bold">;
   const ui = {
+    notify: vi.fn<ExtensionContext["ui"]["notify"]>(),
     setHeader: vi.fn<ExtensionContext["ui"]["setHeader"]>(),
+    setStatus: vi.fn<ExtensionContext["ui"]["setStatus"]>(),
     setEditorComponent: vi.fn<ExtensionContext["ui"]["setEditorComponent"]>(),
     setTitle: vi.fn<ExtensionContext["ui"]["setTitle"]>(),
     theme: theme as Theme,
-  } satisfies Pick<ExtensionContext["ui"], "setHeader" | "setEditorComponent" | "setTitle" | "theme">;
+  } satisfies Pick<ExtensionContext["ui"], "notify" | "setHeader" | "setStatus" | "setEditorComponent" | "setTitle" | "theme">;
   const sessionManager = {
     getCwd: vi.fn<ExtensionContext["sessionManager"]["getCwd"]>().mockReturnValue("/workspace/project"),
     getSessionName: vi.fn<ExtensionContext["sessionManager"]["getSessionName"]>(),
@@ -64,19 +66,19 @@ describe("UI extension contract", () => {
       vi.useRealTimers();
     });
 
-    it("sets idle title at startup and cycles frames every 50 ms", async () => {
+    it("sets idle title at startup and cycles frames every 100 ms", async () => {
       const { extension, ui, context, start } = setup();
       await start();
       expect(ui.setTitle).toHaveBeenCalledExactlyOnceWith("π   project");
 
       await extension.event("agent_start")({ type: "agent_start" }, context);
-      vi.advanceTimersByTime(49);
+      vi.advanceTimersByTime(99);
       expect(ui.setTitle).toHaveBeenCalledOnce();
       vi.advanceTimersByTime(1);
       expect(ui.setTitle).toHaveBeenLastCalledWith("⠋   project");
-      vi.advanceTimersByTime(50);
+      vi.advanceTimersByTime(100);
       expect(ui.setTitle).toHaveBeenLastCalledWith("⠙   project");
-      vi.advanceTimersByTime(9 * 50);
+      vi.advanceTimersByTime(9 * 100);
       expect(ui.setTitle).toHaveBeenCalledTimes(12);
       expect(ui.setTitle).toHaveBeenLastCalledWith("⠋   project");
     });
@@ -84,12 +86,12 @@ describe("UI extension contract", () => {
     it("keeps one animation without flashing idle on repeated starts", async () => {
       const { extension, ui, context } = setup();
       await extension.event("agent_start")({ type: "agent_start" }, context);
-      vi.advanceTimersByTime(25);
+      vi.advanceTimersByTime(50);
 
       await extension.event("agent_start")({ type: "agent_start" }, context);
       await extension.event("agent_start")({ type: "agent_start" }, context);
-      vi.advanceTimersByTime(25);
       vi.advanceTimersByTime(50);
+      vi.advanceTimersByTime(100);
 
       expect(ui.setTitle.mock.calls).toEqual([
         ["⠋   project"],
@@ -100,7 +102,7 @@ describe("UI extension contract", () => {
     it.each([false, true])("restores idle after settlement (aborted: %s) and allows another run", async (aborted) => {
       const { extension, ui, context, sessionManager } = setup();
       await extension.event("agent_start")({ type: "agent_start" }, context);
-      vi.advanceTimersByTime(100);
+      vi.advanceTimersByTime(200);
       sessionManager.getSessionName.mockReturnValue("finished session");
       sessionManager.getCwd.mockReturnValue("/sessions/finished-dir");
 
@@ -115,9 +117,9 @@ describe("UI extension contract", () => {
 
       await extension.event("agent_start")({ type: "agent_start" }, context);
       expect(ui.setTitle).toHaveBeenCalledTimes(3);
-      vi.advanceTimersByTime(50);
+      vi.advanceTimersByTime(100);
       expect(ui.setTitle).toHaveBeenLastCalledWith("⠋   finished session - finished-dir");
-      vi.advanceTimersByTime(50);
+      vi.advanceTimersByTime(100);
       expect(ui.setTitle).toHaveBeenLastCalledWith("⠙   finished session - finished-dir");
     });
 
@@ -138,13 +140,13 @@ describe("UI extension contract", () => {
       sessionManager.getSessionName.mockReturnValue("original session");
       sessionManager.getCwd.mockReturnValue("/sessions/original-dir");
       await extension.event("agent_start")({ type: "agent_start" }, context);
-      vi.advanceTimersByTime(50);
+      vi.advanceTimersByTime(100);
 
       sessionManager.getSessionName.mockReturnValue("renamed session");
       sessionManager.getCwd.mockReturnValue("/sessions/new-dir");
-      vi.advanceTimersByTime(50);
+      vi.advanceTimersByTime(100);
       sessionManager.getSessionName.mockReturnValue(undefined);
-      vi.advanceTimersByTime(50);
+      vi.advanceTimersByTime(100);
       await extension.event("agent_settled")({ type: "agent_settled", aborted: false }, context);
 
       expect(ui.setTitle.mock.calls).toEqual([
@@ -161,7 +163,7 @@ describe("UI extension contract", () => {
       sessionManager.getCwd.mockReturnValue("/sessions/\x1b[32mproject\x1b[0m\x07\n\x7f\x9f");
 
       await extension.event("agent_start")({ type: "agent_start" }, context);
-      vi.advanceTimersByTime(100);
+      vi.advanceTimersByTime(200);
       await extension.event("agent_settled")({ type: "agent_settled", aborted: false }, context);
 
       expect(ui.setTitle.mock.calls).toEqual([
@@ -182,6 +184,8 @@ describe("UI extension contract", () => {
 
       await extension.event("session_start")({ type: "session_start", reason: "startup" }, headless);
       expect(ui.setTitle.mock.calls).toEqual(titles);
+      expect(ui.notify).not.toHaveBeenCalled();
+      expect(ui.setStatus).not.toHaveBeenCalled();
       await extension.event("agent_start")({ type: "agent_start" }, headless);
       expect(vi.getTimerCount()).toBe(0);
       vi.advanceTimersByTime(800);
@@ -203,6 +207,8 @@ describe("UI extension contract", () => {
 
     expect(ui.setHeader).not.toHaveBeenCalled();
     expect(ui.setEditorComponent).not.toHaveBeenCalled();
+    expect(ui.notify).not.toHaveBeenCalled();
+    expect(ui.setStatus).not.toHaveBeenCalled();
   });
 
   it("allows the mode shortcut before Pi creates an editor", async () => {
@@ -217,22 +223,19 @@ describe("UI extension contract", () => {
     expect(editor.getText()).toBe("echo hello");
   });
 
-  it("installs a header showing package and Pi versions", async () => {
-    const { ui, tui, start } = setup();
+  it.each(["startup", "reload", "new", "resume", "fork"] as const)("shows accent branding before agent status on %s", async (reason) => {
+    const { extension, ui, context } = setup();
     const packageJson = JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf8"));
+    vi.spyOn(ui.theme, "fg").mockImplementation((color, text) => `<${color}>${text}</${color}>`);
 
-    await start();
-    const factory = ui.setHeader.mock.calls.at(-1)?.[0];
-    if (!factory) throw new Error("UI session did not install a header factory");
-    const header = factory(tui, ui.theme);
+    await extension.event("session_start")({ type: "session_start", reason }, context);
 
-    expect(header.render(120)).toEqual([
-      `${packageJson.name} v${packageJson.version} · built on top of pi v${PI_VERSION}`,
-    ]);
-    header.invalidate();
-    expect(header.render(120)).toEqual([
-      `${packageJson.name} v${packageJson.version} · built on top of pi v${PI_VERSION}`,
-    ]);
+    expect(ui.setHeader).not.toHaveBeenCalled();
+    expect(ui.notify).not.toHaveBeenCalled();
+    expect(ui.setStatus).toHaveBeenCalledOnce();
+    const [key, status] = ui.setStatus.mock.calls[0]!;
+    expect(key.localeCompare("agent")).toBeLessThan(0);
+    expect(status).toBe(`<accent>${packageJson.name} v${packageJson.version}</accent> <dim>•</dim>`);
   });
 
   it("routes Ctrl+Alt+B through prompt, included bash, and excluded bash without losing input", async () => {

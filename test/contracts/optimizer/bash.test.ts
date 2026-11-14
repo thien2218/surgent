@@ -27,40 +27,28 @@ async function reduce(chunks: Buffer[]) {
   return (result.structuredContent as { output: string }).output;
 }
 
-// Reference expansion of the model-facing text format.
-function expand(text: string) {
-  return (text.match(/[^\n]*\n|[^\n]+$/g) ?? []).map((line) => {
-    const markers = /\\[{}]|{([A-Za-z0-9]+(?:, [A-Za-z0-9]+)+)}/g;
-    const values = Array.from(line.matchAll(markers)).find((match) => match[1]);
-    if (!values) return line.replace(/\\([{}])/g, "$1");
-    return values[1]!.split(", ").map((value) =>
-      line.replace(markers, (marker, list) => list ? value : marker.slice(1)),
-    ).join("");
-  }).join("");
-}
-
 describe("registered Bash output reduction", () => {
-  it("preserves UTF-8, ANSI, and carriage returns across fragmented output", async () => {
-    const input = Buffer.from("\u001b[31mcafé 🦊\u001b[0m\r\nloading 1\rloading 2\r\nend");
-    expect(await reduce([input])).toBe(input.toString());
-    expect(await reduce(Array.from(input, (byte) => Buffer.from([byte])))).toBe(input.toString());
+  it("renders terminal text and preserves UTF-8 across fragmented output", async () => {
+    const input = Buffer.from("\u001b[31mcafé 🦊\u001b[0m  \r\nloading 1\rloading 2\r\nvoilà \t\nÛm {braces}");
+    const expected = "café 🦊\r\nloading 2\r\nvoilà\nÛm {braces}";
+    expect(await reduce([input])).toBe(expected);
+    expect(await reduce(Array.from(input, (byte) => Buffer.from([byte])))).toBe(expected);
   });
 
   it.each([
-    ["status 204\nstatus 404\nstatus 404\nstatus 500\n", "status {204, 404, 404, 500}\n"],
-    ["Downloading package 100\n".repeat(3) + "OK\nDownloading package 100\n", "Downloading package {100, 100, 100}\nOK\nDownloading package 100\n"],
-    ["1\n2\nsame\nsame\nGET /api/post/ resolves to 204\nGET /api/post/ resolves to 404", "1\n2\nsame\nsame\nGET /api/post/ resolves to 204\nGET /api/post/ resolves to 404"],
-    ["GET /api/{post}/ resolves to {204}\nGET /api/{post}/ resolves to {404}\nliteral {204, 404}\n100%", "GET /api/\\{post\\}/ resolves to \\{{204, 404}\\}\nliteral \\{204, 404\\}\n100%"],
-    ["status 204\nstatus 404\nother 500\nother 501\r\nother 502!\r\n", "status {204, 404}\nother 500\nother 501\r\nother 502!\r\n"],
-  ])("preserves grouping boundaries and escaping for %j", async (input, expected) => {
-    const output = await reduce([Buffer.from(input)]);
-    expect(output).toBe(expected);
-    expect(expand(output)).toBe(input);
+    ["Downloading 10%\r\u001b[KDownloading 100%\n", "Downloading 100%\n"],
+    ["\u001b]8;;https://example.com\u0007link\u001b]8;;\u0007\n", "link\n"],
+    ["done\r", "done"],
+    ["Downloading package 100\n".repeat(3) + "OK\n", "Downloading package 100\n[above line repeated 2 more times]\nOK\n"],
+    ["same\nsame\nother\r\nother\n", "same\nsame\nother\r\nother\n"],
+    ["warning: request retried\n".repeat(4) + "warning: request retried", "warning: request retried\n[above line repeated 3 more times]\nwarning: request retried"],
+  ])("reduces %j", async (input, expected) => {
+    expect(await reduce([Buffer.from(input)])).toBe(expected);
   });
 
-  it("keeps long grouped runs lossless", async () => {
-    const input = "GET /api/post/ resolves to 204\n".repeat(3000);
-    expect(expand(await reduce([Buffer.from(input)]))).toBe(input);
+  it("collapses long repeated runs into one marker", async () => {
+    const line = "GET /api/post/ resolves to 204\n";
+    expect(await reduce([Buffer.from(line.repeat(3000))])).toBe(`${line}[above line repeated 2999 more times]\n`);
   });
 
   it("streams settled output before completion and flushes the pending tail once", async () => {

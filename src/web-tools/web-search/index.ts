@@ -14,18 +14,16 @@ const webSearchTool = defineTool({
   name: "web_search",
   label: "Web Search",
   description: "Search web or news. Returns ranked title/summary/url results.",
-  promptSnippet: "Search web or news. Returns ranked results.",
-  promptGuidelines: [
-    "Use web_search for external/unavailable info.",
-    "Use web_search with news=true for recent reporting; default is web search.",
-    "Use web_search with small max first; results are re-ranked best-first.",
-  ],
   parameters: Type.Object({
     query: Type.String({ description: "Search query" }),
     max: Type.Optional(
-      Type.Number({ description: "Max results (default: 5)", minimum: 1, maximum: 10 }),
+      Type.Number({
+        description: "Max results (default: 5); best-first. Start small",
+        minimum: 1,
+        maximum: 10,
+      }),
     ),
-    news: Type.Optional(Type.Boolean({ description: "Search news when true; web when false" })),
+    news: Type.Optional(Type.Boolean({ description: "Search news instead of web" })),
   }),
   async execute(_toolCallId, { query, max = 5, news = false }, signal, _onUpdate, ctx) {
     const trimmed = query.trim();
@@ -85,13 +83,13 @@ const webSearchTool = defineTool({
       isPartial,
     );
   },
-  renderResult(result, { expanded, isPartial }, theme) {
+  renderResult(result, { expanded, isPartial }, theme, ctx) {
     if (isPartial) {
       return new Text(theme.fg("warning", "Searching..."), 0, 0);
     }
     const details = result.details as { results: WebSearchResult[] } | undefined;
     const text = (details?.results.map((item) => item.url) ?? ["No search results"]).join("\n");
-    return renderResultText(text, theme, expanded);
+    return renderResultText(text, theme, expanded, ctx.keyHint);
   },
 });
 

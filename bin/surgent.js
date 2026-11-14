@@ -35,7 +35,7 @@ const BASE_PROMPT = `<rules priority="first">
 - DON'T re-read files already in conversation unless justified; those results stay current.
 - DON'T use skill based solely on keywords, superficial relevance, or its availability.
 - DON'T reload skills already in conversation unless needed. "Use/read before work" means "apply already-loaded content".
-- PREFER batching independent tool calls already known. But avoid deliberating to grow batch, no speculative "just in case" calls.
+- DO batch independent tool calls to minimize round trips. Include calls that retrieve needed info; avoid speculative calls.
 </rules>
 
 <optimization priority="second" target="input tokens">
@@ -76,7 +76,16 @@ async function initBuiltInMeta() {
   await writeFile(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
 }
 
-// Pi reads SYSTEM.md before any extension runs, so it must be current before launch.
+async function initLocalSettings(cwd) {
+  const settingsPath = resolve(cwd, ".pi", "settings.json");
+  await mkdir(dirname(settingsPath), { recursive: true });
+  try {
+    await writeFile(settingsPath, "{}\n", { flag: "wx" });
+  } catch (error) {
+    if (error?.code !== "EEXIST") throw error;
+  }
+}
+
 async function writeSystemPrompt() {
   const systemPath = resolve(GLOBAL_PI_DIR, "SYSTEM.md");
   // Skip identical writes so concurrent launches never read a truncated file.
@@ -237,6 +246,7 @@ if (args.includes("--help") || args.includes("-h")) {
   }
   const [entries] = await Promise.all([
     readdir(srcDir, { withFileTypes: true }),
+    initLocalSettings(cwd),
     ...LOCAL_PI_SUBDIRS.map((dir) => mkdir(resolve(cwd, ".pi", dir), { recursive: true })),
     ...GLOBAL_PI_SUBDIRS.map((dir) => mkdir(resolve(GLOBAL_PI_DIR, dir), { recursive: true })),
   ]);
